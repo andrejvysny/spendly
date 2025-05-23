@@ -1,4 +1,4 @@
-# Spendly API Documentation
+# Spendly API Documentation - WIP
 
 This document describes the Spendly REST API endpoints for managing personal finance data.
 

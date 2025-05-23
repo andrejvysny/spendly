@@ -2,65 +2,42 @@
 
 ## 📋 Prerequisites
 
-- PHP 8.1 or higher
-- Node.js 16.x or higher
+- PHP 8.3 or higher
+- Node.js 20 or higher
 - Composer
-- MySQL/PostgreSQL
-- GoCardless API credentials
+- Docker (recommended)
 
 ## 🛠️ Installation
 
-1. Clone the repository:
+### 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/spendly.git
+git clone https://github.com/your-username/spendly.git
 cd spendly
 ```
 
-2. Install PHP dependencies:
-```bash
-composer install
-```
-
-3. Install JavaScript dependencies:
-```bash
-npm install
-```
-
-4. Copy the environment file:
+### 2. Set up the environment
 ```bash
 cp .env.example .env
 ```
 
-5. Configure your environment variables in `.env`:
-```
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=spendly
-DB_USERNAME=root
-DB_PASSWORD=
-
-GOCARDLESS_ACCESS_TOKEN=your_access_token
-GOCARDLESS_ENVIRONMENT=sandbox
-```
-
-6. Generate application key:
+### 3. Using Docker (Recommended)
 ```bash
+docker compose up -d
+docker compose exec cli composer install
+docker compose exec cli php artisan key:generate
+docker compose exec cli php artisan migrate --seed
+docker compose exec node npm install
+docker compose exec node npm run dev
+```
+
+### 4. Or install locally (without Docker)
+```bash
+composer install
 php artisan key:generate
-```
-
-7. Run migrations:
-```bash
-php artisan migrate
-```
-
-8. Start the development servers:
-```bash
-# Terminal 1 - Laravel
-php artisan serve
-
-# Terminal 2 - React
-npm run dev
+php artisan migrate --seed
+npm install
+npm run dev & # Start the frontend build process in the background - or use another terminal without &
+php artisan serve & # Start the backend server in the background - or use another terminal without &
 ```
 
 ## 🧪 Testing
@@ -69,7 +46,7 @@ Run the test suites:
 
 ```bash
 # Backend tests
-php artisan test
+./vendor/bin/phpunit
 
 # Frontend tests
 npm test

@@ -57,7 +57,6 @@ Special thanks to contributors with expertise in:
 - Laravel/PHP backend development
 - React/TypeScript frontend development
 - Database optimization and scaling
-- DevOps and deployment
 - Security and privacy
 - API design and integration
 
@@ -87,7 +86,7 @@ We welcome all kinds of contributions! Here's how you can get involved:
 - Fix typos and clarify instructions
 
 ### 🔒 Security
-- Report vulnerabilities responsibly to security@spendly.app
+- Report vulnerabilities responsibly to vysnyandrej@gmail.com
 - Help with security audits and reviews
 - Improve security documentation
 
@@ -102,30 +101,6 @@ We welcome all kinds of contributions! Here's how you can get involved:
 - Create better visual documentation
 - Design icons and graphics
 
-## Recognition Levels
-
-### 🥉 Bronze Contributors
-- Made 1+ meaningful contribution
-- Listed in this file
-- Receive Spendly contributor badge
-
-### 🥈 Silver Contributors
-- Made 5+ meaningful contributions
-- Active in community discussions
-- Helped other contributors
-- Special mention in releases
-
-### 🥇 Gold Contributors
-- Made 15+ meaningful contributions
-- Significant impact on project direction
-- Mentored other contributors
-- Feature on project homepage
-
-### 💎 Diamond Contributors
-- Made 50+ meaningful contributions
-- Long-term commitment to the project
-- Leadership in specific areas
-- Invited to core team discussions
 
 ## Recognition Guidelines
 
@@ -148,17 +123,6 @@ Contributions should:
 - Be well-documented
 - Respect our [code of conduct](CODE_OF_CONDUCT.md)
 
-## Monthly Recognition
-
-Each month, we highlight outstanding contributors:
-
-### December 2024
-_Recognition for exceptional contributions this month._
-
-## Annual Recognition
-
-### 2024 Contributors of the Year
-_To be announced at the end of 2024._
 
 ## Contributor Statistics
 
@@ -169,24 +133,7 @@ _To be announced at the end of 2024._
 - **Issue Reporters**: TBD
 - **Countries Represented**: TBD
 
-## Alumni & Emeritus Contributors
 
-We also recognize past contributors who made significant impacts:
-
-_This section will be populated as the project evolves._
-
-## Corporate Sponsors & Partners
-
-### Infrastructure Partners
-- **GitHub** - Code hosting and CI/CD
-- **Docker Hub** - Container registry
-- **Vercel** - Documentation hosting
-
-### Service Partners
-- **GoCardless** - Banking API integration
-- **Cloudflare** - CDN and security services
-
-_Organizations that support Spendly development._
 
 ## How We Track Contributions
 

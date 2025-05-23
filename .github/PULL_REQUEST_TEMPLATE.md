@@ -36,7 +36,7 @@ Relates to #(issue number)
 If this PR affects financial functionality:
 - [ ] Transaction processing
 - [ ] Account management
-- [ ] Category/budget management
+- [ ] Category/Tag/Merchant management
 - [ ] Bank integration (GoCardless)
 - [ ] CSV import/export
 - [ ] Financial calculations
