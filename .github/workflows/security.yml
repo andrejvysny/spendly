@@ -1,0 +1,217 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security checks weekly at 2 AM UTC every Monday
+    - cron: '0 2 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install PHP dependencies
+        run: composer install --no-dev --optimize-autoloader
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run PHP Security Checker
+        run: |
+          composer require --dev roave/security-advisories
+          composer audit
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+
+      - name: Upload security scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-results
+          path: |
+            composer.lock
+            package-lock.json
+
+  code-scanning:
+    name: Code Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript, php
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  secrets-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy secret scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-secrets.sarif'
+          scanners: 'secret'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-secrets.sarif'
+
+  docker-security:
+    name: Docker Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t spendly:security-test -f .docker/Dockerfile .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'spendly:security-test'
+          format: 'sarif'
+          output: 'trivy-docker.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-docker.sarif'
+
+  financial-security-checks:
+    name: Financial Data Security Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for hardcoded financial data
+        run: |
+          echo "Checking for potential hardcoded financial data..."
+
+          # Check for hardcoded credit card patterns
+          if grep -r -E '\b[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}\b' --exclude-dir=node_modules --exclude-dir=vendor --exclude="*.md" .; then
+            echo "⚠️  Potential credit card numbers found in code"
+            exit 1
+          fi
+
+          # Check for hardcoded IBAN patterns
+          if grep -r -E '\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b' --exclude-dir=node_modules --exclude-dir=vendor --exclude="*.md" .; then
+            echo "⚠️  Potential IBAN numbers found in code"
+            exit 1
+          fi
+
+          # Check for hardcoded API keys (basic patterns)
+          if grep -r -E '(api_key|apikey|secret_key|access_token|private_key)[[:space:]]*[=:][[:space:]]*["\']?[a-zA-Z0-9]{20,}' --exclude-dir=node_modules --exclude-dir=vendor --exclude="*.md" --exclude=".env.example" .; then
+            echo "⚠️  Potential hardcoded API keys found"
+            exit 1
+          fi
+
+          echo "✅ No obvious financial data patterns found in code"
+
+      - name: Validate environment configuration
+        run: |
+          echo "Validating security-related environment configuration..."
+
+          # Check if .env.example exists and has security-related variables
+          if [ ! -f .env.example ]; then
+            echo "⚠️  .env.example file missing"
+            exit 1
+          fi
+
+          # Check for essential security environment variables
+          required_vars=("APP_KEY" "DB_PASSWORD" "GOCARDLESS_SECRET_KEY")
+          for var in "${required_vars[@]}"; do
+            if ! grep -q "^${var}=" .env.example; then
+              echo "⚠️  Required security variable ${var} not found in .env.example"
+              exit 1
+            fi
+          done
+
+          echo "✅ Environment configuration validation passed"
+
+  license-check:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          composer install --no-dev
+          npm ci
+
+      - name: Check PHP license compatibility
+        run: |
+          composer licenses --format=json > php-licenses.json
+          echo "PHP license check completed"
+
+      - name: Check Node.js license compatibility
+        run: |
+          npx license-checker --json > npm-licenses.json
+          echo "Node.js license check completed"
+
+      - name: Upload license reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-reports
+          path: |
+            php-licenses.json
+            npm-licenses.json

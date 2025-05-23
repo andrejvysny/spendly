@@ -1,0 +1,24 @@
+services:
+  cli:
+    image: ghcr.io/andrejvysny/php-cli:8.3
+    volumes:
+      - .:/var/www
+
+  node:
+    image: node:20-alpine
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+    ports:
+      - "3000:3000"
+  laravel:
+        image: php:8.4-fpm
+        volumes:
+          - .:/var/www/html
+        ports:
+          - "80:80"
+        working_dir: /var/www/html
+        env_file: .env
+
+        command: sh -c "php artisan serve --host=0.0.0.0 --port=80 --verbose"
+
