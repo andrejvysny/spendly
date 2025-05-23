@@ -20,19 +20,19 @@ class TransactionController extends Controller
             'category',
             'tags',
         ])
-        ->whereIn('account_id', $userAccounts);
+            ->whereIn('account_id', $userAccounts);
 
         // Check if any filters are active
         $isFiltered = false;
 
         // Apply search if search term is provided
-        if ($request->has('search') && !empty($request->search)) {
+        if ($request->has('search') && ! empty($request->search)) {
             $query->search($request->search);
             $isFiltered = true;
         }
-        
+
         // Filter by transaction type (income, expense, transfer)
-        if ($request->has('transactionType') && !empty($request->transactionType) && $request->transactionType !== 'all') {
+        if ($request->has('transactionType') && ! empty($request->transactionType) && $request->transactionType !== 'all') {
             switch ($request->transactionType) {
                 case 'income':
                     $query->where('amount', '>', 0);
@@ -46,93 +46,93 @@ class TransactionController extends Controller
             }
             $isFiltered = true;
         }
-        
+
         // Filter by account - fixed to use account_id
-        if ($request->has('account_id') && !empty($request->account_id) && $request->account_id !== 'all') {
+        if ($request->has('account_id') && ! empty($request->account_id) && $request->account_id !== 'all') {
             $query->where('account_id', $request->account_id);
             $isFiltered = true;
         }
-        
+
         // Enhanced amount filtering with absolute values
-        if ($request->has('amountFilterType') && !empty($request->amountFilterType) && $request->amountFilterType !== 'all') {
+        if ($request->has('amountFilterType') && ! empty($request->amountFilterType) && $request->amountFilterType !== 'all') {
             $isFiltered = true;
-            
+
             // Determine if we're filtering for income, expense or all transactions
             $transactionType = $request->transactionType ?? 'all';
-                
+
             switch ($request->amountFilterType) {
                 case 'exact':
                     if ($request->has('amountExact') && $request->amountExact !== '') {
                         $exactAmount = abs(floatval($request->amountExact));
-                        
+
                         if ($transactionType === 'income') {
                             $query->where('amount', $exactAmount);
                         } elseif ($transactionType === 'expense') {
                             $query->where('amount', -$exactAmount);
                         } else {
                             // If not filtering by type, match both income and expense with this amount
-                            $query->where(function($q) use ($exactAmount) {
+                            $query->where(function ($q) use ($exactAmount) {
                                 $q->where('amount', $exactAmount)
-                                  ->orWhere('amount', -$exactAmount);
+                                    ->orWhere('amount', -$exactAmount);
                             });
                         }
                     }
                     break;
                 case 'range':
-                    if ($request->has('amountMin') && !empty($request->amountMin)) {
+                    if ($request->has('amountMin') && ! empty($request->amountMin)) {
                         $minAmount = abs(floatval($request->amountMin));
-                        
+
                         if ($transactionType === 'income') {
                             $query->where('amount', '>=', $minAmount);
                         } elseif ($transactionType === 'expense') {
                             $query->where('amount', '<=', -$minAmount);
                         } else {
                             // If not filtering by type, apply condition based on absolute value
-                            $query->where(function($q) use ($minAmount) {
-                                $q->where(function($sq) use ($minAmount) {
+                            $query->where(function ($q) use ($minAmount) {
+                                $q->where(function ($sq) use ($minAmount) {
                                     $sq->where('amount', '>=', $minAmount);
-                                })->orWhere(function($sq) use ($minAmount) {
+                                })->orWhere(function ($sq) use ($minAmount) {
                                     $sq->where('amount', '<=', -$minAmount);
                                 });
                             });
                         }
                     }
-                    
-                    if ($request->has('amountMax') && !empty($request->amountMax)) {
+
+                    if ($request->has('amountMax') && ! empty($request->amountMax)) {
                         $maxAmount = abs(floatval($request->amountMax));
-                        
+
                         if ($transactionType === 'income') {
                             $query->where('amount', '<=', $maxAmount);
                         } elseif ($transactionType === 'expense') {
                             $query->where('amount', '>=', -$maxAmount);
                         } else {
                             // If not filtering by type, apply condition based on absolute value
-                            $query->where(function($q) use ($maxAmount) {
-                                $q->where(function($sq) use ($maxAmount) {
+                            $query->where(function ($q) use ($maxAmount) {
+                                $q->where(function ($sq) use ($maxAmount) {
                                     $sq->where('amount', '<=', $maxAmount)
-                                      ->where('amount', '>', 0);
-                                })->orWhere(function($sq) use ($maxAmount) {
+                                        ->where('amount', '>', 0);
+                                })->orWhere(function ($sq) use ($maxAmount) {
                                     $sq->where('amount', '>=', -$maxAmount)
-                                      ->where('amount', '<', 0);
+                                        ->where('amount', '<', 0);
                                 });
                             });
                         }
                     }
                     break;
                 case 'above':
-                    if ($request->has('amountAbove') && !empty($request->amountAbove)) {
+                    if ($request->has('amountAbove') && ! empty($request->amountAbove)) {
                         $aboveAmount = abs(floatval($request->amountAbove));
-                        
+
                         if ($transactionType === 'income') {
                             $query->where('amount', '>=', $aboveAmount);
                         } elseif ($transactionType === 'expense') {
                             $query->where('amount', '<=', -$aboveAmount);
                         } else {
                             // If not filtering by type, apply condition based on absolute value
-                            $query->where(function($q) use ($aboveAmount) {
-                                $q->where(function($sq) use ($aboveAmount) {
+                            $query->where(function ($q) use ($aboveAmount) {
+                                $q->where(function ($sq) use ($aboveAmount) {
                                     $sq->where('amount', '>=', $aboveAmount);
-                                })->orWhere(function($sq) use ($aboveAmount) {
+                                })->orWhere(function ($sq) use ($aboveAmount) {
                                     $sq->where('amount', '<=', -$aboveAmount);
                                 });
                             });
@@ -140,24 +140,24 @@ class TransactionController extends Controller
                     }
                     break;
                 case 'below':
-                    if ($request->has('amountBelow') && !empty($request->amountBelow)) {
+                    if ($request->has('amountBelow') && ! empty($request->amountBelow)) {
                         $belowAmount = abs(floatval($request->amountBelow));
-                        
+
                         if ($transactionType === 'income') {
                             $query->where('amount', '<=', $belowAmount)
-                                  ->where('amount', '>', 0);
+                                ->where('amount', '>', 0);
                         } elseif ($transactionType === 'expense') {
                             $query->where('amount', '>=', -$belowAmount)
-                                  ->where('amount', '<', 0);
+                                ->where('amount', '<', 0);
                         } else {
                             // If not filtering by type, apply condition based on absolute value
-                            $query->where(function($q) use ($belowAmount) {
-                                $q->where(function($sq) use ($belowAmount) {
+                            $query->where(function ($q) use ($belowAmount) {
+                                $q->where(function ($sq) use ($belowAmount) {
                                     $sq->where('amount', '<=', $belowAmount)
-                                      ->where('amount', '>', 0);
-                                })->orWhere(function($sq) use ($belowAmount) {
+                                        ->where('amount', '>', 0);
+                                })->orWhere(function ($sq) use ($belowAmount) {
                                     $sq->where('amount', '>=', -$belowAmount)
-                                      ->where('amount', '<', 0);
+                                        ->where('amount', '<', 0);
                                 });
                             });
                         }
@@ -166,42 +166,42 @@ class TransactionController extends Controller
             }
         } else {
             // Maintain backward compatibility with old filtering but with absolute values
-            if ($request->has('amountMin') && !empty($request->amountMin)) {
+            if ($request->has('amountMin') && ! empty($request->amountMin)) {
                 $minAmount = abs(floatval($request->amountMin));
                 $transactionType = $request->transactionType ?? 'all';
-                
+
                 if ($transactionType === 'income') {
                     $query->where('amount', '>=', $minAmount);
                 } elseif ($transactionType === 'expense') {
                     $query->where('amount', '<=', -$minAmount);
                 } else {
-                    $query->where(function($q) use ($minAmount) {
-                        $q->where(function($sq) use ($minAmount) {
+                    $query->where(function ($q) use ($minAmount) {
+                        $q->where(function ($sq) use ($minAmount) {
                             $sq->where('amount', '>=', $minAmount);
-                        })->orWhere(function($sq) use ($minAmount) {
+                        })->orWhere(function ($sq) use ($minAmount) {
                             $sq->where('amount', '<=', -$minAmount);
                         });
                     });
                 }
                 $isFiltered = true;
             }
-            
-            if ($request->has('amountMax') && !empty($request->amountMax)) {
+
+            if ($request->has('amountMax') && ! empty($request->amountMax)) {
                 $maxAmount = abs(floatval($request->amountMax));
                 $transactionType = $request->transactionType ?? 'all';
-                
+
                 if ($transactionType === 'income') {
                     $query->where('amount', '<=', $maxAmount);
                 } elseif ($transactionType === 'expense') {
                     $query->where('amount', '>=', -$maxAmount);
                 } else {
-                    $query->where(function($q) use ($maxAmount) {
-                        $q->where(function($sq) use ($maxAmount) {
+                    $query->where(function ($q) use ($maxAmount) {
+                        $q->where(function ($sq) use ($maxAmount) {
                             $sq->where('amount', '<=', $maxAmount)
-                              ->where('amount', '>', 0);
-                        })->orWhere(function($sq) use ($maxAmount) {
+                                ->where('amount', '>', 0);
+                        })->orWhere(function ($sq) use ($maxAmount) {
                             $sq->where('amount', '>=', -$maxAmount)
-                              ->where('amount', '<', 0);
+                                ->where('amount', '<', 0);
                         });
                     });
                 }
@@ -209,36 +209,36 @@ class TransactionController extends Controller
             }
 
             // Check if any amount filter types are set directly
-            if ($request->has('amountExact') && !empty($request->amountExact)) {
+            if ($request->has('amountExact') && ! empty($request->amountExact)) {
                 $isFiltered = true;
             }
-            if ($request->has('amountAbove') && !empty($request->amountAbove)) {
+            if ($request->has('amountAbove') && ! empty($request->amountAbove)) {
                 $isFiltered = true;
             }
-            if ($request->has('amountBelow') && !empty($request->amountBelow)) {
+            if ($request->has('amountBelow') && ! empty($request->amountBelow)) {
                 $isFiltered = true;
             }
         }
-        
+
         // Filter by merchant
-        if ($request->has('merchant_id') && !empty($request->merchant_id) && $request->merchant_id !== 'all') {
+        if ($request->has('merchant_id') && ! empty($request->merchant_id) && $request->merchant_id !== 'all') {
             $query->where('merchant_id', $request->merchant_id);
             $isFiltered = true;
         }
-        
+
         // Filter by category
-        if ($request->has('category_id') && !empty($request->category_id) && $request->category_id !== 'all') {
+        if ($request->has('category_id') && ! empty($request->category_id) && $request->category_id !== 'all') {
             $query->where('category_id', $request->category_id);
             $isFiltered = true;
         }
-        
+
         // Filter by date range
-        if ($request->has('dateFrom') && !empty($request->dateFrom)) {
+        if ($request->has('dateFrom') && ! empty($request->dateFrom)) {
             $query->whereDate('booked_date', '>=', $request->dateFrom);
             $isFiltered = true;
         }
-        
-        if ($request->has('dateTo') && !empty($request->dateTo)) {
+
+        if ($request->has('dateTo') && ! empty($request->dateTo)) {
             $query->whereDate('booked_date', '<=', $request->dateTo);
             $isFiltered = true;
         }
@@ -254,7 +254,7 @@ class TransactionController extends Controller
             $merchantsCount = clone $query;
             $uncategorizedCount = clone $query;
             $noMerchantCount = clone $query;
-            
+
             $totalSummary = [
                 'count' => $totalCount->count(),
                 'income' => $incomeSum->where('amount', '>', 0)->sum('amount'),
@@ -308,7 +308,7 @@ class TransactionController extends Controller
                 'search', 'account_id', 'transactionType',
                 'amountFilterType', 'amountMin', 'amountMax',
                 'amountExact', 'amountAbove', 'amountBelow',
-                'dateFrom', 'dateTo', 'merchant_id', 'category_id'
+                'dateFrom', 'dateTo', 'merchant_id', 'category_id',
             ]),
         ]);
     }
@@ -409,6 +409,7 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Transactions updated successfully']);
         } catch (\Exception $e) {
             \Log::error('Bulk transaction update failed: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to update transactions'], 500);
         }
     }
@@ -416,14 +417,13 @@ class TransactionController extends Controller
     /**
      * Filter transactions and return JSON response
      *
-     * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function filter(Request $request)
     {
         try {
             \Log::info('Filter request received', ['params' => $request->all()]);
-            
+
             $userAccounts = Auth::user()->accounts()->pluck('id');
             $isFiltered = false;
 
@@ -433,16 +433,16 @@ class TransactionController extends Controller
                 'category',
                 'tags',
             ])
-            ->whereIn('account_id', $userAccounts);
+                ->whereIn('account_id', $userAccounts);
 
             // Apply search if search term is provided
-            if ($request->has('search') && !empty($request->search)) {
+            if ($request->has('search') && ! empty($request->search)) {
                 $query->search($request->search);
                 $isFiltered = true;
             }
-            
+
             // Filter by transaction type (income, expense, transfer)
-            if ($request->has('transactionType') && !empty($request->transactionType) && $request->transactionType !== 'all') {
+            if ($request->has('transactionType') && ! empty($request->transactionType) && $request->transactionType !== 'all') {
                 switch ($request->transactionType) {
                     case 'income':
                         $query->where('amount', '>', 0);
@@ -456,93 +456,93 @@ class TransactionController extends Controller
                 }
                 $isFiltered = true;
             }
-            
+
             // Filter by account - fixed to use account_id
-            if ($request->has('account_id') && !empty($request->account_id) && $request->account_id !== 'all') {
+            if ($request->has('account_id') && ! empty($request->account_id) && $request->account_id !== 'all') {
                 $query->where('account_id', $request->account_id);
                 $isFiltered = true;
             }
-            
+
             // Enhanced amount filtering with absolute values
-            if ($request->has('amountFilterType') && !empty($request->amountFilterType) && $request->amountFilterType !== 'all') {
+            if ($request->has('amountFilterType') && ! empty($request->amountFilterType) && $request->amountFilterType !== 'all') {
                 $isFiltered = true;
-                
+
                 // Determine if we're filtering for income, expense or all transactions
                 $transactionType = $request->transactionType ?? 'all';
-                
+
                 switch ($request->amountFilterType) {
                     case 'exact':
                         if ($request->has('amountExact') && $request->amountExact !== '') {
                             $exactAmount = abs(floatval($request->amountExact));
-                            
+
                             if ($transactionType === 'income') {
                                 $query->where('amount', $exactAmount);
                             } elseif ($transactionType === 'expense') {
                                 $query->where('amount', -$exactAmount);
                             } else {
                                 // If not filtering by type, match both income and expense with this amount
-                                $query->where(function($q) use ($exactAmount) {
+                                $query->where(function ($q) use ($exactAmount) {
                                     $q->where('amount', $exactAmount)
-                                      ->orWhere('amount', -$exactAmount);
+                                        ->orWhere('amount', -$exactAmount);
                                 });
                             }
                         }
                         break;
                     case 'range':
-                        if ($request->has('amountMin') && !empty($request->amountMin)) {
+                        if ($request->has('amountMin') && ! empty($request->amountMin)) {
                             $minAmount = abs(floatval($request->amountMin));
-                            
+
                             if ($transactionType === 'income') {
                                 $query->where('amount', '>=', $minAmount);
                             } elseif ($transactionType === 'expense') {
                                 $query->where('amount', '<=', -$minAmount);
                             } else {
                                 // If not filtering by type, apply condition based on absolute value
-                                $query->where(function($q) use ($minAmount) {
-                                    $q->where(function($sq) use ($minAmount) {
+                                $query->where(function ($q) use ($minAmount) {
+                                    $q->where(function ($sq) use ($minAmount) {
                                         $sq->where('amount', '>=', $minAmount);
-                                    })->orWhere(function($sq) use ($minAmount) {
+                                    })->orWhere(function ($sq) use ($minAmount) {
                                         $sq->where('amount', '<=', -$minAmount);
                                     });
                                 });
                             }
                         }
-                        
-                        if ($request->has('amountMax') && !empty($request->amountMax)) {
+
+                        if ($request->has('amountMax') && ! empty($request->amountMax)) {
                             $maxAmount = abs(floatval($request->amountMax));
-                            
+
                             if ($transactionType === 'income') {
                                 $query->where('amount', '<=', $maxAmount);
                             } elseif ($transactionType === 'expense') {
                                 $query->where('amount', '>=', -$maxAmount);
                             } else {
                                 // If not filtering by type, apply condition based on absolute value
-                                $query->where(function($q) use ($maxAmount) {
-                                    $q->where(function($sq) use ($maxAmount) {
+                                $query->where(function ($q) use ($maxAmount) {
+                                    $q->where(function ($sq) use ($maxAmount) {
                                         $sq->where('amount', '<=', $maxAmount)
-                                          ->where('amount', '>', 0);
-                                    })->orWhere(function($sq) use ($maxAmount) {
+                                            ->where('amount', '>', 0);
+                                    })->orWhere(function ($sq) use ($maxAmount) {
                                         $sq->where('amount', '>=', -$maxAmount)
-                                          ->where('amount', '<', 0);
+                                            ->where('amount', '<', 0);
                                     });
                                 });
                             }
                         }
                         break;
                     case 'above':
-                        if ($request->has('amountAbove') && !empty($request->amountAbove)) {
+                        if ($request->has('amountAbove') && ! empty($request->amountAbove)) {
                             $aboveAmount = abs(floatval($request->amountAbove));
-                            
+
                             if ($transactionType === 'income') {
                                 $query->where('amount', '>=', $aboveAmount);
                             } elseif ($transactionType === 'expense') {
                                 $query->where('amount', '<=', -$aboveAmount);
                             } else {
                                 // If not filtering by type, apply condition based on absolute value
-                                $query->where(function($q) use ($aboveAmount) {
-                                    $q->where(function($sq) use ($aboveAmount) {
+                                $query->where(function ($q) use ($aboveAmount) {
+                                    $q->where(function ($sq) use ($aboveAmount) {
                                         $sq->where('amount', '>=', $aboveAmount);
-                                    })->orWhere(function($sq) use ($aboveAmount) {
+                                    })->orWhere(function ($sq) use ($aboveAmount) {
                                         $sq->where('amount', '<=', -$aboveAmount);
                                     });
                                 });
@@ -550,24 +550,24 @@ class TransactionController extends Controller
                         }
                         break;
                     case 'below':
-                        if ($request->has('amountBelow') && !empty($request->amountBelow)) {
+                        if ($request->has('amountBelow') && ! empty($request->amountBelow)) {
                             $belowAmount = abs(floatval($request->amountBelow));
-                            
+
                             if ($transactionType === 'income') {
                                 $query->where('amount', '<=', $belowAmount)
-                                      ->where('amount', '>', 0);
+                                    ->where('amount', '>', 0);
                             } elseif ($transactionType === 'expense') {
                                 $query->where('amount', '>=', -$belowAmount)
-                                      ->where('amount', '<', 0);
+                                    ->where('amount', '<', 0);
                             } else {
                                 // If not filtering by type, apply condition based on absolute value
-                                $query->where(function($q) use ($belowAmount) {
-                                    $q->where(function($sq) use ($belowAmount) {
+                                $query->where(function ($q) use ($belowAmount) {
+                                    $q->where(function ($sq) use ($belowAmount) {
                                         $sq->where('amount', '<=', $belowAmount)
-                                          ->where('amount', '>', 0);
-                                    })->orWhere(function($sq) use ($belowAmount) {
+                                            ->where('amount', '>', 0);
+                                    })->orWhere(function ($sq) use ($belowAmount) {
                                         $sq->where('amount', '>=', -$belowAmount)
-                                          ->where('amount', '<', 0);
+                                            ->where('amount', '<', 0);
                                     });
                                 });
                             }
@@ -576,42 +576,42 @@ class TransactionController extends Controller
                 }
             } else {
                 // Maintain backward compatibility with old filtering but with absolute values
-                if ($request->has('amountMin') && !empty($request->amountMin)) {
+                if ($request->has('amountMin') && ! empty($request->amountMin)) {
                     $minAmount = abs(floatval($request->amountMin));
                     $transactionType = $request->transactionType ?? 'all';
-                    
+
                     if ($transactionType === 'income') {
                         $query->where('amount', '>=', $minAmount);
                     } elseif ($transactionType === 'expense') {
                         $query->where('amount', '<=', -$minAmount);
                     } else {
-                        $query->where(function($q) use ($minAmount) {
-                            $q->where(function($sq) use ($minAmount) {
+                        $query->where(function ($q) use ($minAmount) {
+                            $q->where(function ($sq) use ($minAmount) {
                                 $sq->where('amount', '>=', $minAmount);
-                            })->orWhere(function($sq) use ($minAmount) {
+                            })->orWhere(function ($sq) use ($minAmount) {
                                 $sq->where('amount', '<=', -$minAmount);
                             });
                         });
                     }
                     $isFiltered = true;
                 }
-                
-                if ($request->has('amountMax') && !empty($request->amountMax)) {
+
+                if ($request->has('amountMax') && ! empty($request->amountMax)) {
                     $maxAmount = abs(floatval($request->amountMax));
                     $transactionType = $request->transactionType ?? 'all';
-                    
+
                     if ($transactionType === 'income') {
                         $query->where('amount', '<=', $maxAmount);
                     } elseif ($transactionType === 'expense') {
                         $query->where('amount', '>=', -$maxAmount);
                     } else {
-                        $query->where(function($q) use ($maxAmount) {
-                            $q->where(function($sq) use ($maxAmount) {
+                        $query->where(function ($q) use ($maxAmount) {
+                            $q->where(function ($sq) use ($maxAmount) {
                                 $sq->where('amount', '<=', $maxAmount)
-                                  ->where('amount', '>', 0);
-                            })->orWhere(function($sq) use ($maxAmount) {
+                                    ->where('amount', '>', 0);
+                            })->orWhere(function ($sq) use ($maxAmount) {
                                 $sq->where('amount', '>=', -$maxAmount)
-                                  ->where('amount', '<', 0);
+                                    ->where('amount', '<', 0);
                             });
                         });
                     }
@@ -619,36 +619,36 @@ class TransactionController extends Controller
                 }
 
                 // Check if any amount filter types are set directly
-                if ($request->has('amountExact') && !empty($request->amountExact)) {
+                if ($request->has('amountExact') && ! empty($request->amountExact)) {
                     $isFiltered = true;
                 }
-                if ($request->has('amountAbove') && !empty($request->amountAbove)) {
+                if ($request->has('amountAbove') && ! empty($request->amountAbove)) {
                     $isFiltered = true;
                 }
-                if ($request->has('amountBelow') && !empty($request->amountBelow)) {
+                if ($request->has('amountBelow') && ! empty($request->amountBelow)) {
                     $isFiltered = true;
                 }
             }
-            
+
             // Filter by merchant
-            if ($request->has('merchant_id') && !empty($request->merchant_id) && $request->merchant_id !== 'all') {
+            if ($request->has('merchant_id') && ! empty($request->merchant_id) && $request->merchant_id !== 'all') {
                 $query->where('merchant_id', $request->merchant_id);
                 $isFiltered = true;
             }
-            
+
             // Filter by category
-            if ($request->has('category_id') && !empty($request->category_id) && $request->category_id !== 'all') {
+            if ($request->has('category_id') && ! empty($request->category_id) && $request->category_id !== 'all') {
                 $query->where('category_id', $request->category_id);
                 $isFiltered = true;
             }
-            
+
             // Filter by date range
-            if ($request->has('dateFrom') && !empty($request->dateFrom)) {
+            if ($request->has('dateFrom') && ! empty($request->dateFrom)) {
                 $query->whereDate('booked_date', '>=', $request->dateFrom);
                 $isFiltered = true;
             }
-            
-            if ($request->has('dateTo') && !empty($request->dateTo)) {
+
+            if ($request->has('dateTo') && ! empty($request->dateTo)) {
                 $query->whereDate('booked_date', '<=', $request->dateTo);
                 $isFiltered = true;
             }
@@ -662,7 +662,7 @@ class TransactionController extends Controller
             $merchantsCount = clone $query;
             $uncategorizedCount = clone $query;
             $noMerchantCount = clone $query;
-            
+
             $totalSummary = [
                 'count' => $totalCount->count(),
                 'income' => $incomeSum->where('amount', '>', 0)->sum('amount'),
@@ -677,7 +677,7 @@ class TransactionController extends Controller
             $transactions = $query->orderBy('booked_date', 'desc')
                 ->get();
 
-            \Log::info('Filtered transactions count: ' . $transactions->count() . ', isFiltered: ' . ($isFiltered ? 'true' : 'false'));
+            \Log::info('Filtered transactions count: '.$transactions->count().', isFiltered: '.($isFiltered ? 'true' : 'false'));
 
             // Calculate monthly summaries
             $monthlySummaries = [];
@@ -702,17 +702,17 @@ class TransactionController extends Controller
                 'transactions' => $transactions,
                 'monthlySummaries' => $monthlySummaries,
                 'totalSummary' => $totalSummary,
-                'isFiltered' => $isFiltered
+                'isFiltered' => $isFiltered,
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error in transaction filter: ' . $e->getMessage(), [
+            \Log::error('Error in transaction filter: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
             ]);
-            
+
             return response()->json([
                 'error' => 'An error occurred while filtering transactions',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

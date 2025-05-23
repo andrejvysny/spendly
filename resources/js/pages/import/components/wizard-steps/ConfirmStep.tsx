@@ -28,21 +28,6 @@ interface ExtendedTransactionData extends Omit<Partial<Transaction>, 'merchant' 
 
 type MappingType = 'category' | 'tag' | 'merchant';
 
-const transactionFields = [
-    { key: 'booked_date', label: 'Booked Date' },
-    { key: 'processed_date', label: 'Processed Date' },
-    { key: 'amount', label: 'Amount' },
-    { key: 'currency', label: 'Currency' },
-    { key: 'description', label: 'Description' },
-    { key: 'partner', label: 'Partner' },
-    { key: 'target_iban', label: 'Target IBAN' },
-    { key: 'source_iban', label: 'Source IBAN' },
-    { key: 'type', label: 'Type' },
-    { key: 'note', label: 'Note' },
-    { key: 'recipient_note', label: 'Recipient Note' },
-    { key: 'place', label: 'Place' },
-];
-
 export default function ConfirmStep({
     data,
     mappings = { category: {}, tag: {}, merchant: {} },

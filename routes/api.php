@@ -1,8 +1,8 @@
 <?php
 
+use App\Http\Controllers\Transactions\TransactionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Transactions\TransactionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,4 +20,4 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 // Transactions endpoints
-// Route::get('/transactions/filter', [TransactionController::class, 'filter']); 
+// Route::get('/transactions/filter', [TransactionController::class, 'filter']);

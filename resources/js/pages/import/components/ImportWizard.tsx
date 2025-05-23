@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Import, Transaction } from '@/types/index';
+import { Import, Transaction, Category } from '@/types/index';
 import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
 import CleanStep from './wizard-steps/CleanStep';
@@ -17,7 +17,6 @@ type WizardStep = 'upload' | 'configure' | 'clean' | 'map' | 'confirm';
 
 export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     const [currentStep, setCurrentStep] = useState<WizardStep>('upload');
-    const [importData, setImportData] = useState<Import | null>(null);
     const [uploadedData, setUploadedData] = useState<{
         importId: number;
         headers: string[];
@@ -37,8 +36,8 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
     const [error, setError] = useState<string | null>(null);
 
     // Map step configuration
-    const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
-    const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({});
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [categoryMappings, setCategoryMappings] = useState<Record<string, Record<string, string>>>({});
 
     // Load categories for mapping step
     useEffect(() => {
@@ -54,10 +53,6 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
                 });
         }
     }, [currentStep]);
-
-    const handleStepChange = (step: WizardStep) => {
-        setCurrentStep(step);
-    };
 
     const handleUploadComplete = useCallback(
         (data: { importId: number; headers: string[]; sampleRows: string[][]; accountId: number; totalRows: number }) => {
@@ -94,7 +89,7 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
         setCurrentStep('map');
     }, []);
 
-    const handleMapComplete = useCallback((mappings: Record<string, string>) => {
+    const handleMapComplete = useCallback((mappings: Record<string, Record<string, string>>) => {
         setCategoryMappings(mappings);
         setCurrentStep('confirm');
     }, []);
@@ -111,10 +106,10 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
                 account_id: uploadedData.accountId,
             });
 
-            setImportData(response.data.import);
             onComplete(response.data.import);
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to process import');
+        } catch (err) {
+            const axiosError = err as import('axios').AxiosError<{ message: string }>;
+            setError(axiosError.response?.data?.message || 'Failed to process import');
         } finally {
             setIsLoading(false);
         }

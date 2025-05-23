@@ -2,7 +2,7 @@
 
 import CreateTransactionModal from '@/components/transactions/CreateTransactionModal';
 import TransactionList from '@/components/transactions/TransactionList';
-import { SelectInput, TextInput, DateRangeInput } from '@/components/ui/form-inputs';
+import { TextInput, DateRangeInput } from '@/components/ui/form-inputs';
 import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
@@ -113,13 +113,49 @@ export default function Index({
 
     // Skip initial fetch on page load if no filters are active
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+    // Define hasActiveFilters and resetValues before they are used in hooks
+    const hasActiveFilters = useCallback(() => {
+        return Object.entries(filterValues).some(([key, value]) => {
+            if (key === 'dateRange') return false;
+            if (key === 'dateFrom' || key === 'dateTo') {
+                return value !== '' && value !== null && value !== undefined;
+            }
+            if (typeof value === 'object' && value !== null) {
+                if (Array.isArray(value)) {
+                    return value.length > 0;
+                }
+                return Object.values(value).some(v => v !== '' && v !== 'all' && v !== null && v !== undefined);
+            }
+            return value !== '' && value !== 'all' && value !== null && value !== undefined;
+        });
+    }, [filterValues]);
+
+    const resetValues: FilterValues = useMemo(() => ({
+        search: '',
+        account_id: 'all',
+        transactionType: 'all' as const,
+        amountFilterType: 'all' as const,
+        amountFilter: '',
+        amountMin: '',
+        amountMax: '',
+        amountExact: '',
+        amountAbove: '',
+        amountBelow: '',
+        dateFrom: '',
+        dateTo: '',
+        dateRange: { from: '', to: '' },
+        merchant_id: 'all',
+        category_id: 'all',
+    }), []);
+
     useEffect(() => {
         // Mark initial load as complete so we know future changes should trigger filters
         setInitialLoadComplete(true);
     }, []);
 
     // A separate handler for each individual filter change that checks if value is not empty
-    const handleFilterChange = (name: keyof FilterValues, value: any) => {
+    const handleFilterChange = (name: keyof FilterValues, value: string | number | boolean | { from: string; to: string } | null | undefined) => {
         // Only proceed if the value has actually changed
         if (filterValues[name] === value) {
             return; // Skip if the value hasn't changed
@@ -283,57 +319,54 @@ export default function Index({
     };
 
     // Debounced fetch function
-    const debouncedFetchTransactions = useCallback(
-        debounce(async (values: FilterValues) => {
-            console.log("Fetching transactions with values:", values);
-            setIsLoading(true);
-            try {
-                // Check if we're clearing filters
-                const isResettingFilters = !hasActiveFilters() || 
-                    Object.values(values).every(value => 
-                        value === '' || value === 'all' || value === null || value === undefined ||
-                        (typeof value === 'object' && Object.values(value).every(v => v === ''))
-                    );
+    const fetchTransactionsLogic = useCallback(async (values: FilterValues) => {
+        console.log("Fetching transactions with values:", values);
+        setIsLoading(true);
+        try {
+            const isResettingFilters = !hasActiveFilters() ||
+                Object.values(values).every(value =>
+                    value === '' || value === 'all' || value === null || value === undefined ||
+                    (typeof value === 'object' && Object.values(value).every(v => v === ''))
+                );
 
-                const response = await axios.get('/transactions/filter', {
-                    params: Object.fromEntries(
-                        Object.entries(values).filter(([_, value]) => value !== '' && value !== null)
-                    ),
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    }
-                });
-                console.log("API response:", response.data);
-                if (response.data.transactions) {
-                    setTransactions(response.data.transactions);
-                    setMonthlySummaries(response.data.monthlySummaries || {});
-                    
-                    // If resetting filters, explicitly set totalSummary to undefined to hide the summary
-                    if (isResettingFilters) {
-                        setTotalSummary(undefined);
-                        setIsFiltered(false);
-                    } else {
-                        setTotalSummary(response.data.totalSummary || undefined);
-                        // Determine if any filter is active based on filter values
-                        setIsFiltered(
-                            Object.values(values).some(value => 
-                                value !== '' && value !== 'all' && value !== null && value !== undefined
-                            )
-                        );
-                    }
-                } else {
-                    console.error("Invalid response format:", response.data);
+            const response = await axios.get('/transactions/filter', {
+                params: Object.fromEntries(
+                    Object.entries(values).filter((entry) => entry[1] !== '' && entry[1] !== null)
+                ),
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 }
-            } catch (error) {
-                console.error('Error fetching filtered transactions:', error);
-            } finally {
-                setIsLoading(false);
+            });
+            console.log("API response:", response.data);
+            if (response.data.transactions) {
+                setTransactions(response.data.transactions);
+                setMonthlySummaries(response.data.monthlySummaries || {});
+                if (isResettingFilters) {
+                    setTotalSummary(undefined);
+                    setIsFiltered(false);
+                } else {
+                    setTotalSummary(response.data.totalSummary || undefined);
+                    setIsFiltered(
+                        Object.values(values).some(value =>
+                            value !== '' && value !== 'all' && value !== null && value !== undefined
+                        )
+                    );
+                }
+            } else {
+                console.error("Invalid response format:", response.data);
             }
-        }, 300),
-        []
-    );
+        } catch (error) {
+            console.error('Error fetching filtered transactions:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [hasActiveFilters, setIsLoading, setTransactions, setMonthlySummaries, setTotalSummary, setIsFiltered]);
+
+    const debouncedFetchTransactions = useMemo(() => 
+        debounce(fetchTransactionsLogic, 300)
+    , [fetchTransactionsLogic]);
 
     // Call the API when search term changes
     useEffect(() => {
@@ -343,31 +376,7 @@ export default function Index({
                 debouncedFetchTransactions(filterValues);
             }
         }
-    }, [filterValues.search, debouncedFetchTransactions, initialLoadComplete]);
-
-    // Check if any filter is active - Improve the function to properly handle dateRange
-    const hasActiveFilters = () => {
-        return Object.entries(filterValues).some(([key, value]) => {
-            // Handle dateRange separately since it's an object
-            if (key === 'dateRange') return false; // Skip this, we check dateFrom/dateTo instead
-            
-            // Explicitly check dateFrom and dateTo
-            if (key === 'dateFrom' || key === 'dateTo') {
-                return value !== '' && value !== null && value !== undefined;
-            }
-            
-            // For objects and arrays, check if they have values
-            if (typeof value === 'object' && value !== null) {
-                if (Array.isArray(value)) {
-                    return value.length > 0;
-                }
-                return Object.values(value).some(v => v !== '' && v !== 'all' && v !== null && v !== undefined);
-            }
-            
-            // For simple values, check if they're meaningful
-            return value !== '' && value !== 'all' && value !== null && value !== undefined;
-        });
-    };
+    }, [filterValues, debouncedFetchTransactions, initialLoadComplete]);
 
     // Update isFiltered state when filter values change with improved handling
     const previousFilterStateRef = useRef(false);
@@ -389,7 +398,7 @@ export default function Index({
             // Update ref for next comparison
             previousFilterStateRef.current = isFilterActive;
         }
-    }, [filterValues, initialLoadComplete, debouncedFetchTransactions]);
+    }, [filterValues, initialLoadComplete, debouncedFetchTransactions, hasActiveFilters, resetValues]);
 
     const breadcrumbs: BreadcrumbItem[] = [
         {
@@ -427,25 +436,6 @@ export default function Index({
             },
             preserveScroll: true,
         });
-    };
-
-    // Update the code for the clear filters button
-    const resetValues = {
-        search: '',
-        account_id: 'all',
-        transactionType: 'all' as const,
-        amountFilterType: 'all' as const,
-        amountFilter: '',
-        amountMin: '',
-        amountMax: '',
-        amountExact: '',
-        amountAbove: '',
-        amountBelow: '',
-        dateFrom: '',
-        dateTo: '',
-        dateRange: { from: '', to: '' },
-        merchant_id: 'all',
-        category_id: 'all',
     };
 
     return (

@@ -5,11 +5,11 @@ import { Transaction } from '@/types/index';
 import { useCallback, useEffect, useState } from 'react';
 
 // Define a type that includes additional properties not in the original Transaction type
-interface ImportedData extends Partial<Transaction> {
+interface ImportedData extends Omit<Partial<Transaction>, 'category' | 'tags' | 'merchant'> {
     category?: string;
-    tag?: string;
+    tags?: string; // Changed from tag to tags to match Transaction type more closely if it's a list of tags as string
     merchant?: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 interface MapStepProps {
@@ -21,21 +21,6 @@ interface MapStepProps {
 }
 
 type MappingType = 'category' | 'tag' | 'merchant';
-
-const previewFields = [
-    { key: 'booked_date', label: 'Booked Date' },
-    { key: 'processed_date', label: 'Processed Date' },
-    { key: 'amount', label: 'Amount' },
-    { key: 'currency', label: 'Currency' },
-    { key: 'description', label: 'Description' },
-    { key: 'partner', label: 'Partner' },
-    { key: 'target_iban', label: 'Target IBAN' },
-    { key: 'source_iban', label: 'Source IBAN' },
-    { key: 'type', label: 'Type' },
-    { key: 'note', label: 'Note' },
-    { key: 'recipient_note', label: 'Recipient Note' },
-    { key: 'place', label: 'Place' },
-];
 
 export default function MapStep({ data, categories, tags = [], merchants = [], onComplete }: MapStepProps) {
     const [mappings, setMappings] = useState<Record<MappingType, Record<string, string>>>({
@@ -69,8 +54,8 @@ export default function MapStep({ data, categories, tags = [], merchants = [], o
             }
 
             // Extract tags
-            if (importedData.tag && typeof importedData.tag === 'string' && importedData.tag.trim()) {
-                values.tag.add(importedData.tag.trim());
+            if (importedData.tags && typeof importedData.tags === 'string' && importedData.tags.trim()) {
+                values.tag.add(importedData.tags.trim());
             }
 
             // Extract merchants

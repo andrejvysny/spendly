@@ -97,8 +97,8 @@ class Transaction extends Model
     /**
      * Scope a query to search for transactions based on a search term.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param string $term
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  string  $term
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeSearch($query, $term)
@@ -107,7 +107,7 @@ class Transaction extends Model
             return $query;
         }
 
-        return $query->where(function($query) use ($term) {
+        return $query->where(function ($query) use ($term) {
             $query->where('description', 'LIKE', "%{$term}%")
                 ->orWhere('partner', 'LIKE', "%{$term}%")
                 ->orWhere('note', 'LIKE', "%{$term}%")
@@ -117,16 +117,16 @@ class Transaction extends Model
                 ->orWhere('target_iban', 'LIKE', "%{$term}%")
                 ->orWhere('source_iban', 'LIKE', "%{$term}%")
                 ->orWhere('amount', 'LIKE', "%{$term}%")
-                ->orWhereHas('category', function($q) use ($term) {
+                ->orWhereHas('category', function ($q) use ($term) {
                     $q->where('name', 'LIKE', "%{$term}%");
                 })
-                ->orWhereHas('merchant', function($q) use ($term) {
+                ->orWhereHas('merchant', function ($q) use ($term) {
                     $q->where('name', 'LIKE', "%{$term}%");
                 })
-                ->orWhereHas('account', function($q) use ($term) {
+                ->orWhereHas('account', function ($q) use ($term) {
                     $q->where('name', 'LIKE', "%{$term}%");
                 })
-                ->orWhereHas('tags', function($q) use ($term) {
+                ->orWhereHas('tags', function ($q) use ($term) {
                     $q->where('name', 'LIKE', "%{$term}%");
                 });
         });
