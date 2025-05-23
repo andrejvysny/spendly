@@ -88,18 +88,18 @@ class CategoryController extends Controller
     public function destroy(Request $request, Category $category)
     {
         $this->authorize('delete', $category);
-        
+
         // Check if we need to handle transactions with this category
         if ($request->has('replacement_action')) {
             if ($request->replacement_action === 'replace' && $request->has('replacement_category_id')) {
                 // Replace this category with another category in all transactions
                 $category->transactions()->update([
-                    'category_id' => $request->replacement_category_id
+                    'category_id' => $request->replacement_category_id,
                 ]);
             } else {
                 // Remove the category from all transactions
                 $category->transactions()->update([
-                    'category_id' => null
+                    'category_id' => null,
                 ]);
             }
         }

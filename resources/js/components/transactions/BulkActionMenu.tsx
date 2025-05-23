@@ -40,7 +40,6 @@ type CategoryFormValues = z.infer<typeof categorySchema>;
 type MerchantFormValues = z.infer<typeof merchantSchema>;
 
 export default function BulkActionMenu({ selectedTransactions, categories = [], merchants = [], onUpdate }: Props) {
-    const [isOpen, setIsOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<'category' | 'merchant' | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [selectedMerchant, setSelectedMerchant] = useState<string>('');

@@ -71,21 +71,6 @@ const currencies = [
     { value: 'CZK', label: 'Czech Koruna (Kč)' },
 ];
 
-const columnOptions = [
-    { value: 'booked_date', label: 'Booked Date' },
-    { value: 'processed_date', label: 'Processed Date' },
-    { value: 'amount', label: 'Amount' },
-    { value: 'currency', label: 'Currency' },
-    { value: 'description', label: 'Description' },
-    { value: 'partner', label: 'Partner' },
-    { value: 'target_iban', label: 'Target IBAN' },
-    { value: 'source_iban', label: 'Source IBAN' },
-    { value: 'type', label: 'Type' },
-    { value: 'note', label: 'Note' },
-    { value: 'recipient_note', label: 'Recipient Note' },
-    { value: 'place', label: 'Place' },
-];
-
 export default function ConfigureStep({ headers, sampleRows, importId, onComplete }: ConfigureStepProps) {
     const [columnMapping, setColumnMapping] = useState<Record<string, number | null>>({});
     const [dateFormat, setDateFormat] = useState('d.m.Y');
@@ -94,7 +79,6 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
     const [currency, setCurrency] = useState('EUR');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [previewData, setPreviewData] = useState<Partial<Transaction>[]>([]);
 
     const [savedMappings, setSavedMappings] = useState<ImportMapping[]>([]);
     const [selectedMapping, setSelectedMapping] = useState<string>('none');
@@ -257,7 +241,6 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 currency: currency,
             });
 
-            setPreviewData(response.data.preview_data || []);
 
             // Save mapping if requested
             if (saveMapping && mappingName) {
@@ -271,7 +254,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                         amount_type_strategy: amountTypeStrategy,
                         currency: currency,
                     });
-                } catch (err: any) {
+                } catch (err) {
                     console.error('Failed to save mapping', err);
                 }
             }
@@ -284,9 +267,14 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 currency,
                 previewData: response.data.preview_data || [],
             });
-        } catch (err: any) {
-            console.error('Configuration error:', err);
-            setError(err.response?.data?.message || 'Failed to configure import');
+        } catch (err) {
+            const axiosError = err as import('axios').AxiosError<{ message: string; errors: Record<string, string[]> } | undefined>;
+            if (axiosError.response?.data?.errors) {
+                const firstError = Object.values(axiosError.response.data.errors)[0]?.[0];
+                setError(firstError || 'Failed to configure import');
+            } else {
+                setError(axiosError.response?.data?.message || 'Failed to configure import');
+            }
         } finally {
             setIsLoading(false);
         }

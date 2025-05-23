@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 interface RoundCheckboxProps {
     checked: boolean;
     onChange: (checked: boolean) => void;

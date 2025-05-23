@@ -289,6 +289,7 @@ class ImportController extends Controller
                     // Skip null lines or empty arrays
                     if ($line === null || (is_array($line) && count($line) === 0)) {
                         Log::warning('Skipping empty line', ['row_number' => $processed + $failed + $skipped + 1]);
+
                         continue;
                     }
 
@@ -332,17 +333,17 @@ class ImportController extends Controller
                 Log::warning('Import failed - no rows processed successfully', [
                     'import_id' => $import->id,
                     'total_rows' => $totalRows,
-                    'failed_rows' => $failed
+                    'failed_rows' => $failed,
                 ]);
-            } else if ($failed > $processed && $totalRows > 10) {
+            } elseif ($failed > $processed && $totalRows > 10) {
                 // If more rows failed than succeeded with a significant sample size, mark as partially failed
                 $import->status = Import::STATUS_PARTIALLY_FAILED;
                 Log::warning('Import partially failed - more failures than successes', [
                     'import_id' => $import->id,
                     'processed' => $processed,
-                    'failed' => $failed
+                    'failed' => $failed,
                 ]);
-            } else if ($skipped > 0) {
+            } elseif ($skipped > 0) {
                 // If some rows were skipped as duplicates
                 $import->status = Import::STATUS_COMPLETED_SKIPPED_DUPLICATES;
             } else {
@@ -360,7 +361,7 @@ class ImportController extends Controller
 
             $import->save();
 
-            Log::info('Import completed with status: ' . $import->status, [
+            Log::info('Import completed with status: '.$import->status, [
                 'import_id' => $import->id,
                 'processed' => $processed,
                 'failed' => $failed,
@@ -369,7 +370,7 @@ class ImportController extends Controller
                 'status' => $import->status,
             ]);
 
-            $message = match($import->status) {
+            $message = match ($import->status) {
                 Import::STATUS_COMPLETED => 'Import processed successfully',
                 Import::STATUS_COMPLETED_SKIPPED_DUPLICATES => 'Import completed with some duplicate transactions skipped',
                 Import::STATUS_PARTIALLY_FAILED => 'Import completed but with a high number of failed rows',
@@ -597,7 +598,7 @@ class ImportController extends Controller
             'type',
             'note',
             'recipient_note',
-            'place'
+            'place',
         ];
         $missingRequiredFields = [];
         foreach ($requiredFields as $field) {

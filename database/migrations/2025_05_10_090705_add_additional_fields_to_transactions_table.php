@@ -12,13 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('transactions', function (Blueprint $table) {
-            if (!Schema::hasColumn('transactions', 'note')) {
+            if (! Schema::hasColumn('transactions', 'note')) {
                 $table->text('note')->nullable();
             }
-            if (!Schema::hasColumn('transactions', 'recipient_note')) {
+            if (! Schema::hasColumn('transactions', 'recipient_note')) {
                 $table->text('recipient_note')->nullable();
             }
-            if (!Schema::hasColumn('transactions', 'place')) {
+            if (! Schema::hasColumn('transactions', 'place')) {
                 $table->string('place')->nullable();
             }
         });
@@ -41,4 +41,4 @@ return new class extends Migration
             }
         });
     }
-}; 
+};

@@ -17,7 +17,6 @@ export interface DateRangePickerProps {
 }
 
 export function DateRangePicker({
-  name,
   label,
   placeholder = "Select date range",
   disabled,
@@ -38,8 +37,10 @@ export function DateRangePicker({
     }
   }, [value]);
 
-  const dateFrom = internalValue.from ? new Date(internalValue.from) : null;
-  const dateTo = internalValue.to ? new Date(internalValue.to) : null;
+  const { dateFrom, dateTo } = React.useMemo(() => ({
+    dateFrom: internalValue.from ? new Date(internalValue.from) : null,
+    dateTo: internalValue.to ? new Date(internalValue.to) : null
+  }), [internalValue.from, internalValue.to]);
 
   // Reset selection when opening a new selection
   const handleOpen = (open: boolean) => {

@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Transaction } from '@/types/index';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface CleanStepProps {
     data: Partial<Transaction>[];
@@ -9,6 +9,10 @@ interface CleanStepProps {
 
 export default function CleanStep({ data, onComplete }: CleanStepProps) {
     const [cleanedData, setCleanedData] = useState<Partial<Transaction>[]>(data);
+
+    useEffect(() => {
+        setCleanedData(data);
+    }, [data]);
 
     const handleClean = () => {
         // In a real implementation, we would have functionality to clean the data here

@@ -40,14 +40,11 @@ const COUNTRIES = [
 
 export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: GoCardlessImportWizardProps) {
     const [step, setStep] = useState(1);
-    const [selectedCountry, setSelectedCountry] = useState('');
-    const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     const handleCountrySelect = async (countryCode: string) => {
-        setSelectedCountry(countryCode);
         setLoading(true);
         setError('');
 
@@ -55,7 +52,7 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
             const { data } = await axios.get(`/api/gocardless/institutions?country=${countryCode}`);
             setInstitutions(data);
             setStep(2);
-        } catch (err) {
+        } catch {
             setError('Failed to load institutions. Please try again.');
         } finally {
             setLoading(false);
@@ -63,7 +60,6 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
     };
 
     const handleInstitutionSelect = (institution: Institution) => {
-        setSelectedInstitution(institution);
         handleSubmit(institution.id);
     };
 

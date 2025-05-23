@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Inertia\Inertia;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
+use Inertia\Inertia;
 
 class AnalyticsController extends Controller
 {
@@ -13,10 +13,10 @@ class AnalyticsController extends Controller
     {
         $user_accounts = \App\Models\Account::where('user_id', auth()->user()->id)->get();
         $user_categories = \App\Models\Category::where('user_id', auth()->user()->id)->get();
-        
+
         // Handle account selection
         $selectedAccountIds = $request->input('account_ids', []);
-        
+
         // If no accounts selected or invalid input, use all user accounts
         if (empty($selectedAccountIds)) {
             $accountIds = $user_accounts->pluck('id');
@@ -24,7 +24,7 @@ class AnalyticsController extends Controller
             // Ensure we get only unique, valid account IDs that belong to the user
             $accountIds = collect($selectedAccountIds)
                 ->unique()  // Remove duplicates
-                ->filter(function($id) use ($user_accounts) {
+                ->filter(function ($id) use ($user_accounts) {
                     return $user_accounts->contains('id', $id);
                 })
                 ->values(); // Reset array keys to prevent issues
@@ -34,12 +34,12 @@ class AnalyticsController extends Controller
         $dateRange = $this->parseDateRange($request);
         $startDate = $dateRange['start'];
         $endDate = $dateRange['end'];
-        
+
         // Get data for analytics
         $cashflow = $this->getCashflowData($accountIds, $startDate, $endDate);
         $categorySpending = $this->getCategorySpending($accountIds, $startDate, $endDate);
         $merchantSpending = $this->getMerchantSpending($accountIds, $startDate, $endDate);
-        
+
         return Inertia::render('Analytics/Index', [
             'accounts' => $user_accounts,
             'categories' => $user_categories,  // Add categories to the response
@@ -49,9 +49,9 @@ class AnalyticsController extends Controller
             'merchantSpending' => $merchantSpending,
             'dateRange' => [
                 'start' => $startDate->format('Y-m-d'),
-                'end' => $endDate->format('Y-m-d')
+                'end' => $endDate->format('Y-m-d'),
             ],
-            'period' => $request->input('period', 'last_month')
+            'period' => $request->input('period', 'last_month'),
         ]);
     }
 
@@ -64,13 +64,13 @@ class AnalyticsController extends Controller
         $customStart = $request->input('start_date');
         $customEnd = $request->input('end_date');
         $specificMonth = $request->input('specific_month'); // Format: YYYY-MM
-        
+
         $now = Carbon::now();
-        
+
         // Default to previous month
         $start = $now->copy()->subMonth()->startOfMonth();
         $end = $now->copy()->subMonth()->endOfMonth()->endOfDay();
-        
+
         switch ($period) {
             case 'custom':
                 if ($customStart && $customEnd) {
@@ -106,12 +106,12 @@ class AnalyticsController extends Controller
                 $start = $now->copy()->subYear()->startOfYear();
                 $end = $now->copy()->subYear()->endOfYear()->endOfDay();
                 break;
-            // Default is last_month
+                // Default is last_month
         }
-        
+
         return [
             'start' => $start,
-            'end' => $end
+            'end' => $end,
         ];
     }
 
@@ -120,75 +120,75 @@ class AnalyticsController extends Controller
      */
     public function getCashflowData($accountIds, $startDate = null, $endDate = null, $months = 12)
     {
-        if (!$startDate) {
+        if (! $startDate) {
             $startDate = now()->subMonths($months)->startOfMonth();
         }
-        
+
         // If no accounts selected or explicitly selected accounts with no data, return empty collection
         if ($accountIds->isEmpty()) {
             return collect();
         }
-        
+
         // Convert to array to ensure proper SQL query generation
         $accountIdsArray = $accountIds->toArray();
-        
+
         $query = DB::table('transactions')
             ->whereIn('account_id', $accountIdsArray)
             ->where('processed_date', '>=', $startDate);
-        
+
         if ($endDate) {
             $query->where('processed_date', '<=', $endDate);
         }
-        
+
         // Check if we're looking at a date range less than 32 days
         $daysDiff = $startDate->diffInDays($endDate);
         $isShortRange = $daysDiff < 32;
-        
+
         if ($isShortRange) {
             // Get all transactions for the period to calculate running balance
             $transactions = $query->select(
                 'processed_date',
                 'amount'
             )
-            ->orderBy('processed_date')
-            ->get();
+                ->orderBy('processed_date')
+                ->get();
 
             // Calculate daily balances
             $dailyBalances = [];
-            
+
             foreach ($transactions as $transaction) {
                 $date = Carbon::parse($transaction->processed_date);
                 $dateKey = $date->format('Y-m-d');
-                
-                if (!isset($dailyBalances[$dateKey])) {
+
+                if (! isset($dailyBalances[$dateKey])) {
                     $dailyBalances[$dateKey] = [
-                        'year' => (int)$date->format('Y'),
-                        'month' => (int)$date->format('m'),
-                        'day' => (int)$date->format('d'),
+                        'year' => (int) $date->format('Y'),
+                        'month' => (int) $date->format('m'),
+                        'day' => (int) $date->format('d'),
                         'transaction_count' => 0,
                         'total_income' => 0,
                         'total_expenses' => 0,
-                        'day_balance' => 0
+                        'day_balance' => 0,
                     ];
                 }
-                
+
                 $dailyBalances[$dateKey]['transaction_count']++;
                 if ($transaction->amount > 0) {
                     $dailyBalances[$dateKey]['total_income'] += $transaction->amount;
                 } else {
                     $dailyBalances[$dateKey]['total_expenses'] += abs($transaction->amount);
                 }
-                
+
                 // Calculate net balance as income - expenses
-                $dailyBalances[$dateKey]['day_balance'] = 
+                $dailyBalances[$dateKey]['day_balance'] =
                     $dailyBalances[$dateKey]['total_income'] - $dailyBalances[$dateKey]['total_expenses'];
             }
-            
+
             // Convert to array and sort by date
-            $result = collect($dailyBalances)->values()->sortBy(function($item) {
+            $result = collect($dailyBalances)->values()->sortBy(function ($item) {
                 return sprintf('%04d-%02d-%02d', $item['year'], $item['month'], $item['day']);
             });
-            
+
             return $result;
         } else {
             // For monthly view, calculate monthly balances
@@ -196,48 +196,48 @@ class AnalyticsController extends Controller
                 'processed_date',
                 'amount'
             )
-            ->orderBy('processed_date')
-            ->get();
+                ->orderBy('processed_date')
+                ->get();
 
             // Calculate monthly balances
             $monthlyBalances = [];
-            
+
             foreach ($transactions as $transaction) {
                 $date = Carbon::parse($transaction->processed_date);
                 $monthKey = $date->format('Y-m');
-                
-                if (!isset($monthlyBalances[$monthKey])) {
+
+                if (! isset($monthlyBalances[$monthKey])) {
                     $monthlyBalances[$monthKey] = [
-                        'year' => (int)$date->format('Y'),
-                        'month' => (int)$date->format('m'),
+                        'year' => (int) $date->format('Y'),
+                        'month' => (int) $date->format('m'),
                         'transaction_count' => 0,
                         'total_income' => 0,
                         'total_expenses' => 0,
-                        'month_balance' => 0
+                        'month_balance' => 0,
                     ];
                 }
-                
+
                 $monthlyBalances[$monthKey]['transaction_count']++;
                 if ($transaction->amount > 0) {
                     $monthlyBalances[$monthKey]['total_income'] += $transaction->amount;
                 } else {
                     $monthlyBalances[$monthKey]['total_expenses'] += abs($transaction->amount);
                 }
-                
+
                 // Calculate net balance as income - expenses
-                $monthlyBalances[$monthKey]['month_balance'] = 
+                $monthlyBalances[$monthKey]['month_balance'] =
                     $monthlyBalances[$monthKey]['total_income'] - $monthlyBalances[$monthKey]['total_expenses'];
             }
-            
+
             // Convert to array and sort by date
-            $result = collect($monthlyBalances)->values()->sortBy(function($item) {
+            $result = collect($monthlyBalances)->values()->sortBy(function ($item) {
                 return sprintf('%04d-%02d', $item['year'], $item['month']);
             });
-            
+
             return $result;
         }
     }
-    
+
     /**
      * Get spending by category for the specified date range
      */
@@ -274,12 +274,13 @@ class AnalyticsController extends Controller
             ->where('amount', '<', 0)
             ->whereNull('category_id')
             ->first();
+
         return [
             'categorized' => $categorized,
-            'uncategorized' => $uncategorized
+            'uncategorized' => $uncategorized,
         ];
     }
-    
+
     /**
      * Get spending by merchant for the specified date range
      */
@@ -316,9 +317,10 @@ class AnalyticsController extends Controller
             ->where('amount', '<', 0)
             ->whereNull('merchant_id')
             ->first();
+
         return [
             'withMerchant' => $withMerchant,
-            'noMerchant' => $noMerchant
+            'noMerchant' => $noMerchant,
         ];
     }
 }

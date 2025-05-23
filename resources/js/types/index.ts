@@ -1,3 +1,5 @@
+import { LucideIcon } from 'lucide-react';
+
 export enum Currency {
     EUR = 'EUR',
     USD = 'USD',
@@ -33,10 +35,10 @@ export interface Transaction {
     source_iban?: string;
     partner?: string;
     type: string;
-    metadata?: any;
+    metadata?: Record<string, unknown> | undefined;
     balance_after_transaction: number;
     account_id: number;
-    import_data?: any;
+    import_data?: Record<string, unknown> | undefined;
     merchant_id?: number;
     category_id?: number;
     note?: string;
@@ -66,7 +68,7 @@ export interface TransactionRule {
 export interface NavItem {
     title: string;
     href: string;
-    icon: any;
+    icon?: LucideIcon | null;
 }
 
 export interface BreadcrumbItem {

@@ -16,7 +16,7 @@ export default function Index({ accounts }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
 
-    const handleCreateAccount = (data: any) => {
+    const handleCreateAccount = (data: Record<string, string | number | boolean | File | null>) => {
         router.post('/accounts', data, {
             onSuccess: () => {
                 setIsCreateModalOpen(false);
