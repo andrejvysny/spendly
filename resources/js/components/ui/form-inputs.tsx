@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Controller, useFormContext, FieldPath, FieldValues } from "react-hook-form";
+import { useFormContext, FieldPath, FieldValues } from "react-hook-form";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -229,19 +229,21 @@ export function ColorInput<TFieldValues extends FieldValues>({
         <FormItem>
           <FormLabel>{label}{required && <span className="text-destructive ml-1">*</span>}</FormLabel>
           <FormControl>
-            <div className="flex gap-2 items-center">
-              <Input 
-                type="color" 
-                {...field} 
-                value={field.value || "#000000"} 
-                className="w-12 h-9 p-1" 
+            <div className="flex items-center gap-2">
+              <Input
+                type="color"
+                {...field}
                 disabled={disabled}
+                className="h-10 w-20 p-1"
               />
               {showHexInput && (
-                <Input 
-                  {...field} 
-                  value={field.value || "#000000"} 
+                <Input
+                  type="text"
+                  value={field.value || "#000000"}
+                  onChange={(e) => field.onChange(e.target.value)}
                   disabled={disabled}
+                  className="flex-1"
+                  placeholder="#000000"
                 />
               )}
             </div>
@@ -274,14 +276,14 @@ export function FileInput<TFieldValues extends FieldValues>({
   accept,
   multiple,
 }: FileInputProps<TFieldValues>) {
-  const { control, setValue } = useFormContext<TFieldValues>();
+  const { control } = useFormContext<TFieldValues>();
   const [fileName, setFileName] = React.useState<string>("");
 
   return (
     <FormField
       control={control}
       name={name}
-      render={({ field: { value, onChange, ...fieldProps } }) => (
+      render={({ field: { onChange, ...fieldProps } }) => (
         <FormItem>
           <FormLabel>{label}{required && <span className="text-destructive ml-1">*</span>}</FormLabel>
           <FormControl>

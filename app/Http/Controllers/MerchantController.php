@@ -58,12 +58,12 @@ class MerchantController extends Controller
             if ($request->replacement_action === 'replace' && $request->has('replacement_merchant_id')) {
                 // Replace this merchant with another merchant in all transactions
                 $merchant->transactions()->update([
-                    'merchant_id' => $request->replacement_merchant_id
+                    'merchant_id' => $request->replacement_merchant_id,
                 ]);
             } else {
                 // Remove the merchant from all transactions
                 $merchant->transactions()->update([
-                    'merchant_id' => null
+                    'merchant_id' => null,
                 ]);
             }
         }

@@ -2,7 +2,6 @@ import TransactionComponent from '@/components/transactions/Transaction';
 import { Transaction, Category, Merchant } from '@/types/index';
 import { useState, useEffect } from 'react';
 import BulkActionMenu from './BulkActionMenu';
-import { router } from '@inertiajs/react';
 
 interface Props {
     transactions: Transaction[];

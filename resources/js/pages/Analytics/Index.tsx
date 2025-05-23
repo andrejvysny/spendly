@@ -1,6 +1,5 @@
 import React from 'react';
 import AppLayout from '@/layouts/app-layout';
-import PageHeader from '@/layouts/page-header';
 import { PageProps, Account, Category } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
@@ -8,10 +7,7 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Chart, Bar, Doughnut } from 'react-chartjs-2';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { format, parse } from 'date-fns';
+import { format } from 'date-fns';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -28,8 +24,9 @@ import {
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Button } from '@/components/ui/button';
-import { MultiSelect, Option } from '@/components/ui/multi-select';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { formatAmount } from '@/utils/currency';
+import { Input } from '@/components/ui/input';
 
 // Register ChartJS components
 ChartJS.register(
@@ -56,6 +53,16 @@ interface CashflowData {
   day_balance?: number;
 }
 
+interface CategorySpendingData {
+  categorized: CategorySpending[];
+  uncategorized: { total: number; count: number };
+}
+
+interface MerchantSpendingData {
+  withMerchant: MerchantSpending[];
+  noMerchant: { total: number; count: number };
+}
+
 interface CategorySpending {
   category: string;
   total: number;
@@ -74,8 +81,8 @@ interface AnalyticsProps extends PageProps {
   categories: Category[];
   selectedAccountIds: number[];
   cashflow: CashflowData[];
-  categorySpending: { categorized: CategorySpending[]; uncategorized: { total: number; count: number } };
-  merchantSpending: { withMerchant: MerchantSpending[]; noMerchant: { total: number; count: number } };
+  categorySpending: CategorySpendingData;
+  merchantSpending: MerchantSpendingData;
   dateRange: {
     start: string;
     end: string;
@@ -87,7 +94,6 @@ interface AnalyticsProps extends PageProps {
 const breadcrumbs = [{ title: 'Analytics', href: '/analytics' }];
 
 export default function Index({
-  auth,
   accounts,
   categories,
   selectedAccountIds,
@@ -97,8 +103,8 @@ export default function Index({
   dateRange,
   period: initialPeriod
 }: AnalyticsProps & {
-  categorySpending: { categorized: CategorySpending[]; uncategorized: { total: number; count: number } };
-  merchantSpending: { withMerchant: MerchantSpending[]; noMerchant: { total: number; count: number } };
+  categorySpending: CategorySpendingData;
+  merchantSpending: MerchantSpendingData;
 }) {
   const [dateSelection, setDateSelection] = useState({ from: dateRange.start, to: dateRange.end });
   const [periodType, setPeriodType] = useState<string>(initialPeriod);
@@ -112,7 +118,7 @@ export default function Index({
       const today = new Date();
       setSpecificMonth(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
     }
-  }, [periodType]);
+  }, [periodType, specificMonth]);
 
   // Handle date range selection
   const handleDateRangeChange = (value: { from: string; to: string }) => {
@@ -136,7 +142,7 @@ export default function Index({
     setPeriodType(value);
 
     // Create data object for the request
-    const data: Record<string, any> = {
+    const data: Record<string, string | number | boolean | File | null | number[]> = {
       period: value,
       account_ids: selectedAccounts,
     };
@@ -164,7 +170,7 @@ export default function Index({
           period: 'specific_month',
           specific_month: newValue,
           account_ids: selectedAccounts,
-        },
+        } as Record<string, string | number | boolean | File | null | number[]>,
         only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange'],
         preserveState: true,
       });
@@ -178,7 +184,7 @@ export default function Index({
     setSelectedAccounts(numericIds);
 
     // Create data object for the request
-    const data: Record<string, any> = {
+    const data: Record<string, string | number | boolean | File | null | number[]> = {
       period: periodType,
       account_ids: numericIds,
     };
@@ -201,7 +207,9 @@ export default function Index({
 
   // Format the CashflowData for the chart
   const formatCashflowForChart = (data: CashflowData[]): ChartData<'bar' | 'line', (number | undefined)[], string> => {
-    if (!data || data.length === 0) {
+    const datasets = []; // If no data, return empty datasets
+
+    if (data.length === 0) {
       return {
         labels: [],
         datasets: [
@@ -240,7 +248,7 @@ export default function Index({
       };
     }
 
-    const hasDailyData = data[0].hasOwnProperty('day');
+    const hasDailyData = Object.prototype.hasOwnProperty.call(data[0], 'day');
     const labels = data.map(item => {
       if (hasDailyData) {
         return `${item.year}-${String(item.month).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`;
@@ -248,7 +256,7 @@ export default function Index({
       return `${item.year}-${String(item.month).padStart(2, '0')}`;
     });
 
-    const datasets = [
+    datasets.push(
       {
         label: 'Income',
         data: data.map(item => item.total_income),
@@ -280,7 +288,7 @@ export default function Index({
         pointHoverRadius: 6,
         yAxisID: 'y'
       }
-    ];
+    );
 
     return {
       labels,
@@ -368,7 +376,7 @@ export default function Index({
           mode: 'index' as const,
           intersect: false,
           callbacks: {
-            label: function(context: any) {
+            label: function(context: import('chart.js').TooltipItem<'bar' | 'line'>) {
               const value = Number(context.raw);
               if (context.dataset.label === 'Expenses') {
                 return `Expenses: ${formatAmount(Math.abs(value))}`;
@@ -401,7 +409,7 @@ export default function Index({
           },
           ticks: {
             color: '#9CA3AF',
-            callback: function(value: any) {
+            callback: function(value: string | number) {
               return `$${Number(value).toFixed(2)}`;
             },
           },
@@ -515,10 +523,10 @@ export default function Index({
         }
       },
       datalabels: {
-        formatter: (value: number, ctx) => {
+        formatter: (value: number, ctx: import('chartjs-plugin-datalabels/types/context').Context) => {
           const dataset = ctx.chart.data.datasets[0];
-          const total = dataset.data.reduce((acc: number, data) => {
-            return acc + (typeof data === 'number' ? data : 0);
+          const total = (dataset.data as number[]).reduce((acc: number, data: number) => {
+            return acc + data;
           }, 0);
           const percentage = ((value / total) * 100).toFixed(1) + '%';
           return percentage;
@@ -528,11 +536,11 @@ export default function Index({
           weight: 'bold',
           size: 11
         },
-        display: function(context) {
+        display: function(context: import('chartjs-plugin-datalabels/types/context').Context) {
           // Only display label if the percentage is greater than 5%
           const value = context.dataset.data[context.dataIndex] as number;
-          const total = context.dataset.data.reduce((acc: number, data) => {
-            return acc + (typeof data === 'number' ? data : 0);
+          const total = (context.dataset.data as number[]).reduce((acc: number, data: number) => {
+            return acc + data;
           }, 0);
           return (value / total) * 100 > 5;
         }

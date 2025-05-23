@@ -38,8 +38,6 @@ class Account extends Model
 
     /**
      * Get the transactions for the account.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
     public function transactions(): HasMany
     {

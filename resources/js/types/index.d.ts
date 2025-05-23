@@ -3,6 +3,7 @@ import type { Config } from 'ziggy-js';
 
 export interface Auth {
     user: User;
+    [key: string]: unknown; // This allows for additional properties...
 }
 
 export interface BreadcrumbItem {
@@ -42,6 +43,22 @@ export interface User {
     [key: string]: unknown; // This allows for additional properties...
 }
 
+export interface Account {
+    id: number;
+    user_id: number;
+    name: string;
+    bank_name: string | null;
+    iban: string | null;
+    type: string;
+    currency: string;
+    balance: number;
+    gocardless_account_id: string | null;
+    is_gocardless_synced: boolean;
+    gocardless_last_synced_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 interface TransactionType {
     id: number;
     transaction_id: string;
@@ -54,10 +71,10 @@ interface TransactionType {
     source_iban: string | null;
     partner: string;
     type: string;
-    metadata: Record<string, any> | null;
+    metadata: Record<string, unknown> | null;
     balance_after_transaction: number;
     account_id: number | null;
     created_at: string;
     updated_at: string;
-    account: mixed;
+    account: Account | null;
 }

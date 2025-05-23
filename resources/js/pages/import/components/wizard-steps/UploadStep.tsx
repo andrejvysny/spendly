@@ -69,9 +69,10 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
                     accountId: parseInt(accountId),
                     totalRows: response.data.total_rows,
                 });
-            } catch (err: any) {
-                console.error('Upload error:', err);
-                setError(err.response?.data?.message || 'Failed to upload file');
+            } catch (err) {
+                const axiosError = err as import('axios').AxiosError<{ message: string }>;
+                console.error('Upload error:', axiosError);
+                setError(axiosError.response?.data?.message || 'Failed to upload file');
             } finally {
                 setIsLoading(false);
             }
