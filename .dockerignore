@@ -100,7 +100,5 @@ tsconfig.tsbuildinfo
 *~
 
 # Misc
-IDEAS.md
-fulltext-search.md
 components.json
 **/*.sqlite*

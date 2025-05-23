@@ -35,14 +35,13 @@ Spendly is an open-source personal finance tracker that helps you manage your fi
 
 - **Bank Account Integration**: Import transactions automatically using GoCardless
 - **Financial Analysis**: Get insights into your spending patterns and financial health
-- **Budget Management**: Create and track budgets for different categories
-- **Transaction Categorization**: Automatically categorize transactions with machine learning
+- **Budget Management WIP**: Create and track budgets for different categories
+- **Transaction Categorization WIP**: Automatically categorize transactions with machine learning - currently supports manual categorization
 - **Reports & Visualizations**: Beautiful charts and reports for better financial understanding
-- **Multi-currency Support**: Track finances in multiple currencies
-- **Secure**: Bank-level security for your financial data
+- **Multi-currency Support WIP**: Track finances in multiple currencies
 - **CSV Import**: Import transactions from CSV files with customizable field mapping
 - **Self-Hosting**: Easy deployment with Docker, Kubernetes, or bare metal
-- **API Access**: RESTful API for integrations and automation
+- **API Access WIP**: RESTful API for integrations and automation
 
 ## 🚀 Tech Stack
 
@@ -50,9 +49,9 @@ Spendly is an open-source personal finance tracker that helps you manage your fi
 - **Frontend**: React 18.x with TypeScript
 - **Database**: SQLite (default), MySQL, PostgreSQL
 - **Authentication**: Laravel Sanctum
-- **API Integration**: GoCardless API
+- **API Integration**: GoCardless API (WIP)
 - **Testing**: PHPUnit, Jest
-- **Deployment**: Docker, Kubernetes ready
+- **Deployment**: Docker
 
 ## 🐳 Quick Start
 
@@ -63,7 +62,7 @@ Spendly is an open-source personal finance tracker that helps you manage your fi
 2. Run the application:
 
 ```bash
-docker run -p 80:80 ghcr.io/andrejvysny/spendly:pre-release
+docker run -p 80:80 ghcr.io/andrejvysny/spendly:main
 ```
 
 3. Visit `http://localhost` in your browser.
@@ -88,49 +87,29 @@ EOF
 docker compose -f compose.prod.yml up -d
 ```
 
-## 📚 Documentation
-
+## 📚 Documentation (WIP)
+ 
 - **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Self-hosting and production deployment
-- **[Development Setup](docs/Development.md)** - Local development environment
+- **[Development Setup](docs/DEVELOPMENT.md)** - Local development environment
 - **[API Documentation](docs/API.md)** - RESTful API reference
 - **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute
 - **[Security Policy](SECURITY.md)** - Security and vulnerability reporting
 
 ## 🔧 Development
 
-```bash
-# Clone the repository
-git clone https://github.com/andrejvysny/spendly.git
-cd spendly
-
-# Install dependencies
-composer install
-npm install
-
-# Setup environment
-cp .env.example .env
-php artisan key:generate
-php artisan migrate
-
-# Start development servers
-php artisan serve &
-npm run dev
-```
-
-See [Development Guide](docs/Development.md) for detailed instructions.
+See [Development Guide](docs/DEVELOPMENT.md) for detailed instructions.
 
 ## 🔒 Security
 
 Spendly takes security seriously, especially when handling financial data:
 
-- **Bank-level encryption** for sensitive data
 - **Regular security audits** and dependency updates
 - **Secure authentication** with Laravel Sanctum
 - **Input validation** and SQL injection prevention
 - **Security headers** and CSRF protection
 
-Report security vulnerabilities to **security@spendly.app**. See [SECURITY.md](SECURITY.md) for details.
+Report security vulnerabilities to **vysnyandrej@gmail.com**. See [SECURITY.md](SECURITY.md) for details.
 
 ## 🤝 Contributing
 
@@ -165,7 +144,7 @@ This project is licensed under the GNU General Public License v3.0 (GPLv3). See 
 
 - **Documentation**: [Installation](docs/INSTALLATION.md) | [API](docs/API.md) | [Deployment](docs/DEPLOYMENT.md)
 - **GitHub Issues**: [Report bugs or request features](https://github.com/andrejvysny/spendly/issues)
-- **Security Issues**: security@spendly.app
+- **Security Issues**: vysnyandrej@gmail.com
 - **Community**: [GitHub Discussions](https://github.com/andrejvysny/spendly/discussions)
 
 ## 🔗 Links

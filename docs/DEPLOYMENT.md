@@ -1,4 +1,4 @@
-# Self-Hosting Spendly - Deployment Guide
+# Self-Hosting Spendly - Deployment Guide - WIP
 
 This guide covers various methods to deploy and self-host Spendly for production use.
 

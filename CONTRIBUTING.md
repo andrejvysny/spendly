@@ -25,7 +25,10 @@ This project and everyone participating in it is governed by our [Code of Conduc
 - PHP 8.3 or higher
 - Node.js 20 or higher
 - Composer
-- Docker (optional but recommended)
+
+Or another option:
+
+- Docker (recommended)
 
 ### Development Setup
 
@@ -57,10 +60,11 @@ This project and everyone participating in it is governed by our [Code of Conduc
    php artisan key:generate
    php artisan migrate --seed
    npm install
-   npm run dev
+   npm run dev & # Start the frontend build process in the background - or use another terminal without &
+   php artisan serve & # Start the backend server in the background - or use another terminal without &
    ```
 
-See [Development.md](docs/Development.md) for detailed setup instructions.
+See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed setup instructions.
 
 ## Making Changes
 
@@ -68,8 +72,8 @@ See [Development.md](docs/Development.md) for detailed setup instructions.
 
 - `main` - Production-ready code
 - `develop` - Development branch for integration
-- Feature branches: `feature/feature-name`
-- Bug fixes: `fix/bug-description`
+- Feature branches: `feature/github-issue-id`
+- Bug fixes: `fix/github-issue-id`
 - Documentation: `docs/topic-name`
 
 ### Workflow
@@ -78,7 +82,7 @@ See [Development.md](docs/Development.md) for detailed setup instructions.
    ```bash
    git checkout develop
    git pull origin develop
-   git checkout -b feature/your-feature-name
+   git checkout -b feature/github-issue-id
    ```
 
 2. **Make your changes** following our style guidelines
@@ -97,6 +101,7 @@ See [Development.md](docs/Development.md) for detailed setup instructions.
    ```
 
 4. **Commit your changes** with a clear message:
+Refer to the [Commit Message Format](#commit-message-format) section for guidelines.
    ```bash
    git add .
    git commit -m "feat: add transaction categorization feature"
@@ -217,7 +222,7 @@ npm run test:watch
 
 ### Code Documentation
 
-- Add PHPDoc blocks for classes and methods
+- Add PHPDoc blocks for complex classes and methods
 - Use TypeScript interfaces and types
 - Document complex business logic
 - Keep README.md up to date
@@ -228,6 +233,7 @@ npm run test:watch
 - Include request/response examples
 - Specify authentication requirements
 - Update OpenAPI specifications
+- Use Swagger UI for interactive API documentation
 
 ### User Documentation
 
@@ -264,12 +270,8 @@ npm run test:watch
 
 - **Discussions**: Use GitHub Discussions for questions
 - **Issues**: Report bugs and feature requests on GitHub
-- **Discord**: Join our community Discord server
-- **Email**: Contact maintainers at contribute@spendly.app
+- **Email**: Contact maintainers at vysnyandrej@gmail.com
 
-### Recognition
-
-We maintain a [CONTRIBUTORS.md](CONTRIBUTORS.md) file to recognize all contributors. Your contributions will be acknowledged!
 
 ## Release Process
 
@@ -284,6 +286,5 @@ Don't hesitate to ask questions! We're here to help:
 
 - Open an issue for bugs or feature requests
 - Start a discussion for general questions
-- Join our Discord community for real-time chat
 
 Thank you for contributing to Spendly! 🚀
