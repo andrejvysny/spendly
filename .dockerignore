@@ -1,0 +1,106 @@
+# Git
+.git
+.gitignore
+.gitattributes
+.github
+
+# Docker
+.docker/*
+!.docker/php
+!.docker/entrypoint.sh
+docker-compose.yml
+compose.yml
+compose.prod.yml
+
+# Development environment
+.env.*.local
+.env.local
+.env.testing
+.editorconfig
+.vscode
+.idea
+*.log
+*.cache
+*.swp
+*.swo
+.DS_Store
+
+# Node modules and frontend build assets that we'll create in the build
+node_modules
+npm-debug.log
+yarn-error.log
+public/hot
+public/js/*
+public/css/*
+public/build/*
+!public/build/manifest.json
+
+# Laravel
+.env
+.env.example
+.env.backup
+.phpunit.result.cache
+storage/app/public/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+storage/logs/*
+bootstrap/cache/*
+vendor
+
+# Tests
+phpunit.xml
+tests
+coverage
+.phpunit.cache
+
+# Documentation
+DOCKER.md
+README.md
+CONTRIBUTING.md
+CHANGELOG.md
+CODE_OF_CONDUCT.md
+docs
+*.md
+!README.md
+
+# Dependencies
+composer.phar
+yarn.lock
+pnpm-lock.yaml
+
+# IDE and Editor files
+.idea
+.vscode
+*.sublime-*
+*.code-workspace
+.project
+.settings
+.classpath
+
+# Build and cache files
+*.map
+*.tsbuildinfo
+.eslintcache
+.prettierrc
+.prettierignore
+tsconfig.tsbuildinfo
+.eslintrc*
+.stylelintrc*
+.babelrc*
+.postcssrc*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Misc
+IDEAS.md
+fulltext-search.md
+components.json
+**/*.sqlite*
