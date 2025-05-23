@@ -102,3 +102,9 @@ tsconfig.tsbuildinfo
 # Misc
 components.json
 **/*.sqlite*
+
+*.md
+
+docs/
+.github/
+tests/
