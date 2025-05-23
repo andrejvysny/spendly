@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Check, X, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export interface Option {
@@ -87,7 +86,7 @@ export function MultiSelect<T extends string | number>({
 
   // Handle clicking "Select All"
   const handleSelectAll = () => {
-    onChange(options.map(option => option.value) as T[]);
+    onChange(options.map(option => option.value as T));
   };
 
   // Clear all selections

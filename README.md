@@ -22,14 +22,7 @@ Spendly is an open-source personal finance tracker that helps you manage your fi
 
 ## 📸 Screenshots
 
-<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
-    <img src="docs/screenshots/dashboard.png" alt="Dashboard" style="width: 100%; border-radius: 8px;">
-    <img src="docs/screenshots/transactions_list.png" alt="Transactions" style="width: 100%; border-radius: 8px;">
-    <img src="docs/screenshots/accounts_list.png" alt="Accounts" style="width: 100%; border-radius: 8px;">
-    <img src="docs/screenshots/account_detail.png" alt="Account Detail" style="width: 100%; border-radius: 8px;">
-    <img src="docs/screenshots/categories_list.png" alt="Categories" style="width: 100%; border-radius: 8px;">
-    <img src="docs/screenshots/import_upload.png" alt="Import Upload" style="width: 100%; border-radius: 8px;">
-</div>
+![Screenshots](docs/screenshots/screenshots.png)
 
 ## 🌟 Features
 

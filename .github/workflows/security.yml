@@ -1,10 +1,8 @@
 name: Security Checks
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  workflow_dispatch:
+
   schedule:
     # Run security checks weekly at 2 AM UTC every Monday
     - cron: '0 2 * * 1'

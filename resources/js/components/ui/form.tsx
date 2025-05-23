@@ -4,7 +4,6 @@ import { Slot } from "@radix-ui/react-slot"
 import {
   Controller,
   ControllerProps,
-  ControllerRenderProps,
   FieldPath,
   FieldValues,
   FormProvider,

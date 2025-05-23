@@ -123,12 +123,11 @@ class AccountController extends Controller
 
     }
 
-
     public function getCashflowOfMonth($accountIds, $before_month = 0)
     {
         $startDate = now()->subMonths($before_month)->startOfMonth();
         $endDate = now()->subMonths($before_month)->endOfMonth();
-        
+
         $cashflow = \DB::table('transactions')
             ->select(
                 \DB::raw('CAST(strftime("%Y", processed_date) AS INTEGER) as year'),

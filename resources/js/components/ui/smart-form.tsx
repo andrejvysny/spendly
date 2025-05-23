@@ -13,7 +13,7 @@ import { z } from "zod";
 
 interface SmartFormProps<
   TFieldValues extends FieldValues,
-  Schema extends z.ZodType<any, any>
+  Schema extends z.ZodType<TFieldValues, z.ZodTypeDef, TFieldValues>
 > {
   schema: Schema;
   defaultValues?: DefaultValues<TFieldValues>;
@@ -26,7 +26,7 @@ interface SmartFormProps<
 
 export function SmartForm<
   TFieldValues extends FieldValues,
-  Schema extends z.ZodType<any, any>
+  Schema extends z.ZodType<TFieldValues, z.ZodTypeDef, TFieldValues>
 >({
   schema,
   defaultValues,
@@ -73,4 +73,4 @@ export function SmartForm<
 }
 
 // Export a type helper for form values based on schema
-export type InferFormValues<T extends z.ZodType<any, any>> = z.infer<T>; 
+export type InferFormValues<T extends z.ZodType<unknown, z.ZodTypeDef, unknown>> = z.infer<T>; 

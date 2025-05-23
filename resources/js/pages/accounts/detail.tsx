@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import ValueSplit from '@/components/ui/value-split';
 import AppLayout from '@/layouts/app-layout';
-import { Account, Transaction } from '@/types/index';
+import { Account, Transaction, Category, Merchant } from '@/types/index';
 import { formatDate } from '@/utils/date';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
@@ -24,6 +24,8 @@ import { formatAmount } from '@/utils/currency';
 interface Props {
     account: Account;
     transactions: Transaction[];
+    categories: Category[];
+    merchants: Merchant[];
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     total_transactions: number;
     cashflow_last_month: Array<{
@@ -46,7 +48,7 @@ interface Props {
     }>;
 }
 
-export default function Detail({ account, transactions, monthlySummaries, total_transactions, cashflow_last_month, cashflow_this_month }: Props) {
+export default function Detail({ account, transactions, categories, merchants, monthlySummaries, total_transactions, cashflow_last_month, cashflow_this_month }: Props) {
     const [syncing, setSyncing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const breadcrumbs = [
@@ -60,7 +62,7 @@ export default function Detail({ account, transactions, monthlySummaries, total_
             await axios.post(`/api/accounts/${account.id}/sync-transactions`);
             // Refresh the page to show new transactions
             window.location.reload();
-        } catch (error) {
+        } catch {
             // Handle error silently
         } finally {
             setSyncing(false);
@@ -74,8 +76,8 @@ export default function Detail({ account, transactions, monthlySummaries, total_
                 onSuccess: () => {
                     router.visit('/accounts');
                 },
-                onError: (error) => {
-                    console.error('Failed to delete account:', error);
+                onError: () => {
+                    console.error('Failed to delete account:');
                 },
             });
         } finally {
@@ -94,7 +96,7 @@ export default function Detail({ account, transactions, monthlySummaries, total_
         });
         if (!groupedByMonth[monthKey]) groupedByMonth[monthKey] = {};
         if (!groupedByMonth[monthKey][dateKey]) groupedByMonth[monthKey][dateKey] = [];
-        const { key, ...rest } = transaction as any;
+        const { ...rest } = transaction as unknown as Omit<Transaction, 'key'>;
         groupedByMonth[monthKey][dateKey].push({
             ...rest,
             account: transaction.account ?? {
@@ -222,7 +224,12 @@ export default function Detail({ account, transactions, monthlySummaries, total_
                             </div>
                         </div>
                         <div className="flex flex-col gap-6">
-                            <TransactionList transactions={transactions} monthlySummaries={monthlySummaries} />
+                            <TransactionList
+                                transactions={transactions}
+                                monthlySummaries={monthlySummaries}
+                                categories={categories}
+                                merchants={merchants}
+                            />
                         </div>
                     </div>
                 </div>

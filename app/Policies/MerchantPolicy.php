@@ -49,4 +49,4 @@ class MerchantPolicy
     {
         return $user->id === $merchant->user_id;
     }
-} 
+}

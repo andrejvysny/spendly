@@ -55,7 +55,7 @@ class Import extends Model
     public const STATUS_FAILED = 'failed';
 
     public const STATUS_COMPLETED_SKIPPED_DUPLICATES = 'completed_skipped_duplicates';
-    
+
     public const STATUS_PARTIALLY_FAILED = 'partially_failed';
 
     /**

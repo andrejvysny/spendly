@@ -42,7 +42,7 @@ export function DataTable<T>({ columns, data, rowKey, emptyMessage = 'No data.' 
                                     <TableRow key={rowKey(row)}>
                                         {columns.map((col) => (
                                             <TableCell key={col.key} className={col.className}>
-                                                {col.render ? col.render(row) : (row as any)[col.key]}
+                                                {col.render ? col.render(row) : (row as Record<string, React.ReactNode>)[col.key]}
                                             </TableCell>
                                         ))}
                                     </TableRow>
