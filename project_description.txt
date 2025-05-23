@@ -1,0 +1,27 @@
+**Project Name:** Spendly - Personal Finance Tracker
+
+**Goal:** Spendly is an open-source personal finance tracker designed to help users manage their finances, analyze spending patterns, and maintain budgets. It aims to provide seamless bank account integration and powerful financial analysis tools.
+
+**Features:**
+
+1. **Bank Account Integration:** Automatically import transactions using GoCardless.
+2. **Financial Analysis:** Gain insights into spending patterns and financial health.
+3. **Budget Management (WIP):** Create and track budgets for different categories.
+4. **Transaction Categorization (WIP):** Use machine learning for automatic transaction categorization, with current support for manual categorization.
+5. **Reports & Visualizations:** Generate beautiful charts and reports for better financial understanding.
+6. **Multi-currency Support (WIP):** Track finances in multiple currencies.
+7. **CSV Import:** Import transactions from CSV files with customizable field mapping.
+8. **Self-Hosting:** Deploy easily with Docker, Kubernetes, or on bare metal.
+9. **API Access (WIP):** RESTful API for integrations and automation.
+
+**Tech Stack:**
+
+- **Backend:** Laravel 10.x
+- **Frontend:** React 18.x with TypeScript
+- **Database:** SQLite (default), MySQL, PostgreSQL
+- **Authentication:** Laravel Sanctum
+- **API Integration:** GoCardless API (WIP)
+- **Testing:** PHPUnit, Jest
+- **Deployment:** Docker
+
+**Development Status:** The project is in active development with no official release yet. It requires extensive refactoring and thorough code review before being production-ready. 
