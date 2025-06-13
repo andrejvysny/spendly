@@ -19,7 +19,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 
 interface Props {
-    transactions: Transaction[];
+    transactions: {
+        data: Transaction[];
+        current_page: number;
+        has_more_pages: boolean;
+    };
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     totalSummary?: {
         count: number;
@@ -88,7 +92,10 @@ export default function Index({
 }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [transactions, setTransactions] = useState(initialTransactions);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [transactions, setTransactions] = useState(initialTransactions.data);
+    const [currentPage, setCurrentPage] = useState(initialTransactions.current_page);
+    const [hasMorePages, setHasMorePages] = useState(initialTransactions.has_more_pages);
     const [monthlySummaries, setMonthlySummaries] = useState(initialSummaries);
     const [totalSummary, setTotalSummary] = useState(initialTotalSummary);
     const [isFiltered, setIsFiltered] = useState(initialIsFiltered);
@@ -341,7 +348,9 @@ export default function Index({
             });
             console.log("API response:", response.data);
             if (response.data.transactions) {
-                setTransactions(response.data.transactions);
+                setTransactions(response.data.transactions.data);
+                setCurrentPage(response.data.transactions.current_page);
+                setHasMorePages(response.data.transactions.has_more_pages);
                 setMonthlySummaries(response.data.monthlySummaries || {});
                 if (isResettingFilters) {
                     setTotalSummary(undefined);
@@ -399,6 +408,36 @@ export default function Index({
             previousFilterStateRef.current = isFilterActive;
         }
     }, [filterValues, initialLoadComplete, debouncedFetchTransactions, hasActiveFilters, resetValues]);
+
+    // Load more transactions
+    const loadMoreTransactions = async () => {
+        if (isLoadingMore || !hasMorePages) return;
+
+        setIsLoadingMore(true);
+        try {
+            const response = await axios.get('/transactions/load-more', {
+                params: {
+                    ...filterValues,
+                    page: currentPage + 1,
+                },
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.data.transactions) {
+                setTransactions(prev => [...prev, ...response.data.transactions.data]);
+                setCurrentPage(response.data.transactions.current_page);
+                setHasMorePages(response.data.transactions.has_more_pages);
+            }
+        } catch (error) {
+            console.error('Error loading more transactions:', error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
 
     const breadcrumbs: BreadcrumbItem[] = [
         {
@@ -816,6 +855,9 @@ export default function Index({
                                         categories={categories}
                                         merchants={merchants}
                                         showMonthlySummary={showMonthlySummary}
+                                        hasMorePages={hasMorePages}
+                                        onLoadMore={loadMoreTransactions}
+                                        isLoadingMore={isLoadingMore}
                                     />
                                 </>
                             )}

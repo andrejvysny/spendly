@@ -23,23 +23,8 @@ const sidebarNavItems: NavItem[] = [
         icon: null,
     },
     {
-        title: 'Security',
-        href: '/settings/security',
-        icon: null,
-    },
-    {
-        title: 'API Tokens',
-        href: '/settings/api-tokens',
-        icon: null,
-    },
-    {
-        title: 'Two Factor Authentication',
-        href: '/settings/two-factor-authentication',
-        icon: null,
-    },
-    {
-        title: 'Delete Account',
-        href: '/settings/delete-account',
+        title: 'Bank Data',
+        href: '/settings/bank_data',
         icon: null,
     },
 ];
@@ -80,7 +65,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                 <Separator className="my-6 md:hidden" />
 
                 <div className="flex-1 md:max-w-2xl">
-                    <section className="max-w-xl space-y-12">{children}</section>
+                    <section className="max-w-2xl space-y-12">{children}</section>
                 </div>
             </div>
         </div>

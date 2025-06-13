@@ -1,5 +1,4 @@
 import CreateAccountModal from '@/components/accounts/CreateAccountModal';
-import GoCardlessImportWizard from '@/components/accounts/GoCardlessImportWizard';
 import ValueSplit from '@/components/ui/value-split';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
@@ -14,7 +13,6 @@ interface Props {
 
 export default function Index({ accounts }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
 
     const handleCreateAccount = (data: Record<string, string | number | boolean | File | null>) => {
         router.post('/accounts', data, {
@@ -36,10 +34,7 @@ export default function Index({ accounts }: Props) {
                                 onClick: () => setIsCreateModalOpen(true),
                                 label: '+ New Account',
                             },
-                            {
-                                onClick: () => setIsImportWizardOpen(true),
-                                label: 'Import Account',
-                            },
+                    
                         ]}
                     />
                 </div>
@@ -75,14 +70,7 @@ export default function Index({ accounts }: Props) {
 
             <CreateAccountModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSubmit={handleCreateAccount} />
 
-            <GoCardlessImportWizard
-                isOpen={isImportWizardOpen}
-                onClose={() => setIsImportWizardOpen(false)}
-                onSuccess={() => {
-                    setIsImportWizardOpen(false);
-                    window.location.reload();
-                }}
-            />
+            
         </AppLayout>
     );
 }

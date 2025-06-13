@@ -3,14 +3,25 @@
 namespace App\Http\Controllers\BankProviders;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Transaction;
 use App\Models\Account;
+use App\Models\Transaction;
+use App\Services\GoCardlessBankData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessController extends Controller
 {
+    private GoCardlessBankData $client;
+    public function __construct()
+    {
+
+        $this->client = new GoCardlessBankData(
+            getenv("GOCARDLESS_SECRET_ID"),
+            getenv("GOCARDLESS_SECRET_KEY"),
+        );
+    }
+
     /**
      * The base URL for the GoCardless API.
      */
@@ -21,47 +32,82 @@ class GoCardlessController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getInstitutions(Request $request)
+    public function getInstitutions(Request $request): \Illuminate\Http\JsonResponse
     {
         $request->validate([
             'country' => 'required|string|size:2',
         ]);
 
-        Log::info('Importing account', ['country' => $request->country]);
+        Log::info('Fetching institutions from GoCardless API', [
+            'country' => $request->country,
+        ]);
+
+        $institutions = $this->client->getInstitutions($request->country);
+        Log::info('Institutions', ['data' => $institutions]);
+
+        return response()->json($institutions);
+    }
+
+    public function syncTransactions(int $account): \Illuminate\Http\JsonResponse
+    {
+
+
+        Log::info('Syncing transactions for account', [
+            'account_id' => $account,
+        ]);
 
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.config('services.gocardless.access_token'),
-                'accept' => 'application/json',
-            ])->get("{$this->baseUrl}/institutions/", [
-                'country' => $request->country,
-            ]);
+            $account = Account::findOrFail($account);
 
-            if (! $response->successful()) {
-                Log::error('GoCardless API error', [
-                    'status' => $response->status(),
-                    'body' => json_encode($response->body()),
-                ]);
-
-                return response()->json(['error' => 'Failed to fetch institutions'], 500);
+            if (!$account->is_gocardless_synced) {
+                return response()->json(['error' => 'Account is not synced with GoCardless'], 400);
             }
 
-            Log::info('Institutions');
+            $transactions = $this->client->getTransactions($account->gocardless_account_id);
 
-            return response()->json($response->json());
+            $bookedTransactions = $transactions['transactions']['booked'] ?? [];
+
+            $existing = [];
+            foreach ($bookedTransactions as $transaction) {
+                $existing[] = Transaction::firstOrCreate(
+                    ['transaction_id' => $transaction['transactionId']],
+                    [
+                        'account_id' => $account->id,
+                        'amount' => $transaction['transactionAmount']['amount'],
+                        'currency' => $transaction['transactionAmount']['currency'],
+                        'booked_date' => $transaction['bookingDate'],
+                        'processed_date' => $transaction['valueDate'] ?? $transaction['bookingDate'],
+                        'partner' => $transaction['remittanceInformationUnstructuredArray'][0] ?? null,
+                        'description' => implode(" ",$transaction['remittanceInformationUnstructuredArray']),
+                        'type' => $transaction['proprietaryBankTransactionCode'],
+                        'balance_after_transaction' => $transaction['balanceAfterTransaction']['balanceAmount']['amount'] ?? 0,
+                        'metadata' => json_encode($transaction['additionalDataStructured'] ?? []),
+                        'import_data' => json_encode($transaction),
+                    ]
+                );
+            }
+
+            Log::info('Skipped transactions due to existing ID', ['count' => count($existing)]);
+            Log::info('New transactions created', ['count' => count($bookedTransactions) - count($existing)]);
+
+            // Update last synced timestamp
+            $account->update(['gocardless_last_synced_at' => now()]);
+
+            return response()->json(['message' => 'Transactions synced successfully', 'count'=>count($bookedTransactions),'count_existing' => count($existing)]);
         } catch (\Exception $e) {
-            Log::error('GoCardless API exception', [
+            Log::error('Transaction sync error', [
                 'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            return response()->json(['error' => 'Failed to fetch institutions'], 500);
+            return response()->json(['error' => 'Failed to sync transactions: '.$e->getMessage()], 500);
         }
     }
 
     /**
      * Import an account from GoCardless.
      *
-     * @return \Illuminate\Http\RedirectResponse
+     * @return \Illuminate\Http\JsonResponse
      */
     public function importAccount(Request $request)
     {
@@ -69,136 +115,155 @@ class GoCardlessController extends Controller
             'institution_id' => 'required|string',
         ]);
 
+        Log::info('Importing account from GoCardless', [
+            'institution_id' => $request->institution_id,
+        ]);
+
         try {
-            // Step 1: Get access token
-            $tokenResponse = Http::post("{$this->baseUrl}/token/new/", [
-                'secret_id' => config('services.gocardless.secret_id'),
-                'secret_key' => config('services.gocardless.secret_key'),
-            ]);
+            // Step 1: Create end user agreement
+            //$agreement = $this->client->createEndUserAgreement(
+           //     $request->institution_id,
+           //     [] // Optional user data
+            //);
 
-            if (! $tokenResponse->successful()) {
-                return response()->json(['error' => 'Invalid credentials'], 401);
-            }
+            //Log::info('Agreement created', ['agreement_id' => $agreement['id']]);
 
-            $accessToken = $tokenResponse->json()['access'];
+            // Step 2: Create requisition
+            $redirectUrl = config('app.url').'/api/gocardless/callback';
+            $requisition = $this->client->createRequisition(
+                $request->institution_id,
+                $redirectUrl,
+              //  $agreement['id']
+            );
 
-            // Step 2: Create end user agreement
-            $agreementResponse = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'accept' => 'application/json',
-            ])->post("{$this->baseUrl}/agreements/enduser/", [
-                'institution_id' => $request->institution_id,
-                'max_historical_days' => 700,
-                'access_valid_for_days' => 90,
-                'access_scope' => ['balances', 'details', 'transactions'],
-            ]);
-
-            if (! $agreementResponse->successful()) {
-                return response()->json(['error' => 'Failed to create agreement'], 500);
-            }
-
-            $agreementId = $agreementResponse->json()['id'];
-
-            // Step 3: Create requisition
-            $requisitionResponse = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'accept' => 'application/json',
-            ])->post("{$this->baseUrl}/requisitions/", [
-                'redirect' => config('app.url').'/api/gocardless/callback',
-                'institution_id' => $request->institution_id,
-                'reference' => uniqid(),
-                'agreement' => $agreementId,
-                'user_language' => 'EN',
-            ]);
-
-            if (! $requisitionResponse->successful()) {
-                return response()->json(['error' => 'Failed to create requisition'], 500);
-            }
-
-            $requisitionData = $requisitionResponse->json();
+            Log::info('Requisition created', ['requisition' => $requisition]);
 
             // Store the requisition ID in the session for later use
-            session(['gocardless_requisition_id' => $requisitionData['id']]);
+            session(['gocardless_requisition_id' => $requisition['id']]);
 
             // Return the link for the user to authenticate
             return response()->json([
-                'link' => $requisitionData['link'],
+                'link' => $requisition['link'],
             ]);
 
         } catch (\Exception $e) {
             Log::error('GoCardless import error', [
                 'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            return response()->json(['error' => 'Failed to import account'], 500);
+            return response()->json(['error' => 'Failed to import account: ' . $e->getMessage()], 500);
         }
+    }
+
+
+    public function importAccountWithAccountId(Request $request)
+    {
+        $request->validate([
+            'account_id' => 'required|string',
+        ]);
+
+        $accountId = $request->account_id;
+
+        Log::info('Importing account with requisition', [
+            'account_id' => $request->account_id,
+        ]);
+
+        if(Account::where('user_id', auth()->id())
+            ->where('gocardless_account_id', $accountId)
+            ->first()) {
+            Log::info('Account already exists', [
+                'account_id' => $accountId,
+            ]);
+
+            return response()->json([
+                'message' => 'Account already exists',
+            ], 200);
+        }
+
+
+        try {
+            $accountDetails = $this->client->getAccountDetails($accountId);
+            Log::info('Account details retrieved', ['account_id' => $accountId]);
+
+            $accountData = $accountDetails['account'];
+
+            // Create account in our system
+            Account::create([
+                'user_id' => auth()->id(),
+                'name' => 'Imported Account '.($accountData['name'] ?? '').' (GoCardless)',
+                'gocardless_account_id' => $accountId,
+                'bank_name' => $accountData['institution_id'] ?? null,
+                'iban' => $accountData['iban'] ?? '',
+                'type' => 'checking',
+                'currency' => $accountData['currency'] ?? 'EUR',
+                'balance' => 0,
+                'is_gocardless_synced' => true,
+                'gocardless_last_synced_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to process account', [
+                'account_id' => $accountId,
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Account imported successfully',
+            'account_id' => $accountId,
+        ], 200);
     }
 
     public function handleCallback(Request $request)
     {
-        Log::info('Handling callback');
-        $requisitionId = session('gocardless_requisition_id');
-        if (! $requisitionId) {
-            return redirect()->route('accounts.index')->with('error', 'Invalid session');
+        // Handle the callback from GoCardless after the user has authenticated
+        if ($request->get('error') === 'ConsentLinkReused') {
+            Log::error('GoCardless callback error', [
+                'error' => $request->get('error'),
+                'error_description' => $request->get('details'),
+            ]);
+            return redirect()->route('bank_data.edit')->with('error', 'Error during authentication: ' . $request->get('error_description'));
         }
 
-        Log::info('Requisition ID');
+        Log::info('Handling callback');
+        $requisitionId = session('gocardless_requisition_id');
+
+        if ($request->get('error') === 'UserCancelledSession') {
+            Log::info('User cancelled the session');
+            session()->forget('gocardless_requisition_id');
+            return redirect()->route('bank_data.edit')->with('error', 'User cancelled the session');
+        }
+
+
+        if (! $requisitionId) {
+            return redirect()->route('bank_data.edit')->with('error', 'Invalid session');
+        }
+
+        Log::info('Requisition ID', ['id' => $requisitionId]);
+
         try {
-            // Get the accounts associated with the requisition
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer '.config('services.gocardless.access_token'),
-                'accept' => 'application/json',
-            ])->get("{$this->baseUrl}/requisitions/{$requisitionId}/");
+            // Get the accounts associated with the requisition using the wrapper
+            $accountIds = $this->client->getAccounts($requisitionId);
 
-            Log::info('Response');
-
-            if (! $response->successful()) {
-                return redirect()->route('accounts.index')->with('error', 'Failed to fetch accounts');
-            }
-
-            $requisitionData = $response->json();
-
-            Log::info('Requisition Data');
-
+            Log::info('Retrieved accounts', ['account_ids' => $accountIds]);
+dd($accountIds);
             // For each account, fetch details and create in our system
-            foreach ($requisitionData['accounts'] as $accountId) {
-                $accountResponse = Http::withHeaders([
-                    'Authorization' => 'Bearer '.config('services.gocardless.access_token'),
-                    'accept' => 'application/json',
-                ])->get("{$this->baseUrl}/accounts/{$accountId}/details/");
-                Log::info('Status Response', ['success' => $accountResponse->successful()]);
-                Log::info('Account Response', ['data' => $accountResponse->json()]);
+            foreach ($accountIds as $accountId) {
 
-                if ($accountResponse->successful()) {
-                    $accountData = $accountResponse->json()['account'];
-                    Log::info('Account Response');
-                    // Create account in our system
-                    Account::create([
-                        'user_id' => auth()->id(),
-                        'name' => 'Imported Account '.($accountData['ownerName'] ?? ''),
-                        'gocardless_account_id' => $accountId,
-                        'bank_name' => $accountData['institution'] ?? null,
-                        'iban' => $accountData['iban'] ?? '',
-                        'type' => 'checking',
-                        'currency' => $accountData['currency'] ?? 'EUR',
-                        'balance' => 0,
-                        'is_gocardless_synced' => true,
-                        'gocardless_last_synced_at' => now(),
-                    ]);
-                } else {
-                    session()->flash('error', 'Failed to fetch account details');
-                    Log::error('Account Response', ['data' => $accountResponse->json()]);
-                }
             }
+
+            // Clear the session data
+            session()->forget('gocardless_requisition_id');
 
             return redirect()->route('accounts.index')->with('success', 'Accounts imported successfully');
 
         } catch (\Exception $e) {
             Log::error('GoCardless callback error', [
                 'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            return redirect()->route('accounts.index')->with('error', 'Failed to import accounts');
+            return redirect()->route('accounts.index')->with('error', 'Failed to import accounts: ' . $e->getMessage());
         }
     }
 
@@ -269,7 +334,7 @@ class GoCardlessController extends Controller
                             'currency' => $transaction['transactionAmount']['currency'],
                             'booked_date' => $transaction['bookingDate'],
                             'processed_date' => $transaction['valueDate'] ?? $transaction['bookingDate'],
-                            'description' => implode(' ', $transaction['remittanceInformationUnstructuredArray'] ?? []),
+                            'description' => implode(' ', $transaction['remittanceInformationUnstructuredArray']) ?? '',
                             'target_iban' => $transaction['creditorAccount']['iban'] ?? null,
                             'source_iban' => $transaction['debtorAccount']['iban'] ?? null,
                             'partner' => $transaction['creditorName'] ?? $transaction['debtorName'] ?? '',
@@ -314,66 +379,4 @@ class GoCardlessController extends Controller
         return Transaction::TYPE_PAYMENT;
     }
 
-    /**
-     * Sync transactions for an account.
-     *
-     * @return void
-     */
-    public function syncTransactions(Account $account)
-    {
-        if (! $account->is_gocardless_synced) {
-            return response()->json(['error' => 'Account is not synced with GoCardless'], 400);
-        }
-
-        try {
-            // Get access token
-            $tokenResponse = Http::post("{$this->baseUrl}/token/new/", [
-                'secret_id' => $account->user->gocardless_secret_id,
-                'secret_key' => $account->user->gocardless_secret_key,
-            ]);
-
-            if (! $tokenResponse->successful()) {
-                return response()->json(['error' => 'Invalid credentials'], 401);
-            }
-
-            $accessToken = $tokenResponse->json()['access'];
-
-            // Get transactions
-            $transactionsResponse = Http::withHeaders([
-                'Authorization' => 'Bearer '.$accessToken,
-                'accept' => 'application/json',
-            ])->get("{$this->baseUrl}/accounts/{$account->gocardless_account_id}/transactions/");
-
-            if (! $transactionsResponse->successful()) {
-                return response()->json(['error' => 'Failed to fetch transactions'], 500);
-            }
-
-            $transactions = $transactionsResponse->json()['results'];
-
-            // Process transactions
-            foreach ($transactions as $transaction) {
-                Transaction::updateOrCreate(
-                    ['transaction_id' => $transaction['id']],
-                    [
-                        'account_id' => $account->id,
-                        'amount' => $transaction['amount'],
-                        'currency' => $transaction['currency'],
-                        'description' => $transaction['description'],
-                        'date' => $transaction['date'],
-                        'type' => $transaction['type'],
-                        'status' => $transaction['status'],
-                    ]
-                );
-            }
-
-            // Update last synced timestamp
-            $account->update([
-                'gocardless_last_synced_at' => now(),
-            ]);
-
-            return response()->json(['message' => 'Transactions synced successfully']);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to sync transactions: '.$e->getMessage()], 500);
-        }
-    }
 }

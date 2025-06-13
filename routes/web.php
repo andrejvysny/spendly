@@ -10,6 +10,7 @@ use App\Http\Controllers\MerchantController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\Transactions\TransactionController;
 use App\Http\Controllers\Transactions\TransactionRuleController;
+use App\Http\Controllers\Settings\BankDataController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -71,12 +72,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/tags/{tag}', [TagController::class, 'update'])->name('tags.update');
     Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
 
+    Route::delete('/settings/bank-data/requisitions/{id}', [BankDataController::class, 'deleteRequisition'])
+        ->name('settings.bank-data.delete-requisition');
+    Route::get('/settings/bank-data/requisitions', [BankDataController::class, 'getRequisitions'])
+        ->name('settings.bank-data.get-requisitions');
 });
 
 // GoCardless routes
 Route::middleware(['auth'])->group(function () {
     Route::get('/api/gocardless/institutions', [GoCardlessController::class, 'getInstitutions']);
     Route::post('/api/gocardless/import', [GoCardlessController::class, 'importAccount']);
+    Route::post('/api/gocardless/import/account', [GoCardlessController::class, 'importAccountWithAccountId']);
+    Route::post('/api/gocardless/accounts/{account}/sync-transactions', [GoCardlessController::class, 'syncTransactions']);
+    Route::get('/api/gocardless/accounts/{account}/sync-transactions', [GoCardlessController::class, 'syncTransactions']);
     Route::get('/api/gocardless/callback', [GoCardlessController::class, 'handleCallback'])->name('gocardless.callback');
 });
 
@@ -87,6 +95,7 @@ Route::get('/health', function () {
 
 // Add this route near the end, before any catch-all routes
 Route::get('/transactions/filter', [App\Http\Controllers\Transactions\TransactionController::class, 'filter']);
+Route::get('/transactions/load-more', [App\Http\Controllers\Transactions\TransactionController::class, 'loadMore']);
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

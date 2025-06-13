@@ -2,6 +2,8 @@ import TransactionComponent from '@/components/transactions/Transaction';
 import { Transaction, Category, Merchant } from '@/types/index';
 import { useState, useEffect } from 'react';
 import BulkActionMenu from './BulkActionMenu';
+import { Button } from '@/components/ui/button';
+import { LoadingDots } from '@/components/ui/loading-dots';
 
 interface Props {
     transactions: Transaction[];
@@ -9,9 +11,21 @@ interface Props {
     categories: Category[];
     merchants: Merchant[];
     showMonthlySummary?: boolean;
+    hasMorePages?: boolean;
+    onLoadMore?: () => Promise<void>;
+    isLoadingMore?: boolean;
 }
 
-function TransactionList({ transactions: initialTransactions, monthlySummaries, categories, merchants, showMonthlySummary = true }: Props) {
+function TransactionList({ 
+    transactions: initialTransactions, 
+    monthlySummaries, 
+    categories, 
+    merchants, 
+    showMonthlySummary = true,
+    hasMorePages = false,
+    onLoadMore,
+    isLoadingMore = false
+}: Props) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
 
@@ -239,6 +253,23 @@ function TransactionList({ transactions: initialTransactions, monthlySummaries, 
                     merchants={merchants}
                     onUpdate={handleResetSelection}
                 />
+            )}
+
+            {/* Load More Button */}
+            {hasMorePages && onLoadMore && (
+                <div className="mt-6 flex justify-center">
+                    <Button
+                        variant="outline"
+                        onClick={onLoadMore}
+                        disabled={isLoadingMore}
+                    >
+                        {isLoadingMore ? (
+                            <LoadingDots size="sm" className="text-primary" />
+                        ) : (
+                            'Load More'
+                        )}
+                    </Button>
+                </div>
             )}
         </div>
     );

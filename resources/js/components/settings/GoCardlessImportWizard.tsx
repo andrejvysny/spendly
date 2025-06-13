@@ -7,7 +7,7 @@ interface Institution {
     id: string;
     name: string;
     bic: string;
-    logo: string;
+    logo_url: string;
     countries: string[];
 }
 
@@ -89,10 +89,10 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
             <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
             <div className="fixed inset-0 flex items-center justify-center p-4">
-                <Dialog.Panel className="mx-auto w-full max-w-2xl rounded-xl bg-gray-900 p-6">
+                <Dialog.Panel className="mx-auto w-full max-w-2xl rounded-xl bg-card p-6">
                     <div className="mb-6 flex items-center justify-between">
-                        <Dialog.Title className="text-xl font-semibold text-white">Import Account via GoCardless</Dialog.Title>
-                        <button onClick={onClose} className="text-gray-400 hover:text-white">
+                        <Dialog.Title className="text-xl font-semibold text-foreground">Import Account via GoCardless</Dialog.Title>
+                        <button onClick={onClose} className="text-gray-400 hover:text-foreground">
                             <XMarkIcon className="h-6 w-6" />
                         </button>
                     </div>
@@ -102,21 +102,21 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
                     <div className="space-y-6">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-12">
-                                <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-                                <p className="mt-4 text-gray-400">Loading...</p>
+                                <div className="h-12 w-12 animate-spin rounded-full border-4 border-foreground border-t-transparent"></div>
+                                <p className="mt-4 text-muted-foreground">Loading...</p>
                             </div>
                         ) : (
                             <>
                                 {/* Step 1: Country Selection */}
                                 {step === 1 && (
                                     <div>
-                                        <h3 className="mb-4 text-lg font-medium text-white">Select Country</h3>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <h3 className="mb-4 text-lg font-medium text-foreground">Select Country</h3>
+                                        <div className="grid max-h-96 grid-cols-2 gap-4 overflow-y-auto">
                                             {COUNTRIES.map((country) => (
                                                 <button
                                                     key={country.code}
                                                     onClick={() => handleCountrySelect(country.code)}
-                                                    className="rounded-lg bg-gray-800 p-4 text-white transition-colors hover:bg-gray-700"
+                                                    className="rounded-lg bg-muted cursor-pointer p-4 border-1 text-foreground transition-colors hover:bg-card hover:border-black"
                                                 >
                                                     {country.name}
                                                 </button>
@@ -128,13 +128,13 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
                                 {/* Step 2: Institution Selection */}
                                 {step === 2 && (
                                     <div>
-                                        <h3 className="mb-4 text-lg font-medium text-white">Select Bank</h3>
+                                        <h3 className="mb-4 text-lg font-medium text-foreground">Select Bank</h3>
                                         <div className="grid max-h-96 grid-cols-2 gap-4 overflow-y-auto">
                                             {institutions.map((institution) => (
                                                 <button
                                                     key={institution.id}
                                                     onClick={() => handleInstitutionSelect(institution)}
-                                                    className="flex items-center gap-3 rounded-lg bg-gray-800 p-4 text-white transition-colors hover:bg-gray-700"
+                                                    className="flex items-center gap-3 rounded-lg bg-muted p-4 border-1 text-foreground cursor-pointer transition-colors hover:bg-card hover:border-black"
                                                 >
                                                     {institution.logo && (
                                                         <img src={institution.logo} alt={institution.name} className="h-8 w-8 object-contain" />
@@ -148,7 +148,7 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
 
                                 <div className="flex justify-between pt-4">
                                     {step > 1 && (
-                                        <button onClick={() => setStep(step - 1)} className="px-4 py-2 text-gray-400 hover:text-white">
+                                        <button onClick={() => setStep(step - 1)} className="px-4 py-2 text-muted-foreground hover:text-foreground">
                                             Back
                                         </button>
                                     )}
