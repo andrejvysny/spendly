@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Accounts;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class AccountController extends Controller
 {
     public function index()
     {
+
+        Log::debug("example debug message from AccountController@index");
+
         $accounts = Account::where('user_id', auth()->id())->get();
 
         if (request()->wantsJson()) {

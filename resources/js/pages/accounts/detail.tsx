@@ -20,6 +20,7 @@ import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import { useState } from 'react';
 import { formatAmount } from '@/utils/currency';
+import { responsiveFontSizes } from '@mui/material';
 
 interface Props {
     account: Account;
@@ -59,9 +60,19 @@ export default function Detail({ account, transactions, categories, merchants, m
     const handleSyncTransactions = async () => {
         setSyncing(true);
         try {
-            await axios.post(`/api/accounts/${account.id}/sync-transactions`);
+            axios.post(`/api/gocardless/accounts/${account.id}/sync-transactions`, {
+                account_id: account.id,
+            }).then(response => {
+                if (response.status === 200) {
+                    // Optionally handle success response
+                    console.log('Transactions synced successfully');
+                    window.location.reload();
+
+                } else {
+                    console.error('Failed to sync transactions:', response.data);
+                }
+            });
             // Refresh the page to show new transactions
-            window.location.reload();
         } catch {
             // Handle error silently
         } finally {

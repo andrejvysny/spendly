@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\BankDataController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -18,4 +19,10 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/appearance', function () {
         return Inertia::render('settings/appearance');
     })->name('appearance');
+
+
+    Route::get('settings/bank_data', [BankDataController::class, 'edit'])->name('bank_data.edit');
+    Route::patch('settings/bank_data', [BankDataController::class, 'update'])->name('bank_data.update');
+    Route::delete('settings/bank_data', [BankDataController::class, 'destroy'])->name('bank_data.destroy');
+
 });

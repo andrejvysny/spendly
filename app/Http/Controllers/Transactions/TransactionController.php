@@ -20,7 +20,8 @@ class TransactionController extends Controller
             'category',
             'tags',
         ])
-            ->whereIn('account_id', $userAccounts);
+            ->whereIn('account_id', $userAccounts)
+            ->orderBy('booked_date', 'desc');
 
         // Check if any filters are active
         $isFiltered = false;
@@ -267,12 +268,12 @@ class TransactionController extends Controller
             ];
         }
 
-        $transactions = $query->orderBy('booked_date', 'desc')
-            ->get();
+        // Get paginated transactions
+        $transactions = $query->paginate(100);
 
-        // Calculate monthly summaries
+        // Calculate monthly summaries for the current page
         $monthlySummaries = [];
-        foreach ($transactions as $transaction) {
+        foreach ($transactions->items() as $transaction) {
             $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
             if (! isset($monthlySummaries[$month])) {
                 $monthlySummaries[$month] = [
@@ -313,111 +314,77 @@ class TransactionController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    /**
+     * Load more transactions with the same filters
+     */
+    public function loadMore(Request $request)
     {
-        try {
-            $validated = $request->validate([
-                'transaction_id' => 'required|string|max:255',
-                'amount' => 'required|numeric',
-                'currency' => 'required|string|max:3',
-                'booked_date' => 'required|date',
-                'processed_date' => 'required|date',
-                'description' => 'required|string|max:255',
-                'target_iban' => 'nullable|string|max:255',
-                'source_iban' => 'nullable|string|max:255',
-                'partner' => 'nullable|string|max:255',
-                'type' => 'required|string|in:TRANSFER,DEPOSIT,WITHDRAWAL,PAYMENT',
-                'metadata' => 'nullable|array',
-                'balance_after_transaction' => 'required|numeric',
-                'account_id' => 'required|exists:accounts,id',
-                'merchant_id' => 'nullable|exists:merchants,id',
-                'category_id' => 'nullable|exists:categories,id',
-                'tags' => 'nullable|array',
-                'tags.*' => 'exists:tags,id',
-                'note' => 'nullable|string',
-                'recipient_note' => 'nullable|string',
-                'place' => 'nullable|string|max:255',
-            ]);
+        $userAccounts = Auth::user()->accounts()->pluck('id');
 
-            $tagIds = $validated['tags'] ?? [];
-            unset($validated['tags']);
+        $query = Transaction::with([
+            'account',
+            'merchant',
+            'category',
+            'tags',
+        ])
+            ->whereIn('account_id', $userAccounts)
+            ->orderBy('booked_date', 'desc');
 
-            $transaction = Transaction::create($validated);
-
-            if (! empty($tagIds)) {
-                $transaction->tags()->attach($tagIds);
-            }
-
-            return redirect()->back()->with('success', 'Transaction created successfully');
-        } catch (\Exception $e) {
-            \Log::error('Transaction creation failed: '.$e->getMessage());
-
-            return redirect()->back()->with('error', 'Failed to create transaction: '.$e->getMessage());
+        // Apply the same filters as in the index method
+        if ($request->has('search') && ! empty($request->search)) {
+            $query->search($request->search);
         }
-    }
 
-    public function update(Request $request, Transaction $transaction)
-    {
-        try {
-            $validated = $request->validate([
-                'merchant_id' => 'nullable|exists:merchants,id',
-                'category_id' => 'nullable|exists:categories,id',
-                'tags' => 'nullable|array',
-                'tags.*' => 'exists:tags,id',
-            ]);
-
-            $tagIds = $validated['tags'] ?? [];
-            unset($validated['tags']);
-
-            $transaction->update($validated);
-
-            if (isset($request->tags)) {
-                $transaction->tags()->sync($tagIds);
+        // Filter by transaction type (income, expense, transfer)
+        if ($request->has('transactionType') && ! empty($request->transactionType) && $request->transactionType !== 'all') {
+            switch ($request->transactionType) {
+                case 'income':
+                    $query->where('amount', '>', 0);
+                    break;
+                case 'expense':
+                    $query->where('amount', '<', 0);
+                    break;
+                case 'transfer':
+                    $query->where('type', 'TRANSFER');
+                    break;
             }
-
-            return redirect()->back()->with('success', 'Transaction updated successfully');
-        } catch (\Exception $e) {
-            \Log::error('Transaction update failed: '.$e->getMessage());
-
-            return redirect()->back()->with('error', 'Failed to update transaction: '.$e->getMessage());
         }
-    }
 
-    public function bulkUpdate(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'transaction_ids' => 'required|array',
-                'transaction_ids.*' => 'exists:transactions,id',
-                'merchant_id' => 'nullable|string',
-                'category_id' => 'nullable|string',
-            ]);
-
-            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])->get();
-
-            foreach ($transactions as $transaction) {
-                $updateData = [];
-                if (array_key_exists('merchant_id', $validated)) {
-                    $updateData['merchant_id'] = $validated['merchant_id'] === '' ? null : $validated['merchant_id'];
-                }
-                if (array_key_exists('category_id', $validated)) {
-                    $updateData['category_id'] = $validated['category_id'] === '' ? null : $validated['category_id'];
-                }
-                $transaction->update($updateData);
-            }
-
-            return response()->json(['message' => 'Transactions updated successfully']);
-        } catch (\Exception $e) {
-            \Log::error('Bulk transaction update failed: '.$e->getMessage());
-
-            return response()->json(['error' => 'Failed to update transactions'], 500);
+        // Filter by account - fixed to use account_id
+        if ($request->has('account_id') && ! empty($request->account_id) && $request->account_id !== 'all') {
+            $query->where('account_id', $request->account_id);
         }
+
+        // Filter by merchant
+        if ($request->has('merchant_id') && ! empty($request->merchant_id) && $request->merchant_id !== 'all') {
+            $query->where('merchant_id', $request->merchant_id);
+        }
+
+        // Filter by category
+        if ($request->has('category_id') && ! empty($request->category_id) && $request->category_id !== 'all') {
+            $query->where('category_id', $request->category_id);
+        }
+
+        // Filter by date range
+        if ($request->has('dateFrom') && ! empty($request->dateFrom)) {
+            $query->whereDate('booked_date', '>=', $request->dateFrom);
+        }
+
+        if ($request->has('dateTo') && ! empty($request->dateTo)) {
+            $query->whereDate('booked_date', '<=', $request->dateTo);
+        }
+
+        // Get paginated transactions
+        $transactions = $query->paginate(100, ['*'], 'page', $request->page);
+
+        return response()->json([
+            'transactions' => $transactions,
+            'hasMorePages' => $transactions->hasMorePages(),
+        ]);
     }
 
     /**
-     * Filter transactions and return JSON response
-     *
-     * @return \Illuminate\Http\JsonResponse
+     * Filter transactions and return JSON response with pagination
      */
     public function filter(Request $request)
     {
@@ -433,7 +400,8 @@ class TransactionController extends Controller
                 'category',
                 'tags',
             ])
-                ->whereIn('account_id', $userAccounts);
+                ->whereIn('account_id', $userAccounts)
+                ->orderBy('booked_date', 'desc');
 
             // Apply search if search term is provided
             if ($request->has('search') && ! empty($request->search)) {
@@ -674,14 +642,14 @@ class TransactionController extends Controller
                 'noMerchantCount' => $noMerchantCount->whereNull('merchant_id')->count(),
             ];
 
-            $transactions = $query->orderBy('booked_date', 'desc')
-                ->get();
+            // Get paginated transactions
+            $transactions = $query->paginate(100);
 
             \Log::info('Filtered transactions count: '.$transactions->count().', isFiltered: '.($isFiltered ? 'true' : 'false'));
 
-            // Calculate monthly summaries
+            // Calculate monthly summaries for the current page
             $monthlySummaries = [];
-            foreach ($transactions as $transaction) {
+            foreach ($transactions->items() as $transaction) {
                 $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
                 if (! isset($monthlySummaries[$month])) {
                     $monthlySummaries[$month] = [
@@ -703,6 +671,7 @@ class TransactionController extends Controller
                 'monthlySummaries' => $monthlySummaries,
                 'totalSummary' => $totalSummary,
                 'isFiltered' => $isFiltered,
+                'hasMorePages' => $transactions->hasMorePages(),
             ]);
         } catch (\Exception $e) {
             \Log::error('Error in transaction filter: '.$e->getMessage(), [
@@ -714,6 +683,107 @@ class TransactionController extends Controller
                 'error' => 'An error occurred while filtering transactions',
                 'message' => $e->getMessage(),
             ], 500);
+        }
+    }
+
+    public function store(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_id' => 'required|string|max:255',
+                'amount' => 'required|numeric',
+                'currency' => 'required|string|max:3',
+                'booked_date' => 'required|date',
+                'processed_date' => 'required|date',
+                'description' => 'required|string|max:255',
+                'target_iban' => 'nullable|string|max:255',
+                'source_iban' => 'nullable|string|max:255',
+                'partner' => 'nullable|string|max:255',
+                'type' => 'required|string|in:TRANSFER,DEPOSIT,WITHDRAWAL,PAYMENT',
+                'metadata' => 'nullable|array',
+                'balance_after_transaction' => 'required|numeric',
+                'account_id' => 'required|exists:accounts,id',
+                'merchant_id' => 'nullable|exists:merchants,id',
+                'category_id' => 'nullable|exists:categories,id',
+                'tags' => 'nullable|array',
+                'tags.*' => 'exists:tags,id',
+                'note' => 'nullable|string',
+                'recipient_note' => 'nullable|string',
+                'place' => 'nullable|string|max:255',
+            ]);
+
+            $tagIds = $validated['tags'] ?? [];
+            unset($validated['tags']);
+
+            $transaction = Transaction::create($validated);
+
+            if (! empty($tagIds)) {
+                $transaction->tags()->attach($tagIds);
+            }
+
+            return redirect()->back()->with('success', 'Transaction created successfully');
+        } catch (\Exception $e) {
+            \Log::error('Transaction creation failed: '.$e->getMessage());
+
+            return redirect()->back()->with('error', 'Failed to create transaction: '.$e->getMessage());
+        }
+    }
+
+    public function update(Request $request, Transaction $transaction)
+    {
+        try {
+            $validated = $request->validate([
+                'merchant_id' => 'nullable|exists:merchants,id',
+                'category_id' => 'nullable|exists:categories,id',
+                'tags' => 'nullable|array',
+                'tags.*' => 'exists:tags,id',
+            ]);
+
+            $tagIds = $validated['tags'] ?? [];
+            unset($validated['tags']);
+
+            $transaction->update($validated);
+
+            if (isset($request->tags)) {
+                $transaction->tags()->sync($tagIds);
+            }
+
+            return redirect()->back()->with('success', 'Transaction updated successfully');
+        } catch (\Exception $e) {
+            \Log::error('Transaction update failed: '.$e->getMessage());
+
+            return redirect()->back()->with('error', 'Failed to update transaction: '.$e->getMessage());
+        }
+    }
+
+    public function bulkUpdate(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_ids' => 'required|array',
+                'transaction_ids.*' => 'exists:transactions,id',
+                'merchant_id' => 'nullable|string',
+                'category_id' => 'nullable|string',
+            ]);
+
+            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])->get();
+
+            foreach ($transactions as $transaction) {
+                $updateData = [];
+                if (array_key_exists('merchant_id', $validated)) {
+                    $updateData['merchant_id'] = $validated['merchant_id'] === '' ? null : $validated['merchant_id'];
+                }
+                if (array_key_exists('category_id', $validated)) {
+                    $updateData['category_id'] = $validated['category_id'] === '' ? null : $validated['category_id'];
+                }
+                $transaction->update($updateData);
+            }
+
+            return response()->json(['message' => 'Transactions updated successfully']);
+        } catch (\Exception $e) {
+            \Log::error('Bulk transaction update failed: '.$e->getMessage());
+
+            return response()->json(['error' => 'Failed to update transactions'], 500);
         }
     }
 }
