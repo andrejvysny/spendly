@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Services\GoCardlessBankData;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -69,20 +70,29 @@ class GoCardlessController extends Controller
 
             $existing = [];
             foreach ($bookedTransactions as $transaction) {
+
+
+                $bookedDateTime = Carbon::parse($transaction['bookingDateTime'] ?? $transaction['bookingDate']);
+                $valueDateTime = Carbon::parse($transaction['valueDateTime'] ?? $transaction['valueDate'] ?? $transaction['bookingDate']);
+
                 $existing[] = Transaction::firstOrCreate(
                     ['transaction_id' => $transaction['transactionId']],
                     [
+                        'source_iban' => $transaction['debtorAccount']['iban'] ?? null,
                         'account_id' => $account->id,
                         'amount' => $transaction['transactionAmount']['amount'],
                         'currency' => $transaction['transactionAmount']['currency'],
-                        'booked_date' => $transaction['bookingDate'],
-                        'processed_date' => $transaction['valueDate'] ?? $transaction['bookingDate'],
+                        'booked_date' => $bookedDateTime,
+                        'processed_date' => $valueDateTime,
                         'partner' => $transaction['remittanceInformationUnstructuredArray'][0] ?? null,
                         'description' => implode(" ",$transaction['remittanceInformationUnstructuredArray']),
-                        'type' => $transaction['proprietaryBankTransactionCode'],
+                        'type' => $transaction['proprietaryBankTransactionCode'] ?? Transaction::TYPE_PAYMENT,
                         'balance_after_transaction' => $transaction['balanceAfterTransaction']['balanceAmount']['amount'] ?? 0,
-                        'metadata' => json_encode($transaction['additionalDataStructured'] ?? []),
-                        'import_data' => json_encode($transaction),
+                        'metadata' => $transaction['additionalDataStructured'] ?? null,
+                        'import_data' => $transaction,
+                        'gocardless_account_id' => $account->gocardless_account_id,
+                        'is_gocardless_synced' => true,
+                        'gocardless_synced_at' => now(),
                     ]
                 );
             }

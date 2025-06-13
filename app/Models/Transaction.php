@@ -31,6 +31,9 @@ class Transaction extends Model
         'note',
         'recipient_note',
         'place',
+        'is_gocardless_synced',
+        'gocardless_synced_at',
+        'gocardless_account_id',
     ];
 
     /**
@@ -47,6 +50,9 @@ class Transaction extends Model
         'import_data' => 'json',
         'currency' => 'string',
         'type' => 'string',
+        'is_gocardless_synced' => 'boolean',
+        'gocardless_synced_at' => 'datetime',
+        'gocardless_account_id' => 'string',
     ];
 
     /**
