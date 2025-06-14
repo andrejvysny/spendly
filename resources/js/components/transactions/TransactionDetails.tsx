@@ -2,6 +2,8 @@ import { Transaction } from '@/types/index';
 import { formatDate } from '@/utils/date';
 import { Save, SquarePen } from 'lucide-react';
 import { useState } from 'react';
+import axios from 'axios';
+
 interface Props {
     transaction: Transaction;
 }
@@ -15,10 +17,21 @@ export default function TransactionDetails({ transaction }: Props) {
 
     const handleSave = () => {
         const updatedTransaction = {
-            ...transaction,
-            description: transaction.description?.trim() || null,
-            note: transaction.note?.trim() || null,
+            description: editedDescription || null,
+            note: editedNote || null,
+            partner: editedPartner || null,
+            place: editedPlace || null,
         };
+
+        axios.put(`/transactions/${transaction.id}`, updatedTransaction).then((response) => {
+            console.log('Transaction updated:', response.data);
+
+            if (response.status === 200) {
+                setIsEditable(false);
+            }
+        }).catch((error) => {
+            console.error('Error updating transaction:', error);
+        });
 
         //TODO: Implement the save logic here
         // Here you would typically send the updatedTransaction to your backend API
@@ -59,7 +72,7 @@ export default function TransactionDetails({ transaction }: Props) {
                             className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
                         />
                     ) : (
-                        <p>{transaction.description || '-'}</p>
+                        <p>{editedDescription || '-'}</p>
                     )}
                 </div>
 
@@ -74,7 +87,7 @@ export default function TransactionDetails({ transaction }: Props) {
                             className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
                         />
                     ) : (
-                        <p>{transaction.note ?? '-'}</p>
+                        <p>{editedNote ?? '-'}</p>
                     )}
                 </div>
             </div>
@@ -101,7 +114,7 @@ export default function TransactionDetails({ transaction }: Props) {
                             className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
                         />
                     ) : (
-                        <p>{transaction.partner || '-'}</p>
+                        <p>{editedPartner || '-'}</p>
                     )}
                 </div>
 
@@ -115,7 +128,7 @@ export default function TransactionDetails({ transaction }: Props) {
                             className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
                         />
                     ) : (
-                        <p>{transaction.place || '-'}</p>
+                        <p>{editedPlace || '-'}</p>
                     )}
                 </div>
                 <div>
