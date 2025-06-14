@@ -7,6 +7,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
 SPDX-FileCopyrightText: 2024 Spendly Contributors
 -->
 
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/andrejvysny/spendly?utm_source=oss&utm_medium=github&utm_campaign=andrejvysny%2Fspendly&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
+
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![SPDX](https://img.shields.io/badge/SPDX-GPL--3.0--or--later-blue.svg)](https://spdx.org/licenses/GPL-3.0-or-later.html)
 [![Laravel](https://img.shields.io/badge/Laravel-10.x-red.svg)](https://laravel.com)
