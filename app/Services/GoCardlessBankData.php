@@ -147,7 +147,7 @@ class GoCardlessBankData
             ->get("{$this->baseUrl}/accounts/{$accountId}/transactions/", $params);
 
         // Chache the response for 1 hour
-        Cache::put($cacheKey, $response->json(), 3600);
+        Cache::put($cacheKey, $response->json(), 36000);
 
 
         if (!$response->successful()) {

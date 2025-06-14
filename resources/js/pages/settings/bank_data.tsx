@@ -136,13 +136,13 @@ export default function BankData({ access_token }: BankDataProps) {
             const config = {
                 method: 'delete',
                 url: `/settings/bank-data/requisitions/${requisitionToDelete}`,
-                headers: { 
-                    'Accept': 'application/json', 
+                headers: {
+                    'Accept': 'application/json',
                 }
             };
 
             await axios(config);
-            
+
             // Update local state
             setRequisitions(prev => ({
                 ...prev,
@@ -195,8 +195,8 @@ export default function BankData({ access_token }: BankDataProps) {
                 <div className="space-y-6">
                     <HeadingSmall title="GoCardless Bank Data Settings" description="Setup account sync from your bank" />
 
-                    <Button onClick={() => setIsImportWizardOpen(true)}>Import Account</Button>
-                    
+                    <Button onClick={() => setIsImportWizardOpen(true)}>Connect Bank Account</Button>
+
 
                     <div className="flex justify-between items-center">
                         <span>Last updated: {new Date().toLocaleDateString()}</span>
@@ -216,8 +216,8 @@ export default function BankData({ access_token }: BankDataProps) {
                     ) : (
                         <div className="grid grid-cols-1 gap-4">
                             {requisitions.results.map((requisition) => (
-                                <div 
-                                    key={requisition.id} 
+                                <div
+                                    key={requisition.id}
                                     className="bg-card rounded-lg shadow p-4 border-foreground"
                                 >
                                     <div className="flex justify-between items-start mb-4">
@@ -230,7 +230,7 @@ export default function BankData({ access_token }: BankDataProps) {
                                             </p>
                                         </div>
                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                            requisition.status === 'LN' 
+                                            requisition.status === 'LN'
                                                 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
                                                 : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
                                         }`}>
@@ -282,7 +282,7 @@ export default function BankData({ access_token }: BankDataProps) {
                                             {expandedRequisitions.has(requisition.id) && (
                                                 <div className="mt-2 space-y-2">
                                                     {requisition.accounts.map((account) => (
-                                                        <div 
+                                                        <div
                                                             key={account}
                                                             className="bg-background rounded p-3 text-sm"
                                                         >
