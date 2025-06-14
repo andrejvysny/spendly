@@ -159,13 +159,12 @@ class GoCardlessBankData
         $response = Http::withToken($this->getAccessToken())
             ->get("{$this->baseUrl}/accounts/{$accountId}/transactions/", $params);
 
-        // Chache the response for 1 hour
-        Cache::put($cacheKey, $response->json(), 36000);
-
         if (! $response->successful()) {
             throw new \Exception('Failed to get transactions: '.$response->body());
         }
 
+        // Cache the response for 1 hour
+        Cache::put($cacheKey, $response->json(), 36000);
         return $response->json();
     }
 

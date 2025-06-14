@@ -22,7 +22,7 @@ class GocardlessMapper
             'balance' => $data['balance'] ?? 0.00,
             'is_gocardless_synced' => true,
             'gocardless_last_synced_at' => now(),
-            'gocardless_account_data' => json_encode($data),
+            'import_data' => json_encode($data),
         ];
     }
 

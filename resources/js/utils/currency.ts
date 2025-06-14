@@ -55,9 +55,8 @@ export const formatCurrency = (value: number, currency: string = Currency.EUR): 
             maximumFractionDigits: format.decimalPlaces,
             useGrouping: true,
         })
-        .replace('.', format.decimalSeparator)
+        .replace(/\./g, format.decimalSeparator)
         .replace(/,/g, format.thousandSeparator);
-
     // Add the currency symbol in the correct position
     return format.symbolPosition === 'before' ? `${format.symbol}${formattedNumber}` : `${formattedNumber} ${format.symbol}`;
 };
