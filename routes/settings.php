@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Http\Controllers\Settings\BankDataController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
@@ -24,5 +25,19 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/bank_data', [BankDataController::class, 'edit'])->name('bank_data.edit');
     Route::patch('settings/bank_data', [BankDataController::class, 'update'])->name('bank_data.update');
     Route::delete('settings/bank_data', [BankDataController::class, 'destroy'])->name('bank_data.destroy');
+
+
+
+    Route::prefix("/api/bank-data/gocardless")->group(function () {
+
+        Route::get('/institutions', [BankDataController::class, 'getInstitutions']);
+        Route::get('/requisitions', [BankDataController::class, 'getRequisitions']);
+        Route::post('/requisitions', [BankDataController::class, 'createRequisition']);
+        Route::delete('/requisitions/{id}', [BankDataController::class, 'deleteRequisition']);
+        Route::get('/requisition/callback', [BankDataController::class, 'handleRequisitionCallback']);
+        Route::post('/import/account', [BankDataController::class, 'importAccount']);
+        Route::post('/accounts/{account}/sync-transactions', [BankDataController::class, 'syncAccountTransactions']);
+
+    });
 
 });

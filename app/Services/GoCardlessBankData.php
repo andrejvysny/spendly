@@ -8,8 +8,6 @@ use Illuminate\Support\Facades\Cache;
 class GoCardlessBankData
 {
     private string $baseUrl = 'https://bankaccountdata.gocardless.com/api/v2';
-    private string $secretId;
-    private string $secretKey;
     private ?string $accessToken = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ5OTIyMDc1LCJqdGkiOiJhYjQ0NGI0Mjc2MTI0YmJhOTRjN2NmMzc3MmMyMTgxYSIsInV1aWQiOiJmOGU2OTBmYy0zOWJmLTQzMDktOWRlMy01ODNkZDQ3MDg2YWYiLCJhbGxvd2VkX2NpZHJzIjpbIjAuMC4wLjAvMCIsIjo6LzAiXX0.g8Fh-j-Ot8_EkAmKeAUBJE9P-y3e4guQ7uksISuSdnE";
 
     private ?\DateTime $accessTokenExpires = null;
@@ -18,11 +16,11 @@ class GoCardlessBankData
 
     private ?\DateTime $refreshTokenExpires = null;
 
-    public function __construct(string $secretId, string $secretKey)
+    public function __construct(private string $secretId,private string $secretKey,private bool $useCache = true, private int $cacheDuration = 3600)
     {
-        $this->secretId = $secretId;
-        $this->secretKey = $secretKey;
+
     }
+
 
     private function getAccessToken(): string
     {
@@ -99,11 +97,17 @@ class GoCardlessBankData
      */
     public function getAccounts(string $requisitionId): array
     {
+        if ($this->useCache && Cache::has("gocardless_accounts_{$requisitionId}")) {
+            return Cache::get("gocardless_accounts_{$requisitionId}");
+        }
         $response = Http::withToken($this->getAccessToken())
             ->get("{$this->baseUrl}/requisitions/{$requisitionId}/");
 
         if (!$response->successful()) {
             throw new \Exception('Failed to get accounts: ' . $response->body());
+        }
+        if ($this->useCache) {
+            Cache::put("gocardless_accounts_{$requisitionId}", $response->json()['accounts'] ?? [], $this->cacheDuration);
         }
 
         return $response->json()['accounts'] ?? [];
@@ -195,31 +199,53 @@ class GoCardlessBankData
 
     public function getRequisitions(?string $requisitionId= null): array
     {
+        $key = $requisitionId ? "gocardless_requisitions_{$requisitionId}" : "gocardless_requisitions_all";
+        if ($this->useCache && Cache::has($key)) {
+            return Cache::get($key);
+        }
 
         $response = Http::withToken($this->getAccessToken())
             ->get($requisitionId ? "{$this->baseUrl}/requisitions/{$requisitionId}/" : "{$this->baseUrl}/requisitions/");
-
         if (!$response->successful()) {
             throw new \Exception('Failed to get requisition: ' . $response->body());
         }
+        if ($this->useCache) {
+            Cache::put($key, $response->json(), $this->cacheDuration);
+        }
 
         return $response->json();
+    }
+
+    public function deleteRequisition(string $requisitionId): bool
+    {
+        $response = Http::withToken($this->getAccessToken())
+            ->delete("{$this->baseUrl}/requisitions/{$requisitionId}/");
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to delete requisition: ' . $response->body());
+        }
+        // Clear the cached requisitions
+        Cache::forget("gocardless_requisitions_{$requisitionId}");
+        Cache::forget("gocardless_requisitions_all");
+        return true;
     }
 
 
     public function getInstitutions(string $countryCode): array
     {
+        $key = "gocardless_institutions_{$countryCode}";
+        if ($this->useCache && Cache::has($key)) {
+            return Cache::get($key);
+        }
         $response = Http::withToken($this->getAccessToken())
             ->get("{$this->baseUrl}/institutions?country={$countryCode}");
-
         if (!$response->successful()) {
             throw new \Exception('Failed to get institutions: ' . $response->body());
         }
-
+        if ($this->useCache) {
+            Cache::put($key, $response->json(), $this->cacheDuration);
+        }
         return $response->json();
     }
-
-
-
 
 }
