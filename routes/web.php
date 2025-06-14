@@ -81,7 +81,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // GoCardless routes
 Route::middleware(['auth'])->group(function () {
     Route::get('/api/gocardless/institutions', [GoCardlessController::class, 'getInstitutions']);
-    Route::post('/api/gocardless/import', [GoCardlessController::class, 'importAccount']);
+    Route::post('/api/gocardless/import', [GoCardlessController::class, 'requisition']);
     Route::post('/api/gocardless/import/account', [GoCardlessController::class, 'importAccountWithAccountId']);
     Route::post('/api/gocardless/accounts/{account}/sync-transactions', [GoCardlessController::class, 'syncTransactions']);
     Route::get('/api/gocardless/accounts/{account}/sync-transactions', [GoCardlessController::class, 'syncTransactions']);
