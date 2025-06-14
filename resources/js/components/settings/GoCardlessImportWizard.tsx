@@ -49,7 +49,7 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
         setError('');
 
         try {
-            const { data } = await axios.get(`/api/gocardless/institutions?country=${countryCode}`);
+            const { data } = await axios.get(`/api/bank-data/gocardless/institutions?country=${countryCode}`);
             setInstitutions(data);
             setStep(2);
         } catch {
@@ -68,7 +68,7 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
         setError('');
 
         try {
-            const { data } = await axios.post('/api/gocardless/import', {
+            const { data } = await axios.post('/api/bank-data/gocardless/requisitions', {
                 institution_id: institutionId,
             });
 
@@ -91,7 +91,7 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: G
             <div className="fixed inset-0 flex items-center justify-center p-4">
                 <Dialog.Panel className="mx-auto w-full max-w-2xl rounded-xl bg-card p-6">
                     <div className="mb-6 flex items-center justify-between">
-                        <Dialog.Title className="text-xl font-semibold text-foreground">Import Account via GoCardless</Dialog.Title>
+                        <Dialog.Title className="text-xl font-semibold text-foreground">Connect Bank Accounts via GoCardless</Dialog.Title>
                         <button onClick={onClose} className="text-gray-400 hover:text-foreground">
                             <XMarkIcon className="h-6 w-6" />
                         </button>

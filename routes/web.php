@@ -72,21 +72,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/tags/{tag}', [TagController::class, 'update'])->name('tags.update');
     Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
 
-    Route::delete('/settings/bank-data/requisitions/{id}', [BankDataController::class, 'deleteRequisition'])
-        ->name('settings.bank-data.delete-requisition');
-    Route::get('/settings/bank-data/requisitions', [BankDataController::class, 'getRequisitions'])
-        ->name('settings.bank-data.get-requisitions');
 });
 
-// GoCardless routes
-Route::middleware(['auth'])->group(function () {
-    Route::get('/api/gocardless/institutions', [GoCardlessController::class, 'getInstitutions']);
-    Route::post('/api/gocardless/import', [GoCardlessController::class, 'requisition']);
-    Route::post('/api/gocardless/import/account', [GoCardlessController::class, 'importAccountWithAccountId']);
-    Route::post('/api/gocardless/accounts/{account}/sync-transactions', [GoCardlessController::class, 'syncTransactions']);
-    Route::get('/api/gocardless/accounts/{account}/sync-transactions', [GoCardlessController::class, 'syncTransactions']);
-    Route::get('/api/gocardless/callback', [GoCardlessController::class, 'handleCallback'])->name('gocardless.callback');
-});
 
 // Health check endpoint for container health monitoring
 Route::get('/health', function () {

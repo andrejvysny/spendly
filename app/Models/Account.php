@@ -23,7 +23,6 @@ class Account extends Model
         'gocardless_account_id',
         'is_gocardless_synced',
         'gocardless_last_synced_at',
-        'gocardless_account_data',
         'import_data',
     ];
 

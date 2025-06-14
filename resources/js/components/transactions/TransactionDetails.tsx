@@ -174,7 +174,7 @@ export default function TransactionDetails({ transaction }: Props) {
 }
 
 
-function SimpleCollapse({ children, title, ...props }: { children: React.ReactNode; title: string }) {
+export function SimpleCollapse({ children, title, ...props }: { children: React.ReactNode; title: string }) {
 
     return (
         <div {...props}>
@@ -198,7 +198,7 @@ function SimpleCollapse({ children, title, ...props }: { children: React.ReactNo
                                 </svg>
                             </span>
                 </summary>
-                <div className="mt-2 rounded-lg bg-gray-900 p-3">
+                <div className="mt-2 rounded-lg">
                     {children}
                 </div>
             </details>
