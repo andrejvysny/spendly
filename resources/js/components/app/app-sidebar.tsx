@@ -63,6 +63,11 @@ const footerNavItems: NavItem[] = [
     },
 ];
 
+/**
+ * Renders the main application sidebar with navigation and user sections.
+ *
+ * Displays the app logo and name in the header, main navigation links in the content area, and footer links along with user information in the footer. The sidebar is collapsible and uses an inset variant.
+ */
 export function AppSidebar() {
     return (
         <Sidebar collapsible="icon" variant="inset">

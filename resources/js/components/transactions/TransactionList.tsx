@@ -16,6 +16,22 @@ interface Props {
     isLoadingMore?: boolean;
 }
 
+/**
+ * Displays a list of financial transactions grouped by month and date, with selection, bulk actions, and optional pagination.
+ *
+ * Allows users to select individual or multiple transactions, perform bulk updates, and view monthly summaries. Supports loading additional transactions when pagination is enabled.
+ *
+ * @param transactions - The initial list of transactions to display.
+ * @param monthlySummaries - Summary data for each month, keyed by month name.
+ * @param categories - List of available categories for transactions.
+ * @param merchants - List of available merchants for transactions.
+ * @param showMonthlySummary - Whether to display monthly income, expense, and balance summaries.
+ * @param hasMorePages - Indicates if more pages of transactions are available for loading.
+ * @param onLoadMore - Callback to load additional transactions when pagination is enabled.
+ * @param isLoadingMore - Indicates if additional transactions are currently being loaded.
+ *
+ * @returns A React component rendering the transaction list with grouping, selection, bulk actions, and pagination controls.
+ */
 function TransactionList({
     transactions: initialTransactions,
     monthlySummaries,

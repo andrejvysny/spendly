@@ -21,6 +21,23 @@ interface MultiSelectProps<T extends string | number> {
   renderOption?: (option: Option) => React.ReactNode;
 }
 
+/**
+ * Renders a multi-select dropdown component with search, selection, and badge display features.
+ *
+ * Allows users to select multiple options from a list, filter options via a search input, and manage selections with "Select All" and "Clear" actions. Selected items are displayed as badges, with overflow detection to condense the display when necessary. Supports custom option rendering and accessibility attributes.
+ *
+ * @param options - The list of selectable options.
+ * @param selected - The currently selected option values.
+ * @param onChange - Callback invoked with the updated selection.
+ * @param placeholder - Placeholder text shown when no options are selected.
+ * @param className - Additional CSS classes for the component container.
+ * @param badgeClassName - Additional CSS classes for selected item badges.
+ * @param disabled - If true, disables interaction with the dropdown.
+ * @param maxDisplayItems - Maximum number of badges to display before condensing to a count badge.
+ * @param renderOption - Optional custom render function for options.
+ *
+ * @template T - The type of option values, constrained to string or number.
+ */
 export function MultiSelect<T extends string | number>({
   options,
   selected,

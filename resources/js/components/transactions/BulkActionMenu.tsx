@@ -29,6 +29,18 @@ const merchantSchema = z.object({
 type CategoryFormValues = z.infer<typeof categorySchema>;
 type MerchantFormValues = z.infer<typeof merchantSchema>;
 
+/**
+ * Displays a menu for bulk assigning categories or merchants to selected transactions, with options to create new categories or merchants inline.
+ *
+ * The menu appears when transactions are selected, allowing users to assign an existing or newly created category or merchant to all selected transactions. After a successful assignment or creation, the parent component is notified via the provided callback.
+ *
+ * @param selectedTransactions - Array of transaction IDs to update.
+ * @param categories - Optional list of available categories for assignment.
+ * @param merchants - Optional list of available merchants for assignment.
+ * @param onUpdate - Callback invoked after a successful assignment or when the menu is closed.
+ *
+ * @returns The bulk action menu UI, or `null` if no transactions are selected.
+ */
 export default function BulkActionMenu({ selectedTransactions, categories = [], merchants = [], onUpdate }: Props) {
     const [activeMenu, setActiveMenu] = useState<'category' | 'merchant' | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('');

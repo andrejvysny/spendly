@@ -1,5 +1,10 @@
 import { SVGAttributes } from 'react';
 
+/**
+ * Renders the application's logo as an SVG icon.
+ *
+ * Spreads all received SVG attributes onto the root SVG element, allowing for flexible styling and sizing.
+ */
 export default function AppLogoIcon(props: SVGAttributes<SVGElement>) {
     return (
         <svg {...props} id="logo_svg" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 1024 1024" enableBackground="new 0 0 1024 1024">

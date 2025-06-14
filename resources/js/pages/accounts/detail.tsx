@@ -48,6 +48,20 @@ interface Props {
     }>;
 }
 
+/**
+ * Displays detailed information and analytics for a financial account, including account details, transaction history, monthly comparisons, and account management actions.
+ *
+ * Renders account metadata, transaction lists, monthly cashflow analytics, and provides options to sync transactions or delete the account.
+ *
+ * @param account - The account to display details for, including sync status and metadata.
+ * @param transactions - List of transactions associated with the account.
+ * @param categories - Available transaction categories.
+ * @param merchants - List of merchants related to the transactions.
+ * @param monthlySummaries - Monthly summary data for the account.
+ * @param total_transactions - Total number of transactions for the account.
+ * @param cashflow_last_month - Daily cashflow data for the previous month.
+ * @param cashflow_this_month - Daily cashflow data for the current month.
+ */
 export default function Detail({
     account,
     transactions,
