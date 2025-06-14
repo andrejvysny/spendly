@@ -29,6 +29,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
     Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
     Route::post('/transactions/bulk-update', [TransactionController::class, 'bulkUpdate'])->name('transactions.bulk-update');
+    Route::put('/transactions/{transaction}', [TransactionController::class, 'updateTransaction'])->name('transactions.update');
 
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
     Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
@@ -53,6 +54,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/imports/mappings', [ImportController::class, 'saveMapping'])->name('imports.mappings.save');
     Route::put('/imports/mappings/{mapping}', [ImportController::class, 'updateMappingUsage'])->name('imports.mappings.usage');
     Route::delete('/imports/mappings/{mapping}', [ImportController::class, 'deleteMapping'])->name('imports.mappings.delete');
+    Route::post('/imports/revert/{id}', [ImportController::class, 'revertImport'])->name('imports.revert');
 
     // Category routes
     Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');

@@ -786,4 +786,30 @@ class TransactionController extends Controller
             return response()->json(['error' => 'Failed to update transactions'], 500);
         }
     }
+
+
+
+    public function updateTransaction(Request $request, Transaction $transaction)
+    {
+
+        $validated = $request->validate([
+            'description' => 'nullable|string',
+            'note' => 'nullable|string',
+            'partner' => 'nullable|string', 
+            'place' => 'nullable|string',
+        ]);
+
+
+        try {
+            
+            $transaction->update($validated);
+
+            return response()->json(['message' => 'Transaction updated successfully']);
+        } catch (\Exception $e) {
+            \Log::error('Transaction update failed: '.$e->getMessage());
+
+            return response()->json(['error' => 'Failed to update transaction'], 500);
+        }
+    }
+
 }

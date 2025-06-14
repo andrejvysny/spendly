@@ -6,7 +6,9 @@ import { formatDate } from '@/utils/date';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import ImportWizard from './components/ImportWizard';
-
+import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
+import axios from 'axios';
 interface Props {
     imports: Import[];
 }
@@ -22,6 +24,25 @@ export default function Index({ imports }: Props) {
         },
     ];
 
+    const handleRevertImport = async (importId: number) => {
+        if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
+            try {
+                axios.post(`/imports/revert/${importId}`).then(r=> {
+
+                    if (r.status === 200) {
+                        setImportsList(importsList.filter((imp) => imp.id !== importId));
+                        alert('Import reverted successfully.');
+                    } else {
+                        alert('Failed to revert import. Please try again later.');
+                    }
+                });
+            } catch (error) {
+                console.error('Error reverting import:', error);
+                alert('Failed to revert import. Please try again later.');
+            }
+        }
+    }
+
     const getStatusBadgeClass = (status: string) => {
         switch (status) {
             case 'completed':
@@ -35,7 +56,7 @@ export default function Index({ imports }: Props) {
             case 'failed':
                 return 'bg-red-100 text-red-800 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium';
             default:
-                return 'bg-gray-100 text-gray-800 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium';
+                return 'bg-gray-200 text-gray-800 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium';
         }
     };
 
@@ -97,7 +118,11 @@ export default function Index({ imports }: Props) {
                             </p>
                         ),
                     },
-                    { header: 'Actions', key: 'actions', className: 'text-right', render: (row) => <p>Action-{row.id}</p> }, // Custom render for actions column,
+                    { header: 'Actions', key: 'actions', className: 'text-right', render: (row) => (
+                        <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
+                            Revert
+                        </Button>
+                        ) }, // Custom render for actions column,
                 ]}
                 emptyMessage="No import tasks found. Please create a new import task."
                 data={importsList}
@@ -109,6 +134,9 @@ export default function Index({ imports }: Props) {
                     <ImportWizard onComplete={handleImportComplete} onCancel={() => setIsWizardOpen(false)} />
                 </div>
             )}
+
+
+
         </AppLayout>
     );
 }

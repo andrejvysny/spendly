@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Import;
 use App\Models\Transaction;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -530,6 +531,11 @@ class ImportController extends Controller
      */
     private function isDuplicateTransaction(array $data, $accountId): bool
     {
+        return false; // Default to false for safety
+
+
+        //TODO not working correctly, needs to be fixed
+
         Log::debug('Checking for duplicate transaction', [
             'account_id' => $accountId,
             'data' => $data,
@@ -1044,6 +1050,48 @@ class ImportController extends Controller
 
         return response()->json([
             'message' => 'Import mapping deleted successfully',
+        ]);
+    }
+
+
+    public function revertImport(int $id): JsonResponse
+    {
+        Log::debug('Reverting import', ['import_id' => $id]);
+
+        // Find the import
+        $import = Import::find($id);
+        if (!$import) {
+            Log::error('Import not found', ['import_id' => $id]);
+            return response()->json(['message' => 'Import not found'], 404);
+        }
+
+        // Check if this import belongs to the authenticated user
+        if ($import->user_id !== Auth::id()) {
+            Log::warning('Unauthorized import revert attempt', [
+                'import_id' => $import->id,
+                'user_id' => Auth::id(),
+            ]);
+            abort(403);
+        }
+
+        // Check if the import is already reverted
+        if ($import->status === Import::STATUS_REVERTED) {
+            Log::info('Import already reverted', ['import_id' => $import->id]);
+            return response()->json(['message' => 'Import already reverted'], 200);
+        }
+
+        // Revert transactions created by this import
+        Transaction::where('metadata->import_id', $import->id)->delete();
+
+        // Update import status
+        $import->status = Import::STATUS_REVERTED;
+        $import->save();
+
+        Log::info('Import reverted successfully', ['import_id' => $import->id]);
+
+        return response()->json([
+            'message' => 'Import reverted successfully',
+            'import' => $import,
         ]);
     }
 }
