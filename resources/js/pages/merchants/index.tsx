@@ -34,6 +34,13 @@ const deleteFormSchema = z.object({
 type FormValues = InferFormValues<typeof formSchema>;
 type DeleteFormValues = InferFormValues<typeof deleteFormSchema>;
 
+/**
+ * Displays and manages a list of merchants with create, edit, and delete functionality.
+ *
+ * Renders a table of merchants and provides modals for creating, editing, and deleting merchants. Deletion includes options for handling related transactions.
+ *
+ * @param merchants - The list of merchants to display and manage.
+ */
 export default function Merchants({ merchants }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);

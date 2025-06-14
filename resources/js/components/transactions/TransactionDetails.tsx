@@ -8,6 +8,16 @@ interface Props {
     transaction: Transaction;
 }
 
+/**
+ * Displays detailed information about a transaction with inline editing capabilities for select fields.
+ *
+ * Allows users to view and edit the description, note, partner, and place fields of a transaction. Changes are saved to the backend via a PUT request. Additional transaction details, such as dates, IBANs, type, balance, and metadata, are displayed in a structured layout. Collapsible sections are used for metadata and import data when present.
+ *
+ * @param transaction - The transaction object to display and edit.
+ *
+ * @remark
+ * The component immediately exits edit mode after initiating a save, regardless of whether the backend update succeeds. Errors during the save operation are logged to the console but do not affect the UI state.
+ */
 export default function TransactionDetails({ transaction }: Props) {
     const [isEditable, setIsEditable] = useState(false);
     const [editedDescription, setEditedDescription] = useState(transaction.description || '');
@@ -183,6 +193,12 @@ export default function TransactionDetails({ transaction }: Props) {
     );
 }
 
+/**
+ * Renders a collapsible section with a title and expandable content.
+ *
+ * @param title - The title displayed in the summary of the collapsible section.
+ * @param children - The content shown when the section is expanded.
+ */
 export function SimpleCollapse({ children, title, ...props }: { children: React.ReactNode; title: string }) {
     return (
         <div {...props}>

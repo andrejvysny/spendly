@@ -8,6 +8,15 @@ interface AuthLayoutProps {
     description?: string;
 }
 
+/**
+ * Provides a centered authentication layout with a logo, app name, title, description, and custom content.
+ *
+ * Renders a visually prominent logo and app name at the top, followed by an accessible title, optional description, and any child elements.
+ *
+ * @param title - The main heading displayed for the authentication page.
+ * @param description - Optional descriptive text shown below the title.
+ * @returns The authentication layout as a React element.
+ */
 export default function AuthSimpleLayout({ children, title, description }: PropsWithChildren<AuthLayoutProps>) {
     return (
         <div className="bg-background flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">

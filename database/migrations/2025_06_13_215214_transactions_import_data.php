@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Applies schema changes to add GoCardless synchronization columns to the transactions table and an import data column to the accounts table.
+     *
+     * Adds `is_gocardless_synced`, `gocardless_synced_at`, and `gocardless_account_id` columns to the `transactions` table, along with an index on `gocardless_account_id`. Also adds a nullable `import_data` JSON column to the `accounts` table.
      */
     public function up(): void
     {
@@ -37,7 +39,9 @@ return new class extends Migration
     }
 
     /**
-     * Reverse the migrations.
+     * Reverts the schema changes made by the migration.
+     *
+     * Drops the GoCardless-related columns and index from the `transactions` table and removes the `import_data` column from the `accounts` table.
      */
     public function down(): void
     {

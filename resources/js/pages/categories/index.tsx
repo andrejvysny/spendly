@@ -41,6 +41,13 @@ const deleteFormSchema = z.object({
 type FormValues = InferFormValues<typeof formSchema>;
 type DeleteFormValues = InferFormValues<typeof deleteFormSchema>;
 
+/**
+ * Displays and manages a list of categories, providing functionality to create, edit, and delete categories with modal dialogs.
+ *
+ * Allows users to assign colors, icons, and parent categories, and handles reassignment or removal of related transactions when deleting a category.
+ *
+ * @param categories - The list of categories to display and manage.
+ */
 export default function Categories({ categories }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);

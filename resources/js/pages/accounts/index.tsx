@@ -11,6 +11,13 @@ interface Props {
     accounts: Account[];
 }
 
+/**
+ * Displays a list of bank accounts and provides functionality to create a new account.
+ *
+ * Renders account cards with details and a button to open a modal for creating new accounts. Submits new account data via Inertia.js and updates the UI upon success.
+ *
+ * @param accounts - The list of accounts to display.
+ */
 export default function Index({ accounts }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 

@@ -32,6 +32,16 @@ type BankDataForm = {
     gocardless_secret_key: string;
 };
 
+/**
+ * Displays and manages GoCardless bank data settings, including credential management and linked bank account requisitions.
+ *
+ * Provides a form for updating GoCardless Secret ID and Secret Key, allows users to clear stored credentials, and displays a list of linked bank accounts (requisitions). Users can initiate the process to connect new bank accounts via an import wizard. The component fetches and displays requisition data when valid credentials are present.
+ *
+ * @param gocardless_secret_id - Optional initial GoCardless Secret ID to prefill the form.
+ * @param gocardless_secret_key - Optional initial GoCardless Secret Key to prefill the form.
+ *
+ * @remark Reloads the page after clearing credentials or successfully connecting a new bank account.
+ */
 export default function BankData({ gocardless_secret_id, gocardless_secret_key }: { gocardless_secret_id?: string; gocardless_secret_key?: string }) {
     const { data, setData, patch, errors, processing, recentlySuccessful } = useForm<BankDataForm>({
         gocardless_secret_id: gocardless_secret_id || '',
