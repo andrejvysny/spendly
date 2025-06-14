@@ -69,7 +69,7 @@ export default function Detail({
         setSyncing(true);
         try {
             axios
-                .post(`/api/gocardless/accounts/${account.id}/sync-transactions`, {
+                .post(`/api/bank-data/gocardless/accounts/${account.id}/sync-transactions`, {
                     account_id: account.id,
                 })
                 .then((response) => {

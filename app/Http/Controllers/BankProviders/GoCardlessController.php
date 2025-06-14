@@ -5,16 +5,11 @@ namespace App\Http\Controllers\BankProviders;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\Transaction;
-use App\Services\GoCardlessBankData;
-use App\Services\GocardlessMapper;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessController extends Controller
 {
-
-
     public function syncTransactions(int $account): JsonResponse
     {
         Log::info('Syncing transactions for account', [
@@ -24,7 +19,7 @@ class GoCardlessController extends Controller
         try {
             $account = Account::findOrFail($account);
 
-            if (!$account->is_gocardless_synced) {
+            if (! $account->is_gocardless_synced) {
                 return response()->json(['error' => 'Account is not synced with GoCardless'], 400);
             }
 
@@ -46,7 +41,7 @@ class GoCardlessController extends Controller
             // Update last synced timestamp
             $account->update(['gocardless_last_synced_at' => now()]);
 
-            return response()->json(['message' => 'Transactions synced successfully', 'count'=>count($bookedTransactions),'count_existing' => count($existing)]);
+            return response()->json(['message' => 'Transactions synced successfully', 'count' => count($bookedTransactions), 'count_existing' => count($existing)]);
         } catch (\Exception $e) {
             Log::error('Transaction sync error', [
                 'message' => $e->getMessage(),
@@ -56,9 +51,4 @@ class GoCardlessController extends Controller
             return response()->json(['error' => 'Failed to sync transactions: '.$e->getMessage()], 500);
         }
     }
-
-
-
-
-
 }

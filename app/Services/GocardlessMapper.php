@@ -8,11 +8,7 @@ use Carbon\Carbon;
 
 class GocardlessMapper
 {
-
-    public function __construct()
-    {
-    }
-
+    public function __construct() {}
 
     public function mapAccountData(array $data): array
     {
@@ -33,9 +29,7 @@ class GocardlessMapper
     /**
      * Safely get value from array using dot notation
      *
-     * @param array $array
-     * @param string $key
-     * @param mixed $default
+     * @param  mixed  $default
      * @return mixed
      */
     private function get(array $array, string $key, $default = null)
@@ -43,11 +37,12 @@ class GocardlessMapper
         $keys = explode('.', $key);
         $value = $array;
         foreach ($keys as $segment) {
-            if (!is_array($value) || !array_key_exists($segment, $value)) {
+            if (! is_array($value) || ! array_key_exists($segment, $value)) {
                 return $default;
             }
             $value = $value[$segment];
         }
+
         return $value;
     }
 
@@ -56,15 +51,15 @@ class GocardlessMapper
         $bookedDateTime = Carbon::parse($this->get($transaction, 'bookingDateTime', $this->get($transaction, 'bookingDate')));
         $valueDateTime = Carbon::parse($this->get($transaction, 'valueDateTime', $this->get($transaction, 'valueDate', $this->get($transaction, 'bookingDate'))));
 
-       $mapped = [
-           'account_id' => $account->id,
+        $mapped = [
+            'account_id' => $account->id,
 
-           'gocardless_account_id' => $account->gocardless_account_id,
-           'is_gocardless_synced' => true,
-           'gocardless_synced_at' => now(),
+            'gocardless_account_id' => $account->gocardless_account_id,
+            'is_gocardless_synced' => true,
+            'gocardless_synced_at' => now(),
 
-           'source_iban' => $this->get($transaction, 'debtorAccount.iban'),
-           'target_iban' => $this->get($transaction, 'creditorAccount.iban'),
+            'source_iban' => $this->get($transaction, 'debtorAccount.iban'),
+            'target_iban' => $this->get($transaction, 'creditorAccount.iban'),
 
             'amount' => $this->get($transaction, 'transactionAmount.amount', 0),
             'currency' => $this->get($transaction, 'transactionAmount.currency', 'EUR'),
@@ -73,16 +68,15 @@ class GocardlessMapper
             'partner' => $this->get($transaction, 'creditorName') ??
                         $this->get($transaction, 'debtorName') ??
                         $this->get($transaction, 'remittanceInformationUnstructuredArray.0'),
-            'description' => implode(" ", $this->get($transaction, 'remittanceInformationUnstructuredArray', [])) .
-                ($this->get($transaction, 'remittanceInformationUnstructured') ? ", " . $this->get($transaction, 'remittanceInformationUnstructured') : ''),
+            'description' => implode(' ', $this->get($transaction, 'remittanceInformationUnstructuredArray', [])).
+                ($this->get($transaction, 'remittanceInformationUnstructured') ? ', '.$this->get($transaction, 'remittanceInformationUnstructured') : ''),
             'type' => $this->get($transaction, 'proprietaryBankTransactionCode', Transaction::TYPE_PAYMENT),
 
-           'balance_after_transaction' => $this->get($transaction, 'balanceAfterTransaction.balanceAmount.amount', 0),
+            'balance_after_transaction' => $this->get($transaction, 'balanceAfterTransaction.balanceAmount.amount', 0),
             'metadata' => $this->get($transaction, 'additionalDataStructured'),
             'import_data' => $transaction,
         ];
 
         return $mapped;
     }
-
 }

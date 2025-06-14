@@ -3,36 +3,91 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Models\Account;
+use App\Models\User;
 use App\Services\GoCardlessBankData;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\Http;
 
 class BankDataController extends Controller
 {
     private GoCardlessBankData $client;
+
+    private User $user;
+
     public function __construct()
     {
+        $this->user = User::select(
+            'gocardless_secret_id',
+            'gocardless_secret_key',
+            'gocardless_access_token',
+            'gocardless_refresh_token',
+            'gocardless_refresh_token_expires_at',
+            'gocardless_access_token_expires_at',
+        )
+            ->where('id', auth()->id())
+            ->first();
 
-        $this->client = new GoCardlessBankData(
-            getenv("GOCARDLESS_SECRET_ID"),
-            getenv("GOCARDLESS_SECRET_KEY"),
-            false
-        );
+        // TODO do correct safa check if the user has gocardless credentials set
+        if (! $this->user->gocardless_secret_id || ! $this->user->gocardless_secret_key) {
+            Log::warning('GoCardless credentials not set for user', ['user_id' => $this->user->id]);
+        } else {
+
+            $this->client = new GoCardlessBankData(
+                $this->user->gocardless_secret_id ?? getenv('GOCARDLESS_SECRET_ID'),
+                $this->user->gocardless_secret_key ?? getenv('GOCARDLESS_SECRET_KEY'),
+                $this->user->gocardless_access_token ?? null,
+                $this->user->gocardless_refresh_token ?? null,
+                $this->user->gocardless_refresh_token_expires_at ?? null,
+                $this->user->gocardless_access_token_expires_at ?? null,
+                false
+            );
+        }
     }
 
     public function edit(Request $request): Response
     {
-        return Inertia::render('settings/bank_data', []);
+        return Inertia::render('settings/bank_data', [
+            'gocardless_secret_id' => $this->user->gocardless_secret_id,
+            'gocardless_secret_key' => $this->user->gocardless_secret_key,
+        ]);
+    }
+
+    public function update(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'gocardless_secret_id' => ['nullable', 'string'],
+            'gocardless_secret_key' => ['nullable', 'string'],
+        ]);
+
+        // Save the GoCardless credentials
+        $user = $request->user();
+        $user->fill([
+            'gocardless_secret_id' => $validated['gocardless_secret_id'] ?? null,
+            'gocardless_secret_key' => $validated['gocardless_secret_key'] ?? null,
+        ]);
+        $user->save();
+
+        return to_route('bank_data.edit');
+    }
+
+    public function purgeGoCardlessCredentials(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $user->gocardless_secret_id = null;
+        $user->gocardless_secret_key = null;
+        $user->gocardless_access_token = null;
+        $user->gocardless_refresh_token = null;
+        $user->gocardless_refresh_token_expires_at = null;
+        $user->gocardless_access_token_expires_at = null;
+        $user->save();
+
+        return to_route('bank_data.edit')->with('success', 'GoCardless credentials purged successfully.');
     }
 
     public function getInstitutions(Request $request): JsonResponse
@@ -42,23 +97,15 @@ class BankDataController extends Controller
         ]);
         Log::info('Fetching institutions from GoCardless API', ['country' => $request->country]);
         $institutions = $this->client->getInstitutions($request->country);
+
         return response()->json($institutions);
     }
-
 
     public function getRequisitions(): JsonResponse
     {
         $existingRequisitions = $this->client->getRequisitions();
+
         return response()->json($existingRequisitions);
-    }
-
-    public function update(ProfileUpdateRequest $request): RedirectResponse
-    {
-        dd($request);
-        $request->user()->fill($request->validated());
-        $request->user()->save();
-
-        return to_route('bank_data.edit');
     }
 
     /**
@@ -88,6 +135,7 @@ class BankDataController extends Controller
         try {
             $this->client->deleteRequisition($id);
             Log::info('Requisition deleted successfully', ['id' => $id]);
+
             return response()->json(['message' => 'Requisition deleted successfully']);
         } catch (\Exception $e) {
             Log::error('Failed to delete requisition', [
@@ -95,12 +143,10 @@ class BankDataController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return response()->json(['error' => 'Failed to delete requisition: ' . $e->getMessage()], 500);
+
+            return response()->json(['error' => 'Failed to delete requisition: '.$e->getMessage()], 500);
         }
     }
-
-
-
 
     public function createRequisition(Request $request)
     {
@@ -109,32 +155,33 @@ class BankDataController extends Controller
 
         try {
             // Step 1: Create end user agreement
-            //$agreement = $this->client->createEndUserAgreement(
+            // $agreement = $this->client->createEndUserAgreement(
             //     $request->institution_id,
             //     [] // Optional user data
-            //);
+            // );
 
-            //Log::info('Agreement created', ['agreement_id' => $agreement['id']]);
+            // Log::info('Agreement created', ['agreement_id' => $agreement['id']]);
 
             // Step 2: Create requisition
             $redirectUrl = config('app.url').'/api/bank-data/gocardless/requisition/callback';
             $requisition = $this->client->createRequisition(
                 $request->institution_id,
                 $redirectUrl,
-            //  $agreement['id']
+                //  $agreement['id']
             );
 
             Log::info('Requisition created', ['requisition' => $requisition]);
             // Store the requisition ID in the session for later use
             session(['gocardless_requisition_id' => $requisition['id']]);
+
             // Return the link for the user to authenticate
-            return response()->json(['link' => $requisition['link'],]);
+            return response()->json(['link' => $requisition['link']]);
         } catch (\Exception $e) {
-            Log::error('GoCardless import error', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString(),]);
-            return response()->json(['error' => 'Failed to import account: ' . $e->getMessage()], 500);
+            Log::error('GoCardless import error', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+
+            return response()->json(['error' => 'Failed to import account: '.$e->getMessage()], 500);
         }
     }
-
 
     public function handleRequisitionCallback(Request $request)
     {
@@ -143,19 +190,21 @@ class BankDataController extends Controller
                 'error' => $request->get('error'),
                 'error_description' => $request->get('details'),
             ]);
-            return redirect()->route('bank_data.edit')->with('error', 'Error during authentication: ' . $request->get('error_description'));
+
+            return redirect()->route('bank_data.edit')->with('error', 'Error during authentication: '.$request->get('error_description'));
         }
 
         if ($request->get('error') === 'UserCancelledSession') {
             Log::info('User cancelled the session');
             session()->forget('gocardless_requisition_id');
+
             return redirect()->route('bank_data.edit')->with('error', 'User cancelled the session');
         }
 
         Log::info('Handling GoCardless callback');
         $requisitionId = session('gocardless_requisition_id');
 
-        if (!$requisitionId) {
+        if (! $requisitionId) {
             return redirect()->route('bank_data.edit')->with('error', 'Invalid session');
         }
 
@@ -167,7 +216,7 @@ class BankDataController extends Controller
             Log::info('Retrieved accounts', ['account_ids' => $accountIds]);
             session()->forget('gocardless_requisition_id');
 
-            return redirect()->route('bank_data.edit')->with('success', 'Requsition completed successfully. Accounts imported: ' . count($accountIds));
+            return redirect()->route('bank_data.edit')->with('success', 'Requsition completed successfully. Accounts imported: '.count($accountIds));
 
         } catch (\Exception $e) {
             Log::error('GoCardless callback error', [
@@ -175,10 +224,9 @@ class BankDataController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return redirect()->route('bank_data.edit')->with('error', 'Failed to import accounts: ' . $e->getMessage());
+            return redirect()->route('bank_data.edit')->with('error', 'Failed to import accounts: '.$e->getMessage());
         }
     }
-
 
     public function importAccount(Request $request)
     {
@@ -188,10 +236,11 @@ class BankDataController extends Controller
 
         Log::info('Importing account with requisition', ['account_id' => $request->account_id]);
 
-        if(Account::where('user_id', auth()->id())
+        if (Account::where('user_id', auth()->id())
             ->where('gocardless_account_id', $accountId)
             ->first()) {
             Log::info('Account already exists', ['account_id' => $accountId]);
+
             return response()->json([
                 'message' => 'Account already exists',
             ], 400);
@@ -219,7 +268,7 @@ class BankDataController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to process account', [
                 'account_id' => $accountId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -229,11 +278,8 @@ class BankDataController extends Controller
         ]);
     }
 
-
     public function getExistingGocardlessAccountIDs(Request $request): JsonResponse
     {
-
-
         $accountId = $request->account_id;
 
         Log::info('Checking if account exists', ['account_id' => $accountId]);
@@ -244,5 +290,4 @@ class BankDataController extends Controller
 
         return response()->json(['exists' => $exists]);
     }
-
 }
