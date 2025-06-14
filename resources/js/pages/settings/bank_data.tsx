@@ -70,7 +70,7 @@ export default function BankData() {
 
 
                 <div className="mt-6 w-full">
-                    <HeadingSmall title="GoCardless Bank Data Settings" description="Setup account sync from your bank" />
+                    <HeadingSmall title="GoCardless Requisitions" description="Linked bank accounts." />
 
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-12">
@@ -78,7 +78,7 @@ export default function BankData() {
                         <p className="mt-4 text-muted-foreground">Loading...</p>
                     </div>
                     ) : (
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 gap-4 mt-4">
                             {requisitions.results.map((req) =>
                                 <Requisition requisition={req} setRequisitions={setRequisitions}/>
                             )}

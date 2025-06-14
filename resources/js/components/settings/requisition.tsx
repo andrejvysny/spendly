@@ -105,7 +105,7 @@ function Requisition({requisition, setRequisitions}: { requisition: Requisition,
                     <span className="text-gray-500 dark:text-gray-400">ID:</span>
                     <span className="text-gray-900 dark:text-white font-medium">
                                                 {requisition.id}
-                                            </span>
+                    </span>
                 </div>
                 <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-gray-400">Agreement ID:</span>
@@ -140,20 +140,24 @@ function Requisition({requisition, setRequisitions}: { requisition: Requisition,
 
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-center">
-                    <a
-                        href={requisition.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                    >
-                        View in GoCardless
-                    </a>
-                    <button
-                        onClick={() => confirmDelete(requisition.id)}
-                        className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                    >
-                        Remove
-                    </button>
+                    <div>
+                    {
+                        requisition.status !== 'LN' ? (
+                            <a
+                                href={requisition.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                                View in GoCardless
+                            </a>
+                        ) : null
+                    }
+                </div>
+
+                    <Button variant="outline_destructive" size="sm" onClick={() => confirmDelete(requisition.id)}>
+                        Delete
+                    </Button>
                 </div>
             </div>
         </div>
