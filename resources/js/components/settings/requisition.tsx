@@ -108,7 +108,7 @@ function Requisition({
                 {requisition.accounts && requisition.accounts.length > 0 && (
                     <SimpleCollapse title={'Linked Accounts'} className="mt-3">
                         {requisition.accounts.map((account_id: string) => (
-                            <AccountComponent account_id={account_id} />
+                            <AccountComponent key={account_id} account_id={account_id} />
                         ))}
                     </SimpleCollapse>
                 )}
