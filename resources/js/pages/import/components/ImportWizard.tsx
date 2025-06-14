@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Import, Transaction, Category } from '@/types/index';
+import { Category, Import, Transaction } from '@/types/index';
 import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
 import CleanStep from './wizard-steps/CleanStep';

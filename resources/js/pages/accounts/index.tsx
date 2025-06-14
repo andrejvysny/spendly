@@ -3,9 +3,9 @@ import ValueSplit from '@/components/ui/value-split';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import { Account } from '@/types/index';
+import { formatAmount } from '@/utils/currency';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { formatAmount } from '@/utils/currency';
 
 interface Props {
     accounts: Account[];
@@ -34,7 +34,6 @@ export default function Index({ accounts }: Props) {
                                 onClick: () => setIsCreateModalOpen(true),
                                 label: '+ New Account',
                             },
-                    
                         ]}
                     />
                 </div>
@@ -69,8 +68,6 @@ export default function Index({ accounts }: Props) {
             </div>
 
             <CreateAccountModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSubmit={handleCreateAccount} />
-
-            
         </AppLayout>
     );
 }

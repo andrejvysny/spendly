@@ -2,21 +2,21 @@
 
 import CreateTransactionModal from '@/components/transactions/CreateTransactionModal';
 import TransactionList from '@/components/transactions/TransactionList';
-import { TextInput, DateRangeInput } from '@/components/ui/form-inputs';
+import { Button } from '@/components/ui/button';
+import { DateRangeInput, TextInput } from '@/components/ui/form-inputs';
+import { LoadingDots } from '@/components/ui/loading-dots';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
+import { Switch } from '@/components/ui/switch';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
-import { BreadcrumbItem, Transaction, Category, Merchant } from '@/types/index';
+import { BreadcrumbItem, Category, Merchant, Transaction } from '@/types/index';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { z } from 'zod';
 import debounce from 'lodash/debounce';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { z } from 'zod';
 import '../../bootstrap';
-import { LoadingDots } from '@/components/ui/loading-dots';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 
 interface Props {
     transactions: {
@@ -70,25 +70,27 @@ const filterSchema = z.object({
     amountBelow: z.string().optional(),
     dateFrom: z.string().optional(),
     dateTo: z.string().optional(),
-    dateRange: z.object({
-        from: z.string().optional(),
-        to: z.string().optional()
-    }).optional(),
+    dateRange: z
+        .object({
+            from: z.string().optional(),
+            to: z.string().optional(),
+        })
+        .optional(),
     merchant_id: z.string().optional(),
     category_id: z.string().optional(),
 });
 
 type FilterValues = InferFormValues<typeof filterSchema>;
 
-export default function Index({ 
-    transactions: initialTransactions, 
+export default function Index({
+    transactions: initialTransactions,
     monthlySummaries: initialSummaries,
-    totalSummary: initialTotalSummary, 
+    totalSummary: initialTotalSummary,
     isFiltered: initialIsFiltered,
-    categories, 
-    merchants, 
-    accounts, 
-    filters = {} 
+    categories,
+    merchants,
+    accounts,
+    filters = {},
 }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -132,29 +134,32 @@ export default function Index({
                 if (Array.isArray(value)) {
                     return value.length > 0;
                 }
-                return Object.values(value).some(v => v !== '' && v !== 'all' && v !== null && v !== undefined);
+                return Object.values(value).some((v) => v !== '' && v !== 'all' && v !== null && v !== undefined);
             }
             return value !== '' && value !== 'all' && value !== null && value !== undefined;
         });
     }, [filterValues]);
 
-    const resetValues: FilterValues = useMemo(() => ({
-        search: '',
-        account_id: 'all',
-        transactionType: 'all' as const,
-        amountFilterType: 'all' as const,
-        amountFilter: '',
-        amountMin: '',
-        amountMax: '',
-        amountExact: '',
-        amountAbove: '',
-        amountBelow: '',
-        dateFrom: '',
-        dateTo: '',
-        dateRange: { from: '', to: '' },
-        merchant_id: 'all',
-        category_id: 'all',
-    }), []);
+    const resetValues: FilterValues = useMemo(
+        () => ({
+            search: '',
+            account_id: 'all',
+            transactionType: 'all' as const,
+            amountFilterType: 'all' as const,
+            amountFilter: '',
+            amountMin: '',
+            amountMax: '',
+            amountExact: '',
+            amountAbove: '',
+            amountBelow: '',
+            dateFrom: '',
+            dateTo: '',
+            dateRange: { from: '', to: '' },
+            merchant_id: 'all',
+            category_id: 'all',
+        }),
+        [],
+    );
 
     useEffect(() => {
         // Mark initial load as complete so we know future changes should trigger filters
@@ -167,17 +172,17 @@ export default function Index({
         if (filterValues[name] === value) {
             return; // Skip if the value hasn't changed
         }
-        
+
         // Update the filter values
         const newValues = { ...filterValues, [name]: value };
         setFilterValues(newValues);
-        
+
         // Only trigger API call if meaningful changes AND initial load is complete
         if (initialLoadComplete) {
             const isValueMeaningful = value !== '' && value !== 'all' && value !== null && value !== undefined;
-            const wasValueMeaningful = filterValues[name] !== '' && filterValues[name] !== 'all' && 
-                                      filterValues[name] !== null && filterValues[name] !== undefined;
-            
+            const wasValueMeaningful =
+                filterValues[name] !== '' && filterValues[name] !== 'all' && filterValues[name] !== null && filterValues[name] !== undefined;
+
             // Only fetch if adding a meaningful filter or removing a previously active filter
             if (isValueMeaningful || wasValueMeaningful) {
                 debouncedFetchTransactions(newValues);
@@ -188,15 +193,15 @@ export default function Index({
     // Parse amount input to extract operation and values
     const parseAmountInput = (input: string): { type: string; values: number[] } => {
         input = input.trim();
-        
+
         // Check for range pattern (10-50)
         if (input.includes('-')) {
-            const [min, max] = input.split('-').map(v => Math.abs(parseFloat(v)));
+            const [min, max] = input.split('-').map((v) => Math.abs(parseFloat(v)));
             if (!isNaN(min) && !isNaN(max)) {
                 return { type: 'range', values: [min, max] };
             }
         }
-        
+
         // Check for less than (<50)
         if (input.startsWith('<')) {
             const value = Math.abs(parseFloat(input.substring(1)));
@@ -204,7 +209,7 @@ export default function Index({
                 return { type: 'less', values: [value] };
             }
         }
-        
+
         // Check for greater than (>50)
         if (input.startsWith('>')) {
             const value = Math.abs(parseFloat(input.substring(1)));
@@ -212,13 +217,13 @@ export default function Index({
                 return { type: 'greater', values: [value] };
             }
         }
-        
+
         // Check for exact match (=50 or just 50)
         const exactValue = Math.abs(parseFloat(input.startsWith('=') ? input.substring(1) : input));
         if (!isNaN(exactValue)) {
             return { type: 'exact', values: [exactValue] };
         }
-        
+
         return { type: 'invalid', values: [] };
     };
 
@@ -226,7 +231,7 @@ export default function Index({
     const handleAmountChange = (value: string) => {
         // Update the display value
         const newValues = { ...filterValues, amountFilter: value };
-        
+
         // Clear all specific amount fields
         newValues.amountExact = '';
         newValues.amountMin = '';
@@ -234,11 +239,11 @@ export default function Index({
         newValues.amountAbove = '';
         newValues.amountBelow = '';
         newValues.amountFilterType = 'all'; // Reset the filter type
-        
+
         if (value) {
             const parsed = parseAmountInput(value);
-            console.log("Parsed amount input:", parsed);
-            
+            console.log('Parsed amount input:', parsed);
+
             switch (parsed.type) {
                 case 'exact':
                     newValues.amountExact = parsed.values[0].toString();
@@ -259,10 +264,10 @@ export default function Index({
                     break;
             }
         }
-        
-        console.log("New filter values:", newValues);
+
+        console.log('New filter values:', newValues);
         setFilterValues(newValues);
-        
+
         // Only fetch if we have a valid input or we're clearing the filter AND initial load is complete
         if (initialLoadComplete && (value === '' || parseAmountInput(value).type !== 'invalid')) {
             debouncedFetchTransactions(newValues);
@@ -271,27 +276,21 @@ export default function Index({
 
     // Get unique accounts for dropdown
     const accountOptions = useMemo(() => {
-        return [
-            { value: 'all', label: 'All Accounts' },
-            ...accounts.map(account => ({ value: account.id.toString(), label: account.name }))
-        ];
+        return [{ value: 'all', label: 'All Accounts' }, ...accounts.map((account) => ({ value: account.id.toString(), label: account.name }))];
     }, [accounts]);
-    
+
     // Get merchant and category options for dropdowns
     const merchantOptions = useMemo(() => {
-        return [
-            { value: 'all', label: 'All Merchants' },
-            ...merchants.map(merchant => ({ value: merchant.id.toString(), label: merchant.name }))
-        ];
+        return [{ value: 'all', label: 'All Merchants' }, ...merchants.map((merchant) => ({ value: merchant.id.toString(), label: merchant.name }))];
     }, [merchants]);
 
     const categoryOptions = useMemo(() => {
         return [
             { value: 'all', label: 'All Categories' },
-            ...categories.map(category => ({ value: category.id.toString(), label: category.name }))
+            ...categories.map((category) => ({ value: category.id.toString(), label: category.name })),
         ];
     }, [categories]);
-    
+
     // Check if a filter has a non-default value
     const isFilterActive = (name: string): boolean => {
         switch (name) {
@@ -317,65 +316,65 @@ export default function Index({
                 return false;
         }
     };
-    
+
     // Get filter label style based on active state
     const getFilterLabelStyle = (name: string): string => {
-        return isFilterActive(name) 
-            ? 'font-medium text-green-600' 
-            : 'font-medium';
+        return isFilterActive(name) ? 'font-medium text-green-600' : 'font-medium';
     };
 
     // Debounced fetch function
-    const fetchTransactionsLogic = useCallback(async (values: FilterValues) => {
-        console.log("Fetching transactions with values:", values);
-        setIsLoading(true);
-        try {
-            const isResettingFilters = !hasActiveFilters() ||
-                Object.values(values).every(value =>
-                    value === '' || value === 'all' || value === null || value === undefined ||
-                    (typeof value === 'object' && Object.values(value).every(v => v === ''))
-                );
-
-            const response = await axios.get('/transactions/filter', {
-                params: Object.fromEntries(
-                    Object.entries(values).filter((entry) => entry[1] !== '' && entry[1] !== null)
-                ),
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            });
-            console.log("API response:", response.data);
-            if (response.data.transactions) {
-                setTransactions(response.data.transactions.data);
-                setCurrentPage(response.data.transactions.current_page);
-                setHasMorePages(response.data.transactions.has_more_pages);
-                setMonthlySummaries(response.data.monthlySummaries || {});
-                if (isResettingFilters) {
-                    setTotalSummary(undefined);
-                    setIsFiltered(false);
-                } else {
-                    setTotalSummary(response.data.totalSummary || undefined);
-                    setIsFiltered(
-                        Object.values(values).some(value =>
-                            value !== '' && value !== 'all' && value !== null && value !== undefined
-                        )
+    const fetchTransactionsLogic = useCallback(
+        async (values: FilterValues) => {
+            console.log('Fetching transactions with values:', values);
+            setIsLoading(true);
+            try {
+                const isResettingFilters =
+                    !hasActiveFilters() ||
+                    Object.values(values).every(
+                        (value) =>
+                            value === '' ||
+                            value === 'all' ||
+                            value === null ||
+                            value === undefined ||
+                            (typeof value === 'object' && Object.values(value).every((v) => v === '')),
                     );
-                }
-            } else {
-                console.error("Invalid response format:", response.data);
-            }
-        } catch (error) {
-            console.error('Error fetching filtered transactions:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [hasActiveFilters, setIsLoading, setTransactions, setMonthlySummaries, setTotalSummary, setIsFiltered]);
 
-    const debouncedFetchTransactions = useMemo(() => 
-        debounce(fetchTransactionsLogic, 300)
-    , [fetchTransactionsLogic]);
+                const response = await axios.get('/transactions/filter', {
+                    params: Object.fromEntries(Object.entries(values).filter((entry) => entry[1] !== '' && entry[1] !== null)),
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                    },
+                });
+                console.log('API response:', response.data);
+                if (response.data.transactions) {
+                    setTransactions(response.data.transactions.data);
+                    setCurrentPage(response.data.transactions.current_page);
+                    setHasMorePages(response.data.transactions.has_more_pages);
+                    setMonthlySummaries(response.data.monthlySummaries || {});
+                    if (isResettingFilters) {
+                        setTotalSummary(undefined);
+                        setIsFiltered(false);
+                    } else {
+                        setTotalSummary(response.data.totalSummary || undefined);
+                        setIsFiltered(
+                            Object.values(values).some((value) => value !== '' && value !== 'all' && value !== null && value !== undefined),
+                        );
+                    }
+                } else {
+                    console.error('Invalid response format:', response.data);
+                }
+            } catch (error) {
+                console.error('Error fetching filtered transactions:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        [hasActiveFilters, setIsLoading, setTransactions, setMonthlySummaries, setTotalSummary, setIsFiltered],
+    );
+
+    const debouncedFetchTransactions = useMemo(() => debounce(fetchTransactionsLogic, 300), [fetchTransactionsLogic]);
 
     // Call the API when search term changes
     useEffect(() => {
@@ -392,7 +391,7 @@ export default function Index({
     useEffect(() => {
         if (initialLoadComplete) {
             const isFilterActive = hasActiveFilters();
-            
+
             // Only reload if we're going from filtered -> not filtered (clearing filters)
             if (previousFilterStateRef.current && !isFilterActive) {
                 // Reset filter state
@@ -403,7 +402,7 @@ export default function Index({
                 // Just update the filtered state
                 setIsFiltered(isFilterActive);
             }
-            
+
             // Update ref for next comparison
             previousFilterStateRef.current = isFilterActive;
         }
@@ -423,12 +422,12 @@ export default function Index({
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
+                    Accept: 'application/json',
+                },
             });
 
             if (response.data.transactions) {
-                setTransactions(prev => [...prev, ...response.data.transactions.data]);
+                setTransactions((prev) => [...prev, ...response.data.transactions.data]);
                 setCurrentPage(response.data.transactions.current_page);
                 setHasMorePages(response.data.transactions.has_more_pages);
             }
@@ -466,7 +465,7 @@ export default function Index({
             category_id: transaction.category?.id,
             merchant_id: transaction.merchant?.id,
         };
-        
+
         router.post('/transactions', payload, {
             onSuccess: () => {
                 setIsCreateModalOpen(false);
@@ -502,24 +501,17 @@ export default function Index({
                             {/* Display Options - Moved above filters */}
                             <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
                                 <div className="flex items-center justify-between">
-                                        <label className="text-sm font-medium">
-                                            Show Monthly Summary
-                                        </label>
-                                        <Switch
-                                            checked={showMonthlySummary}
-                                            onCheckedChange={setShowMonthlySummary}
-                                        />
+                                    <label className="text-sm font-medium">Show Monthly Summary</label>
+                                    <Switch checked={showMonthlySummary} onCheckedChange={setShowMonthlySummary} />
                                 </div>
                             </div>
 
                             <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
                                 <h3 className="mb-4 text-lg font-semibold">Filters</h3>
-                                
+
                                 {/* Search input with debounce */}
                                 <div className="mb-4">
-                                    <label className={`block text-sm mb-1 ${getFilterLabelStyle('search')}`}>
-                                        Search transactions
-                                    </label>
+                                    <label className={`mb-1 block text-sm ${getFilterLabelStyle('search')}`}>Search transactions</label>
                                     <div className="relative">
                                         <SmartForm
                                             schema={filterSchema}
@@ -530,7 +522,7 @@ export default function Index({
                                                 if (newSearch !== filterValues.search) {
                                                     const newValues = { ...filterValues, search: newSearch };
                                                     setFilterValues(newValues);
-                                                    
+
                                                     if (newSearch) {
                                                         debouncedFetchTransactions(newValues);
                                                     } else if (filterValues.search) {
@@ -543,14 +535,10 @@ export default function Index({
                                         >
                                             {() => (
                                                 <div className="relative">
-                                                    <TextInput
-                                                        name="search"
-                                                        placeholder="Search..."
-                                                        label=""
-                                                    />
+                                                    <TextInput name="search" placeholder="Search..." label="" />
                                                     {isLoading && filterValues.search && (
-                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                                                        <div className="absolute top-1/2 right-3 -translate-y-1/2">
+                                                            <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-900"></div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -558,33 +546,28 @@ export default function Index({
                                         </SmartForm>
                                     </div>
                                 </div>
-                                
+
                                 {/* Other filters with automatic application */}
                                 <div className="space-y-4">
                                     <div className="mb-2">
-                                        <label className={`block text-sm mb-1 ${getFilterLabelStyle('account_id')}`}>
-                                            Account
-                                        </label>
-                                        <Select 
-                                            value={filterValues.account_id}
-                                            onValueChange={(value) => handleFilterChange('account_id', value)}
-                                        >
+                                        <label className={`mb-1 block text-sm ${getFilterLabelStyle('account_id')}`}>Account</label>
+                                        <Select value={filterValues.account_id} onValueChange={(value) => handleFilterChange('account_id', value)}>
                                             <SelectTrigger className="w-full">
                                                 <SelectValue placeholder="Select account" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {accountOptions.map(option => (
-                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                {accountOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
 
                                     <div className="mb-2">
-                                        <label className={`block text-sm mb-1 ${getFilterLabelStyle('transactionType')}`}>
-                                            Transaction Type
-                                        </label>
-                                        <Select 
+                                        <label className={`mb-1 block text-sm ${getFilterLabelStyle('transactionType')}`}>Transaction Type</label>
+                                        <Select
                                             value={filterValues.transactionType}
                                             onValueChange={(value) => handleFilterChange('transactionType', value)}
                                         >
@@ -599,10 +582,12 @@ export default function Index({
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    
+
                                     {/* Absolute amount filter */}
                                     <div className="mb-3">
-                                        <label className={`block text-sm mb-1 ${isFilterActive('amountFilter') ? 'font-medium text-green-600' : 'font-medium'}`}>
+                                        <label
+                                            className={`mb-1 block text-sm ${isFilterActive('amountFilter') ? 'font-medium text-green-600' : 'font-medium'}`}
+                                        >
                                             Amount Filter (Absolute Value)
                                         </label>
                                         <div className="relative">
@@ -618,13 +603,10 @@ export default function Index({
                                             >
                                                 {() => (
                                                     <div>
-                                                        <TextInput
-                                                            name="amountFilter"
-                                                            label=""
-                                                            placeholder="e.g. >100, <50, 100-200, =100"
-                                                        />
-                                                        <div className="text-xs text-gray-500 mt-1">
-                                                            Use absolute values. Transaction type determines sign. Use &gt; for greater than, &lt; for less than, - for range, or just enter a number for exact match
+                                                        <TextInput name="amountFilter" label="" placeholder="e.g. >100, <50, 100-200, =100" />
+                                                        <div className="mt-1 text-xs text-gray-500">
+                                                            Use absolute values. Transaction type determines sign. Use &gt; for greater than, &lt; for
+                                                            less than, - for range, or just enter a number for exact match
                                                         </div>
                                                     </div>
                                                 )}
@@ -633,46 +615,46 @@ export default function Index({
                                     </div>
 
                                     <div className="mb-2">
-                                        <label className={`block text-sm mb-1 ${isFilterActive('dateFrom') || isFilterActive('dateTo') ? 'font-medium text-green-600' : 'font-medium'}`}>
+                                        <label
+                                            className={`mb-1 block text-sm ${isFilterActive('dateFrom') || isFilterActive('dateTo') ? 'font-medium text-green-600' : 'font-medium'}`}
+                                        >
                                             Date Range
                                         </label>
                                         <SmartForm
                                             schema={filterSchema}
-                                            defaultValues={{ 
-                                                dateRange: { 
-                                                    from: filterValues.dateFrom || '', 
-                                                    to: filterValues.dateTo || '' 
-                                                } 
+                                            defaultValues={{
+                                                dateRange: {
+                                                    from: filterValues.dateFrom || '',
+                                                    to: filterValues.dateTo || '',
+                                                },
                                             }}
                                             onChange={(values) => {
                                                 if (values.dateRange) {
                                                     const newDateFrom = values.dateRange.from || '';
                                                     const newDateTo = values.dateRange.to || '';
-                                                    
+
                                                     // Only trigger API call if values actually changed
-                                                    if (newDateFrom !== filterValues.dateFrom || 
-                                                        newDateTo !== filterValues.dateTo) {
-                                                        
-                                                        const newValues = { 
-                                                            ...filterValues, 
-                                                            dateFrom: newDateFrom, 
-                                                            dateTo: newDateTo 
+                                                    if (newDateFrom !== filterValues.dateFrom || newDateTo !== filterValues.dateTo) {
+                                                        const newValues = {
+                                                            ...filterValues,
+                                                            dateFrom: newDateFrom,
+                                                            dateTo: newDateTo,
                                                         };
-                                                        
+
                                                         // Always update the filter values
                                                         setFilterValues(newValues);
-                                                        
+
                                                         // Check if we have any active filters
-                                                        const hasActiveFilters = 
-                                                            newValues.search || 
-                                                            newValues.account_id !== 'all' || 
-                                                            newValues.transactionType !== 'all' || 
-                                                            newValues.amountFilter || 
-                                                            newValues.merchant_id !== 'all' || 
+                                                        const hasActiveFilters =
+                                                            newValues.search ||
+                                                            newValues.account_id !== 'all' ||
+                                                            newValues.transactionType !== 'all' ||
+                                                            newValues.amountFilter ||
+                                                            newValues.merchant_id !== 'all' ||
                                                             newValues.category_id !== 'all' ||
-                                                            newDateFrom || 
+                                                            newDateFrom ||
                                                             newDateTo;
-                                                        
+
                                                         // If we have active filters or we're clearing the date range, fetch transactions
                                                         if (initialLoadComplete && (hasActiveFilters || (!newDateFrom && !newDateTo))) {
                                                             debouncedFetchTransactions(newValues);
@@ -681,70 +663,63 @@ export default function Index({
                                                 }
                                             }}
                                         >
-                                            {() => (
-                                                <DateRangeInput
-                                                    name="dateRange"
-                                                    placeholder="Select date range"
-                                                />
-                                            )}
+                                            {() => <DateRangeInput name="dateRange" placeholder="Select date range" />}
                                         </SmartForm>
                                     </div>
 
                                     <div className="mb-2">
-                                        <label className={`block text-sm mb-1 ${getFilterLabelStyle('merchant_id')}`}>
-                                            Merchant
-                                        </label>
-                                        <Select 
-                                            value={filterValues.merchant_id}
-                                            onValueChange={(value) => handleFilterChange('merchant_id', value)}
-                                        >
+                                        <label className={`mb-1 block text-sm ${getFilterLabelStyle('merchant_id')}`}>Merchant</label>
+                                        <Select value={filterValues.merchant_id} onValueChange={(value) => handleFilterChange('merchant_id', value)}>
                                             <SelectTrigger className="w-full">
                                                 <SelectValue placeholder="Select merchant" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {merchantOptions.map(option => (
-                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                {merchantOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
 
                                     <div className="mb-2">
-                                        <label className={`block text-sm mb-1 ${getFilterLabelStyle('category_id')}`}>
-                                            Category
-                                        </label>
-                                        <Select 
-                                            value={filterValues.category_id}
-                                            onValueChange={(value) => handleFilterChange('category_id', value)}
-                                        >
+                                        <label className={`mb-1 block text-sm ${getFilterLabelStyle('category_id')}`}>Category</label>
+                                        <Select value={filterValues.category_id} onValueChange={(value) => handleFilterChange('category_id', value)}>
                                             <SelectTrigger className="w-full">
                                                 <SelectValue placeholder="Select category" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {categoryOptions.map(option => (
-                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                {categoryOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    
-                                    <div className="flex justify-end mt-6">
+
+                                    <div className="mt-6 flex justify-end">
                                         <Button
                                             variant="outline"
                                             onClick={() => {
                                                 // Set the reset flag to prevent extra API calls in effects
                                                 previousFilterStateRef.current = false;
-                                                
+
                                                 // Reset all filter values, clear total summary, and set filtered to false
                                                 setFilterValues(resetValues);
                                                 setTotalSummary(undefined);
                                                 setIsFiltered(false);
-                                                
+
                                                 // Force reload the page to get fresh data without filters
-                                                router.get('/transactions', {}, {
-                                                    preserveState: false,
-                                                    preserveScroll: true,
-                                                });
+                                                router.get(
+                                                    '/transactions',
+                                                    {},
+                                                    {
+                                                        preserveState: false,
+                                                        preserveScroll: true,
+                                                    },
+                                                );
                                             }}
                                         >
                                             Reset All Filters
@@ -773,82 +748,94 @@ export default function Index({
                                 </div>
                             ) : (
                                 <>
-                                    {isFiltered && totalSummary && Object.keys(totalSummary).length > 0 && 
-                                     (filterValues.search || 
-                                      filterValues.account_id !== 'all' || 
-                                      filterValues.transactionType !== 'all' || 
-                                      filterValues.amountFilter || 
-                                      filterValues.dateFrom || 
-                                      filterValues.dateTo || 
-                                      filterValues.merchant_id !== 'all' || 
-                                      filterValues.category_id !== 'all') && (
-                                        <div className="mb-4">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <h3 className="text-base font-semibold text-muted-foreground">Filter Results Summary</h3>
-                                                <button
-                                                    onClick={() => {
-                                                        // Set the reset flag to prevent extra API calls in effects
-                                                        previousFilterStateRef.current = false;
-                                                        
-                                                        // Reset filter values and state
-                                                        setFilterValues(resetValues);
-                                                        setIsFiltered(false);
-                                                        
-                                                        // Force reload the page to get fresh data without filters
-                                                        router.get('/transactions', {}, {
-                                                            preserveState: false,
-                                                            preserveScroll: true,
-                                                        });
-                                                    }}
-                                                    className="text-sm font-medium text-primary hover:underline"
-                                                >
-                                                    Clear All Filters
-                                                </button>
-                                            </div>
-                                            <div className="bg-card mb-4 rounded-xl border-1 border-current shadow p-3">
-                                                <div className="grid grid-cols-4 gap-2">
-                                                    {/* First row - Financial metrics */}
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400">Transactions</span>
-                                                        <span className="text-base font-medium">{totalSummary.count}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400">Income</span>
-                                                        <span className="text-base font-medium text-green-500">+{totalSummary.income.toFixed(2)}€</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400">Expense</span>
-                                                        <span className="text-base font-medium text-destructive-foreground">-{totalSummary.expense.toFixed(2)}€</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400">Balance</span>
-                                                        <span className={`text-base font-medium ${totalSummary.balance >= 0 ? 'text-green-500' : 'text-destructive-foreground'}`}>
-                                                            {totalSummary.balance.toFixed(2)}€
-                                                        </span>
-                                                    </div>
-                                                    
-                                                    {/* Second row - Categorization metrics */}
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400">Categories</span>
-                                                        <span className="text-base font-medium">{totalSummary.categoriesCount}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400">Merchants</span>
-                                                        <span className="text-base font-medium">{totalSummary.merchantsCount}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400">Uncategorized</span>
-                                                        <span className="text-base font-medium">{totalSummary.uncategorizedCount}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400">No Merchant</span>
-                                                        <span className="text-base font-medium">{totalSummary.noMerchantCount}</span>
+                                    {isFiltered &&
+                                        totalSummary &&
+                                        Object.keys(totalSummary).length > 0 &&
+                                        (filterValues.search ||
+                                            filterValues.account_id !== 'all' ||
+                                            filterValues.transactionType !== 'all' ||
+                                            filterValues.amountFilter ||
+                                            filterValues.dateFrom ||
+                                            filterValues.dateTo ||
+                                            filterValues.merchant_id !== 'all' ||
+                                            filterValues.category_id !== 'all') && (
+                                            <div className="mb-4">
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <h3 className="text-muted-foreground text-base font-semibold">Filter Results Summary</h3>
+                                                    <button
+                                                        onClick={() => {
+                                                            // Set the reset flag to prevent extra API calls in effects
+                                                            previousFilterStateRef.current = false;
+
+                                                            // Reset filter values and state
+                                                            setFilterValues(resetValues);
+                                                            setIsFiltered(false);
+
+                                                            // Force reload the page to get fresh data without filters
+                                                            router.get(
+                                                                '/transactions',
+                                                                {},
+                                                                {
+                                                                    preserveState: false,
+                                                                    preserveScroll: true,
+                                                                },
+                                                            );
+                                                        }}
+                                                        className="text-primary text-sm font-medium hover:underline"
+                                                    >
+                                                        Clear All Filters
+                                                    </button>
+                                                </div>
+                                                <div className="bg-card mb-4 rounded-xl border-1 border-current p-3 shadow">
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        {/* First row - Financial metrics */}
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-400">Transactions</span>
+                                                            <span className="text-base font-medium">{totalSummary.count}</span>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-400">Income</span>
+                                                            <span className="text-base font-medium text-green-500">
+                                                                +{totalSummary.income.toFixed(2)}€
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-400">Expense</span>
+                                                            <span className="text-destructive-foreground text-base font-medium">
+                                                                -{totalSummary.expense.toFixed(2)}€
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-400">Balance</span>
+                                                            <span
+                                                                className={`text-base font-medium ${totalSummary.balance >= 0 ? 'text-green-500' : 'text-destructive-foreground'}`}
+                                                            >
+                                                                {totalSummary.balance.toFixed(2)}€
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Second row - Categorization metrics */}
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-400">Categories</span>
+                                                            <span className="text-base font-medium">{totalSummary.categoriesCount}</span>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-400">Merchants</span>
+                                                            <span className="text-base font-medium">{totalSummary.merchantsCount}</span>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-400">Uncategorized</span>
+                                                            <span className="text-base font-medium">{totalSummary.uncategorizedCount}</span>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-400">No Merchant</span>
+                                                            <span className="text-base font-medium">{totalSummary.noMerchantCount}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
-                                    
+                                        )}
+
                                     <TransactionList
                                         transactions={transactions}
                                         monthlySummaries={monthlySummaries}

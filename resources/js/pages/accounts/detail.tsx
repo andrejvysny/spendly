@@ -14,13 +14,12 @@ import {
 import { Button } from '@/components/ui/button';
 import ValueSplit from '@/components/ui/value-split';
 import AppLayout from '@/layouts/app-layout';
-import { Account, Transaction, Category, Merchant } from '@/types/index';
+import { Account, Category, Merchant, Transaction } from '@/types/index';
+import { formatAmount } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import { useState } from 'react';
-import { formatAmount } from '@/utils/currency';
-import { responsiveFontSizes } from '@mui/material';
 
 interface Props {
     account: Account;
@@ -49,7 +48,16 @@ interface Props {
     }>;
 }
 
-export default function Detail({ account, transactions, categories, merchants, monthlySummaries, total_transactions, cashflow_last_month, cashflow_this_month }: Props) {
+export default function Detail({
+    account,
+    transactions,
+    categories,
+    merchants,
+    monthlySummaries,
+    total_transactions,
+    cashflow_last_month,
+    cashflow_this_month,
+}: Props) {
     const [syncing, setSyncing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const breadcrumbs = [
@@ -60,18 +68,19 @@ export default function Detail({ account, transactions, categories, merchants, m
     const handleSyncTransactions = async () => {
         setSyncing(true);
         try {
-            axios.post(`/api/gocardless/accounts/${account.id}/sync-transactions`, {
-                account_id: account.id,
-            }).then(response => {
-                if (response.status === 200) {
-                    // Optionally handle success response
-                    console.log('Transactions synced successfully');
-                    window.location.reload();
-
-                } else {
-                    console.error('Failed to sync transactions:', response.data);
-                }
-            });
+            axios
+                .post(`/api/gocardless/accounts/${account.id}/sync-transactions`, {
+                    account_id: account.id,
+                })
+                .then((response) => {
+                    if (response.status === 200) {
+                        // Optionally handle success response
+                        console.log('Transactions synced successfully');
+                        window.location.reload();
+                    } else {
+                        console.error('Failed to sync transactions:', response.data);
+                    }
+                });
             // Refresh the page to show new transactions
         } catch {
             // Handle error silently
@@ -219,13 +228,13 @@ export default function Detail({ account, transactions, categories, merchants, m
                                 <h3 className="mb-4 text-lg font-semibold">Monthly comparison</h3>
 
                                 <AccountDetailMonthlyComparisonChart
-                                    currentMonthData={cashflow_this_month.map(item => ({
+                                    currentMonthData={cashflow_this_month.map((item) => ({
                                         date: `${item.year}-${String(item.month).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`,
                                         balance: item.daily_balance,
                                         income: item.daily_income,
                                         expense: -item.daily_spending,
                                     }))}
-                                    previousMonthData={cashflow_last_month.map(item => ({
+                                    previousMonthData={cashflow_last_month.map((item) => ({
                                         date: `${item.year}-${String(item.month).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`,
                                         balance: item.daily_balance,
                                         income: item.daily_income,

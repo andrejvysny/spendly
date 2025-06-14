@@ -83,7 +83,11 @@ export default function Index({ imports }: Props) {
                 columns={[
                     { header: 'File', key: 'original_filename' },
                     { header: 'Import Date', key: 'created_at', render: (row) => formatDate(row.created_at) },
-                    { header: 'Status', key: 'status', render: (row) => <span className={`${getStatusBadgeClass(row.status)}`}>{getStatusLabel(row.status)}</span> },
+                    {
+                        header: 'Status',
+                        key: 'status',
+                        render: (row) => <span className={`${getStatusBadgeClass(row.status)}`}>{getStatusLabel(row.status)}</span>,
+                    },
                     {
                         header: 'Processed',
                         key: 'processed_rows',

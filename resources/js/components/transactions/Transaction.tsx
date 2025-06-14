@@ -1,11 +1,11 @@
 import { Icon } from '@/components/ui/icon';
 import { RoundCheckbox } from '@/components/ui/round-checkbox';
 import { Transaction as TransactionType } from '@/types/index';
+import { formatAmount } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { useState } from 'react';
 import { icons } from '../ui/icon-picker';
 import TransactionDetails from './TransactionDetails';
-import { formatAmount } from '@/utils/currency';
 
 interface Props extends TransactionType {
     isSelected?: boolean;
@@ -17,13 +17,10 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
 
     return (
         <div className="flex flex-col">
-            <div className="mx-auto relative w-full max-w-xl">
+            <div className="relative mx-auto w-full max-w-xl">
                 {/* Floating Checkbox */}
-                <div className="absolute -left-7 top-1/2 -translate-y-1/2 z-10">
-                    <RoundCheckbox
-                        checked={isSelected}
-                        onChange={(checked) => onSelect?.(String(transaction.id), checked)}
-                    />
+                <div className="absolute top-1/2 -left-7 z-10 -translate-y-1/2">
+                    <RoundCheckbox checked={isSelected} onChange={(checked) => onSelect?.(String(transaction.id), checked)} />
                 </div>
 
                 {/* Transaction Card */}
@@ -54,7 +51,7 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                             )}
                         </div>
                         <div className="flex-1">
-                            <div className="font-medium">{(transaction.partner||transaction.merchant?.name) || transaction.type }</div>
+                            <div className="font-medium">{transaction.partner || transaction.merchant?.name || transaction.type}</div>
                             <small className="text-gray-500">{formatDate(transaction.processed_date)}</small>
                             <div className="mt-1 flex gap-2">
                                 {transaction.account && (
@@ -63,18 +60,22 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                                     </span>
                                 )}
 
-                                <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">{transaction.type}</span>
+                                <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
+                                    {transaction.type}
+                                </span>
 
                                 {transaction.merchant?.name && (
-                                    <span className={`bg-background rounded-full border-1 border-black flex items-center ${transaction.merchant.logo ? 'p-1 h-6' : 'px-2 py-1'}`}>
+                                    <span
+                                        className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.merchant.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
+                                    >
                                         {transaction.merchant.logo ? (
                                             <img
                                                 src={transaction.merchant.logo}
                                                 alt={transaction.merchant.name}
-                                                className="h-5 w-auto object-contain rounded-full"
+                                                className="h-5 w-auto rounded-full object-contain"
                                             />
                                         ) : (
-                                            <span className="font-bold text-xs">{transaction.merchant.name}</span>
+                                            <span className="text-xs font-bold">{transaction.merchant.name}</span>
                                         )}
                                     </span>
                                 )}
@@ -85,9 +86,7 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                                 ▼ {formatAmount(transaction.amount, transaction.currency)}
                             </div>
                         ) : (
-                            <div className="text-lg font-semibold text-green-500">
-                                ▲ {formatAmount(transaction.amount, transaction.currency)}
-                            </div>
+                            <div className="text-lg font-semibold text-green-500">▲ {formatAmount(transaction.amount, transaction.currency)}</div>
                         )}
                     </div>
 

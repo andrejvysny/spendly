@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Transaction } from '@/types/index';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface CleanStepProps {
     data: Partial<Transaction>[];
