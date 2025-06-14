@@ -12,6 +12,13 @@ interface Props {
     imports: Import[];
 }
 
+/**
+ * Displays and manages a list of import tasks, allowing users to view, create, and revert imports.
+ *
+ * Renders a data table of import tasks with status indicators and actions. Users can initiate new imports via a wizard and revert existing imports, which removes them from the list upon confirmation and successful server response.
+ *
+ * @param imports - Initial array of import tasks to display.
+ */
 export default function Index({ imports }: Props) {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [importsList, setImportsList] = useState<Import[]>(imports);

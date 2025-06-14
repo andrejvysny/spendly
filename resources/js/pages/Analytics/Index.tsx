@@ -81,6 +81,13 @@ interface AnalyticsProps extends PageProps {
 // Define breadcrumbs for consistent navigation
 const breadcrumbs = [{ title: 'Analytics', href: '/analytics' }];
 
+/**
+ * Renders the analytics dashboard for financial data, providing interactive charts and tables for cashflow, category spending, and merchant spending.
+ *
+ * Displays summary statistics, period and account filters, and visualizations for selected accounts and date ranges. Users can filter data by period, custom date range, specific month, and accounts, with the dashboard updating dynamically based on selections.
+ *
+ * @remark If no accounts are selected, all charts and tables display placeholder or empty data.
+ */
 export default function Index({
     accounts,
     categories,

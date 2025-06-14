@@ -82,6 +82,22 @@ const filterSchema = z.object({
 
 type FilterValues = InferFormValues<typeof filterSchema>;
 
+/**
+ * Displays and manages a paginated, filterable list of financial transactions with summary analytics and transaction creation capabilities.
+ *
+ * Provides UI for searching, filtering, and paginating transactions, as well as viewing summary statistics and creating new transactions. Supports dynamic filter application with debounced API calls, infinite scroll pagination, and real-time updates upon transaction creation.
+ *
+ * @param transactions - Initial paginated transaction data, including current page and pagination status.
+ * @param monthlySummaries - Initial monthly summary data for transactions.
+ * @param totalSummary - Initial total summary metrics for filtered transactions.
+ * @param isFiltered - Indicates if filters are initially applied.
+ * @param categories - List of available transaction categories.
+ * @param merchants - List of available merchants.
+ * @param accounts - List of available accounts.
+ * @param filters - Optional initial filter values.
+ *
+ * @returns The main transactions page layout with filters, analytics, transaction list, and creation modal.
+ */
 export default function Index({
     transactions: initialTransactions,
     monthlySummaries: initialSummaries,

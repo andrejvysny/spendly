@@ -1,5 +1,10 @@
 import AppLogoIcon from './app-logo-icon';
 
+/**
+ * Displays the application logo icon alongside the "Spendly" brand name with predefined styling.
+ *
+ * Renders a styled logo icon and the application name for use in navigation bars or headers.
+ */
 export default function AppLogo() {
     return (
         <>

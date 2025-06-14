@@ -12,6 +12,14 @@ interface Props extends TransactionType {
     onSelect?: (id: string, selected: boolean) => void;
 }
 
+/**
+ * Renders a transaction card with selectable and expandable details.
+ *
+ * Displays transaction information including partner, merchant, account, type, date, and amount. Allows selection via a checkbox and toggling of detailed view.
+ *
+ * @param isSelected - Whether the transaction is currently selected.
+ * @param onSelect - Callback invoked when the selection state changes, receiving the transaction ID and new checked state.
+ */
 export default function Transaction({ isSelected = false, onSelect, ...transaction }: Props) {
     const [isExpanded, setIsExpanded] = useState(false);
 

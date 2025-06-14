@@ -10,6 +10,11 @@ use Inertia\Inertia;
 
 class TransactionController extends Controller
 {
+    /**
+     * Displays a paginated list of the authenticated user's transactions with advanced filtering and summary statistics.
+     *
+     * Applies filters for search, transaction type, account, amount (with multiple filter types), merchant, category, and date range. Calculates total and monthly summaries for the filtered transactions. Provides related categories, merchants, tags, and accounts for filter dropdowns. Returns an Inertia.js response rendering the transactions index view.
+     */
     public function index(Request $request)
     {
         $userAccounts = Auth::user()->accounts()->pluck('id');
@@ -315,7 +320,11 @@ class TransactionController extends Controller
     }
 
     /**
-     * Load more transactions with the same filters
+     * Retrieves a paginated list of transactions for the authenticated user, applying filters and returning results as JSON.
+     *
+     * Applies filters for search term, transaction type, account, merchant, category, and date range. Returns the paginated transactions and a flag indicating if more pages are available.
+     *
+     * @return \Illuminate\Http\JsonResponse JSON response containing filtered transactions and pagination status.
      */
     public function loadMore(Request $request)
     {
@@ -384,7 +393,11 @@ class TransactionController extends Controller
     }
 
     /**
-     * Filter transactions and return JSON response with pagination
+     * Filters transactions based on request parameters and returns a paginated JSON response.
+     *
+     * Applies filters for search term, transaction type, account, amount (with support for exact, range, above, below), merchant, category, and date range. Returns paginated transactions, monthly summaries for the current page, total summary statistics, filter status, and pagination info.
+     *
+     * @return \Illuminate\Http\JsonResponse Paginated filtered transactions and summary data.
      */
     public function filter(Request $request)
     {
@@ -686,6 +699,11 @@ class TransactionController extends Controller
         }
     }
 
+    /**
+     * Creates a new transaction with validated data and optional tags.
+     *
+     * Validates the request data, creates a transaction record, attaches tags if provided, and redirects back with a success or error message.
+     */
     public function store(Request $request)
     {
         try {
@@ -729,6 +747,11 @@ class TransactionController extends Controller
         }
     }
 
+    /**
+     * Updates the merchant, category, and tags of a transaction.
+     *
+     * Validates and applies updates to the specified transaction, including synchronizing associated tags. Redirects back with a success or error message based on the outcome.
+     */
     public function update(Request $request, Transaction $transaction)
     {
         try {
@@ -756,6 +779,13 @@ class TransactionController extends Controller
         }
     }
 
+    /**
+     * Updates the merchant and/or category fields for multiple transactions in bulk.
+     *
+     * Validates the request for transaction IDs and optional merchant and category IDs, then updates the specified fields for each transaction. Returns a JSON response indicating success or failure.
+     *
+     * @return \Illuminate\Http\JsonResponse JSON response with a success message or error details.
+     */
     public function bulkUpdate(Request $request)
     {
         try {
@@ -787,6 +817,13 @@ class TransactionController extends Controller
         }
     }
 
+    /**
+     * Updates specific fields of a transaction and returns a JSON response.
+     *
+     * Validates and updates the transaction's description, note, partner, and place fields if provided.
+     *
+     * @return \Illuminate\Http\JsonResponse JSON response indicating success or failure.
+     */
     public function updateTransaction(Request $request, Transaction $transaction)
     {
 

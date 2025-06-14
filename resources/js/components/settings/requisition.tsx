@@ -27,6 +27,14 @@ interface RequisitionsResponse {
     results: Requisition[];
 }
 
+/**
+ * Displays details for a single bank requisition and provides options to view, delete, and manage its linked accounts.
+ *
+ * Renders requisition information including institution, creation date, status, agreement, language, and linked accounts. Allows users to delete the requisition with confirmation and updates the requisitions list upon successful deletion. If accounts are linked, displays them with import options.
+ *
+ * @param requisition - The requisition object to display and manage.
+ * @param setRequisitions - State setter to update the list of requisitions after deletion.
+ */
 function Requisition({
     requisition,
     setRequisitions,
@@ -156,6 +164,13 @@ function Requisition({
 
 export default Requisition;
 
+/**
+ * Displays minimal account information and provides an option to import the account.
+ *
+ * Renders the account ID and placeholder fields for additional details. Includes an "Import" button that triggers an API request to import the account by its ID, showing a loading indicator during the process.
+ *
+ * @param account_id - The unique identifier of the account to display and import.
+ */
 function AccountComponent({ account_id }: { account_id: string }) {
     //TODO: load account details
 
