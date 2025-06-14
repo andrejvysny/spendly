@@ -34,6 +34,7 @@ class BankDataController extends Controller
             ->first();
 
         // TODO do correct safa check if the user has gocardless credentials set
+        // TODO decrypt the credentials using the APP_KEY
         if (! $this->user->gocardless_secret_id || ! $this->user->gocardless_secret_key) {
             Log::warning('GoCardless credentials not set for user', ['user_id' => $this->user->id]);
         } else {
@@ -64,6 +65,8 @@ class BankDataController extends Controller
             'gocardless_secret_id' => ['nullable', 'string'],
             'gocardless_secret_key' => ['nullable', 'string'],
         ]);
+
+        //TODO store encrypted credentials in the database with APP_KEY
 
         // Save the GoCardless credentials
         $user = $request->user();
