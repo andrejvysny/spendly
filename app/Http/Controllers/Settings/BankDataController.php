@@ -76,7 +76,7 @@ class BankDataController extends Controller
      *
      * Validates and saves the provided GoCardless credentials for the current user. Redirects to the bank data edit page after updating.
      *
-     * @param Request $request The HTTP request containing optional GoCardless credentials.
+     * @param  Request  $request  The HTTP request containing optional GoCardless credentials.
      * @return RedirectResponse Redirects to the bank data edit view.
      */
     public function update(Request $request): RedirectResponse
@@ -86,7 +86,7 @@ class BankDataController extends Controller
             'gocardless_secret_key' => ['nullable', 'string'],
         ]);
 
-        //TODO store encrypted credentials in the database with APP_KEY
+        // TODO store encrypted credentials in the database with APP_KEY
 
         // Save the GoCardless credentials
         $user = $request->user();
@@ -103,8 +103,6 @@ class BankDataController extends Controller
      * Removes all stored GoCardless credentials and tokens from the authenticated user.
      *
      * Redirects to the bank data settings page with a success message after purging the credentials.
-     *
-     * @return RedirectResponse
      */
     public function purgeGoCardlessCredentials(Request $request): RedirectResponse
     {
@@ -123,7 +121,7 @@ class BankDataController extends Controller
     /**
      * Retrieves a list of financial institutions available in the specified country from the GoCardless API.
      *
-     * @param Request $request The request containing a required two-character country code.
+     * @param  Request  $request  The request containing a required two-character country code.
      * @return JsonResponse JSON response with the list of institutions.
      */
     public function getInstitutions(Request $request): JsonResponse
@@ -179,7 +177,7 @@ class BankDataController extends Controller
      *
      * Attempts to remove the specified requisition using the GoCardless client. Returns a JSON response indicating success or failure.
      *
-     * @param string $id The ID of the requisition to delete.
+     * @param  string  $id  The ID of the requisition to delete.
      * @return \Illuminate\Http\JsonResponse JSON response with a success message or error details.
      */
     public function deleteRequisition(string $id)
