@@ -38,6 +38,15 @@ const COUNTRIES = [
     { code: 'BG', name: 'Bulgaria' },
 ];
 
+/**
+ * Displays a two-step modal wizard for connecting bank accounts via GoCardless.
+ *
+ * Guides users through selecting a country and then a bank institution, initiating the GoCardless requisition process upon selection. On successful initiation, triggers the provided success and close callbacks, then redirects the user to the GoCardless authorization link.
+ *
+ * @param isOpen - Whether the modal is visible.
+ * @param onClose - Callback to close the modal.
+ * @param onSuccess - Callback invoked after a successful import initiation.
+ */
 export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess }: GoCardlessImportWizardProps) {
     const [step, setStep] = useState(1);
     const [institutions, setInstitutions] = useState<Institution[]>([]);

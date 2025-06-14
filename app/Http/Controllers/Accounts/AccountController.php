@@ -10,6 +10,11 @@ use Inertia\Inertia;
 
 class AccountController extends Controller
 {
+    /**
+     * Retrieves all accounts belonging to the authenticated user.
+     *
+     * Returns the accounts as a JSON response if requested, or renders the accounts index view with the accounts data.
+     */
     public function index()
     {
 

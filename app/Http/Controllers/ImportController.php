@@ -527,7 +527,13 @@ class ImportController extends Controller
     }
 
     /**
-     * Check if a transaction already exists in the database
+     * Determines whether a transaction is a duplicate for the given account.
+     *
+     * Currently always returns false, effectively disabling duplicate transaction detection.
+     *
+     * @param array $data Transaction data to check.
+     * @param mixed $accountId Account identifier.
+     * @return bool Always returns false.
      */
     private function isDuplicateTransaction(array $data, $accountId): bool
     {
@@ -1030,7 +1036,9 @@ class ImportController extends Controller
     }
 
     /**
-     * Delete a saved mapping
+     * Deletes a saved import mapping for the authenticated user.
+     *
+     * Returns a JSON response confirming successful deletion. Aborts with a 403 error if the mapping does not belong to the user.
      */
     public function deleteMapping(\App\Models\ImportMapping $mapping)
     {
@@ -1052,6 +1060,14 @@ class ImportController extends Controller
         ]);
     }
 
+    /**
+     * Reverts an import by its ID, deleting all associated transactions and updating the import status.
+     *
+     * Returns a JSON response indicating the result. If the import does not exist, returns a 404 response. If the import is already reverted, returns a 200 response with a relevant message. Only the owner of the import can perform this action.
+     *
+     * @param int $id The ID of the import to revert.
+     * @return JsonResponse JSON response with the result of the revert operation and updated import data.
+     */
     public function revertImport(int $id): JsonResponse
     {
         Log::debug('Reverting import', ['import_id' => $id]);

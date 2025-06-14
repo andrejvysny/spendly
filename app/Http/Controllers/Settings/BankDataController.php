@@ -20,6 +20,11 @@ class BankDataController extends Controller
 
     private User $user;
 
+    /**
+     * Initializes the controller with the authenticated user's GoCardless credentials and sets up the GoCardless API client.
+     *
+     * Retrieves the current user's GoCardless credentials from the database. If credentials are present, initializes the GoCardlessBankData client; otherwise, logs a warning.
+     */
     public function __construct()
     {
         $this->user = User::select(
@@ -51,6 +56,13 @@ class BankDataController extends Controller
         }
     }
 
+    /**
+     * Displays the GoCardless bank data settings page for the authenticated user.
+     *
+     * Passes the user's GoCardless secret ID and key to the view for editing.
+     *
+     * @return Response Inertia response rendering the bank data settings page.
+     */
     public function edit(Request $request): Response
     {
         return Inertia::render('settings/bank_data', [
@@ -59,6 +71,14 @@ class BankDataController extends Controller
         ]);
     }
 
+    /**
+     * Updates the authenticated user's GoCardless secret ID and key.
+     *
+     * Validates and saves the provided GoCardless credentials for the current user. Redirects to the bank data edit page after updating.
+     *
+     * @param Request $request The HTTP request containing optional GoCardless credentials.
+     * @return RedirectResponse Redirects to the bank data edit view.
+     */
     public function update(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -79,6 +99,13 @@ class BankDataController extends Controller
         return to_route('bank_data.edit');
     }
 
+    /**
+     * Removes all stored GoCardless credentials and tokens from the authenticated user.
+     *
+     * Redirects to the bank data settings page with a success message after purging the credentials.
+     *
+     * @return RedirectResponse
+     */
     public function purgeGoCardlessCredentials(Request $request): RedirectResponse
     {
         $user = $request->user();
@@ -93,6 +120,12 @@ class BankDataController extends Controller
         return to_route('bank_data.edit')->with('success', 'GoCardless credentials purged successfully.');
     }
 
+    /**
+     * Retrieves a list of financial institutions available in the specified country from the GoCardless API.
+     *
+     * @param Request $request The request containing a required two-character country code.
+     * @return JsonResponse JSON response with the list of institutions.
+     */
     public function getInstitutions(Request $request): JsonResponse
     {
         $request->validate([
@@ -104,6 +137,11 @@ class BankDataController extends Controller
         return response()->json($institutions);
     }
 
+    /**
+     * Retrieves the user's existing GoCardless requisitions and returns them as a JSON response.
+     *
+     * @return JsonResponse List of requisitions associated with the authenticated user.
+     */
     public function getRequisitions(): JsonResponse
     {
         $existingRequisitions = $this->client->getRequisitions();
@@ -112,7 +150,11 @@ class BankDataController extends Controller
     }
 
     /**
-     * Delete the user's account.
+     * Deletes the authenticated user's account after validating the current password.
+     *
+     * Logs out the user, deletes their account, invalidates the session, and redirects to the homepage.
+     *
+     * @return RedirectResponse Redirects to the homepage after account deletion.
      */
     public function destroy(Request $request): RedirectResponse
     {
@@ -132,6 +174,14 @@ class BankDataController extends Controller
         return redirect('/');
     }
 
+    /**
+     * Deletes a GoCardless requisition by its ID.
+     *
+     * Attempts to remove the specified requisition using the GoCardless client. Returns a JSON response indicating success or failure.
+     *
+     * @param string $id The ID of the requisition to delete.
+     * @return \Illuminate\Http\JsonResponse JSON response with a success message or error details.
+     */
     public function deleteRequisition(string $id)
     {
         Log::info('Deleting GoCardless requisition', ['id' => $id]);
@@ -151,6 +201,13 @@ class BankDataController extends Controller
         }
     }
 
+    /**
+     * Creates a new GoCardless requisition for the specified institution and returns an authentication link.
+     *
+     * Validates the institution ID from the request, initiates a requisition with GoCardless, stores the requisition ID in the session, and returns the authentication link as JSON. Returns a JSON error response with status 500 if the operation fails.
+     *
+     * @return \Illuminate\Http\JsonResponse JSON response containing the authentication link or an error message.
+     */
     public function createRequisition(Request $request)
     {
         $request->validate(['institution_id' => 'required|string']);
@@ -186,6 +243,13 @@ class BankDataController extends Controller
         }
     }
 
+    /**
+     * Handles the callback from GoCardless after user authentication.
+     *
+     * Processes callback errors such as consent link reuse or user cancellation, retrieves associated account IDs for a completed requisition, and redirects with appropriate success or error messages.
+     *
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function handleRequisitionCallback(Request $request)
     {
         if ($request->get('error') === 'ConsentLinkReused') {
@@ -231,6 +295,13 @@ class BankDataController extends Controller
         }
     }
 
+    /**
+     * Imports a GoCardless account for the authenticated user by account ID.
+     *
+     * Validates the provided account ID, checks for duplicates, retrieves account details from GoCardless, and creates a new local account record if it does not already exist. Returns a JSON response indicating success or if the account already exists.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function importAccount(Request $request)
     {
         $request->validate(['account_id' => 'required|string']);
@@ -281,6 +352,13 @@ class BankDataController extends Controller
         ]);
     }
 
+    /**
+     * Checks if a GoCardless account ID already exists for the authenticated user.
+     *
+     * Returns a JSON response indicating whether the specified GoCardless account ID is associated with the current user.
+     *
+     * @return JsonResponse JSON object with an 'exists' boolean field.
+     */
     public function getExistingGocardlessAccountIDs(Request $request): JsonResponse
     {
         $accountId = $request->account_id;

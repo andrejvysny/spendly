@@ -10,6 +10,14 @@ use Illuminate\Support\Facades\Log;
 
 class GoCardlessController extends Controller
 {
+    /**
+     * Synchronizes transactions for the specified account with GoCardless.
+     *
+     * Retrieves booked transactions from GoCardless for the given account, creates new transaction records if they do not already exist, updates the account's last synced timestamp, and returns a JSON response with the results. Returns an error response if the account is not synced with GoCardless or if an exception occurs during the process.
+     *
+     * @param int $account The ID of the account to synchronize.
+     * @return JsonResponse JSON response indicating the outcome of the synchronization, including counts of total and existing transactions.
+     */
     public function syncTransactions(int $account): JsonResponse
     {
         Log::info('Syncing transactions for account', [

@@ -9,6 +9,20 @@ class GoCardlessBankData
 {
     private string $baseUrl = 'https://bankaccountdata.gocardless.com/api/v2';
 
+    /**
+     * Initializes the GoCardlessBankData service with authentication credentials, tokens, expiration times, and caching options.
+     *
+     * Ensures a valid access token is available upon instantiation.
+     *
+     * @param string $secretId GoCardless API secret ID.
+     * @param string $secretKey GoCardless API secret key.
+     * @param string|null $accessToken Optional initial access token.
+     * @param string|null $refreshToken Optional initial refresh token.
+     * @param \DateTime|null $refreshTokenExpires Optional refresh token expiration time.
+     * @param \DateTime|null $accessTokenExpires Optional access token expiration time.
+     * @param bool $useCache Whether to enable caching for API responses.
+     * @param int $cacheDuration Cache duration in seconds.
+     */
     public function __construct(
         private string $secretId,
         private string $secretKey,
@@ -23,6 +37,11 @@ class GoCardlessBankData
         $this->getAccessToken();
     }
 
+    /**
+     * Returns the current access and refresh tokens.
+     *
+     * @return array Associative array with 'access' and 'refresh' token values.
+     */
     public function getSecretTokens(): array
     {
         return [
@@ -31,6 +50,13 @@ class GoCardlessBankData
         ];
     }
 
+    /**
+     * Retrieves a valid access token for authenticating API requests.
+     *
+     * Returns the current access token if it is valid and not expired. If expired, attempts to refresh it using the refresh token if available and valid; otherwise, requests a new token using the secret credentials. Throws an exception if unable to obtain a valid token.
+     *
+     * @return string The valid access token.
+     */
     private function getAccessToken(): string
     {
         // Check if we already have a valid access token
@@ -64,7 +90,10 @@ class GoCardlessBankData
     }
 
     /**
-     * Process token response and set up expiration times
+     * Parses the token response, updates access and refresh tokens, and sets their expiration times.
+     *
+     * @param mixed $response The HTTP response containing token data.
+     * @return string The new access token.
      */
     private function processTokenResponse($response): string
     {
@@ -81,7 +110,14 @@ class GoCardlessBankData
     }
 
     /**
-     * Create a new end user agreement
+     * Creates a new end user agreement for a specified financial institution.
+     *
+     * Initiates an agreement granting access to balances, details, and transactions for the given institution and user data, with access valid for 90 days.
+     *
+     * @param string $institutionId The identifier of the financial institution.
+     * @param array $userData User-specific data required by the institution.
+     * @return array The API response containing the created agreement details.
+     * @throws \Exception If the agreement creation fails.
      */
     public function createEndUserAgreement(string $institutionId, array $userData): array
     {
@@ -102,7 +138,12 @@ class GoCardlessBankData
     }
 
     /**
-     * Get all accounts for a requisition
+     * Retrieves all bank accounts associated with a given requisition ID.
+     *
+     * Uses cached data if available and caching is enabled. Throws an exception if the API request fails.
+     *
+     * @param string $requisitionId The requisition identifier.
+     * @return array List of account IDs linked to the requisition, or an empty array if none are found.
      */
     public function getAccounts(string $requisitionId): array
     {
@@ -123,7 +164,11 @@ class GoCardlessBankData
     }
 
     /**
-     * Get account details
+     * Retrieves detailed information for a specific bank account by account ID.
+     *
+     * @param string $accountId The unique identifier of the account.
+     * @return array The account details as an associative array.
+     * @throws \Exception If the API request fails.
      */
     public function getAccountDetails(string $accountId): array
     {
@@ -137,8 +182,16 @@ class GoCardlessBankData
         return $response->json();
     }
 
-    /**
-     * Get account transactions
+    /****
+     * Retrieves transactions for a specified account, optionally filtered by date range.
+     *
+     * Checks cache before making an API request. Returns the list of transactions as an array.
+     *
+     * @param string $accountId The unique identifier of the account.
+     * @param string|null $dateFrom Optional start date (YYYY-MM-DD) to filter transactions.
+     * @param string|null $dateTo Optional end date (YYYY-MM-DD) to filter transactions.
+     * @return array Array of transactions for the account.
+     * @throws \Exception If the API request fails.
      */
     public function getTransactions(string $accountId, ?string $dateFrom = null, ?string $dateTo = null): array
     {
@@ -170,7 +223,12 @@ class GoCardlessBankData
     }
 
     /**
-     * Get account balances
+     * Retrieves the balances for a specified account.
+     *
+     * @param string $accountId The unique identifier of the account.
+     * @return array The balances data returned by the GoCardless API.
+     *
+     * @throws \Exception If the API request fails.
      */
     public function getBalances(string $accountId): array
     {
@@ -185,7 +243,15 @@ class GoCardlessBankData
     }
 
     /**
-     * Create a new requisition
+     * Creates a new requisition for a specified institution and redirect URL.
+     *
+     * Initiates a requisition with the given institution ID and redirect URL, setting the user language to English.
+     * Throws an exception if the API request fails.
+     *
+     * @param string $institutionId The identifier of the financial institution.
+     * @param string $redirectUrl The URL to redirect the user after authorization.
+     * @param string|null $agreementId (Unused) Optional agreement ID for the requisition.
+     * @return array The API response as an associative array.
      */
     public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null): array
     {
@@ -204,6 +270,15 @@ class GoCardlessBankData
         return $response->json();
     }
 
+    /**
+     * Retrieves one or all requisitions from the GoCardless API.
+     *
+     * If a requisition ID is provided, returns details for that requisition; otherwise, returns all requisitions. Uses cache if enabled.
+     *
+     * @param string|null $requisitionId Optional requisition ID to fetch a specific requisition.
+     * @return array The requisition data as an associative array.
+     * @throws \Exception If the API request fails.
+     */
     public function getRequisitions(?string $requisitionId = null): array
     {
         $key = $requisitionId ? "gocardless_requisitions_{$requisitionId}" : 'gocardless_requisitions_all';
@@ -223,6 +298,15 @@ class GoCardlessBankData
         return $response->json();
     }
 
+    /**
+     * Deletes a requisition by its ID from the GoCardless API.
+     *
+     * Removes the specified requisition and clears related cached data.
+     *
+     * @param string $requisitionId The ID of the requisition to delete.
+     * @return bool True if the requisition was successfully deleted.
+     * @throws \Exception If the API request fails.
+     */
     public function deleteRequisition(string $requisitionId): bool
     {
         $response = Http::withToken($this->getAccessToken())
@@ -238,6 +322,14 @@ class GoCardlessBankData
         return true;
     }
 
+    /**
+     * Retrieves a list of financial institutions available for a specified country code.
+     *
+     * Uses caching if enabled to reduce redundant API calls. Throws an exception if the API request fails.
+     *
+     * @param string $countryCode ISO country code to filter institutions.
+     * @return array List of institutions for the given country.
+     */
     public function getInstitutions(string $countryCode): array
     {
         $key = "gocardless_institutions_{$countryCode}";
