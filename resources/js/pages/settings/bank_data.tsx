@@ -1,20 +1,13 @@
-import { type BreadcrumbItem } from '@/types';
-import { Transition } from '@headlessui/react';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useEffect } from 'react';
-import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import GoCardlessImportWizard from '@/components/settings/GoCardlessImportWizard';
-import axios from 'axios';
-import DeleteUser from '@/components/app/delete-user';
 import HeadingSmall from '@/components/app/heading-small';
-import InputError from '@/components/app/input-error';
+import GoCardlessImportWizard from '@/components/settings/GoCardlessImportWizard';
+import Requisition from '@/components/settings/requisition';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import Requisition from '@/components/settings/requisition';
+import { type BreadcrumbItem } from '@/types';
+import { Head } from '@inertiajs/react';
+import axios from 'axios';
+import { useEffect, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -30,7 +23,6 @@ interface RequisitionsResponse {
     results: Requisition[];
 }
 export default function BankData() {
-
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
     const [requisitions, setRequisitions] = useState<RequisitionsResponse>({ count: 0, next: null, previous: null, results: [] });
     const [isLoading, setIsLoading] = useState(true);
@@ -50,7 +42,6 @@ export default function BankData() {
         fetchRequisitions();
     }, []);
 
-
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Bank Data settings" />
@@ -61,42 +52,35 @@ export default function BankData() {
 
                     <Button onClick={() => setIsImportWizardOpen(true)}>Connect Bank Account</Button>
 
-
-                    <div className="flex justify-between items-center">
+                    <div className="flex items-center justify-between">
                         <span>Last updated: {new Date().toLocaleDateString()}</span>
                         <Button variant="outline">Refresh</Button>
                     </div>
                 </div>
-
 
                 <div className="mt-6 w-full">
                     <HeadingSmall title="GoCardless Requisitions" description="Linked bank accounts." />
 
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-12">
-                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-foreground border-t-transparent"></div>
-                        <p className="mt-4 text-muted-foreground">Loading...</p>
-                    </div>
+                            <div className="border-foreground h-12 w-12 animate-spin rounded-full border-4 border-t-transparent"></div>
+                            <p className="text-muted-foreground mt-4">Loading...</p>
+                        </div>
                     ) : (
-                        <div className="grid grid-cols-1 gap-4 mt-4">
-                            {requisitions.results.map((req) =>
-                                <Requisition requisition={req} setRequisitions={setRequisitions}/>
-                            )}
+                        <div className="mt-4 grid grid-cols-1 gap-4">
+                            {requisitions.results.map((req) => (
+                                <Requisition requisition={req} setRequisitions={setRequisitions} />
+                            ))}
                         </div>
                     )}
 
                     {!isLoading && requisitions.count === 0 && (
-                        <div className="text-center py-8">
-                            <p className="text-gray-500 dark:text-gray-400">
-                                No bank connections found. Add your first bank account to get started.
-                            </p>
+                        <div className="py-8 text-center">
+                            <p className="text-gray-500 dark:text-gray-400">No bank connections found. Add your first bank account to get started.</p>
                         </div>
                     )}
                 </div>
-
             </SettingsLayout>
-
-
 
             <GoCardlessImportWizard
                 isOpen={isImportWizardOpen}

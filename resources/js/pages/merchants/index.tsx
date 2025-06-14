@@ -85,7 +85,7 @@ export default function Merchants({ merchants }: Props) {
 
     const onDeleteSubmit = (values: DeleteFormValues) => {
         if (!deletingMerchant) return;
-        
+
         router.delete(`/merchants/${deletingMerchant.id}`, {
             data: values,
             onSuccess: () => {
@@ -197,8 +197,8 @@ export default function Merchants({ merchants }: Props) {
                     <DialogHeader>
                         <DialogTitle>Delete Merchant</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete this merchant? This action cannot be undone.
-                            Please select what should happen to transactions associated with this merchant.
+                            Are you sure you want to delete this merchant? This action cannot be undone. Please select what should happen to
+                            transactions associated with this merchant.
                         </DialogDescription>
                     </DialogHeader>
                     <SmartForm
@@ -209,7 +209,7 @@ export default function Merchants({ merchants }: Props) {
                     >
                         {({ watch }) => {
                             const replacementAction = watch('replacement_action');
-                            
+
                             return (
                                 <>
                                     <SelectInput<DeleteFormValues>

@@ -1,12 +1,10 @@
 import { NavFooter } from '@/components/app/sidebar/nav-footer';
 import { NavMain } from '@/components/app/sidebar/nav-main';
 import { NavUser } from '@/components/app/sidebar/nav-user';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types/index';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { Link } from '@inertiajs/react';
 import { BookOpen, Coins, LayoutGrid, PieChartIcon, ShoppingBag, TagIcon, Tags, Users } from 'lucide-react';
-import AppLogo from './app-logo';
 import AppLogoIcon from './app-logo-icon';
 
 const mainNavItems: NavItem[] = [
@@ -69,12 +67,10 @@ export function AppSidebar() {
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
-                
-            <div className="flex flex-row items-center justify-start rounded-md">
-                                <AppLogoIcon className="size-20 fill-current text-[var(--foreground)] dark:text-white" />
-                                <span className="text-3xl font-bold">Spendly</span>
-                            </div>
-              
+                <div className="flex flex-row items-center justify-start rounded-md">
+                    <AppLogoIcon className="size-20 fill-current text-[var(--foreground)] dark:text-white" />
+                    <span className="text-3xl font-bold">Spendly</span>
+                </div>
             </SidebarHeader>
 
             <SidebarContent>

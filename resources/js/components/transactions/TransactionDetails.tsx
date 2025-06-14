@@ -1,15 +1,12 @@
 import { Transaction } from '@/types/index';
 import { formatDate } from '@/utils/date';
-import { icons } from '../ui/icon-picker';
-import { Info, Icon, SquarePen, Save } from 'lucide-react';
+import { Save, SquarePen } from 'lucide-react';
 import { useState } from 'react';
 interface Props {
     transaction: Transaction;
 }
 
 export default function TransactionDetails({ transaction }: Props) {
-
-
     const [isEditable, setIsEditable] = useState(false);
     const [editedDescription, setEditedDescription] = useState(transaction.description || '');
     const [editedNote, setEditedNote] = useState(transaction.note || '');
@@ -34,7 +31,7 @@ export default function TransactionDetails({ transaction }: Props) {
 
         console.log('Updated Transaction:', updatedTransaction);
         setIsEditable(false);
-    }
+    };
 
     return (
         <div className="bg-background relative mt-2 rounded-lg p-4 text-base">
@@ -108,20 +105,19 @@ export default function TransactionDetails({ transaction }: Props) {
                     )}
                 </div>
 
-
                 <div>
-                <p className="text-muted-foreground text-sm">Place</p>
-                {isEditable ? (
-                    <textarea
-                        rows={1}
-                        value={editedPlace}
-                        onChange={(e) => setEditedPlace(e.target.value)}
-                        className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
-                    />
-                ) : (
-                    <p>{transaction.place || '-'}</p>
-                )}
-            </div>
+                    <p className="text-muted-foreground text-sm">Place</p>
+                    {isEditable ? (
+                        <textarea
+                            rows={1}
+                            value={editedPlace}
+                            onChange={(e) => setEditedPlace(e.target.value)}
+                            className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
+                        />
+                    ) : (
+                        <p>{transaction.place || '-'}</p>
+                    )}
+                </div>
                 <div>
                     <p className="text-muted-foreground text-sm">Target IBAN</p>
                     <p>{transaction.target_iban || '-'}</p>
@@ -147,62 +143,55 @@ export default function TransactionDetails({ transaction }: Props) {
             </div>
 
             {transaction.metadata && (
-                    <SimpleCollapse title="Additional Information" className="mb-4">
-                        <pre className="text-sm whitespace-pre-wrap text-gray-300">{JSON.stringify(transaction.metadata, null, 2)}</pre>
-                    </SimpleCollapse>
+                <SimpleCollapse title="Additional Information" className="mb-4">
+                    <pre className="text-sm whitespace-pre-wrap text-gray-300">{JSON.stringify(transaction.metadata, null, 2)}</pre>
+                </SimpleCollapse>
             )}
 
             {transaction.import_data && (
-                    <SimpleCollapse title={"Original Imported Data"}>
-                        <pre className="text-sm whitespace-pre-wrap text-gray-300">
-                                {(() => {
-                                    try {
-                                        const parsed =
-                                            typeof transaction.import_data === 'string'
-                                                ? JSON.parse(transaction.import_data)
-                                                : transaction.import_data;
-                                        return JSON.stringify(parsed, null, 2);
-                                    } catch {
-                                        return String(transaction.import_data);
-                                    }
-                                })()}
-                            </pre>
-                    </SimpleCollapse>
+                <SimpleCollapse title={'Original Imported Data'}>
+                    <pre className="text-sm whitespace-pre-wrap text-gray-300">
+                        {(() => {
+                            try {
+                                const parsed =
+                                    typeof transaction.import_data === 'string' ? JSON.parse(transaction.import_data) : transaction.import_data;
+                                return JSON.stringify(parsed, null, 2);
+                            } catch {
+                                return String(transaction.import_data);
+                            }
+                        })()}
+                    </pre>
+                </SimpleCollapse>
             )}
         </div>
     );
 }
 
-
 export function SimpleCollapse({ children, title, ...props }: { children: React.ReactNode; title: string }) {
-
     return (
         <div {...props}>
             <details className="group">
                 <summary className="flex cursor-pointer items-center justify-between">
                     <h4 className="text-muted-foreground text-sm">{title}</h4>
                     <span className="transition-transform group-open:rotate-180">
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="24"
-                                    height="24"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="h-4 w-4"
-                                >
-                                    <path d="m6 9 6 6 6-6" />
-                                </svg>
-                            </span>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4"
+                        >
+                            <path d="m6 9 6 6 6-6" />
+                        </svg>
+                    </span>
                 </summary>
-                <div className="mt-2 rounded-lg">
-                    {children}
-                </div>
+                <div className="mt-2 rounded-lg">{children}</div>
             </details>
         </div>
-    )
+    );
 }
-

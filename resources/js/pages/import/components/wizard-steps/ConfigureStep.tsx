@@ -241,7 +241,6 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 currency: currency,
             });
 
-
             // Save mapping if requested
             if (saveMapping && mappingName) {
                 try {
