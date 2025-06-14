@@ -533,8 +533,7 @@ class ImportController extends Controller
     {
         return false; // Default to false for safety
 
-
-        //TODO not working correctly, needs to be fixed
+        // TODO not working correctly, needs to be fixed
 
         Log::debug('Checking for duplicate transaction', [
             'account_id' => $accountId,
@@ -1053,15 +1052,15 @@ class ImportController extends Controller
         ]);
     }
 
-
     public function revertImport(int $id): JsonResponse
     {
         Log::debug('Reverting import', ['import_id' => $id]);
 
         // Find the import
         $import = Import::find($id);
-        if (!$import) {
+        if (! $import) {
             Log::error('Import not found', ['import_id' => $id]);
+
             return response()->json(['message' => 'Import not found'], 404);
         }
 
@@ -1077,6 +1076,7 @@ class ImportController extends Controller
         // Check if the import is already reverted
         if ($import->status === Import::STATUS_REVERTED) {
             Log::info('Import already reverted', ['import_id' => $import->id]);
+
             return response()->json(['message' => 'Import already reverted'], 200);
         }
 

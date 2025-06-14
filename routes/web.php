@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Accounts\AccountController;
 use App\Http\Controllers\AnalyticsController;
-use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportController;
@@ -10,7 +9,6 @@ use App\Http\Controllers\MerchantController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\Transactions\TransactionController;
 use App\Http\Controllers\Transactions\TransactionRuleController;
-use App\Http\Controllers\Settings\BankDataController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -75,7 +73,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
 
 });
-
 
 // Health check endpoint for container health monitoring
 Route::get('/health', function () {

@@ -2,35 +2,44 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 
 class GoCardlessBankData
 {
     private string $baseUrl = 'https://bankaccountdata.gocardless.com/api/v2';
-    private ?string $accessToken = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ5OTIyMDc1LCJqdGkiOiJhYjQ0NGI0Mjc2MTI0YmJhOTRjN2NmMzc3MmMyMTgxYSIsInV1aWQiOiJmOGU2OTBmYy0zOWJmLTQzMDktOWRlMy01ODNkZDQ3MDg2YWYiLCJhbGxvd2VkX2NpZHJzIjpbIjAuMC4wLjAvMCIsIjo6LzAiXX0.g8Fh-j-Ot8_EkAmKeAUBJE9P-y3e4guQ7uksISuSdnE";
 
-    private ?\DateTime $accessTokenExpires = null;
-
-    private ?string $refreshToken = null;
-
-    private ?\DateTime $refreshTokenExpires = null;
-
-    public function __construct(private string $secretId,private string $secretKey,private bool $useCache = true, private int $cacheDuration = 3600)
-    {
-
+    public function __construct(
+        private string $secretId,
+        private string $secretKey,
+        private ?string $accessToken = null,
+        private ?string $refreshToken = null,
+        private ?\DateTime $refreshTokenExpires = null,
+        private ?\DateTime $accessTokenExpires = null,
+        private bool $useCache = true,
+        private int $cacheDuration = 3600
+    ) {
+        // Initialize access token and expiration times
+        $this->getAccessToken();
     }
 
+    public function getSecretTokens(): array
+    {
+        return [
+            'access' => $this->accessToken,
+            'refresh' => $this->refreshToken,
+        ];
+    }
 
     private function getAccessToken(): string
     {
         // Check if we already have a valid access token
-        if ($this->accessToken && $this->accessTokenExpires > new \DateTime()) {
+        if ($this->accessToken && $this->accessTokenExpires > new \DateTime) {
             return $this->accessToken;
         }
 
         // If we have a refresh token and it's not expired, use it to get a new access token
-        if ($this->refreshToken && $this->refreshTokenExpires > new \DateTime()) {
+        if ($this->refreshToken && $this->refreshTokenExpires > new \DateTime) {
             $response = Http::post("{$this->baseUrl}/token/refresh/", [
                 'refresh_token' => $this->refreshToken,
             ]);
@@ -47,8 +56,8 @@ class GoCardlessBankData
             'secret_key' => $this->secretKey,
         ]);
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to get access token: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to get access token: '.$response->body());
         }
 
         return $this->processTokenResponse($response);
@@ -65,8 +74,8 @@ class GoCardlessBankData
         $this->refreshToken = $data['refresh'];
 
         // Calculate expiration times
-        $this->accessTokenExpires = (new \DateTime())->add(new \DateInterval('PT' . $data['access_expires'] . 'S'));
-        $this->refreshTokenExpires = (new \DateTime())->add(new \DateInterval('PT' . $data['refresh_expires'] . 'S'));
+        $this->accessTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.$data['access_expires'].'S'));
+        $this->refreshTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.$data['refresh_expires'].'S'));
 
         return $this->accessToken;
     }
@@ -82,11 +91,11 @@ class GoCardlessBankData
                 'max_historical_days' => 90,
                 'access_valid_for_days' => 90,
                 'access_scope' => ['balances', 'details', 'transactions'],
-                'user_data' => $userData
+                'user_data' => $userData,
             ]);
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to create end user agreement: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to create end user agreement: '.$response->body());
         }
 
         return $response->json();
@@ -103,8 +112,8 @@ class GoCardlessBankData
         $response = Http::withToken($this->getAccessToken())
             ->get("{$this->baseUrl}/requisitions/{$requisitionId}/");
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to get accounts: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to get accounts: '.$response->body());
         }
         if ($this->useCache) {
             Cache::put("gocardless_accounts_{$requisitionId}", $response->json()['accounts'] ?? [], $this->cacheDuration);
@@ -121,8 +130,8 @@ class GoCardlessBankData
         $response = Http::withToken($this->getAccessToken())
             ->get("{$this->baseUrl}/accounts/{$accountId}/details/");
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to get account details: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to get account details: '.$response->body());
         }
 
         return $response->json();
@@ -153,9 +162,8 @@ class GoCardlessBankData
         // Chache the response for 1 hour
         Cache::put($cacheKey, $response->json(), 36000);
 
-
-        if (!$response->successful()) {
-            throw new \Exception('Failed to get transactions: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to get transactions: '.$response->body());
         }
 
         return $response->json();
@@ -169,8 +177,8 @@ class GoCardlessBankData
         $response = Http::withToken($this->getAccessToken())
             ->get("{$this->baseUrl}/accounts/{$accountId}/balances/");
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to get balances: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to get balances: '.$response->body());
         }
 
         return $response->json();
@@ -185,29 +193,28 @@ class GoCardlessBankData
             ->post("{$this->baseUrl}/requisitions/", [
                 'institution_id' => $institutionId,
                 'redirect' => $redirectUrl,
-                //'agreement' => $agreementId,
-                'user_language' => 'EN'
+                // 'agreement' => $agreementId,
+                'user_language' => 'EN',
             ]);
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to create requisition: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to create requisition: '.$response->body());
         }
 
         return $response->json();
     }
 
-
-    public function getRequisitions(?string $requisitionId= null): array
+    public function getRequisitions(?string $requisitionId = null): array
     {
-        $key = $requisitionId ? "gocardless_requisitions_{$requisitionId}" : "gocardless_requisitions_all";
+        $key = $requisitionId ? "gocardless_requisitions_{$requisitionId}" : 'gocardless_requisitions_all';
         if ($this->useCache && Cache::has($key)) {
             return Cache::get($key);
         }
 
         $response = Http::withToken($this->getAccessToken())
             ->get($requisitionId ? "{$this->baseUrl}/requisitions/{$requisitionId}/" : "{$this->baseUrl}/requisitions/");
-        if (!$response->successful()) {
-            throw new \Exception('Failed to get requisition: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to get requisition: '.$response->body());
         }
         if ($this->useCache) {
             Cache::put($key, $response->json(), $this->cacheDuration);
@@ -221,15 +228,15 @@ class GoCardlessBankData
         $response = Http::withToken($this->getAccessToken())
             ->delete("{$this->baseUrl}/requisitions/{$requisitionId}/");
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to delete requisition: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to delete requisition: '.$response->body());
         }
         // Clear the cached requisitions
         Cache::forget("gocardless_requisitions_{$requisitionId}");
-        Cache::forget("gocardless_requisitions_all");
+        Cache::forget('gocardless_requisitions_all');
+
         return true;
     }
-
 
     public function getInstitutions(string $countryCode): array
     {
@@ -239,13 +246,13 @@ class GoCardlessBankData
         }
         $response = Http::withToken($this->getAccessToken())
             ->get("{$this->baseUrl}/institutions?country={$countryCode}");
-        if (!$response->successful()) {
-            throw new \Exception('Failed to get institutions: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to get institutions: '.$response->body());
         }
         if ($this->useCache) {
             Cache::put($key, $response->json(), $this->cacheDuration);
         }
+
         return $response->json();
     }
-
 }

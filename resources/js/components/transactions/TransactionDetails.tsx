@@ -1,8 +1,8 @@
 import { Transaction } from '@/types/index';
 import { formatDate } from '@/utils/date';
+import axios from 'axios';
 import { Save, SquarePen } from 'lucide-react';
 import { useState } from 'react';
-import axios from 'axios';
 
 interface Props {
     transaction: Transaction;
@@ -23,15 +23,18 @@ export default function TransactionDetails({ transaction }: Props) {
             place: editedPlace || null,
         };
 
-        axios.put(`/transactions/${transaction.id}`, updatedTransaction).then((response) => {
-            console.log('Transaction updated:', response.data);
+        axios
+            .put(`/transactions/${transaction.id}`, updatedTransaction)
+            .then((response) => {
+                console.log('Transaction updated:', response.data);
 
-            if (response.status === 200) {
-                setIsEditable(false);
-            }
-        }).catch((error) => {
-            console.error('Error updating transaction:', error);
-        });
+                if (response.status === 200) {
+                    setIsEditable(false);
+                }
+            })
+            .catch((error) => {
+                console.error('Error updating transaction:', error);
+            });
 
         //TODO: Implement the save logic here
         // Here you would typically send the updatedTransaction to your backend API

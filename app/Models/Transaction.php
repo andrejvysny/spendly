@@ -65,6 +65,7 @@ class Transaction extends Model
     public const TYPE_EXCHANGE = 'EXCHANGE';
 
     public const TYPE_PAYMENT = 'PAYMENT';
+
     public const TYPE_WITHDRAWAL = 'WITHDRAWAL';
 
     public const TYPE_DEPOSIT = 'DEPOSIT';

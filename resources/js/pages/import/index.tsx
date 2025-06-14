@@ -1,14 +1,13 @@
 import { DataTable } from '@/components/DataTable';
+import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import { BreadcrumbItem, Import } from '@/types/index';
 import { formatDate } from '@/utils/date';
 import { Head } from '@inertiajs/react';
+import axios from 'axios';
 import { useState } from 'react';
 import ImportWizard from './components/ImportWizard';
-import { Button } from '@/components/ui/button';
-import { Dialog } from '@/components/ui/dialog';
-import axios from 'axios';
 interface Props {
     imports: Import[];
 }
@@ -27,8 +26,7 @@ export default function Index({ imports }: Props) {
     const handleRevertImport = async (importId: number) => {
         if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
             try {
-                axios.post(`/imports/revert/${importId}`).then(r=> {
-
+                axios.post(`/imports/revert/${importId}`).then((r) => {
                     if (r.status === 200) {
                         setImportsList(importsList.filter((imp) => imp.id !== importId));
                         alert('Import reverted successfully.');
@@ -41,7 +39,7 @@ export default function Index({ imports }: Props) {
                 alert('Failed to revert import. Please try again later.');
             }
         }
-    }
+    };
 
     const getStatusBadgeClass = (status: string) => {
         switch (status) {
@@ -118,11 +116,16 @@ export default function Index({ imports }: Props) {
                             </p>
                         ),
                     },
-                    { header: 'Actions', key: 'actions', className: 'text-right', render: (row) => (
-                        <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
-                            Revert
-                        </Button>
-                        ) }, // Custom render for actions column,
+                    {
+                        header: 'Actions',
+                        key: 'actions',
+                        className: 'text-right',
+                        render: (row) => (
+                            <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
+                                Revert
+                            </Button>
+                        ),
+                    }, // Custom render for actions column,
                 ]}
                 emptyMessage="No import tasks found. Please create a new import task."
                 data={importsList}
@@ -134,9 +137,6 @@ export default function Index({ imports }: Props) {
                     <ImportWizard onComplete={handleImportComplete} onCancel={() => setIsWizardOpen(false)} />
                 </div>
             )}
-
-
-
         </AppLayout>
     );
 }
