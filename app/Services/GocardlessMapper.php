@@ -11,14 +11,14 @@ class GocardlessMapper
     /****
  * Initializes a new instance of the GocardlessMapper class.
  */
-public function __construct() {}
+    public function __construct() {}
 
     /**
      * Maps GoCardless account data into a structured array for application use.
      *
      * Converts the provided account data array into a normalized format with standard keys, default values for missing fields, and includes a JSON-encoded snapshot of the original data.
      *
-     * @param array $data Raw GoCardless account data.
+     * @param  array  $data  Raw GoCardless account data.
      * @return array Structured account data suitable for internal processing.
      */
     public function mapAccountData(array $data): array
@@ -40,9 +40,9 @@ public function __construct() {}
     /**
      * Retrieves a value from a nested array using dot notation, returning a default if the key is not found.
      *
-     * @param array $array The array to search.
-     * @param string $key The dot notation key (e.g., 'foo.bar.baz').
-     * @param mixed $default The value to return if the key does not exist.
+     * @param  array  $array  The array to search.
+     * @param  string  $key  The dot notation key (e.g., 'foo.bar.baz').
+     * @param  mixed  $default  The value to return if the key does not exist.
      * @return mixed The value found at the specified key, or the default value.
      */
     private function get(array $array, string $key, $default = null)
@@ -64,8 +64,8 @@ public function __construct() {}
      *
      * Extracts and normalizes transaction details such as account identifiers, IBANs, amounts, currency, booking and processing dates, partner information, description, transaction type, balance after transaction, metadata, and includes the original transaction data.
      *
-     * @param array $transaction Raw transaction data from GoCardless.
-     * @param Account $account The associated account model.
+     * @param  array  $transaction  Raw transaction data from GoCardless.
+     * @param  Account  $account  The associated account model.
      * @return array Structured transaction data suitable for application processing.
      */
     public function mapTransactionData(array $transaction, Account $account): array

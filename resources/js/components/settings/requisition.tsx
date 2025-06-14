@@ -77,7 +77,7 @@ function Requisition({
 
     return (
         <>
-            <div key={requisition.id} className="bg-card border-foreground rounded-lg p-4 shadow">
+            <div className="bg-card border-foreground rounded-lg p-4 shadow">
                 <div className="mb-4 flex items-start justify-between">
                     <div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{requisition.institution_id}</h3>

@@ -30,21 +30,16 @@ export default function Index({ imports }: Props) {
         },
     ];
 
-    const handleRevertImport = async (importId: number) => {
+    const handleRevertImport = (importId: number) => {
         if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
-            try {
-                axios.post(`/imports/revert/${importId}`).then((r) => {
-                    if (r.status === 200) {
-                        setImportsList(importsList.filter((imp) => imp.id !== importId));
-                        alert('Import reverted successfully.');
-                    } else {
-                        alert('Failed to revert import. Please try again later.');
-                    }
-                });
-            } catch (error) {
-                console.error('Error reverting import:', error);
-                alert('Failed to revert import. Please try again later.');
-            }
+            axios.post(`/imports/revert/${importId}`).then((r) => {
+                if (r.status === 200) {
+                    setImportsList(importsList.filter((imp) => imp.id !== importId));
+                    alert('Import reverted successfully.');
+                } else {
+                    alert('Failed to revert import. Please try again later.');
+                }
+            });
         }
     };
 

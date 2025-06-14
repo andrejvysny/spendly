@@ -531,8 +531,8 @@ class ImportController extends Controller
      *
      * Currently always returns false, effectively disabling duplicate transaction detection.
      *
-     * @param array $data Transaction data to check.
-     * @param mixed $accountId Account identifier.
+     * @param  array  $data  Transaction data to check.
+     * @param  mixed  $accountId  Account identifier.
      * @return bool Always returns false.
      */
     private function isDuplicateTransaction(array $data, $accountId): bool
@@ -1065,7 +1065,7 @@ class ImportController extends Controller
      *
      * Returns a JSON response indicating the result. If the import does not exist, returns a 404 response. If the import is already reverted, returns a 200 response with a relevant message. Only the owner of the import can perform this action.
      *
-     * @param int $id The ID of the import to revert.
+     * @param  int  $id  The ID of the import to revert.
      * @return JsonResponse JSON response with the result of the revert operation and updated import data.
      */
     public function revertImport(int $id): JsonResponse

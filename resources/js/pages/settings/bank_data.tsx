@@ -184,7 +184,7 @@ export default function BankData({ gocardless_secret_id, gocardless_secret_key }
                     ) : (
                         <div className="mt-4 grid grid-cols-1 gap-4">
                             {requisitions.results.map((req) => (
-                                <Requisition requisition={req} setRequisitions={setRequisitions} />
+                                <Requisition key={req.id} requisition={req} setRequisitions={setRequisitions} />
                             ))}
                         </div>
                     )}

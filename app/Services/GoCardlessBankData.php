@@ -14,14 +14,14 @@ class GoCardlessBankData
      *
      * Ensures a valid access token is available upon instantiation.
      *
-     * @param string $secretId GoCardless API secret ID.
-     * @param string $secretKey GoCardless API secret key.
-     * @param string|null $accessToken Optional initial access token.
-     * @param string|null $refreshToken Optional initial refresh token.
-     * @param \DateTime|null $refreshTokenExpires Optional refresh token expiration time.
-     * @param \DateTime|null $accessTokenExpires Optional access token expiration time.
-     * @param bool $useCache Whether to enable caching for API responses.
-     * @param int $cacheDuration Cache duration in seconds.
+     * @param  string  $secretId  GoCardless API secret ID.
+     * @param  string  $secretKey  GoCardless API secret key.
+     * @param  string|null  $accessToken  Optional initial access token.
+     * @param  string|null  $refreshToken  Optional initial refresh token.
+     * @param  \DateTime|null  $refreshTokenExpires  Optional refresh token expiration time.
+     * @param  \DateTime|null  $accessTokenExpires  Optional access token expiration time.
+     * @param  bool  $useCache  Whether to enable caching for API responses.
+     * @param  int  $cacheDuration  Cache duration in seconds.
      */
     public function __construct(
         private string $secretId,
@@ -92,7 +92,7 @@ class GoCardlessBankData
     /**
      * Parses the token response, updates access and refresh tokens, and sets their expiration times.
      *
-     * @param mixed $response The HTTP response containing token data.
+     * @param  mixed  $response  The HTTP response containing token data.
      * @return string The new access token.
      */
     private function processTokenResponse($response): string
@@ -114,9 +114,10 @@ class GoCardlessBankData
      *
      * Initiates an agreement granting access to balances, details, and transactions for the given institution and user data, with access valid for 90 days.
      *
-     * @param string $institutionId The identifier of the financial institution.
-     * @param array $userData User-specific data required by the institution.
+     * @param  string  $institutionId  The identifier of the financial institution.
+     * @param  array  $userData  User-specific data required by the institution.
      * @return array The API response containing the created agreement details.
+     *
      * @throws \Exception If the agreement creation fails.
      */
     public function createEndUserAgreement(string $institutionId, array $userData): array
@@ -142,7 +143,7 @@ class GoCardlessBankData
      *
      * Uses cached data if available and caching is enabled. Throws an exception if the API request fails.
      *
-     * @param string $requisitionId The requisition identifier.
+     * @param  string  $requisitionId  The requisition identifier.
      * @return array List of account IDs linked to the requisition, or an empty array if none are found.
      */
     public function getAccounts(string $requisitionId): array
@@ -166,8 +167,9 @@ class GoCardlessBankData
     /**
      * Retrieves detailed information for a specific bank account by account ID.
      *
-     * @param string $accountId The unique identifier of the account.
+     * @param  string  $accountId  The unique identifier of the account.
      * @return array The account details as an associative array.
+     *
      * @throws \Exception If the API request fails.
      */
     public function getAccountDetails(string $accountId): array
@@ -218,13 +220,14 @@ class GoCardlessBankData
 
         // Cache the response for 1 hour
         Cache::put($cacheKey, $response->json(), 36000);
+
         return $response->json();
     }
 
     /**
      * Retrieves the balances for a specified account.
      *
-     * @param string $accountId The unique identifier of the account.
+     * @param  string  $accountId  The unique identifier of the account.
      * @return array The balances data returned by the GoCardless API.
      *
      * @throws \Exception If the API request fails.
@@ -247,9 +250,9 @@ class GoCardlessBankData
      * Initiates a requisition with the given institution ID and redirect URL, setting the user language to English.
      * Throws an exception if the API request fails.
      *
-     * @param string $institutionId The identifier of the financial institution.
-     * @param string $redirectUrl The URL to redirect the user after authorization.
-     * @param string|null $agreementId (Unused) Optional agreement ID for the requisition.
+     * @param  string  $institutionId  The identifier of the financial institution.
+     * @param  string  $redirectUrl  The URL to redirect the user after authorization.
+     * @param  string|null  $agreementId  (Unused) Optional agreement ID for the requisition.
      * @return array The API response as an associative array.
      */
     public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null): array
@@ -274,8 +277,9 @@ class GoCardlessBankData
      *
      * If a requisition ID is provided, returns details for that requisition; otherwise, returns all requisitions. Uses cache if enabled.
      *
-     * @param string|null $requisitionId Optional requisition ID to fetch a specific requisition.
+     * @param  string|null  $requisitionId  Optional requisition ID to fetch a specific requisition.
      * @return array The requisition data as an associative array.
+     *
      * @throws \Exception If the API request fails.
      */
     public function getRequisitions(?string $requisitionId = null): array
@@ -302,8 +306,9 @@ class GoCardlessBankData
      *
      * Removes the specified requisition and clears related cached data.
      *
-     * @param string $requisitionId The ID of the requisition to delete.
+     * @param  string  $requisitionId  The ID of the requisition to delete.
      * @return bool True if the requisition was successfully deleted.
+     *
      * @throws \Exception If the API request fails.
      */
     public function deleteRequisition(string $requisitionId): bool
@@ -326,7 +331,7 @@ class GoCardlessBankData
      *
      * Uses caching if enabled to reduce redundant API calls. Throws an exception if the API request fails.
      *
-     * @param string $countryCode ISO country code to filter institutions.
+     * @param  string  $countryCode  ISO country code to filter institutions.
      * @return array List of institutions for the given country.
      */
     public function getInstitutions(string $countryCode): array
