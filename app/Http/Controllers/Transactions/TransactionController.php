@@ -20,10 +20,12 @@ class TransactionController extends Controller
     {
         [$query, $isFiltered] = $this->buildTransactionQuery($request);
 
+        $totalCount = (clone $query)->count();
+
         // Calculate total summary if filters are active
         $totalSummary = null;
         if ($isFiltered) {
-            $totalCount = clone $query;
+            $countClone = clone $query;
             $incomeSum = clone $query;
             $expenseSum = clone $query;
             $balanceSum = clone $query;
@@ -33,7 +35,7 @@ class TransactionController extends Controller
             $noMerchantCount = clone $query;
 
             $totalSummary = [
-                'count' => $totalCount->count(),
+                'count' => $countClone->count(),
                 'income' => $incomeSum->where('amount', '>', 0)->sum('amount'),
                 'expense' => abs($expenseSum->where('amount', '<', 0)->sum('amount')),
                 'balance' => $balanceSum->sum('amount'),
@@ -87,6 +89,7 @@ class TransactionController extends Controller
                 'amountExact', 'amountAbove', 'amountBelow',
                 'dateFrom', 'dateTo', 'merchant_id', 'category_id',
             ]),
+            'totalCount' => $totalCount,
         ]);
     }
 
@@ -99,15 +102,24 @@ class TransactionController extends Controller
      */
     public function loadMore(Request $request)
     {
-        [$query] = $this->buildTransactionQuery($request);
+        try {
+            [$query] = $this->buildTransactionQuery($request);
 
-        // Get paginated transactions
-        $transactions = $query->paginate(100, ['*'], 'page', $request->page);
+            $transactions = $query->paginate(100, ['*'], 'page', $request->page);
 
-        return response()->json([
-            'transactions' => $transactions,
-            'hasMorePages' => $transactions->hasMorePages(),
-        ]);
+            return response()->json([
+                'transactions' => [
+                    'data' => $transactions->items(),
+                    'current_page' => $transactions->currentPage(),
+                    'hasMorePages' => $transactions->hasMorePages(),
+                ],
+                'totalCount' => $transactions->total(),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Load more transactions failed: '.$e->getMessage());
+
+            return response()->json(['error' => 'Failed to load more transactions'], 500);
+        }
     }
 
     /**
@@ -175,6 +187,7 @@ class TransactionController extends Controller
                 'totalSummary' => $totalSummary,
                 'isFiltered' => $isFiltered,
                 'hasMorePages' => $transactions->hasMorePages(),
+                'totalCount' => $transactions->total(),
             ]);
         } catch (\Exception $e) {
             \Log::error('Error in transaction filter: '.$e->getMessage(), [
