@@ -12,10 +12,18 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\DuplicateTransactionService;
 use Inertia\Inertia;
 
 class ImportController extends Controller
 {
+    private DuplicateTransactionService $duplicateService;
+
+    public function __construct(DuplicateTransactionService $duplicateService)
+    {
+        $this->duplicateService = $duplicateService;
+    }
+
     /**
      * Display a listing of imports
      */
@@ -527,58 +535,6 @@ class ImportController extends Controller
     }
 
     /**
-     * Determines whether a transaction is a duplicate for the given account.
-     *
-     * Currently always returns false, effectively disabling duplicate transaction detection.
-     *
-     * @param  array  $data  Transaction data to check.
-     * @param  mixed  $accountId  Account identifier.
-     * @return bool Always returns false.
-     */
-    private function isDuplicateTransaction(array $data, $accountId): bool
-    {
-        Log::debug('Checking for duplicate transaction', [
-            'account_id' => $accountId,
-            'data' => $data,
-        ]);
-
-        // Get the booked date and create a date range for comparison
-        $bookedDate = \DateTime::createFromFormat('Y-m-d H:i:s', $data['booked_date']);
-        if (! $bookedDate) {
-            return false;
-        }
-
-        // Create a date range of ±1 day to account for slight variations
-        $startDate = (clone $bookedDate)->modify('-1 day')->format('Y-m-d H:i:s');
-        $endDate = (clone $bookedDate)->modify('+1 day')->format('Y-m-d H:i:s');
-
-        // Build the query to check for duplicates
-        $query = Transaction::where('account_id', $accountId)
-            ->where('amount', $data['amount'])
-            ->where('currency', $data['currency'])
-            ->where('partner', $data['partner'])
-            ->whereBetween('booked_date', [$startDate, $endDate]);
-
-        // Add description to the check if it exists
-        if (! empty($data['description'])) {
-            $query->where('description', $data['description']);
-        }
-
-        // Add target/source IBAN to the check if they exist
-        if (! empty($data['target_iban'])) {
-            $query->where('target_iban', $data['target_iban']);
-        }
-        if (! empty($data['source_iban'])) {
-            $query->where('source_iban', $data['source_iban']);
-        }
-
-        $exists = $query->exists();
-        Log::debug('Duplicate check result', ['is_duplicate' => $exists]);
-
-        return $exists;
-    }
-
-    /**
      * Process a CSV row into a transaction
      */
     private function processImportRow(array $row, Import $import, $accountId)
@@ -703,14 +659,23 @@ class ImportController extends Controller
         }
 
         // Check for duplicate transaction
-        if ($this->isDuplicateTransaction($data, $accountId)) {
+        $dup = $this->duplicateService->check($data, (int) $accountId);
+        if ($dup['duplicate']) {
             Log::info('Skipping duplicate transaction', [
                 'account_id' => $accountId,
                 'data' => $data,
+                'level' => $dup['level'],
             ]);
 
             return 'skipped';
         }
+        $data['duplicate_identifier'] = $dup['identifier'];
+        foreach ($dup['fields'] as $field => $value) {
+            $data['original_'.$field] = $value;
+        }
+        $data['metadata']['duplicate_identifier'] = $dup['identifier'];
+        $data['metadata']['duplicate_fields'] = $dup['fields'];
+        $data['metadata']['duplicate_level'] = $dup['level'];
 
         Log::debug('Creating transaction', ['data' => json_encode($data)]);
 
