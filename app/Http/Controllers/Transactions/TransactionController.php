@@ -124,7 +124,6 @@ class TransactionController extends Controller
 
             [$query, $isFiltered] = $this->buildTransactionQuery($request);
 
-
             // Calculate total summary directly from the database
             $totalCount = clone $query;
             $incomeSum = clone $query;
