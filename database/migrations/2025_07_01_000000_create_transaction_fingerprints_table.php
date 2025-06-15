@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('fingerprint', 64);
-            $table->foreignId('transaction_id')->constrained()->onDelete('cascade');
+            $table->foreignId('transaction_id')->nullable()->constrained();
             $table->timestamps();
             $table->unique(['user_id', 'fingerprint']);
         });
