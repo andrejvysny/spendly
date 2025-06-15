@@ -32,9 +32,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/requisitions', [BankDataController::class, 'createRequisition']);
         Route::delete('/requisitions/{id}', [BankDataController::class, 'deleteRequisition']);
         Route::get('/requisition/callback', [BankDataController::class, 'handleRequisitionCallback'])
-            ->withoutMiddleware(['auth'])
-            // TODO: Uncomment this when we have a proper signed URL
-            // ->middleware('signed'); // or create a custom token/verify middleware
+            ->withoutMiddleware(['auth']);
+        // TODO: Uncomment this when we have a proper signed URL
+        // ->middleware('signed'); // or create a custom token/verify middleware
         Route::post('/import/account', [BankDataController::class, 'importAccount']);
         Route::post('/accounts/{account}/sync-transactions', [BankDataController::class, 'syncAccountTransactions']);
     });

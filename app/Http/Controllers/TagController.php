@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Tag;
 use App\Http\Requests\TagRequest;
+use App\Models\Tag;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
