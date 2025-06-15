@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\Response;
 
 class GoCardlessBankData
 {
@@ -92,12 +93,16 @@ class GoCardlessBankData
     /**
      * Parses the token response, updates access and refresh tokens, and sets their expiration times.
      *
-     * @param  mixed  $response  The HTTP response containing token data.
+     * @param  \Illuminate\Http\Client\Response  $response  The HTTP response containing token data.
      * @return string The new access token.
      */
-    private function processTokenResponse($response): string
+    private function processTokenResponse(\Illuminate\Http\Client\Response $response): string
     {
         $data = $response->json();
+
+        if (! isset($data['access'], $data['refresh'], $data['access_expires'], $data['refresh_expires'])) {
+            throw new \InvalidArgumentException('Invalid token response');
+        }
 
         $this->accessToken = $data['access'];
         $this->refreshToken = $data['refresh'];

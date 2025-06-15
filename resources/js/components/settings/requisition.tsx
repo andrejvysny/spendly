@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import axios from 'axios';
 import React, { useState } from 'react';
 
-interface Requisition {
+export interface RequisitionDto {
     id: string;
     created: string;
     redirect: string;
@@ -24,7 +24,7 @@ interface RequisitionsResponse {
     count: number;
     next: string | null;
     previous: string | null;
-    results: Requisition[];
+    results: RequisitionDto[];
 }
 
 /**
@@ -39,7 +39,7 @@ function Requisition({
     requisition,
     setRequisitions,
 }: {
-    requisition: Requisition;
+    requisition: RequisitionDto;
     setRequisitions: React.Dispatch<React.SetStateAction<RequisitionsResponse>>;
 }) {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
