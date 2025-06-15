@@ -88,7 +88,7 @@ export interface Import {
     user_id: number;
     filename: string;
     original_filename: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed' | 'partially_failed' | 'completed_skipped_duplicates';
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'partially_failed' | 'completed_skipped_duplicates' | 'reverted';
     total_rows: number;
     processed_rows: number;
     failed_rows: number;

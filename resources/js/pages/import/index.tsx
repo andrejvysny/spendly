@@ -30,12 +30,25 @@ export default function Index({ imports }: Props) {
         },
     ];
 
-    const handleRevertImport = (importId: number) => {
-        if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
-            axios.post(`/imports/revert/${importId}`).then((r) => {
+    const handleDeleteImport = (importId: number) => {
+        if (confirm('Are you sure you want to delete this import? This action cannot be undone.')) {
+            axios.delete(route('imports.delete', { import: importId })).then((r) => {
                 if (r.status === 200) {
                     setImportsList(importsList.filter((imp) => imp.id !== importId));
-                    alert('Import reverted successfully.');
+                } else {
+                    alert('Failed to delete import. Please try again later.');
+                }
+            });
+        }
+    };
+
+    const handleRevertImport = (importId: number) => {
+        if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
+            axios.post(route('imports.revert', { import: importId })).then((r) => {
+                if (r.status === 200) {
+                    setImportsList(prevState => prevState.map(imp => 
+                        imp.id === importId ? { ...imp, status: 'reverted' } : imp
+                    ));
                 } else {
                     alert('Failed to revert import. Please try again later.');
                 }
@@ -123,9 +136,17 @@ export default function Index({ imports }: Props) {
                         key: 'actions',
                         className: 'text-right',
                         render: (row) => (
+                            <>
                             <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
                                 Revert
                             </Button>
+
+                            {(row.status == 'pending'|| row.status == 'failed' || row.status == 'reverted') ? (<Button variant="destructive" size="sm" onClick={() => handleDeleteImport(row.id)}>
+                                Delete
+                            </Button> ): null}
+                            </>
+
+
                         ),
                     }, // Custom render for actions column,
                 ]}

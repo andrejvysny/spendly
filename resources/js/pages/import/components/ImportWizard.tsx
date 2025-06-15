@@ -43,7 +43,7 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
     useEffect(() => {
         if (currentStep === 'map') {
             axios
-                .get('/imports/categories')
+                .get(route("imports.wizard.categories"))
                 .then((response) => {
                     setCategories(response.data.categories);
                 })
@@ -101,7 +101,7 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
         setError(null);
 
         try {
-            const response = await axios.post(`/imports/${uploadedData.importId}/process`, {
+            const response = await axios.post(route('imports.wizard.process', { import: uploadedData.importId }), {
                 category_mappings: categoryMappings,
                 account_id: uploadedData.accountId,
             });
