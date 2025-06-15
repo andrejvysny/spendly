@@ -33,7 +33,7 @@ class GocardlessMapper
             'balance' => $data['balance'] ?? 0.00,
             'is_gocardless_synced' => true,
             'gocardless_last_synced_at' => now(),
-            'import_data' => json_encode($data),
+            'import_data' => json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
         ];
     }
 
@@ -70,9 +70,11 @@ class GocardlessMapper
      */
     public function mapTransactionData(array $transaction, Account $account): array
     {
-        $bookedDateTime = Carbon::parse($this->get($transaction, 'bookingDateTime', $this->get($transaction, 'bookingDate')));
-        $valueDateTime = Carbon::parse($this->get($transaction, 'valueDateTime', $this->get($transaction, 'valueDate', $this->get($transaction, 'bookingDate'))));
+        $bookedRaw = $this->get($transaction, 'bookingDateTime', $this->get($transaction, 'bookingDate'));
+        $bookedDateTime = $bookedRaw ? Carbon::parse($bookedRaw) : null;
 
+        $valueRaw = $this->get($transaction, 'valueDateTime', $this->get($transaction, 'valueDate', $bookedRaw));
+        $valueDateTime = $valueRaw ? Carbon::parse($valueRaw) : null;
         $mapped = [
             'account_id' => $account->id,
 

@@ -38,7 +38,7 @@ class BankDataController extends Controller
             ->where('id', auth()->id())
             ->first();
 
-        // TODO do correct safa check if the user has gocardless credentials set
+        // TODO do correct safe check if the user has gocardless credentials set
         // TODO decrypt the credentials using the APP_KEY
         if (! $this->user->gocardless_secret_id || ! $this->user->gocardless_secret_key) {
             Log::warning('GoCardless credentials not set for user', ['user_id' => $this->user->id]);
