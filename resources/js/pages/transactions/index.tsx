@@ -93,12 +93,15 @@ async function fetchTransactions(
     totalSummary?: Record<string, number>;
 }> {
     const endpoint = page ? '/transactions/load-more' : '/transactions/filter';
-    const filteredParams = Object.fromEntries(
-        Object.entries(params).filter(
-            ([, v]) => v !== '' && v !== null && v !== undefined && !(typeof v === 'object' && Object.values(v).every((sv) => sv === '')),
-        ),
-    );
+    const filteredParams = filterEmptyValues(params);
 
+    function filterEmptyValues(obj: Record<string, any>): Record<string, any> {
+        return Object.fromEntries(
+            Object.entries(obj).filter(
+                ([, v]) => v !== '' && v !== null && v !== undefined && !(typeof v === 'object' && Object.values(v).every((sv) => sv === '')),
+            ),
+        );
+    }
     const response = await axios.get(endpoint, {
         params: page ? { ...filteredParams, page } : filteredParams,
         headers: {
@@ -117,7 +120,7 @@ async function fetchTransactions(
             totalSummary: response.data.totalSummary,
         };
     }
-    throw new Error('Invalid response');
+    throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
 }
 
 /**
@@ -394,7 +397,9 @@ export default function Index({
                     );
 
                 const result = await fetchTransactions(values);
-                console.log('API response:', result);
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('API response:', result);
+                }
                 if (result.data) {
                     setTransactions(result.data);
                     setCurrentPage(result.current_page);
