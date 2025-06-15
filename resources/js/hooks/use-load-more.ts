@@ -37,6 +37,7 @@ export function useLoadMore<T, P>({ initialData, initialPage, initialHasMore, fe
                 }
             } catch (error) {
                 console.error('Error loading more data:', error);
+                setError(error instanceof Error ? error : new Error(String(error)));
             } finally {
                 setIsLoadingMore(false);
             }

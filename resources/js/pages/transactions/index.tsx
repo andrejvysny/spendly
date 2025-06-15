@@ -118,11 +118,15 @@ async function fetchTransactions(
         return {
             data: response.data.transactions.data,
             current_page: response.data.transactions.current_page,
-            has_more_pages: response.data.transactions.has_more_pages ?? response.data.transactions.hasMorePages ?? response.data.hasMorePages,
+            has_more_pages: getHasMorePages(response.data),
             monthlySummaries: response.data.monthlySummaries || {},
             totalSummary: response.data.totalSummary,
             totalCount: response.data.totalCount,
         };
+    }
+
+    function getHasMorePages(data: any): boolean {
+        return data.transactions?.has_more_pages ?? data.transactions?.hasMorePages ?? data.hasMorePages ?? false;
     }
     throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
 }
