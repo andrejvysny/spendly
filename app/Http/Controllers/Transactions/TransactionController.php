@@ -18,19 +18,7 @@ class TransactionController extends Controller
      */
     public function index(Request $request)
     {
-        $userAccounts = Auth::user()->accounts()->pluck('id');
-
-        $query = Transaction::with([
-            'account',
-            'merchant',
-            'category',
-            'tags',
-        ])
-            ->whereIn('account_id', $userAccounts)
-            ->orderBy('booked_date', 'desc');
-
-        // Apply all available filters
-        $isFiltered = $this->applyFilters($query, $request);
+        [$query, $isFiltered] = $this->buildTransactionQuery($request);
 
         // Calculate total summary if filters are active
         $totalSummary = null;
@@ -111,19 +99,7 @@ class TransactionController extends Controller
      */
     public function loadMore(Request $request)
     {
-        $userAccounts = Auth::user()->accounts()->pluck('id');
-
-        $query = Transaction::with([
-            'account',
-            'merchant',
-            'category',
-            'tags',
-        ])
-            ->whereIn('account_id', $userAccounts)
-            ->orderBy('booked_date', 'desc');
-
-        // Apply the same filters as in the index method
-        $this->applyFilters($query, $request);
+        [$query] = $this->buildTransactionQuery($request);
 
         // Get paginated transactions
         $transactions = $query->paginate(100, ['*'], 'page', $request->page);
@@ -146,20 +122,7 @@ class TransactionController extends Controller
         try {
             \Log::info('Filter request received', ['params' => $request->all()]);
 
-            $userAccounts = Auth::user()->accounts()->pluck('id');
-            $isFiltered = false;
-
-            $query = Transaction::with([
-                'account',
-                'merchant',
-                'category',
-                'tags',
-            ])
-                ->whereIn('account_id', $userAccounts)
-                ->orderBy('booked_date', 'desc');
-
-            // Apply all available filters
-            $isFiltered = $this->applyFilters($query, $request);
+            [$query, $isFiltered] = $this->buildTransactionQuery($request);
 
 
             // Calculate total summary directly from the database
@@ -372,6 +335,27 @@ class TransactionController extends Controller
 
             return response()->json(['error' => 'Failed to update transaction'], 500);
         }
+    }
+
+    /**
+     * Build the base transaction query and apply all filters.
+     */
+    private function buildTransactionQuery(Request $request): array
+    {
+        $userAccounts = Auth::user()->accounts()->pluck('id');
+
+        $query = Transaction::with([
+            'account',
+            'merchant',
+            'category',
+            'tags',
+        ])
+            ->whereIn('account_id', $userAccounts)
+            ->orderBy('booked_date', 'desc');
+
+        $isFiltered = $this->applyFilters($query, $request);
+
+        return [$query, $isFiltered];
     }
 
     /**

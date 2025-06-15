@@ -82,6 +82,44 @@ const filterSchema = z.object({
 
 type FilterValues = InferFormValues<typeof filterSchema>;
 
+async function fetchTransactions(
+    params: FilterValues,
+    page?: number,
+): Promise<{
+    data: Transaction[];
+    current_page: number;
+    has_more_pages: boolean;
+    monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
+    totalSummary?: Record<string, number>;
+}> {
+    const endpoint = page ? '/transactions/load-more' : '/transactions/filter';
+    const filteredParams = Object.fromEntries(
+        Object.entries(params).filter(
+            ([, v]) => v !== '' && v !== null && v !== undefined && !(typeof v === 'object' && Object.values(v).every((sv) => sv === '')),
+        ),
+    );
+
+    const response = await axios.get(endpoint, {
+        params: page ? { ...filteredParams, page } : filteredParams,
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+        },
+    });
+
+    if (response.data.transactions) {
+        return {
+            data: response.data.transactions.data,
+            current_page: response.data.transactions.current_page,
+            has_more_pages: response.data.transactions.has_more_pages,
+            monthlySummaries: response.data.monthlySummaries || {},
+            totalSummary: response.data.totalSummary,
+        };
+    }
+    throw new Error('Invalid response');
+}
+
 /**
  * Displays and manages a paginated, filterable list of financial transactions with summary analytics and transaction creation capabilities.
  *
@@ -355,31 +393,24 @@ export default function Index({
                             (typeof value === 'object' && Object.values(value).every((v) => v === '')),
                     );
 
-                const response = await axios.get('/transactions/filter', {
-                    params: Object.fromEntries(Object.entries(values).filter((entry) => entry[1] !== '' && entry[1] !== null)),
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                    },
-                });
-                console.log('API response:', response.data);
-                if (response.data.transactions) {
-                    setTransactions(response.data.transactions.data);
-                    setCurrentPage(response.data.transactions.current_page);
-                    setHasMorePages(response.data.transactions.has_more_pages);
-                    setMonthlySummaries(response.data.monthlySummaries || {});
+                const result = await fetchTransactions(values);
+                console.log('API response:', result);
+                if (result.data) {
+                    setTransactions(result.data);
+                    setCurrentPage(result.current_page);
+                    setHasMorePages(result.has_more_pages);
+                    setMonthlySummaries(result.monthlySummaries || {});
                     if (isResettingFilters) {
                         setTotalSummary(undefined);
                         setIsFiltered(false);
                     } else {
-                        setTotalSummary(response.data.totalSummary || undefined);
+                        setTotalSummary(result.totalSummary || undefined);
                         setIsFiltered(
                             Object.values(values).some((value) => value !== '' && value !== 'all' && value !== null && value !== undefined),
                         );
                     }
                 } else {
-                    console.error('Invalid response format:', response.data);
+                    console.error('Invalid response format:', result);
                 }
             } catch (error) {
                 console.error('Error fetching filtered transactions:', error);
@@ -430,22 +461,11 @@ export default function Index({
 
         setIsLoadingMore(true);
         try {
-            const response = await axios.get('/transactions/load-more', {
-                params: {
-                    ...filterValues,
-                    page: currentPage + 1,
-                },
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                },
-            });
-
-            if (response.data.transactions) {
-                setTransactions((prev) => [...prev, ...response.data.transactions.data]);
-                setCurrentPage(response.data.transactions.current_page);
-                setHasMorePages(response.data.transactions.has_more_pages);
+            const result = await fetchTransactions(filterValues, currentPage + 1);
+            if (result.data) {
+                setTransactions((prev) => [...prev, ...result.data]);
+                setCurrentPage(result.current_page);
+                setHasMorePages(result.has_more_pages);
             }
         } catch (error) {
             console.error('Error loading more transactions:', error);
