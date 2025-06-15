@@ -21,6 +21,23 @@ interface MultiSelectProps<T extends string | number> {
   renderOption?: (option: Option) => React.ReactNode;
 }
 
+/**
+ * Renders a multi-select dropdown component with search, selection, and badge display features.
+ *
+ * Allows users to select multiple options from a list, filter options via a search input, and manage selections with "Select All" and "Clear" actions. Selected items are displayed as badges, with overflow detection to condense the display when necessary. Supports custom option rendering and accessibility attributes.
+ *
+ * @param options - The list of selectable options.
+ * @param selected - The currently selected option values.
+ * @param onChange - Callback invoked with the updated selection.
+ * @param placeholder - Placeholder text shown when no options are selected.
+ * @param className - Additional CSS classes for the component container.
+ * @param badgeClassName - Additional CSS classes for selected item badges.
+ * @param disabled - If true, disables interaction with the dropdown.
+ * @param maxDisplayItems - Maximum number of badges to display before condensing to a count badge.
+ * @param renderOption - Optional custom render function for options.
+ *
+ * @template T - The type of option values, constrained to string or number.
+ */
 export function MultiSelect<T extends string | number>({
   options,
   selected,
@@ -36,12 +53,28 @@ export function MultiSelect<T extends string | number>({
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerContainerRef = useRef<HTMLDivElement>(null);
+  const badgesRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
 
   // Filter options based on search query
   const filteredOptions = options.filter(option => 
     option.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (option.description && option.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  // Check if badges overflow the container
+  useEffect(() => {
+    if (selected.length === 0) {
+      setIsOverflowing(false);
+      return;
+    }
+    if (triggerContainerRef.current && badgesRef.current) {
+      const containerWidth = triggerContainerRef.current.offsetWidth;
+      const badgesWidth = badgesRef.current.scrollWidth;
+      setIsOverflowing(badgesWidth > containerWidth);
+    }
+  }, [selected, options, maxDisplayItems]);
 
   // Handle clicks outside to close the dropdown
   useEffect(() => {
@@ -109,24 +142,30 @@ export function MultiSelect<T extends string | number>({
     if (selected.length === 0) {
       return <span className="text-muted-foreground">{placeholder}</span>;
     }
-    
-    if (selected.length <= maxDisplayItems) {
-      return selected.map(value => {
-        const option = getOptionByValue(value);
-        return option ? (
-          <Badge key={value} variant="secondary" className={cn("mr-1", badgeClassName)}>
-            {option.label}
+
+    // If overflowing or too many items, show count badge
+    if (isOverflowing || selected.length > maxDisplayItems) {
+      return (
+        <>
+          <Badge variant="secondary" className={cn("mr-1", badgeClassName)}>
+            {selected.length} selected
           </Badge>
-        ) : null;
-      });
+        </>
+      );
     }
-    
+
+    // Otherwise, show all selected badges
     return (
-      <>
-        <Badge variant="secondary" className={cn("mr-1", badgeClassName)}>
-          {selected.length} selected
-        </Badge>
-      </>
+      <div ref={badgesRef} className="flex gap-1 items-center">
+        {selected.map(value => {
+          const option = getOptionByValue(value);
+          return option ? (
+            <Badge key={value} variant="secondary" className={cn("mr-1", badgeClassName)}>
+              {option.label}
+            </Badge>
+          ) : null;
+        })}
+      </div>
     );
   };
 
@@ -147,7 +186,10 @@ export function MultiSelect<T extends string | number>({
         aria-haspopup="listbox"
         type="button"
       >
-        <div className="flex gap-1 items-center overflow-x-auto whitespace-nowrap max-w-[170px] scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
+        <div
+          ref={triggerContainerRef}
+          className="flex gap-1 items-center whitespace-nowrap max-w-[170px]"
+        >
           {displaySelection()}
         </div>
         <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

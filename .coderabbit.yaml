@@ -1,0 +1,31 @@
+language: "en-US"
+early_access: false
+tone_instructions: "Keep it professional and concise, with a friendly touch. Use clear and simple language. Clearly explain technical concepts with details. Use bullet points for lists and highlight key information. Maintain a positive and encouraging tone throughout."
+enable_free_tier: true
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: true
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+chat:
+  auto_reply: true
+
+knowledge_base:
+  issues:
+    scope: local
+  web_search:
+    enabled: true
+  pull_requests:
+    scope: local
+code_generation:
+  docstrings:
+    language: "en-US"
+
+#  unit_tests: #TODO: https://docs.coderabbit.ai/getting-started/configure-coderabbit/
+ #   path_instructions:
+

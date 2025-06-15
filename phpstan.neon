@@ -1,0 +1,7 @@
+parameters:
+    level: 9
+    paths:
+        - app
+        - database
+        - config
+        - tests

@@ -23,6 +23,7 @@ class Account extends Model
         'gocardless_account_id',
         'is_gocardless_synced',
         'gocardless_last_synced_at',
+        'import_data',
     ];
 
     /**
@@ -34,6 +35,7 @@ class Account extends Model
         'balance' => 'decimal:2',
         'is_gocardless_synced' => 'boolean',
         'gocardless_last_synced_at' => 'datetime',
+        'import_data' => 'json',
     ];
 
     /**

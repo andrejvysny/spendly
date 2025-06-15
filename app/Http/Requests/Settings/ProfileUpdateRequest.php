@@ -10,15 +10,16 @@ use Illuminate\Validation\Rule;
 class ProfileUpdateRequest extends FormRequest
 {
     /**
-     * Get the validation rules that apply to the request.
+     * Returns the validation rules for updating a user's profile.
      *
-     * @return array<string, ValidationRule|array<mixed>|string>
+     * The rules ensure that the 'name' field, if provided, is a string, and that the 'email' field is required, must be a lowercase string in valid email format, has a maximum length of 255 characters, and is unique among users except for the current user.
+     *
+     * @return array<string, ValidationRule|array<mixed>|string> The validation rules for the profile update request.
      */
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-
+            'name' => ['string', 'max:255'],
             'email' => [
                 'required',
                 'string',

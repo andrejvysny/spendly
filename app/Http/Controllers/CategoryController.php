@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CategoryRequest;
 use App\Models\Category;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
@@ -29,15 +30,9 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(CategoryRequest $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'color' => ['nullable', 'string', 'max:7'],
-            'icon' => ['nullable', 'string', 'max:255'],
-            'parent_category_id' => ['nullable', 'string'],
-        ]);
+        $validated = $request->validated();
 
         $data = $validated;
         if ($data['parent_category_id'] === '0') {
@@ -51,17 +46,11 @@ class CategoryController extends Controller
         return redirect()->back()->with('success', 'Category created successfully');
     }
 
-    public function update(Request $request, Category $category)
+    public function update(CategoryRequest $request, Category $category)
     {
         $this->authorize('update', $category);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'color' => ['nullable', 'string', 'max:7'],
-            'icon' => ['nullable', 'string', 'max:255'],
-            'parent_category_id' => ['nullable', 'string'],
-        ]);
+        $validated = $request->validated();
 
         $data = $validated;
         if ($data['parent_category_id'] === '0') {

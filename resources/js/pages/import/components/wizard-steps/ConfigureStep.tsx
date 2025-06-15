@@ -71,6 +71,16 @@ const currencies = [
     { value: 'CZK', label: 'Czech Koruna (Kč)' },
 ];
 
+/**
+ * React component for configuring CSV import mappings for transaction data.
+ *
+ * Allows users to map CSV columns to transaction fields, select date and amount formats, choose amount type strategies and currency, and optionally save configurations for future use. Supports loading, applying, and deleting saved mappings, and provides a preview of sample CSV data. On successful configuration, invokes the provided callback with the selected settings and preview data.
+ *
+ * @param headers - Array of CSV column headers.
+ * @param sampleRows - Sample rows from the uploaded CSV file.
+ * @param importId - Identifier for the current import session.
+ * @param onComplete - Callback invoked with the completed configuration and preview data after successful submission.
+ */
 export default function ConfigureStep({ headers, sampleRows, importId, onComplete }: ConfigureStepProps) {
     const [columnMapping, setColumnMapping] = useState<Record<string, number | null>>({});
     const [dateFormat, setDateFormat] = useState('d.m.Y');
@@ -240,7 +250,6 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 amount_type_strategy: amountTypeStrategy,
                 currency: currency,
             });
-
 
             // Save mapping if requested
             if (saveMapping && mappingName) {
