@@ -24,6 +24,8 @@ interface Props {
         data: Transaction[];
         current_page: number;
         has_more_pages: boolean;
+        last_page: number;
+        total: number;
     };
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     totalSummary?: {
@@ -59,6 +61,17 @@ interface Props {
     };
 }
 
+interface TotalSummary {
+    count: number;
+    income: number;
+    expense: number;
+    balance: number;
+    categoriesCount: number;
+    merchantsCount: number;
+    uncategorizedCount: number;
+    noMerchantCount: number;
+}
+
 const filterSchema = z.object({
     search: z.string().optional(),
     account_id: z.string().optional(),
@@ -92,7 +105,7 @@ async function fetchTransactions(
     current_page: number;
     has_more_pages: boolean;
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
-    totalSummary?: Record<string, number>;
+    totalSummary?: TotalSummary;
     totalCount?: number;
 }> {
     const endpoint = page ? '/transactions/load-more' : '/transactions/filter';
@@ -118,16 +131,13 @@ async function fetchTransactions(
         return {
             data: response.data.transactions.data,
             current_page: response.data.transactions.current_page,
-            has_more_pages: getHasMorePages(response.data),
+            has_more_pages: response.data.transactions.hasMorePages,
             monthlySummaries: response.data.monthlySummaries || {},
-            totalSummary: response.data.totalSummary,
+            totalSummary: response.data.totalSummary as TotalSummary | undefined,
             totalCount: response.data.totalCount,
         };
     }
 
-    function getHasMorePages(data: any): boolean {
-        return data.transactions?.has_more_pages ?? data.transactions?.hasMorePages ?? data.hasMorePages ?? false;
-    }
     throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
 }
 
@@ -170,8 +180,8 @@ export default function Index({
     } = useLoadMore<Transaction, FilterValues>({
         initialData: initialTransactions.data,
         initialPage: initialTransactions.current_page,
-        initialHasMore: initialTransactions.has_more_pages ?? initialTransactions.hasMorePages,
-        initialTotalCount: initialTotalCount,
+        initialHasMore: initialTransactions.last_page > initialTransactions.current_page,
+        initialTotalCount: initialTransactions.total,
         fetcher: fetchTransactions,
     });
     const [monthlySummaries, setMonthlySummaries] = useState(initialSummaries);
@@ -420,7 +430,7 @@ export default function Index({
                     console.log('API response:', result);
                 }
                 if (result.data) {
-                    reset(result.data, result.current_page, result.has_more_pages ?? result.hasMorePages, result.totalCount);
+                    reset(result.data, result.current_page, result.has_more_pages, result.totalCount);
                     setMonthlySummaries(result.monthlySummaries || {});
                     if (isResettingFilters) {
                         setTotalSummary(undefined);
@@ -520,6 +530,24 @@ export default function Index({
         });
     };
 
+    // Update the SmartForm schema for search
+    const searchSchema = z.object({
+        search: z.string(),
+    });
+
+    // Update the SmartForm schema for amount filter
+    const amountFilterSchema = z.object({
+        amountFilter: z.string(),
+    });
+
+    // Update the SmartForm schema for date range
+    const dateRangeSchema = z.object({
+        dateRange: z.object({
+            from: z.string(),
+            to: z.string(),
+        }),
+    });
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Transactions" />
@@ -558,11 +586,11 @@ export default function Index({
                                     <label className={`mb-1 block text-sm ${getFilterLabelStyle('search')}`}>Search transactions</label>
                                     <div className="relative">
                                         <SmartForm
-                                            schema={filterSchema}
-                                            defaultValues={{ search: filterValues.search }}
+                                            schema={searchSchema}
+                                            defaultValues={{ search: filterValues.search || '' }}
                                             onChange={(values) => {
                                                 // Only update and trigger if the value actually changed
-                                                const newSearch = values.search || '';
+                                                const newSearch = values.search;
                                                 if (newSearch !== filterValues.search) {
                                                     const newValues = { ...filterValues, search: newSearch };
                                                     setFilterValues(newValues);
@@ -636,10 +664,10 @@ export default function Index({
                                         </label>
                                         <div className="relative">
                                             <SmartForm
-                                                schema={filterSchema}
-                                                defaultValues={{ amountFilter: filterValues.amountFilter }}
+                                                schema={amountFilterSchema}
+                                                defaultValues={{ amountFilter: filterValues.amountFilter || '' }}
                                                 onChange={(values) => {
-                                                    const newAmountFilter = values.amountFilter || '';
+                                                    const newAmountFilter = values.amountFilter;
                                                     if (newAmountFilter !== filterValues.amountFilter) {
                                                         handleAmountChange(newAmountFilter);
                                                     }
@@ -665,7 +693,7 @@ export default function Index({
                                             Date Range
                                         </label>
                                         <SmartForm
-                                            schema={filterSchema}
+                                            schema={dateRangeSchema}
                                             defaultValues={{
                                                 dateRange: {
                                                     from: filterValues.dateFrom || '',
