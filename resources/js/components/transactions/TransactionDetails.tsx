@@ -2,10 +2,36 @@ import { Transaction } from '@/types/index';
 import { formatDate } from '@/utils/date';
 import axios from 'axios';
 import { Save, SquarePen } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 interface Props {
     transaction: Transaction;
+}
+
+const textareaClass = 'w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500 resize-none';
+
+function AutoResizeTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+    const ref = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+        if (ref.current) {
+            ref.current.style.height = 'auto';
+            ref.current.style.height = `${ref.current.scrollHeight}px`;
+        }
+    }, [props.value]);
+
+    return (
+        <textarea
+            ref={ref}
+            {...props}
+            className={`${textareaClass} ${props.className ?? ''}`.trim()}
+            onInput={(e) => {
+                e.currentTarget.style.height = 'auto';
+                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                props.onInput?.(e);
+            }}
+        />
+    );
 }
 
 /**
@@ -78,14 +104,13 @@ export default function TransactionDetails({ transaction }: Props) {
                 <div>
                     <p className="text-muted-foreground text-sm">Description</p>
                     {isEditable ? (
-                        <textarea
-                            rows={1}
+                        <AutoResizeTextarea
+                            aria-label="Description"
                             value={editedDescription}
                             onChange={(e) => setEditedDescription(e.target.value)}
-                            className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
                         />
                     ) : (
-                        <p>{editedDescription || '-'}</p>
+                        <p>{editedDescription ?? '-'}</p>
                     )}
                 </div>
 
@@ -93,11 +118,10 @@ export default function TransactionDetails({ transaction }: Props) {
                 <div>
                     <p className="text-muted-foreground text-sm">Note</p>
                     {isEditable ? (
-                        <textarea
-                            rows={1}
+                        <AutoResizeTextarea
+                            aria-label="Note"
                             value={editedNote}
                             onChange={(e) => setEditedNote(e.target.value)}
-                            className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
                         />
                     ) : (
                         <p>{editedNote ?? '-'}</p>
@@ -120,28 +144,26 @@ export default function TransactionDetails({ transaction }: Props) {
                 <div>
                     <p className="text-muted-foreground text-sm">Partner</p>
                     {isEditable ? (
-                        <textarea
-                            rows={1}
+                        <AutoResizeTextarea
+                            aria-label="Partner"
                             value={editedPartner}
                             onChange={(e) => setEditedPartner(e.target.value)}
-                            className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
                         />
                     ) : (
-                        <p>{editedPartner || '-'}</p>
+                        <p>{editedPartner ?? '-'}</p>
                     )}
                 </div>
 
                 <div>
                     <p className="text-muted-foreground text-sm">Place</p>
                     {isEditable ? (
-                        <textarea
-                            rows={1}
+                        <AutoResizeTextarea
+                            aria-label="Place"
                             value={editedPlace}
                             onChange={(e) => setEditedPlace(e.target.value)}
-                            className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500"
                         />
                     ) : (
-                        <p>{editedPlace || '-'}</p>
+                        <p>{editedPlace ?? '-'}</p>
                     )}
                 </div>
                 <div>
