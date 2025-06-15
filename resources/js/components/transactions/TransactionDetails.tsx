@@ -2,7 +2,7 @@ import { Transaction } from '@/types/index';
 import { formatDate } from '@/utils/date';
 import axios from 'axios';
 import { Save, SquarePen } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Props {
     transaction: Transaction;
@@ -10,26 +10,30 @@ interface Props {
 
 const textareaClass = 'w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500 resize-none';
 
-function AutoResizeTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-    const ref = useRef<HTMLTextAreaElement>(null);
+interface AutoResizeTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+    label?: string;
+    id?: string;
+}
+
+function AutoResizeTextarea({ value, onChange, label, id, className, ...props }: AutoResizeTextareaProps) {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
-        if (ref.current) {
-            ref.current.style.height = 'auto';
-            ref.current.style.height = `${ref.current.scrollHeight}px`;
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
         }
-    }, [props.value]);
+    }, [value]);
 
     return (
         <textarea
-            ref={ref}
+            ref={textareaRef}
+            id={id}
+            value={value}
+            onChange={onChange}
+            aria-label={label}
+            className={`${textareaClass} ${className ?? ''}`.trim()}
             {...props}
-            className={`${textareaClass} ${props.className ?? ''}`.trim()}
-            onInput={(e) => {
-                e.currentTarget.style.height = 'auto';
-                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
-                props.onInput?.(e);
-            }}
         />
     );
 }
@@ -147,12 +151,10 @@ export default function TransactionDetails({ transaction }: Props) {
                     <p className="text-muted-foreground text-sm">Partner</p>
                     {isEditable ? (
                         <AutoResizeTextarea
-
                             value={editedPartner}
                             onChange={(e) => setEditedPartner(e.target.value)}
                             label="Transaction partner"
                             id="transaction-partner"
-
                         />
                     ) : (
                         <p>{editedPartner ?? '-'}</p>
@@ -163,12 +165,10 @@ export default function TransactionDetails({ transaction }: Props) {
                     <p className="text-muted-foreground text-sm">Place</p>
                     {isEditable ? (
                         <AutoResizeTextarea
-
                             value={editedPlace}
                             onChange={(e) => setEditedPlace(e.target.value)}
                             label="Transaction place"
                             id="transaction-place"
-
                         />
                     ) : (
                         <p>{editedPlace ?? '-'}</p>
@@ -255,42 +255,5 @@ export function SimpleCollapse({ children, title, ...props }: { children: React.
                 <div className="mt-2 rounded-lg">{children}</div>
             </details>
         </div>
-    );
-}
-
-/**
- * Auto-resizing textarea component with consistent styling and accessibility
- */
-function AutoResizeTextarea({ 
-    value, 
-    onChange, 
-    label,
-    id,
-    ...props 
-}: { 
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-    label: string;
-    id: string;
-} & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-    useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-        }
-    }, [value]);
-
-    return (
-        <textarea
-            ref={textareaRef}
-            id={id}
-            value={value}
-            onChange={onChange}
-            aria-label={label}
-            className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500 min-h-[24px] resize-none"
-            {...props}
-        />
     );
 }

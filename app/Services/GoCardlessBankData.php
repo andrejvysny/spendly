@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Http\Client\Response;
 
 class GoCardlessBankData
 {
@@ -226,6 +226,7 @@ class GoCardlessBankData
         if ($this->useCache) {
             Cache::put($cacheKey, $response->json(), $this->cacheDuration);
         }
+
         return $response->json();
     }
 

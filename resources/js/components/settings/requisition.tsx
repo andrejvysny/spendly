@@ -57,9 +57,7 @@ function Requisition({
         setIsDeleting(true);
         try {
             // await the delete so errors go into the catch below
-            await axios.delete(
-                `/api/bank-data/gocardless/requisitions/${requisitionToDelete}`
-            );
+            await axios.delete(`/api/bank-data/gocardless/requisitions/${requisitionToDelete}`);
 
             setRequisitions((prev) => ({
                 ...prev,

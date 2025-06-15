@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\MerchantRequest;
+use App\Http\Requests\MerchantRequest;
 use App\Models\Merchant;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use App\Http\Requests\MerchantRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
