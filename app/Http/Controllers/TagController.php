@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\TagRequest;
 use App\Models\Tag;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class TagController extends Controller
 {
-    public function index()
+    use AuthorizesRequests;
+    public function index(): Response
     {
         $tags = Auth::user()->tags()->get();
 
@@ -18,7 +22,7 @@ class TagController extends Controller
         ]);
     }
 
-    public function store(TagRequest $request)
+    public function store(TagRequest $request): RedirectResponse
     {
         $validated = $request->validated();
 
@@ -38,7 +42,7 @@ class TagController extends Controller
         return redirect()->back()->with('success', 'Tag updated successfully');
     }
 
-    public function destroy(Tag $tag)
+    public function destroy(Tag $tag): RedirectResponse
     {
         $this->authorize('delete', $tag);
 
@@ -46,4 +50,5 @@ class TagController extends Controller
 
         return redirect()->back()->with('success', 'Tag deleted successfully');
     }
+
 }
