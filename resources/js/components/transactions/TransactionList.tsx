@@ -14,6 +14,7 @@ interface Props {
     hasMorePages?: boolean;
     onLoadMore?: () => Promise<void>;
     isLoadingMore?: boolean;
+    totalCount?: number;
 }
 
 /**
@@ -41,6 +42,7 @@ function TransactionList({
     hasMorePages = false,
     onLoadMore,
     isLoadingMore = false,
+    totalCount,
 }: Props) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
@@ -254,9 +256,14 @@ function TransactionList({
                 />
             )}
 
-            {/* Load More Button */}
+            {/* Pagination */}
+            {typeof totalCount === 'number' && (
+                <p className="text-muted-foreground mt-4 text-center text-sm">
+                    Displayed {transactions.length}/{totalCount} transactions
+                </p>
+            )}
             {hasMorePages && onLoadMore && (
-                <div className="mt-6 flex justify-center">
+                <div className="mt-2 flex justify-center">
                     <Button variant="outline" onClick={onLoadMore} disabled={isLoadingMore}>
                         {isLoadingMore ? <LoadingDots size="sm" className="text-primary" /> : 'Load More'}
                     </Button>
