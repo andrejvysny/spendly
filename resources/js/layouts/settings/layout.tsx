@@ -23,27 +23,21 @@ const sidebarNavItems: NavItem[] = [
         icon: null,
     },
     {
-        title: 'Security',
-        href: '/settings/security',
-        icon: null,
-    },
-    {
-        title: 'API Tokens',
-        href: '/settings/api-tokens',
-        icon: null,
-    },
-    {
-        title: 'Two Factor Authentication',
-        href: '/settings/two-factor-authentication',
-        icon: null,
-    },
-    {
-        title: 'Delete Account',
-        href: '/settings/delete-account',
+        title: 'Bank Data',
+        href: '/settings/bank_data',
         icon: null,
     },
 ];
 
+/**
+ * Provides a layout for user settings pages with a sidebar navigation and main content area.
+ *
+ * Renders a sidebar with navigation links to different settings sections and displays the provided content in the main area.
+ *
+ * @param children - The content to display in the main section of the settings layout.
+ *
+ * @remark This component only renders on the client side and returns null during server-side rendering.
+ */
 export default function SettingsLayout({ children }: PropsWithChildren) {
     // When server-side rendering, we only render the layout on the client...
     if (typeof window === 'undefined') {
@@ -80,7 +74,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                 <Separator className="my-6 md:hidden" />
 
                 <div className="flex-1 md:max-w-2xl">
-                    <section className="max-w-xl space-y-12">{children}</section>
+                    <section className="max-w-2xl space-y-12">{children}</section>
                 </div>
             </div>
         </div>

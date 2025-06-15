@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TagRequest;
 use App\Models\Tag;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
@@ -18,26 +18,20 @@ class TagController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(TagRequest $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'color' => ['nullable', 'string', 'max:7'],
-        ]);
+        $validated = $request->validated();
 
         $tag = Auth::user()->tags()->create($validated);
 
         return redirect()->back()->with('success', 'Tag created successfully');
     }
 
-    public function update(Request $request, Tag $tag)
+    public function update(TagRequest $request, Tag $tag)
     {
         $this->authorize('update', $tag);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'color' => ['nullable', 'string', 'max:7'],
-        ]);
+        $validated = $request->validated();
 
         $tag->update($validated);
 

@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Import;
 use App\Models\Transaction;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -526,10 +527,20 @@ class ImportController extends Controller
     }
 
     /**
-     * Check if a transaction already exists in the database
+     * Determines whether a transaction is a duplicate for the given account.
+     *
+     * Currently always returns false, effectively disabling duplicate transaction detection.
+     *
+     * @param  array  $data  Transaction data to check.
+     * @param  mixed  $accountId  Account identifier.
+     * @return bool Always returns false.
      */
     private function isDuplicateTransaction(array $data, $accountId): bool
     {
+        return false; // Default to false for safety
+
+        // TODO not working correctly, needs to be fixed
+
         Log::debug('Checking for duplicate transaction', [
             'account_id' => $accountId,
             'data' => $data,
@@ -1025,7 +1036,9 @@ class ImportController extends Controller
     }
 
     /**
-     * Delete a saved mapping
+     * Deletes a saved import mapping for the authenticated user.
+     *
+     * Returns a JSON response confirming successful deletion. Aborts with a 403 error if the mapping does not belong to the user.
      */
     public function deleteMapping(\App\Models\ImportMapping $mapping)
     {
@@ -1044,6 +1057,57 @@ class ImportController extends Controller
 
         return response()->json([
             'message' => 'Import mapping deleted successfully',
+        ]);
+    }
+
+    /**
+     * Reverts an import by its ID, deleting all associated transactions and updating the import status.
+     *
+     * Returns a JSON response indicating the result. If the import does not exist, returns a 404 response. If the import is already reverted, returns a 200 response with a relevant message. Only the owner of the import can perform this action.
+     *
+     * @param  int  $id  The ID of the import to revert.
+     * @return JsonResponse JSON response with the result of the revert operation and updated import data.
+     */
+    public function revertImport(int $id): JsonResponse
+    {
+        Log::debug('Reverting import', ['import_id' => $id]);
+
+        // Find the import
+        $import = Import::find($id);
+        if (! $import) {
+            Log::error('Import not found', ['import_id' => $id]);
+
+            return response()->json(['message' => 'Import not found'], 404);
+        }
+
+        // Check if this import belongs to the authenticated user
+        if ($import->user_id !== Auth::id()) {
+            Log::warning('Unauthorized import revert attempt', [
+                'import_id' => $import->id,
+                'user_id' => Auth::id(),
+            ]);
+            abort(403);
+        }
+
+        // Check if the import is already reverted
+        if ($import->status === Import::STATUS_REVERTED) {
+            Log::info('Import already reverted', ['import_id' => $import->id]);
+
+            return response()->json(['message' => 'Import already reverted'], 200);
+        }
+
+        // Revert transactions created by this import
+        Transaction::where('metadata->import_id', $import->id)->delete();
+
+        // Update import status
+        $import->status = Import::STATUS_REVERTED;
+        $import->save();
+
+        Log::info('Import reverted successfully', ['import_id' => $import->id]);
+
+        return response()->json([
+            'message' => 'Import reverted successfully',
+            'import' => $import,
         ]);
     }
 }

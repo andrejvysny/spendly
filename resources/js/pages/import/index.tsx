@@ -1,16 +1,24 @@
 import { DataTable } from '@/components/DataTable';
+import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import { BreadcrumbItem, Import } from '@/types/index';
 import { formatDate } from '@/utils/date';
 import { Head } from '@inertiajs/react';
+import axios from 'axios';
 import { useState } from 'react';
 import ImportWizard from './components/ImportWizard';
-
 interface Props {
     imports: Import[];
 }
 
+/**
+ * Displays and manages a list of import tasks, allowing users to view, create, and revert imports.
+ *
+ * Renders a data table of import tasks with status indicators and actions. Users can initiate new imports via a wizard and revert existing imports, which removes them from the list upon confirmation and successful server response.
+ *
+ * @param imports - Initial array of import tasks to display.
+ */
 export default function Index({ imports }: Props) {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [importsList, setImportsList] = useState<Import[]>(imports);
@@ -21,6 +29,19 @@ export default function Index({ imports }: Props) {
             href: '/imports',
         },
     ];
+
+    const handleRevertImport = (importId: number) => {
+        if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
+            axios.post(`/imports/revert/${importId}`).then((r) => {
+                if (r.status === 200) {
+                    setImportsList(importsList.filter((imp) => imp.id !== importId));
+                    alert('Import reverted successfully.');
+                } else {
+                    alert('Failed to revert import. Please try again later.');
+                }
+            });
+        }
+    };
 
     const getStatusBadgeClass = (status: string) => {
         switch (status) {
@@ -35,7 +56,7 @@ export default function Index({ imports }: Props) {
             case 'failed':
                 return 'bg-red-100 text-red-800 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium';
             default:
-                return 'bg-gray-100 text-gray-800 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium';
+                return 'bg-gray-200 text-gray-800 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium';
         }
     };
 
@@ -83,7 +104,11 @@ export default function Index({ imports }: Props) {
                 columns={[
                     { header: 'File', key: 'original_filename' },
                     { header: 'Import Date', key: 'created_at', render: (row) => formatDate(row.created_at) },
-                    { header: 'Status', key: 'status', render: (row) => <span className={`${getStatusBadgeClass(row.status)}`}>{getStatusLabel(row.status)}</span> },
+                    {
+                        header: 'Status',
+                        key: 'status',
+                        render: (row) => <span className={`${getStatusBadgeClass(row.status)}`}>{getStatusLabel(row.status)}</span>,
+                    },
                     {
                         header: 'Processed',
                         key: 'processed_rows',
@@ -93,7 +118,16 @@ export default function Index({ imports }: Props) {
                             </p>
                         ),
                     },
-                    { header: 'Actions', key: 'actions', className: 'text-right', render: (row) => <p>Action-{row.id}</p> }, // Custom render for actions column,
+                    {
+                        header: 'Actions',
+                        key: 'actions',
+                        className: 'text-right',
+                        render: (row) => (
+                            <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
+                                Revert
+                            </Button>
+                        ),
+                    }, // Custom render for actions column,
                 ]}
                 emptyMessage="No import tasks found. Please create a new import task."
                 data={importsList}

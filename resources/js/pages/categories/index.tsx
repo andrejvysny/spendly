@@ -41,6 +41,13 @@ const deleteFormSchema = z.object({
 type FormValues = InferFormValues<typeof formSchema>;
 type DeleteFormValues = InferFormValues<typeof deleteFormSchema>;
 
+/**
+ * Displays and manages a list of categories, providing functionality to create, edit, and delete categories with modal dialogs.
+ *
+ * Allows users to assign colors, icons, and parent categories, and handles reassignment or removal of related transactions when deleting a category.
+ *
+ * @param categories - The list of categories to display and manage.
+ */
 export default function Categories({ categories }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -105,7 +112,7 @@ export default function Categories({ categories }: Props) {
 
     const onDeleteSubmit = (values: DeleteFormValues) => {
         if (!deletingCategory) return;
-        
+
         router.delete(`/categories/${deletingCategory.id}`, {
             data: values,
             onSuccess: () => {
@@ -255,8 +262,8 @@ export default function Categories({ categories }: Props) {
                     <DialogHeader>
                         <DialogTitle>Delete Category</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete this category? This action cannot be undone.
-                            Please select what should happen to transactions associated with this category.
+                            Are you sure you want to delete this category? This action cannot be undone. Please select what should happen to
+                            transactions associated with this category.
                         </DialogDescription>
                     </DialogHeader>
                     <SmartForm
@@ -267,7 +274,7 @@ export default function Categories({ categories }: Props) {
                     >
                         {({ watch }) => {
                             const replacementAction = watch('replacement_action');
-                            
+
                             return (
                                 <>
                                     <SelectInput<DeleteFormValues>

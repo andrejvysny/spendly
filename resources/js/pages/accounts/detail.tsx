@@ -14,12 +14,12 @@ import {
 import { Button } from '@/components/ui/button';
 import ValueSplit from '@/components/ui/value-split';
 import AppLayout from '@/layouts/app-layout';
-import { Account, Transaction, Category, Merchant } from '@/types/index';
+import { Account, Category, Merchant, Transaction } from '@/types/index';
+import { formatAmount } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import { useState } from 'react';
-import { formatAmount } from '@/utils/currency';
 
 interface Props {
     account: Account;
@@ -48,7 +48,30 @@ interface Props {
     }>;
 }
 
-export default function Detail({ account, transactions, categories, merchants, monthlySummaries, total_transactions, cashflow_last_month, cashflow_this_month }: Props) {
+/**
+ * Displays detailed information and analytics for a financial account, including account details, transaction history, monthly comparisons, and account management actions.
+ *
+ * Renders account metadata, transaction lists, monthly cashflow analytics, and provides options to sync transactions or delete the account.
+ *
+ * @param account - The account to display details for, including sync status and metadata.
+ * @param transactions - List of transactions associated with the account.
+ * @param categories - Available transaction categories.
+ * @param merchants - List of merchants related to the transactions.
+ * @param monthlySummaries - Monthly summary data for the account.
+ * @param total_transactions - Total number of transactions for the account.
+ * @param cashflow_last_month - Daily cashflow data for the previous month.
+ * @param cashflow_this_month - Daily cashflow data for the current month.
+ */
+export default function Detail({
+    account,
+    transactions,
+    categories,
+    merchants,
+    monthlySummaries,
+    total_transactions,
+    cashflow_last_month,
+    cashflow_this_month,
+}: Props) {
     const [syncing, setSyncing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const breadcrumbs = [
@@ -59,9 +82,20 @@ export default function Detail({ account, transactions, categories, merchants, m
     const handleSyncTransactions = async () => {
         setSyncing(true);
         try {
-            await axios.post(`/api/accounts/${account.id}/sync-transactions`);
+            axios
+                .post(`/api/bank-data/gocardless/accounts/${account.id}/sync-transactions`, {
+                    account_id: account.id,
+                })
+                .then((response) => {
+                    if (response.status === 200) {
+                        // Optionally handle success response
+                        console.log('Transactions synced successfully');
+                        window.location.reload();
+                    } else {
+                        console.error('Failed to sync transactions:', response.data);
+                    }
+                });
             // Refresh the page to show new transactions
-            window.location.reload();
         } catch {
             // Handle error silently
         } finally {
@@ -208,13 +242,13 @@ export default function Detail({ account, transactions, categories, merchants, m
                                 <h3 className="mb-4 text-lg font-semibold">Monthly comparison</h3>
 
                                 <AccountDetailMonthlyComparisonChart
-                                    currentMonthData={cashflow_this_month.map(item => ({
+                                    currentMonthData={cashflow_this_month.map((item) => ({
                                         date: `${item.year}-${String(item.month).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`,
                                         balance: item.daily_balance,
                                         income: item.daily_income,
                                         expense: -item.daily_spending,
                                     }))}
-                                    previousMonthData={cashflow_last_month.map(item => ({
+                                    previousMonthData={cashflow_last_month.map((item) => ({
                                         date: `${item.year}-${String(item.month).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`,
                                         balance: item.daily_balance,
                                         income: item.daily_income,

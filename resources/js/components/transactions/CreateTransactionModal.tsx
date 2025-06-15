@@ -1,7 +1,6 @@
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SelectInput, TextInput } from '@/components/ui/form-inputs';
-import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
+import { FormModal } from '@/components/ui/form-modal';
+import { InferFormValues } from '@/components/ui/smart-form';
 import { Transaction } from '@/types/index';
 import { z } from 'zod';
 
@@ -66,49 +65,34 @@ export default function CreateTransactionModal({ isOpen, onClose, onSubmit }: Cr
     const handleSubmit = (values: FormValues) => {
         onSubmit({
             ...values,
-            balance_after_transaction: values.amount, // Set initial balance to amount
+            balance_after_transaction: values.amount,
         });
-        onClose();
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>New Transaction</DialogTitle>
-                    <DialogDescription>Fill in the details to create a new transaction.</DialogDescription>
-                </DialogHeader>
-                <SmartForm schema={transactionSchema} defaultValues={defaultValues} onSubmit={handleSubmit} formProps={{ className: 'space-y-4' }}>
-                    {() => (
-                        <>
-                            <TextInput<FormValues> name="partner" label="Partner" required />
-
-                            <TextInput<FormValues> name="amount" label="Amount" type="number" required />
-
-                            <SelectInput<FormValues> name="currency" label="Currency" options={currencies} required />
-
-                            <TextInput<FormValues> name="description" label="Description" required />
-
-                            <SelectInput<FormValues> name="type" label="Type" options={transactionTypes} required />
-
-                            <TextInput<FormValues> name="target_iban" label="Target IBAN" />
-
-                            <TextInput<FormValues> name="source_iban" label="Source IBAN" />
-
-                            <TextInput<FormValues> name="booked_date" label="Booked Date" type="date" required />
-
-                            <TextInput<FormValues> name="processed_date" label="Processed Date" type="date" required />
-
-                            <DialogFooter>
-                                <Button type="button" variant="outline" onClick={onClose}>
-                                    Cancel
-                                </Button>
-                                <Button type="submit">Create Transaction</Button>
-                            </DialogFooter>
-                        </>
-                    )}
-                </SmartForm>
-            </DialogContent>
-        </Dialog>
+        <FormModal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="New Transaction"
+            description="Fill in the details to create a new transaction."
+            schema={transactionSchema}
+            defaultValues={defaultValues}
+            onSubmit={handleSubmit}
+            submitLabel="Create Transaction"
+        >
+            {() => (
+                <>
+                    <TextInput<FormValues> name="partner" label="Partner" required />
+                    <TextInput<FormValues> name="amount" label="Amount" type="number" required />
+                    <SelectInput<FormValues> name="currency" label="Currency" options={currencies} required />
+                    <TextInput<FormValues> name="description" label="Description" required />
+                    <SelectInput<FormValues> name="type" label="Type" options={transactionTypes} required />
+                    <TextInput<FormValues> name="target_iban" label="Target IBAN" />
+                    <TextInput<FormValues> name="source_iban" label="Source IBAN" />
+                    <TextInput<FormValues> name="booked_date" label="Booked Date" type="date" required />
+                    <TextInput<FormValues> name="processed_date" label="Processed Date" type="date" required />
+                </>
+            )}
+        </FormModal>
     );
 }

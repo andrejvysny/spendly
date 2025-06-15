@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Accounts\AccountController;
 use App\Http\Controllers\AnalyticsController;
-use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportController;
@@ -28,6 +27,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
     Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
     Route::post('/transactions/bulk-update', [TransactionController::class, 'bulkUpdate'])->name('transactions.bulk-update');
+    Route::put('/transactions/{transaction}', [TransactionController::class, 'updateTransaction'])->name('transactions.update');
 
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
     Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
@@ -52,6 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/imports/mappings', [ImportController::class, 'saveMapping'])->name('imports.mappings.save');
     Route::put('/imports/mappings/{mapping}', [ImportController::class, 'updateMappingUsage'])->name('imports.mappings.usage');
     Route::delete('/imports/mappings/{mapping}', [ImportController::class, 'deleteMapping'])->name('imports.mappings.delete');
+    Route::post('/imports/revert/{id}', [ImportController::class, 'revertImport'])->name('imports.revert');
 
     // Category routes
     Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
@@ -73,13 +74,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 });
 
-// GoCardless routes
-Route::middleware(['auth'])->group(function () {
-    Route::get('/api/gocardless/institutions', [GoCardlessController::class, 'getInstitutions']);
-    Route::post('/api/gocardless/import', [GoCardlessController::class, 'importAccount']);
-    Route::get('/api/gocardless/callback', [GoCardlessController::class, 'handleCallback'])->name('gocardless.callback');
-});
-
 // Health check endpoint for container health monitoring
 Route::get('/health', function () {
     return response('OK', 200);
@@ -87,6 +81,7 @@ Route::get('/health', function () {
 
 // Add this route near the end, before any catch-all routes
 Route::get('/transactions/filter', [App\Http\Controllers\Transactions\TransactionController::class, 'filter']);
+Route::get('/transactions/load-more', [App\Http\Controllers\Transactions\TransactionController::class, 'loadMore']);
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
