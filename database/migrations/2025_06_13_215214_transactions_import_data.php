@@ -47,9 +47,9 @@ return new class extends Migration
     {
         Schema::table('transactions', function (Blueprint $table) {
             // Remove columns related to GoCardless sync
+            $table->dropIndex(['gocardless_account_id']);
             $table->dropColumn(['is_gocardless_synced', 'gocardless_synced_at', 'gocardless_account_id']);
             // Drop index for gocardless_account_id
-            $table->dropIndex(['gocardless_account_id']);
         });
 
         Schema::table('accounts', function (Blueprint $table) {
