@@ -1,7 +1,6 @@
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SelectInput, TextInput } from '@/components/ui/form-inputs';
-import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
+import { InferFormValues } from '@/components/ui/smart-form';
+import { FormModal } from '@/components/ui/form-modal';
 import { Currency } from '@/types/index';
 import { z } from 'zod';
 
@@ -44,54 +43,44 @@ export default function CreateAccountModal({ isOpen, onClose, onSubmit }: Create
 
     const handleSubmit = (values: FormValues) => {
         onSubmit(values);
-        onClose();
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Create New Account</DialogTitle>
-                    <DialogDescription>Fill in the details to create a new account.</DialogDescription>
-                </DialogHeader>
-                <SmartForm schema={formSchema} defaultValues={defaultValues} onSubmit={handleSubmit} formProps={{ className: 'space-y-4' }}>
-                    {() => (
-                        <>
-                            <TextInput<FormValues> name="name" label="Account Name" required />
-
-                            <TextInput<FormValues> name="account_id" label="Account ID" required />
-
-                            <SelectInput<FormValues>
-                                name="type"
-                                label="Account Type"
-                                options={[
-                                    { value: 'Default', label: 'Default' },
-                                    { value: 'Manual', label: 'Manual' },
-                                ]}
-                            />
-
-                            <TextInput<FormValues> name="bank_name" label="Bank Name" required />
-
-                            <TextInput<FormValues> name="iban" label="IBAN" required />
-
-                            <SelectInput<FormValues>
-                                name="currency"
-                                label="Currency"
-                                options={Object.values(Currency).map((currency) => ({
-                                    value: currency,
-                                    label: currency,
-                                }))}
-                            />
-
-                            <TextInput<FormValues> name="balance" label="Initial Balance" type="number" required />
-
-                            <DialogFooter>
-                                <Button type="submit">Create Account</Button>
-                            </DialogFooter>
-                        </>
-                    )}
-                </SmartForm>
-            </DialogContent>
-        </Dialog>
+        <FormModal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Create New Account"
+            description="Fill in the details to create a new account."
+            schema={formSchema}
+            defaultValues={defaultValues}
+            onSubmit={handleSubmit}
+            submitLabel="Create Account"
+        >
+            {() => (
+                <>
+                    <TextInput<FormValues> name="name" label="Account Name" required />
+                    <TextInput<FormValues> name="account_id" label="Account ID" required />
+                    <SelectInput<FormValues>
+                        name="type"
+                        label="Account Type"
+                        options={[
+                            { value: 'Default', label: 'Default' },
+                            { value: 'Manual', label: 'Manual' },
+                        ]}
+                    />
+                    <TextInput<FormValues> name="bank_name" label="Bank Name" required />
+                    <TextInput<FormValues> name="iban" label="IBAN" required />
+                    <SelectInput<FormValues>
+                        name="currency"
+                        label="Currency"
+                        options={Object.values(Currency).map((currency) => ({
+                            value: currency,
+                            label: currency,
+                        }))}
+                    />
+                    <TextInput<FormValues> name="balance" label="Initial Balance" type="number" required />
+                </>
+            )}
+        </FormModal>
     );
 }

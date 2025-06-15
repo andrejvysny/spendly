@@ -342,6 +342,11 @@ class BankDataController extends Controller
                 'account_id' => $accountId,
                 'error' => $e->getMessage(),
             ]);
+
+            return response()->json([
+                'message' => 'Failed to import account',
+                'error' => $e->getMessage(),
+            ], 500);
         }
 
         return response()->json([

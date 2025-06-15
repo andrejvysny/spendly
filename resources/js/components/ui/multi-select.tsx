@@ -58,9 +58,9 @@ export function MultiSelect<T extends string | number>({
   const [isOverflowing, setIsOverflowing] = useState(false);
 
   // Filter options based on search query
-  const filteredOptions = options.filter(option => 
+  const filteredOptions = options.filter(option =>
     option.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (option.description && option.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    option.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Check if badges overflow the container
