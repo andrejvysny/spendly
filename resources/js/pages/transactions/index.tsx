@@ -125,7 +125,7 @@ async function fetchTransactions(
         };
     }
 
-    function getHasMorePages(data: any): boolean {
+    function getHasMorePages(data: Record<string, unknown>): boolean {
         return data.transactions?.has_more_pages ?? data.transactions?.hasMorePages ?? data.hasMorePages ?? false;
     }
     throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
