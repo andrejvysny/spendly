@@ -105,9 +105,10 @@ export default function TransactionDetails({ transaction }: Props) {
                     <p className="text-muted-foreground text-sm">Description</p>
                     {isEditable ? (
                         <AutoResizeTextarea
-                            aria-label="Description"
                             value={editedDescription}
                             onChange={(e) => setEditedDescription(e.target.value)}
+                            label="Transaction description"
+                            id="transaction-description"
                         />
                     ) : (
                         <p>{editedDescription ?? '-'}</p>
@@ -119,9 +120,10 @@ export default function TransactionDetails({ transaction }: Props) {
                     <p className="text-muted-foreground text-sm">Note</p>
                     {isEditable ? (
                         <AutoResizeTextarea
-                            aria-label="Note"
                             value={editedNote}
                             onChange={(e) => setEditedNote(e.target.value)}
+                            label="Transaction note"
+                            id="transaction-note"
                         />
                     ) : (
                         <p>{editedNote ?? '-'}</p>
@@ -145,9 +147,12 @@ export default function TransactionDetails({ transaction }: Props) {
                     <p className="text-muted-foreground text-sm">Partner</p>
                     {isEditable ? (
                         <AutoResizeTextarea
-                            aria-label="Partner"
+
                             value={editedPartner}
                             onChange={(e) => setEditedPartner(e.target.value)}
+                            label="Transaction partner"
+                            id="transaction-partner"
+
                         />
                     ) : (
                         <p>{editedPartner ?? '-'}</p>
@@ -158,9 +163,12 @@ export default function TransactionDetails({ transaction }: Props) {
                     <p className="text-muted-foreground text-sm">Place</p>
                     {isEditable ? (
                         <AutoResizeTextarea
-                            aria-label="Place"
+
                             value={editedPlace}
                             onChange={(e) => setEditedPlace(e.target.value)}
+                            label="Transaction place"
+                            id="transaction-place"
+
                         />
                     ) : (
                         <p>{editedPlace ?? '-'}</p>
@@ -247,5 +255,42 @@ export function SimpleCollapse({ children, title, ...props }: { children: React.
                 <div className="mt-2 rounded-lg">{children}</div>
             </details>
         </div>
+    );
+}
+
+/**
+ * Auto-resizing textarea component with consistent styling and accessibility
+ */
+function AutoResizeTextarea({ 
+    value, 
+    onChange, 
+    label,
+    id,
+    ...props 
+}: { 
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+    label: string;
+    id: string;
+} & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        }
+    }, [value]);
+
+    return (
+        <textarea
+            ref={textareaRef}
+            id={id}
+            value={value}
+            onChange={onChange}
+            aria-label={label}
+            className="w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500 min-h-[24px] resize-none"
+            {...props}
+        />
     );
 }
