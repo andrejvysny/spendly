@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CategoryRequest;
-use App\Http\Requests\CategoryRequest;
 use App\Models\Category;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +15,7 @@ class CategoryController extends Controller
 {
     use AuthorizesRequests;
 
-    public function index()
+    public function index(): \Inertia\Response
     {
         $categories = Auth::user()->categories()
             ->with('parentCategory')
@@ -31,7 +31,7 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function store(CategoryRequest $request)
+    public function store(CategoryRequest $request): \Illuminate\Http\RedirectResponse
     {
         $validated = $request->validated();
 
@@ -47,7 +47,10 @@ class CategoryController extends Controller
         return redirect()->back()->with('success', 'Category created successfully');
     }
 
-    public function update(CategoryRequest $request, Category $category)
+    /**
+     * @throws AuthorizationException
+     */
+    public function update(CategoryRequest $request, Category $category): \Illuminate\Http\RedirectResponse
     {
         $this->authorize('update', $category);
 
@@ -75,7 +78,10 @@ class CategoryController extends Controller
         return redirect()->back()->with('success', 'Category updated successfully');
     }
 
-    public function destroy(Request $request, Category $category)
+    /**
+     * @throws AuthorizationException
+     */
+    public function destroy(Request $request, Category $category): \Illuminate\Http\RedirectResponse
     {
         $this->authorize('delete', $category);
 
