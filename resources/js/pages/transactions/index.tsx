@@ -8,6 +8,7 @@ import { LoadingDots } from '@/components/ui/loading-dots';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
 import { Switch } from '@/components/ui/switch';
+import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import { BreadcrumbItem, Category, Merchant, Transaction } from '@/types/index';
@@ -39,6 +40,7 @@ interface Props {
     categories: Category[];
     merchants: Merchant[];
     accounts: { id: number; name: string }[];
+    totalCount: number;
     filters?: {
         search?: string;
         account_id?: string;
@@ -91,11 +93,12 @@ async function fetchTransactions(
     has_more_pages: boolean;
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     totalSummary?: Record<string, number>;
+    totalCount?: number;
 }> {
     const endpoint = page ? '/transactions/load-more' : '/transactions/filter';
     const filteredParams = filterEmptyValues(params);
 
-    function filterEmptyValues(obj: Record<string, any>): Record<string, any> {
+    function filterEmptyValues(obj: Record<string, unknown>): Record<string, unknown> {
         return Object.fromEntries(
             Object.entries(obj).filter(
                 ([, v]) => v !== '' && v !== null && v !== undefined && !(typeof v === 'object' && Object.values(v).every((sv) => sv === '')),
@@ -115,9 +118,10 @@ async function fetchTransactions(
         return {
             data: response.data.transactions.data,
             current_page: response.data.transactions.current_page,
-            has_more_pages: response.data.transactions.has_more_pages,
+            has_more_pages: response.data.transactions.has_more_pages ?? response.data.transactions.hasMorePages ?? response.data.hasMorePages,
             monthlySummaries: response.data.monthlySummaries || {},
             totalSummary: response.data.totalSummary,
+            totalCount: response.data.totalCount,
         };
     }
     throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
@@ -147,14 +151,25 @@ export default function Index({
     categories,
     merchants,
     accounts,
+    totalCount: initialTotalCount,
     filters = {},
 }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const [transactions, setTransactions] = useState(initialTransactions.data);
-    const [currentPage, setCurrentPage] = useState(initialTransactions.current_page);
-    const [hasMorePages, setHasMorePages] = useState(initialTransactions.has_more_pages);
+    const {
+        data: transactions,
+        loadMore,
+        hasMore: hasMorePages,
+        isLoadingMore,
+        reset,
+        totalCount,
+    } = useLoadMore<Transaction, FilterValues>({
+        initialData: initialTransactions.data,
+        initialPage: initialTransactions.current_page,
+        initialHasMore: initialTransactions.has_more_pages ?? initialTransactions.hasMorePages,
+        initialTotalCount: initialTotalCount,
+        fetcher: fetchTransactions,
+    });
     const [monthlySummaries, setMonthlySummaries] = useState(initialSummaries);
     const [totalSummary, setTotalSummary] = useState(initialTotalSummary);
     const [isFiltered, setIsFiltered] = useState(initialIsFiltered);
@@ -401,9 +416,7 @@ export default function Index({
                     console.log('API response:', result);
                 }
                 if (result.data) {
-                    setTransactions(result.data);
-                    setCurrentPage(result.current_page);
-                    setHasMorePages(result.has_more_pages);
+                    reset(result.data, result.current_page, result.has_more_pages ?? result.hasMorePages, result.totalCount);
                     setMonthlySummaries(result.monthlySummaries || {});
                     if (isResettingFilters) {
                         setTotalSummary(undefined);
@@ -423,7 +436,7 @@ export default function Index({
                 setIsLoading(false);
             }
         },
-        [hasActiveFilters, setIsLoading, setTransactions, setMonthlySummaries, setTotalSummary, setIsFiltered],
+        [hasActiveFilters, setIsLoading, reset, setMonthlySummaries, setTotalSummary, setIsFiltered],
     );
 
     const debouncedFetchTransactions = useMemo(() => debounce(fetchTransactionsLogic, 300), [fetchTransactionsLogic]);
@@ -461,22 +474,8 @@ export default function Index({
     }, [filterValues, initialLoadComplete, debouncedFetchTransactions, hasActiveFilters, resetValues]);
 
     // Load more transactions
-    const loadMoreTransactions = async () => {
-        if (isLoadingMore || !hasMorePages) return;
-
-        setIsLoadingMore(true);
-        try {
-            const result = await fetchTransactions(filterValues, currentPage + 1);
-            if (result.data) {
-                setTransactions((prev) => [...prev, ...result.data]);
-                setCurrentPage(result.current_page);
-                setHasMorePages(result.has_more_pages);
-            }
-        } catch (error) {
-            console.error('Error loading more transactions:', error);
-        } finally {
-            setIsLoadingMore(false);
-        }
+    const handleLoadMore = async () => {
+        await loadMore(filterValues);
     };
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -884,8 +883,9 @@ export default function Index({
                                         merchants={merchants}
                                         showMonthlySummary={showMonthlySummary}
                                         hasMorePages={hasMorePages}
-                                        onLoadMore={loadMoreTransactions}
+                                        onLoadMore={handleLoadMore}
                                         isLoadingMore={isLoadingMore}
+                                        totalCount={totalCount}
                                     />
                                 </>
                             )}
