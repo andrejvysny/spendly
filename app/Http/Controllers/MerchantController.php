@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\MerchantRequest;
 use App\Models\Merchant;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
@@ -21,28 +22,20 @@ class MerchantController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(MerchantRequest $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'logo' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $request->validated();
 
         $merchant = Auth::user()->merchants()->create($validated);
 
         return redirect()->back()->with('success', 'Merchant created successfully');
     }
 
-    public function update(Request $request, Merchant $merchant)
+    public function update(MerchantRequest $request, Merchant $merchant)
     {
         $this->authorize('update', $merchant);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'logo' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $request->validated();
 
         $merchant->update($validated);
 
