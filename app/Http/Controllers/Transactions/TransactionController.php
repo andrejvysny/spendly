@@ -138,7 +138,9 @@ class TransactionController extends Controller
                 'transactions' => [
                     'data' => $transactions->items(),
                     'current_page' => $transactions->currentPage(),
-                    'hasMorePages' => $transactions->hasMorePages(),
+                    'has_more_pages' => $transactions->currentPage() < $transactions->lastPage(),
+                    'last_page' => $transactions->lastPage(),
+                    'total' => $transactions->total(),
                 ],
                 'monthlySummaries' => $monthlySummaries,
                 'totalCount' => $transactions->total(),
@@ -209,11 +211,16 @@ class TransactionController extends Controller
             }
 
             return response()->json([
-                'transactions' => $transactions,
+                'transactions' => [
+                    'data' => $transactions->items(),
+                    'current_page' => $transactions->currentPage(),
+                    'has_more_pages' => $transactions->hasMorePages(),
+                    'last_page' => $transactions->lastPage(),
+                    'total' => $transactions->total(),
+                ],
                 'monthlySummaries' => $monthlySummaries,
                 'totalSummary' => $totalSummary,
                 'isFiltered' => $isFiltered,
-                'hasMorePages' => $transactions->hasMorePages(),
                 'totalCount' => $transactions->total(),
             ]);
         } catch (\Exception $e) {

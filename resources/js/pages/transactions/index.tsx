@@ -128,13 +128,14 @@ async function fetchTransactions(
     });
 
     if (response.data.transactions) {
+        const transactions = response.data.transactions;
         return {
-            data: response.data.transactions.data,
-            current_page: response.data.transactions.current_page,
-            has_more_pages: response.data.transactions.hasMorePages,
+            data: transactions.data,
+            current_page: transactions.current_page,
+            has_more_pages: transactions.current_page < transactions.last_page,
             monthlySummaries: response.data.monthlySummaries || {},
             totalSummary: response.data.totalSummary as TotalSummary | undefined,
-            totalCount: response.data.totalCount,
+            totalCount: transactions.total,
         };
     }
 
