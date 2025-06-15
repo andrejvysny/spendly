@@ -119,7 +119,7 @@ class DuplicateTransactionService
         $referenceExact = isset($normalized['reference_id']) && $existing->transaction_id === $normalized['reference_id'];
 
         $descriptionScore = TextSimilarity::similarity((string) $existing->description, (string) ($normalized['description'] ?? ''));
-        $descriptionScore = $descriptionScore >= 0.90 ? 1.0 : 0.0;
+        $descriptionScore = $descriptionScore >= self::DESCRIPTION_SIMILARITY_THRESHOLD ? 1.0 : 0.0;
 
         return ($dateMatch ? 0.50 : 0.0)
             + ($amountMatch ? 0.30 : 0.0)

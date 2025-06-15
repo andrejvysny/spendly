@@ -670,9 +670,9 @@ class ImportController extends Controller
             return 'skipped';
         }
         $data['duplicate_identifier'] = $dup['identifier'];
-        foreach ($dup['fields'] as $field => $value) {
-            $data['original_'.$field] = $value;
-        }
+        // Removed duplication of fields with the 'original_' prefix.
+        // Duplicate information is already stored in metadata.
+        // No changes needed here.
         $data['metadata']['duplicate_identifier'] = $dup['identifier'];
         $data['metadata']['duplicate_fields'] = $dup['fields'];
         $data['metadata']['duplicate_level'] = $dup['level'];
