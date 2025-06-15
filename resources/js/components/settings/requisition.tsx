@@ -56,18 +56,19 @@ function Requisition({
 
         setIsDeleting(true);
         try {
-            axios.delete(`/api/bank-data/gocardless/requisitions/${requisitionToDelete}`).then((response) => {
-                console.log('Requisition deleted:', response.data);
+            // await the delete so errors go into the catch below
+            await axios.delete(
+                `/api/bank-data/gocardless/requisitions/${requisitionToDelete}`
+            );
 
-                setRequisitions((prev) => ({
-                    ...prev,
-                    results: prev.results.filter((req) => req.id !== requisitionToDelete),
-                    count: prev.count - 1,
-                }));
-                // Close dialog and reset state
-                setDeleteDialogOpen(false);
-                setRequisitionToDelete(null);
-            });
+            setRequisitions((prev) => ({
+                ...prev,
+                results: prev.results.filter((req) => req.id !== requisitionToDelete),
+                count: prev.count - 1,
+            }));
+
+            setDeleteDialogOpen(false);
+            setRequisitionToDelete(null);
         } catch (error) {
             console.error('Error deleting requisition:', error);
         } finally {
