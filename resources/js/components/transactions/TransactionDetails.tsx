@@ -8,6 +8,32 @@ interface Props {
     transaction: Transaction;
 }
 
+const textareaClass = 'w-full rounded bg-gray-200 p-1 outline-0 dark:bg-gray-500 resize-none';
+
+function AutoResizeTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+    const ref = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+        if (ref.current) {
+            ref.current.style.height = 'auto';
+            ref.current.style.height = `${ref.current.scrollHeight}px`;
+        }
+    }, [props.value]);
+
+    return (
+        <textarea
+            ref={ref}
+            {...props}
+            className={`${textareaClass} ${props.className ?? ''}`.trim()}
+            onInput={(e) => {
+                e.currentTarget.style.height = 'auto';
+                e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                props.onInput?.(e);
+            }}
+        />
+    );
+}
+
 /**
  * Displays detailed information about a transaction with inline editing capabilities for select fields.
  *
@@ -121,10 +147,12 @@ export default function TransactionDetails({ transaction }: Props) {
                     <p className="text-muted-foreground text-sm">Partner</p>
                     {isEditable ? (
                         <AutoResizeTextarea
+
                             value={editedPartner}
                             onChange={(e) => setEditedPartner(e.target.value)}
                             label="Transaction partner"
                             id="transaction-partner"
+
                         />
                     ) : (
                         <p>{editedPartner ?? '-'}</p>
@@ -135,10 +163,12 @@ export default function TransactionDetails({ transaction }: Props) {
                     <p className="text-muted-foreground text-sm">Place</p>
                     {isEditable ? (
                         <AutoResizeTextarea
+
                             value={editedPlace}
                             onChange={(e) => setEditedPlace(e.target.value)}
                             label="Transaction place"
                             id="transaction-place"
+
                         />
                     ) : (
                         <p>{editedPlace ?? '-'}</p>
