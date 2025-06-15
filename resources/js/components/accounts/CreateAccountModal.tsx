@@ -1,6 +1,6 @@
 import { SelectInput, TextInput } from '@/components/ui/form-inputs';
-import { InferFormValues } from '@/components/ui/smart-form';
 import { FormModal } from '@/components/ui/form-modal';
+import { InferFormValues } from '@/components/ui/smart-form';
 import { Currency } from '@/types/index';
 import { z } from 'zod';
 

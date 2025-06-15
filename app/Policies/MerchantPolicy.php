@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Models\Merchant;
-use App\Models\User;
 
 class MerchantPolicy extends OwnedByUserPolicy
 {

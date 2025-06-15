@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Models\Tag;
-use App\Models\User;
 
 class TagPolicy extends OwnedByUserPolicy
 {
