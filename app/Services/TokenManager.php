@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 class TokenManager
 {
     private string $baseUrl = 'https://bankaccountdata.gocardless.com/api/v2';
+
     private User $user;
 
     public function __construct(User $user)
@@ -20,7 +21,6 @@ class TokenManager
     /**
      * Get a valid access token, refreshing if necessary.
      *
-     * @return string
      * @throws \Exception
      */
     public function getAccessToken(): string
@@ -41,23 +41,21 @@ class TokenManager
 
     /**
      * Check if the access token is still valid.
-     *
-     * @return bool
      */
     private function isAccessTokenValid(): bool
     {
-        if (!$this->user->gocardless_access_token || !$this->user->gocardless_access_token_expires_at) {
+        if (! $this->user->gocardless_access_token || ! $this->user->gocardless_access_token_expires_at) {
             return false;
         }
 
         $expiresAt = $this->user->gocardless_access_token_expires_at;
-        
+
         // Handle case where it might still be a string
         if (is_string($expiresAt)) {
             $expiresAt = new DateTime($expiresAt);
         }
-        
-        $now = new DateTime();
+
+        $now = new DateTime;
 
         // Add 5 minute buffer
         $now->modify('+5 minutes');
@@ -67,23 +65,21 @@ class TokenManager
 
     /**
      * Check if the refresh token is still valid.
-     *
-     * @return bool
      */
     private function isRefreshTokenValid(): bool
     {
-        if (!$this->user->gocardless_refresh_token || !$this->user->gocardless_refresh_token_expires_at) {
+        if (! $this->user->gocardless_refresh_token || ! $this->user->gocardless_refresh_token_expires_at) {
             return false;
         }
 
         $expiresAt = $this->user->gocardless_refresh_token_expires_at;
-        
+
         // Handle case where it might still be a string
         if (is_string($expiresAt)) {
             $expiresAt = new DateTime($expiresAt);
         }
-        
-        $now = new DateTime();
+
+        $now = new DateTime;
 
         return $expiresAt > $now;
     }
@@ -91,7 +87,6 @@ class TokenManager
     /**
      * Refresh the access token using the refresh token.
      *
-     * @return string
      * @throws \Exception
      */
     private function refreshAccessToken(): string
@@ -102,8 +97,8 @@ class TokenManager
             'refresh' => $this->user->gocardless_refresh_token,
         ]);
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to refresh access token: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to refresh access token: '.$response->body());
         }
 
         $data = $response->json();
@@ -115,14 +110,13 @@ class TokenManager
     /**
      * Get a new token set using credentials.
      *
-     * @return string
      * @throws \Exception
      */
     private function getNewTokenSet(): string
     {
         Log::info('Getting new GoCardless token set', ['user_id' => $this->user->id]);
 
-        if (!$this->user->gocardless_secret_id || !$this->user->gocardless_secret_key) {
+        if (! $this->user->gocardless_secret_id || ! $this->user->gocardless_secret_key) {
             throw new \Exception('GoCardless credentials not configured');
         }
 
@@ -131,8 +125,8 @@ class TokenManager
             'secret_key' => $this->user->gocardless_secret_key,
         ]);
 
-        if (!$response->successful()) {
-            throw new \Exception('Failed to get new token set: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Failed to get new token set: '.$response->body());
         }
 
         $data = $response->json();
@@ -143,18 +137,16 @@ class TokenManager
 
     /**
      * Update user tokens in database.
-     *
-     * @param array $tokenData
      */
     private function updateTokens(array $tokenData): void
     {
-        $now = new DateTime();
-        
+        $now = new DateTime;
+
         $accessExpiresAt = clone $now;
-        $accessExpiresAt->modify('+' . $tokenData['access_expires'] . ' seconds');
+        $accessExpiresAt->modify('+'.$tokenData['access_expires'].' seconds');
 
         $refreshExpiresAt = clone $now;
-        $refreshExpiresAt->modify('+' . $tokenData['refresh_expires'] . ' seconds');
+        $refreshExpiresAt->modify('+'.$tokenData['refresh_expires'].' seconds');
 
         $this->user->update([
             'gocardless_access_token' => $tokenData['access'],
@@ -169,4 +161,4 @@ class TokenManager
             'refresh_expires_at' => $refreshExpiresAt->format('Y-m-d H:i:s'),
         ]);
     }
-} 
+}

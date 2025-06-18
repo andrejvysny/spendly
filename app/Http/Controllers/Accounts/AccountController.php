@@ -191,11 +191,11 @@ class AccountController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to update sync options: ' . $e->getMessage());
+            \Log::error('Failed to update sync options: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update sync options: ' . $e->getMessage(),
+                'message' => 'Failed to update sync options: '.$e->getMessage(),
             ], 500);
         }
     }

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Account;
 use App\Repositories\TransactionRepository;
-use App\Services\GocardlessMapper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -20,9 +19,7 @@ class TransactionSyncService
     /**
      * Sync transactions for an account.
      *
-     * @param array $transactions
-     * @param Account $account
-     * @param bool $updateExisting Whether to update already imported transactions (default: true)
+     * @param  bool  $updateExisting  Whether to update already imported transactions (default: true)
      * @return array Statistics about the sync
      */
     public function syncTransactions(array $transactions, Account $account, bool $updateExisting = true): array
@@ -55,10 +52,7 @@ class TransactionSyncService
     /**
      * Process a batch of transactions.
      *
-     * @param array $batch
-     * @param Account $account
-     * @param bool $updateExisting Whether to update already imported transactions
-     * @return array
+     * @param  bool  $updateExisting  Whether to update already imported transactions
      */
     private function processBatch(array $batch, Account $account, bool $updateExisting = true): array
     {
@@ -86,9 +80,10 @@ class TransactionSyncService
             try {
                 $transactionId = $transaction['transactionId'] ?? null;
 
-                if (!$transactionId) {
+                if (! $transactionId) {
                     Log::warning('Transaction without ID', ['transaction' => $transaction]);
                     $stats['errors']++;
+
                     continue;
                 }
 
@@ -104,7 +99,7 @@ class TransactionSyncService
                         Log::info('Skipping existing transaction', [
                             'transaction_id' => $transactionId,
                             'account_id' => $account->id,
-                            'reason' => 'updateExisting is false'
+                            'reason' => 'updateExisting is false',
                         ]);
                     }
                 } else {
@@ -125,13 +120,13 @@ class TransactionSyncService
         // Perform batch operations
         DB::transaction(function () use ($toCreate, $toUpdate, &$stats) {
             // Batch create
-            if (!empty($toCreate)) {
+            if (! empty($toCreate)) {
                 $created = $this->transactionRepository->createBatch($toCreate);
                 $stats['created'] = $created;
             }
 
             // Batch update
-            if (!empty($toUpdate)) {
+            if (! empty($toUpdate)) {
                 $updated = $this->transactionRepository->updateBatch($toUpdate);
                 $stats['updated'] = $updated;
             }
@@ -142,21 +137,17 @@ class TransactionSyncService
 
     /**
      * Calculate date range for sync.
-     *
-     * @param Account $account
-     * @param int $maxDays
-     * @return array
      */
     public function calculateDateRange(Account $account, int $maxDays = 90, bool $forceMax = false): array
     {
         $dateTo = now()->format('Y-m-d');
 
-        //TODO validate
+        // TODO validate
 
         // If account has been synced before, sync from last sync date
-        if ($account->gocardless_last_synced_at && !$forceMax) {
+        if ($account->gocardless_last_synced_at && ! $forceMax) {
             // Ensure last synced date is not more than max days ago
-            if (!$account->gocardless_last_synced_at->isBefore(now()->subDays($maxDays))) {
+            if (! $account->gocardless_last_synced_at->isBefore(now()->subDays($maxDays))) {
                 // If last synced date is not more than max days ago, sync from that date subtracting one day for safety
                 $dateFrom = $account->gocardless_last_synced_at->subDays(1)->format('Y-m-d');
             } else {

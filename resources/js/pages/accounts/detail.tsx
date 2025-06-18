@@ -12,13 +12,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import ValueSplit from '@/components/ui/value-split';
 import AppLayout from '@/layouts/app-layout';
@@ -261,18 +255,14 @@ export default function Detail({
                                     />
 
                                     <div className="flex">
-                                        <Button 
-                                            onClick={handleSyncTransactions} 
-                                            disabled={syncing} 
-                                            className="flex-1 rounded-r-none"
-                                        >
+                                        <Button onClick={handleSyncTransactions} disabled={syncing} className="flex-1 rounded-r-none">
                                             {syncing ? 'Syncing...' : 'Sync Transactions'}
                                         </Button>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button 
-                                                    variant="outline" 
-                                                    className="rounded-l-none focus-none focus-visible:ring-0 bg-foreground border-1 border-foreground text-background hover:bg-foreground/90 hover:text-background"
+                                                <Button
+                                                    variant="outline"
+                                                    className="focus-none bg-foreground border-foreground text-background hover:bg-foreground/90 hover:text-background rounded-l-none border-1 focus-visible:ring-0"
                                                     disabled={syncing}
                                                 >
                                                     <Settings className="h-4 w-4" />
@@ -281,8 +271,8 @@ export default function Detail({
                                             <DropdownMenuContent align="end" className="w-56">
                                                 <div className="px-2 py-1.5 text-sm font-semibold">Sync Settings</div>
                                                 <DropdownMenuSeparator />
-                                                <DropdownMenuItem 
-                                                    className="flex items-center justify-between cursor-pointer"
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer items-center justify-between"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
@@ -291,7 +281,7 @@ export default function Detail({
                                                 >
                                                     <div className="flex flex-col">
                                                         <span className="text-sm">Update existing transactions</span>
-                                                        <span className="text-xs text-muted-foreground">
+                                                        <span className="text-muted-foreground text-xs">
                                                             Update existing transactions with latest data
                                                         </span>
                                                     </div>
@@ -302,8 +292,8 @@ export default function Detail({
                                                         disabled={savingOptions}
                                                     />
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem 
-                                                    className="flex items-center justify-between cursor-pointer"
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer items-center justify-between"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
@@ -312,7 +302,7 @@ export default function Detail({
                                                 >
                                                     <div className="flex flex-col">
                                                         <span className="text-sm">Force full sync (max 90 days)</span>
-                                                        <span className="text-xs text-muted-foreground">
+                                                        <span className="text-muted-foreground text-xs">
                                                             Sync from 90 days ago instead of last sync
                                                         </span>
                                                     </div>

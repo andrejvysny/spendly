@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Account;
 use App\Models\Transaction;
 use Carbon\Carbon;
-use Illuminate\Support\Str;
 
 class GocardlessMapper
 {
@@ -17,7 +16,7 @@ class GocardlessMapper
     /**
      * Maps GoCardless account data into a structured array for application use.
      *
-     * @param array $data Raw GoCardless account data.
+     * @param  array  $data  Raw GoCardless account data.
      * @return array Structured account data suitable for internal processing.
      */
     public function mapAccountData(array $data): array
@@ -39,9 +38,9 @@ class GocardlessMapper
     /**
      * Retrieves a value from a nested array using dot notation, returning a default if the key is not found.
      *
-     * @param array $array The array to search.
-     * @param string $key The dot notation key (e.g., 'foo.bar.baz').
-     * @param mixed $default The value to return if the key does not exist.
+     * @param  array  $array  The array to search.
+     * @param  string  $key  The dot notation key (e.g., 'foo.bar.baz').
+     * @param  mixed  $default  The value to return if the key does not exist.
      * @return mixed The value found at the specified key, or the default value.
      */
     private function get(array $array, string $key, $default = null)
@@ -49,7 +48,7 @@ class GocardlessMapper
         $keys = explode('.', $key);
         $value = $array;
         foreach ($keys as $segment) {
-            if (!is_array($value) || !array_key_exists($segment, $value)) {
+            if (! is_array($value) || ! array_key_exists($segment, $value)) {
                 return $default;
             }
             $value = $value[$segment];
@@ -61,7 +60,7 @@ class GocardlessMapper
     /**
      * Safely parses a date string into a Carbon instance.
      *
-     * @param string|null $date The date string to parse.
+     * @param  string|null  $date  The date string to parse.
      * @return Carbon|null The parsed date or null if invalid.
      */
     private function parseDate(?string $date): ?Carbon
@@ -80,7 +79,7 @@ class GocardlessMapper
     /**
      * Extracts and formats the transaction description.
      *
-     * @param array $transaction The transaction data.
+     * @param  array  $transaction  The transaction data.
      * @return string The formatted description.
      */
     private function formatDescription(array $transaction): string
@@ -111,7 +110,7 @@ class GocardlessMapper
     /**
      * Extracts the partner name from the transaction data.
      *
-     * @param array $transaction The transaction data.
+     * @param  array  $transaction  The transaction data.
      * @return string|null The partner name or null if not found.
      */
     private function extractPartnerName(array $transaction): ?string
@@ -140,8 +139,8 @@ class GocardlessMapper
     /**
      * Maps a GoCardless transaction array and associated account into a structured array for internal use.
      *
-     * @param array $transaction Raw transaction data from GoCardless.
-     * @param Account $account The associated account model.
+     * @param  array  $transaction  Raw transaction data from GoCardless.
+     * @param  Account  $account  The associated account model.
      * @return array Structured transaction data suitable for application processing.
      */
     public function mapTransactionData(array $transaction, Account $account): array
@@ -200,7 +199,7 @@ class GocardlessMapper
     /**
      * Determines the transaction type based on the transaction data.
      *
-     * @param array $transaction The transaction data.
+     * @param  array  $transaction  The transaction data.
      * @return string The determined transaction type.
      */
     private function determineTransactionType(array $transaction): string
@@ -229,7 +228,7 @@ class GocardlessMapper
     /**
      * Extracts metadata from the transaction data.
      *
-     * @param array $transaction The transaction data.
+     * @param  array  $transaction  The transaction data.
      * @return array The extracted metadata.
      */
     private function extractMetadata(array $transaction): array
