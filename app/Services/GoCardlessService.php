@@ -19,33 +19,42 @@ class GoCardlessService
     public function __construct(
         private AccountRepository $accountRepository,
         private TransactionSyncService $transactionSyncService,
-        private GocardlessMapper $mapper,
-        private User $user
-    ) {
-        $this->tokenManager = new TokenManager($user);
-        $this->initializeClient();
-    }
+        private GocardlessMapper $mapper
+    ) {}
 
     /**
      * Initialize the GoCardless client with user credentials.
      */
-    private function initializeClient(): void
+    private function initializeClient(User $user): void
     {
         try {
+            $this->tokenManager = new TokenManager($user);
             $accessToken = $this->tokenManager->getAccessToken();
             
+            // Ensure datetime fields are properly converted
+            $refreshTokenExpires = $user->gocardless_refresh_token_expires_at;
+            $accessTokenExpires = $user->gocardless_access_token_expires_at;
+            
+            // Convert to DateTime if they are strings
+            if (is_string($refreshTokenExpires)) {
+                $refreshTokenExpires = new \DateTime($refreshTokenExpires);
+            }
+            if (is_string($accessTokenExpires)) {
+                $accessTokenExpires = new \DateTime($accessTokenExpires);
+            }
+            
             $this->client = new GoCardlessBankData(
-                $this->user->gocardless_secret_id,
-                $this->user->gocardless_secret_key,
+                $user->gocardless_secret_id,
+                $user->gocardless_secret_key,
                 $accessToken,
-                $this->user->gocardless_refresh_token,
-                $this->user->gocardless_refresh_token_expires_at,
-                $this->user->gocardless_access_token_expires_at,
+                $user->gocardless_refresh_token,
+                $refreshTokenExpires,
+                $accessTokenExpires,
                 true // Enable caching
             );
         } catch (\Exception $e) {
             Log::error('Failed to initialize GoCardless client', [
-                'user_id' => $this->user->id,
+                'user_id' => $user->id,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -56,19 +65,27 @@ class GoCardlessService
      * Sync transactions for a specific account.
      *
      * @param int $accountId
+     * @param User $user
+     * @param bool $updateExisting Whether to update already imported transactions (default: true)
+     * @param bool $forceMaxDateRange Whether to force sync from max days ago instead of last sync date (default: false)
      * @return array
      * @throws \Exception
      */
-    public function syncAccountTransactions(int $accountId): array
+    public function syncAccountTransactions(int $accountId, User $user, bool $updateExisting = true, bool $forceMaxDateRange = false): array
     {
         Log::info('Starting transaction sync', [
             'account_id' => $accountId,
-            'user_id' => $this->user->id,
+            'user_id' => $user->id,
+            'update_existing' => $updateExisting,
+            'force_max_date_range' => $forceMaxDateRange,
         ]);
 
+        // Initialize client with user
+        $this->initializeClient($user);
+
         // Get the account
-        $account = $this->accountRepository->findByIdForUser($accountId, $this->user->id);
-        
+        $account = $this->accountRepository->findByIdForUser($accountId, $user->id);
+
         if (!$account) {
             throw new \Exception('Account not found');
         }
@@ -78,7 +95,7 @@ class GoCardlessService
         }
 
         // Calculate date range
-        $dateRange = $this->transactionSyncService->calculateDateRange($account);
+        $dateRange = $this->transactionSyncService->calculateDateRange($account, 90, $forceMaxDateRange);
 
         // Get transactions from GoCardless
         $response = $this->client->getTransactions(
@@ -99,7 +116,7 @@ class GoCardlessService
         ]);
 
         // Sync booked transactions
-        $stats = $this->transactionSyncService->syncTransactions($bookedTransactions, $account);
+        $stats = $this->transactionSyncService->syncTransactions($bookedTransactions, $account, $updateExisting);
 
         // Update sync timestamp
         $this->accountRepository->updateSyncTimestamp($account);
@@ -107,6 +124,8 @@ class GoCardlessService
         Log::info('Transaction sync completed', [
             'account_id' => $accountId,
             'stats' => $stats,
+            'update_existing' => $updateExisting,
+            'force_max_date_range' => $forceMaxDateRange,
         ]);
 
         return [
@@ -119,23 +138,29 @@ class GoCardlessService
     /**
      * Sync all GoCardless accounts for the user.
      *
+     * @param User $user
+     * @param bool $updateExisting Whether to update already imported transactions (default: true)
+     * @param bool $forceMaxDateRange Whether to force sync from max days ago instead of last sync date (default: false)
      * @return array
      */
-    public function syncAllAccounts(): array
+    public function syncAllAccounts(User $user, bool $updateExisting = true, bool $forceMaxDateRange = false): array
     {
-        $accounts = $this->accountRepository->getGocardlessSyncedAccounts($this->user->id);
+        // Initialize client with user
+        $this->initializeClient($user);
+
+        $accounts = $this->accountRepository->getGocardlessSyncedAccounts($user->id);
         $results = [];
 
         foreach ($accounts as $account) {
             try {
-                $result = $this->syncAccountTransactions($account->id);
+                $result = $this->syncAccountTransactions($account->id, $user, $updateExisting, $forceMaxDateRange);
                 $results[] = array_merge($result, ['status' => 'success']);
             } catch (\Exception $e) {
                 Log::error('Failed to sync account', [
                     'account_id' => $account->id,
                     'error' => $e->getMessage(),
                 ]);
-                
+
                 $results[] = [
                     'account_id' => $account->id,
                     'status' => 'error',
@@ -151,10 +176,12 @@ class GoCardlessService
      * Get available institutions for a country.
      *
      * @param string $countryCode
+     * @param User $user
      * @return array
      */
-    public function getInstitutions(string $countryCode): array
+    public function getInstitutions(string $countryCode, User $user): array
     {
+        $this->initializeClient($user);
         return $this->client->getInstitutions($countryCode);
     }
 
@@ -163,10 +190,12 @@ class GoCardlessService
      *
      * @param string $institutionId
      * @param string $redirectUrl
+     * @param User $user
      * @return array
      */
-    public function createRequisition(string $institutionId, string $redirectUrl): array
+    public function createRequisition(string $institutionId, string $redirectUrl, User $user): array
     {
+        $this->initializeClient($user);
         return $this->client->createRequisition($institutionId, $redirectUrl);
     }
 
@@ -174,10 +203,12 @@ class GoCardlessService
      * Get requisition details.
      *
      * @param string $requisitionId
+     * @param User $user
      * @return array
      */
-    public function getRequisition(string $requisitionId): array
+    public function getRequisition(string $requisitionId, User $user): array
     {
+        $this->initializeClient($user);
         return $this->client->getRequisitions($requisitionId);
     }
 
@@ -185,13 +216,16 @@ class GoCardlessService
      * Import account from GoCardless.
      *
      * @param string $gocardlessAccountId
+     * @param User $user
      * @return Account
      * @throws \Exception
      */
-    public function importAccount(string $gocardlessAccountId): Account
+    public function importAccount(string $gocardlessAccountId, User $user): Account
     {
+        $this->initializeClient($user);
+
         // Check if account already exists
-        if ($this->accountRepository->gocardlessAccountExists($gocardlessAccountId, $this->user->id)) {
+        if ($this->accountRepository->gocardlessAccountExists($gocardlessAccountId, $user->id)) {
             throw new \Exception('Account already exists');
         }
 
@@ -216,9 +250,9 @@ class GoCardlessService
             'balance' => $currentBalance,
         ]));
 
-        $mappedData['user_id'] = $this->user->id;
+        $mappedData['user_id'] = $user->id;
         $mappedData['name'] = $mappedData['name'] ?? 'Imported Account';
 
         return $this->accountRepository->create($mappedData);
     }
-} 
+}

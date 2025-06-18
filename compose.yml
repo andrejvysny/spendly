@@ -1,8 +1,9 @@
 services:
   cli:
     image: ghcr.io/andrejvysny/php-cli:8.3
+    env_file: .env
     volumes:
-      - .:/var/www
+      - .:/var/www/html
 
   node:
     image: node:20-alpine

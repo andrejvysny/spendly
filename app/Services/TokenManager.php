@@ -50,7 +50,13 @@ class TokenManager
             return false;
         }
 
-        $expiresAt = new DateTime($this->user->gocardless_access_token_expires_at);
+        $expiresAt = $this->user->gocardless_access_token_expires_at;
+        
+        // Handle case where it might still be a string
+        if (is_string($expiresAt)) {
+            $expiresAt = new DateTime($expiresAt);
+        }
+        
         $now = new DateTime();
 
         // Add 5 minute buffer
@@ -70,7 +76,13 @@ class TokenManager
             return false;
         }
 
-        $expiresAt = new DateTime($this->user->gocardless_refresh_token_expires_at);
+        $expiresAt = $this->user->gocardless_refresh_token_expires_at;
+        
+        // Handle case where it might still be a string
+        if (is_string($expiresAt)) {
+            $expiresAt = new DateTime($expiresAt);
+        }
+        
         $now = new DateTime();
 
         return $expiresAt > $now;

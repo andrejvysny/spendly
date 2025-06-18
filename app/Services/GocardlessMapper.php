@@ -193,7 +193,7 @@ class GocardlessMapper
 
             'balance_after_transaction' => $this->get($transaction, 'balanceAfterTransaction.balanceAmount.amount', 0),
             'metadata' => $metadata,
-            'import_data' => $transaction,
+            'import_data' => json_encode($transaction, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
         ];
     }
 
