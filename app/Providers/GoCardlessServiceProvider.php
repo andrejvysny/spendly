@@ -40,8 +40,7 @@ class GoCardlessServiceProvider extends ServiceProvider
             return new GoCardlessService(
                 $app->make(AccountRepository::class),
                 $app->make(TransactionSyncService::class),
-                $app->make(GocardlessMapper::class),
-                $app->make('auth')->user()
+                $app->make(GocardlessMapper::class)
             );
         });
     }

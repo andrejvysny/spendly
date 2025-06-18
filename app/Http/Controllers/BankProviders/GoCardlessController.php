@@ -24,7 +24,13 @@ class GoCardlessController extends Controller
     public function syncTransactions(Request $request, int $accountId): JsonResponse
     {
         try {
-            $result = $this->gocardlessService->syncAccountTransactions($accountId);
+            // Get updateExisting parameter from request, default to true
+            $updateExisting = $request->boolean('update_existing', true);
+            
+            // Get forceMaxDateRange parameter from request, default to false
+            $forceMaxDateRange = $request->boolean('force_max_date_range', false);
+            
+            $result = $this->gocardlessService->syncAccountTransactions($accountId, $request->user(), $updateExisting, $forceMaxDateRange);
 
             return response()->json([
                 'success' => true,
@@ -56,7 +62,13 @@ class GoCardlessController extends Controller
     public function syncAllAccounts(Request $request): JsonResponse
     {
         try {
-            $results = $this->gocardlessService->syncAllAccounts();
+            // Get updateExisting parameter from request, default to true
+            $updateExisting = $request->boolean('update_existing', true);
+            
+            // Get forceMaxDateRange parameter from request, default to false
+            $forceMaxDateRange = $request->boolean('force_max_date_range', false);
+            
+            $results = $this->gocardlessService->syncAllAccounts($request->user(), $updateExisting, $forceMaxDateRange);
 
             return response()->json([
                 'success' => true,

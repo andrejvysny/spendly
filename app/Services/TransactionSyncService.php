@@ -22,9 +22,10 @@ class TransactionSyncService
      *
      * @param array $transactions
      * @param Account $account
+     * @param bool $updateExisting Whether to update already imported transactions (default: true)
      * @return array Statistics about the sync
      */
-    public function syncTransactions(array $transactions, Account $account): array
+    public function syncTransactions(array $transactions, Account $account, bool $updateExisting = true): array
     {
         $stats = [
             'total' => count($transactions),
@@ -40,7 +41,7 @@ class TransactionSyncService
 
         // Process transactions in batches
         foreach (array_chunk($transactions, self::BATCH_SIZE) as $batch) {
-            $batchStats = $this->processBatch($batch, $account);
+            $batchStats = $this->processBatch($batch, $account, $updateExisting);
 
             $stats['created'] += $batchStats['created'];
             $stats['updated'] += $batchStats['updated'];
@@ -56,9 +57,10 @@ class TransactionSyncService
      *
      * @param array $batch
      * @param Account $account
+     * @param bool $updateExisting Whether to update already imported transactions
      * @return array
      */
-    private function processBatch(array $batch, Account $account): array
+    private function processBatch(array $batch, Account $account, bool $updateExisting = true): array
     {
         $stats = [
             'created' => 0,
@@ -93,8 +95,18 @@ class TransactionSyncService
                 $mappedData = $this->mapper->mapTransactionData($transaction, $account);
 
                 if ($existingIds->contains($transactionId)) {
-                    // Prepare for update
-                    $toUpdate[$transactionId] = $mappedData;
+                    if ($updateExisting) {
+                        // Prepare for update
+                        $toUpdate[$transactionId] = $mappedData;
+                    } else {
+                        // Skip existing transactions if updateExisting is false
+                        $stats['skipped']++;
+                        Log::info('Skipping existing transaction', [
+                            'transaction_id' => $transactionId,
+                            'account_id' => $account->id,
+                            'reason' => 'updateExisting is false'
+                        ]);
+                    }
                 } else {
                     // Prepare for creation
                     $mappedData['created_at'] = now();
@@ -135,14 +147,14 @@ class TransactionSyncService
      * @param int $maxDays
      * @return array
      */
-    public function calculateDateRange(Account $account, int $maxDays = 90): array
+    public function calculateDateRange(Account $account, int $maxDays = 90, bool $forceMax = false): array
     {
         $dateTo = now()->format('Y-m-d');
 
         //TODO validate
 
         // If account has been synced before, sync from last sync date
-        if ($account->gocardless_last_synced_at) {
+        if ($account->gocardless_last_synced_at && !$forceMax) {
             // Ensure last synced date is not more than max days ago
             if (!$account->gocardless_last_synced_at->isBefore(now()->subDays($maxDays))) {
                 // If last synced date is not more than max days ago, sync from that date subtracting one day for safety

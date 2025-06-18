@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\User;
 use App\Services\GoCardlessBankData;
+use App\Services\GoCardlessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,16 +18,18 @@ use Inertia\Response;
 class BankDataController extends Controller
 {
     private GoCardlessBankData $client;
-
     private User $user;
+    private GoCardlessService $gocardlessService;
 
     /**
      * Initializes the controller with the authenticated user's GoCardless credentials and sets up the GoCardless API client.
      *
      * Retrieves the current user's GoCardless credentials from the database. If credentials are present, initializes the GoCardlessBankData client; otherwise, logs a warning.
      */
-    public function __construct()
+    public function __construct(GoCardlessService $gocardlessService)
     {
+        $this->gocardlessService = $gocardlessService;
+        
         $this->user = User::select(
             'gocardless_secret_id',
             'gocardless_secret_key',
@@ -43,14 +46,25 @@ class BankDataController extends Controller
         if (! $this->user->gocardless_secret_id || ! $this->user->gocardless_secret_key) {
             Log::warning('GoCardless credentials not set for user', ['user_id' => $this->user->id]);
         } else {
+            // Ensure datetime fields are properly converted
+            $refreshTokenExpires = $this->user->gocardless_refresh_token_expires_at;
+            $accessTokenExpires = $this->user->gocardless_access_token_expires_at;
+            
+            // Convert to DateTime if they are strings
+            if (is_string($refreshTokenExpires)) {
+                $refreshTokenExpires = new \DateTime($refreshTokenExpires);
+            }
+            if (is_string($accessTokenExpires)) {
+                $accessTokenExpires = new \DateTime($accessTokenExpires);
+            }
 
             $this->client = new GoCardlessBankData(
                 $this->user->gocardless_secret_id ?? getenv('GOCARDLESS_SECRET_ID'),
                 $this->user->gocardless_secret_key ?? getenv('GOCARDLESS_SECRET_KEY'),
                 $this->user->gocardless_access_token ?? null,
                 $this->user->gocardless_refresh_token ?? null,
-                $this->user->gocardless_refresh_token_expires_at ?? null,
-                $this->user->gocardless_access_token_expires_at ?? null,
+                $refreshTokenExpires,
+                $accessTokenExpires,
                 false
             );
         }
@@ -385,7 +399,13 @@ class BankDataController extends Controller
     public function syncAccountTransactions(Request $request, int $account): JsonResponse
     {
         try {
-            $result = $this->gocardlessService->syncAccountTransactions($account);
+            // Get updateExisting parameter from request, default to true
+            $updateExisting = $request->boolean('update_existing', true);
+            
+            // Get forceMaxDateRange parameter from request, default to false
+            $forceMaxDateRange = $request->boolean('force_max_date_range', false);
+            
+            $result = $this->gocardlessService->syncAccountTransactions($account, $request->user(), $updateExisting, $forceMaxDateRange);
 
             return response()->json([
                 'success' => true,
@@ -417,7 +437,13 @@ class BankDataController extends Controller
     public function syncAllAccounts(Request $request): JsonResponse
     {
         try {
-            $results = $this->gocardlessService->syncAllAccounts();
+            // Get updateExisting parameter from request, default to true
+            $updateExisting = $request->boolean('update_existing', true);
+            
+            // Get forceMaxDateRange parameter from request, default to false
+            $forceMaxDateRange = $request->boolean('force_max_date_range', false);
+            
+            $results = $this->gocardlessService->syncAllAccounts($request->user(), $updateExisting, $forceMaxDateRange);
 
             return response()->json([
                 'success' => true,

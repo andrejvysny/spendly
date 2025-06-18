@@ -31,7 +31,22 @@ class TransactionRepository
             return 0;
         }
 
-        DB::table('transactions')->insert($transactions);
+        // Process each transaction to ensure proper JSON encoding
+        $processedTransactions = array_map(function ($transaction) {
+            // JSON encode metadata if it's an array
+            if (isset($transaction['metadata']) && is_array($transaction['metadata'])) {
+                $transaction['metadata'] = json_encode($transaction['metadata']);
+            }
+            
+            // JSON encode import_data if it's an array (shouldn't happen now since mapper encodes it)
+            if (isset($transaction['import_data']) && is_array($transaction['import_data'])) {
+                $transaction['import_data'] = json_encode($transaction['import_data']);
+            }
+            
+            return $transaction;
+        }, $transactions);
+
+        DB::table('transactions')->insert($processedTransactions);
         return count($transactions);
     }
 
