@@ -17,8 +17,7 @@ class GoCardlessController extends Controller
     /**
      * Synchronizes transactions for the specified account with GoCardless.
      *
-     * @param Request $request
-     * @param int $accountId The ID of the account to synchronize.
+     * @param  int  $accountId  The ID of the account to synchronize.
      * @return JsonResponse JSON response indicating the outcome of the synchronization.
      */
     public function syncTransactions(Request $request, int $accountId): JsonResponse
@@ -26,10 +25,10 @@ class GoCardlessController extends Controller
         try {
             // Get updateExisting parameter from request, default to true
             $updateExisting = $request->boolean('update_existing', true);
-            
+
             // Get forceMaxDateRange parameter from request, default to false
             $forceMaxDateRange = $request->boolean('force_max_date_range', false);
-            
+
             $result = $this->gocardlessService->syncAccountTransactions($accountId, $request->user(), $updateExisting, $forceMaxDateRange);
 
             return response()->json([
@@ -48,26 +47,23 @@ class GoCardlessController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to sync transactions: ' . $e->getMessage()
+                'error' => 'Failed to sync transactions: '.$e->getMessage(),
             ], 500);
         }
     }
 
     /**
      * Sync all GoCardless accounts for the authenticated user.
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function syncAllAccounts(Request $request): JsonResponse
     {
         try {
             // Get updateExisting parameter from request, default to true
             $updateExisting = $request->boolean('update_existing', true);
-            
+
             // Get forceMaxDateRange parameter from request, default to false
             $forceMaxDateRange = $request->boolean('force_max_date_range', false);
-            
+
             $results = $this->gocardlessService->syncAllAccounts($request->user(), $updateExisting, $forceMaxDateRange);
 
             return response()->json([
@@ -85,7 +81,7 @@ class GoCardlessController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to sync accounts: ' . $e->getMessage()
+                'error' => 'Failed to sync accounts: '.$e->getMessage(),
             ], 500);
         }
     }

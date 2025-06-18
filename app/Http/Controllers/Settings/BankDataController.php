@@ -18,7 +18,9 @@ use Inertia\Response;
 class BankDataController extends Controller
 {
     private GoCardlessBankData $client;
+
     private User $user;
+
     private GoCardlessService $gocardlessService;
 
     /**
@@ -29,7 +31,7 @@ class BankDataController extends Controller
     public function __construct(GoCardlessService $gocardlessService)
     {
         $this->gocardlessService = $gocardlessService;
-        
+
         $this->user = User::select(
             'gocardless_secret_id',
             'gocardless_secret_key',
@@ -49,7 +51,7 @@ class BankDataController extends Controller
             // Ensure datetime fields are properly converted
             $refreshTokenExpires = $this->user->gocardless_refresh_token_expires_at;
             $accessTokenExpires = $this->user->gocardless_access_token_expires_at;
-            
+
             // Convert to DateTime if they are strings
             if (is_string($refreshTokenExpires)) {
                 $refreshTokenExpires = new \DateTime($refreshTokenExpires);
@@ -391,20 +393,16 @@ class BankDataController extends Controller
 
     /**
      * Sync transactions for a specific account.
-     *
-     * @param Request $request
-     * @param int $account
-     * @return JsonResponse
      */
     public function syncAccountTransactions(Request $request, int $account): JsonResponse
     {
         try {
             // Get updateExisting parameter from request, default to true
             $updateExisting = $request->boolean('update_existing', true);
-            
+
             // Get forceMaxDateRange parameter from request, default to false
             $forceMaxDateRange = $request->boolean('force_max_date_range', false);
-            
+
             $result = $this->gocardlessService->syncAccountTransactions($account, $request->user(), $updateExisting, $forceMaxDateRange);
 
             return response()->json([
@@ -423,26 +421,23 @@ class BankDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to sync transactions: ' . $e->getMessage()
+                'error' => 'Failed to sync transactions: '.$e->getMessage(),
             ], 500);
         }
     }
 
     /**
      * Sync all GoCardless accounts for the authenticated user.
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function syncAllAccounts(Request $request): JsonResponse
     {
         try {
             // Get updateExisting parameter from request, default to true
             $updateExisting = $request->boolean('update_existing', true);
-            
+
             // Get forceMaxDateRange parameter from request, default to false
             $forceMaxDateRange = $request->boolean('force_max_date_range', false);
-            
+
             $results = $this->gocardlessService->syncAllAccounts($request->user(), $updateExisting, $forceMaxDateRange);
 
             return response()->json([
@@ -460,7 +455,7 @@ class BankDataController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to sync accounts: ' . $e->getMessage()
+                'error' => 'Failed to sync accounts: '.$e->getMessage(),
             ], 500);
         }
     }

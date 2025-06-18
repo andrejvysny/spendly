@@ -5,15 +5,12 @@ namespace App\Services;
 use App\Models\Account;
 use App\Models\User;
 use App\Repositories\AccountRepository;
-use App\Services\GoCardlessBankData;
-use App\Services\GocardlessMapper;
-use App\Services\TokenManager;
-use App\Services\TransactionSyncService;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessService
 {
     private GoCardlessBankData $client;
+
     private TokenManager $tokenManager;
 
     public function __construct(
@@ -30,11 +27,11 @@ class GoCardlessService
         try {
             $this->tokenManager = new TokenManager($user);
             $accessToken = $this->tokenManager->getAccessToken();
-            
+
             // Ensure datetime fields are properly converted
             $refreshTokenExpires = $user->gocardless_refresh_token_expires_at;
             $accessTokenExpires = $user->gocardless_access_token_expires_at;
-            
+
             // Convert to DateTime if they are strings
             if (is_string($refreshTokenExpires)) {
                 $refreshTokenExpires = new \DateTime($refreshTokenExpires);
@@ -42,7 +39,7 @@ class GoCardlessService
             if (is_string($accessTokenExpires)) {
                 $accessTokenExpires = new \DateTime($accessTokenExpires);
             }
-            
+
             $this->client = new GoCardlessBankData(
                 $user->gocardless_secret_id,
                 $user->gocardless_secret_key,
@@ -64,11 +61,9 @@ class GoCardlessService
     /**
      * Sync transactions for a specific account.
      *
-     * @param int $accountId
-     * @param User $user
-     * @param bool $updateExisting Whether to update already imported transactions (default: true)
-     * @param bool $forceMaxDateRange Whether to force sync from max days ago instead of last sync date (default: false)
-     * @return array
+     * @param  bool  $updateExisting  Whether to update already imported transactions (default: true)
+     * @param  bool  $forceMaxDateRange  Whether to force sync from max days ago instead of last sync date (default: false)
+     *
      * @throws \Exception
      */
     public function syncAccountTransactions(int $accountId, User $user, bool $updateExisting = true, bool $forceMaxDateRange = false): array
@@ -86,11 +81,11 @@ class GoCardlessService
         // Get the account
         $account = $this->accountRepository->findByIdForUser($accountId, $user->id);
 
-        if (!$account) {
+        if (! $account) {
             throw new \Exception('Account not found');
         }
 
-        if (!$account->is_gocardless_synced) {
+        if (! $account->is_gocardless_synced) {
             throw new \Exception('Account is not synced with GoCardless');
         }
 
@@ -138,10 +133,8 @@ class GoCardlessService
     /**
      * Sync all GoCardless accounts for the user.
      *
-     * @param User $user
-     * @param bool $updateExisting Whether to update already imported transactions (default: true)
-     * @param bool $forceMaxDateRange Whether to force sync from max days ago instead of last sync date (default: false)
-     * @return array
+     * @param  bool  $updateExisting  Whether to update already imported transactions (default: true)
+     * @param  bool  $forceMaxDateRange  Whether to force sync from max days ago instead of last sync date (default: false)
      */
     public function syncAllAccounts(User $user, bool $updateExisting = true, bool $forceMaxDateRange = false): array
     {
@@ -174,50 +167,37 @@ class GoCardlessService
 
     /**
      * Get available institutions for a country.
-     *
-     * @param string $countryCode
-     * @param User $user
-     * @return array
      */
     public function getInstitutions(string $countryCode, User $user): array
     {
         $this->initializeClient($user);
+
         return $this->client->getInstitutions($countryCode);
     }
 
     /**
      * Create a requisition for bank account linking.
-     *
-     * @param string $institutionId
-     * @param string $redirectUrl
-     * @param User $user
-     * @return array
      */
     public function createRequisition(string $institutionId, string $redirectUrl, User $user): array
     {
         $this->initializeClient($user);
+
         return $this->client->createRequisition($institutionId, $redirectUrl);
     }
 
     /**
      * Get requisition details.
-     *
-     * @param string $requisitionId
-     * @param User $user
-     * @return array
      */
     public function getRequisition(string $requisitionId, User $user): array
     {
         $this->initializeClient($user);
+
         return $this->client->getRequisitions($requisitionId);
     }
 
     /**
      * Import account from GoCardless.
      *
-     * @param string $gocardlessAccountId
-     * @param User $user
-     * @return Account
      * @throws \Exception
      */
     public function importAccount(string $gocardlessAccountId, User $user): Account

@@ -10,9 +10,6 @@ class TransactionRepository
 {
     /**
      * Find a transaction by its GoCardless transaction ID.
-     *
-     * @param string $transactionId
-     * @return Transaction|null
      */
     public function findByTransactionId(string $transactionId): ?Transaction
     {
@@ -22,7 +19,6 @@ class TransactionRepository
     /**
      * Create multiple transactions in a batch.
      *
-     * @param array $transactions
      * @return int Number of created transactions
      */
     public function createBatch(array $transactions): int
@@ -37,25 +33,22 @@ class TransactionRepository
             if (isset($transaction['metadata']) && is_array($transaction['metadata'])) {
                 $transaction['metadata'] = json_encode($transaction['metadata']);
             }
-            
+
             // JSON encode import_data if it's an array (shouldn't happen now since mapper encodes it)
             if (isset($transaction['import_data']) && is_array($transaction['import_data'])) {
                 $transaction['import_data'] = json_encode($transaction['import_data']);
             }
-            
+
             return $transaction;
         }, $transactions);
 
         DB::table('transactions')->insert($processedTransactions);
+
         return count($transactions);
     }
 
     /**
      * Update or create a transaction.
-     *
-     * @param array $attributes
-     * @param array $values
-     * @return Transaction
      */
     public function updateOrCreate(array $attributes, array $values): Transaction
     {
@@ -64,9 +57,6 @@ class TransactionRepository
 
     /**
      * Get existing transaction IDs from a list.
-     *
-     * @param array $transactionIds
-     * @return Collection
      */
     public function getExistingTransactionIds(array $transactionIds): Collection
     {
@@ -77,13 +67,13 @@ class TransactionRepository
     /**
      * Update multiple transactions.
      *
-     * @param array $updates Array of updates with transaction_id as key
+     * @param  array  $updates  Array of updates with transaction_id as key
      * @return int Number of updated transactions
      */
     public function updateBatch(array $updates): int
     {
         $count = 0;
-        
+
         DB::transaction(function () use ($updates, &$count) {
             foreach ($updates as $transactionId => $data) {
                 $updated = Transaction::where('transaction_id', $transactionId)
@@ -96,4 +86,4 @@ class TransactionRepository
 
         return $count;
     }
-} 
+}

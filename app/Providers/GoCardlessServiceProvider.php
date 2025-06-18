@@ -6,7 +6,6 @@ use App\Repositories\AccountRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\GocardlessMapper;
 use App\Services\GoCardlessService;
-use App\Services\TokenManager;
 use App\Services\TransactionSyncService;
 use Illuminate\Support\ServiceProvider;
 
@@ -18,15 +17,15 @@ class GoCardlessServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AccountRepository::class, function ($app) {
-            return new AccountRepository();
+            return new AccountRepository;
         });
 
         $this->app->singleton(TransactionRepository::class, function ($app) {
-            return new TransactionRepository();
+            return new TransactionRepository;
         });
 
         $this->app->singleton(GocardlessMapper::class, function ($app) {
-            return new GocardlessMapper();
+            return new GocardlessMapper;
         });
 
         $this->app->singleton(TransactionSyncService::class, function ($app) {
@@ -52,4 +51,4 @@ class GoCardlessServiceProvider extends ServiceProvider
     {
         //
     }
-} 
+}

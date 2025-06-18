@@ -192,10 +192,11 @@ class GoCardlessBankData
     /**
      * Retrieves transactions for a specified account, optionally filtered by date range.
      *
-     * @param string $accountId The unique identifier of the account.
-     * @param string|null $dateFrom Optional start date (YYYY-MM-DD) to filter transactions.
-     * @param string|null $dateTo Optional end date (YYYY-MM-DD) to filter transactions.
+     * @param  string  $accountId  The unique identifier of the account.
+     * @param  string|null  $dateFrom  Optional start date (YYYY-MM-DD) to filter transactions.
+     * @param  string|null  $dateTo  Optional end date (YYYY-MM-DD) to filter transactions.
      * @return array Array of transactions for the account.
+     *
      * @throws \Exception If the API request fails.
      */
     public function getTransactions(string $accountId, ?string $dateFrom = null, ?string $dateTo = null): array
@@ -225,13 +226,13 @@ class GoCardlessBankData
                 $response = Http::withToken($this->getAccessToken())
                     ->get($url, $params);
 
-                if (!$response->successful()) {
-                    throw new \Exception('Failed to get transactions: ' . $response->body());
+                if (! $response->successful()) {
+                    throw new \Exception('Failed to get transactions: '.$response->body());
                 }
 
                 $data = $response->json();
                 $transactions = $data['transactions'] ?? [];
-                
+
                 // Merge transactions
                 if (isset($transactions['booked'])) {
                     $allTransactions['transactions']['booked'] = array_merge(
@@ -255,7 +256,7 @@ class GoCardlessBankData
             } catch (\Exception $e) {
                 $retryCount++;
                 if ($retryCount >= $maxRetries) {
-                    throw new \Exception('Failed to get transactions after ' . $maxRetries . ' retries: ' . $e->getMessage());
+                    throw new \Exception('Failed to get transactions after '.$maxRetries.' retries: '.$e->getMessage());
                 }
                 // Wait before retrying (exponential backoff)
                 sleep(pow(2, $retryCount));
