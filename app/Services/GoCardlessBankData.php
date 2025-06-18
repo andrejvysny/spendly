@@ -189,10 +189,8 @@ class GoCardlessBankData
         return $response->json();
     }
 
-    /****
+    /**
      * Retrieves transactions for a specified account, optionally filtered by date range.
-     *
-     * Checks cache before making an API request. Returns the list of transactions as an array.
      *
      * @param string $accountId The unique identifier of the account.
      * @param string|null $dateFrom Optional start date (YYYY-MM-DD) to filter transactions.
@@ -204,7 +202,7 @@ class GoCardlessBankData
     {
         // Check cache first
         $cacheKey = "gocardless_transactions_{$accountId}_{$dateFrom}_{$dateTo}";
-        if (Cache::has($cacheKey)) {
+        if ($this->useCache && Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
         }
 
@@ -216,18 +214,59 @@ class GoCardlessBankData
             $params['date_to'] = $dateTo;
         }
 
-        $response = Http::withToken($this->getAccessToken())
-            ->get("{$this->baseUrl}/accounts/{$accountId}/transactions/", $params);
+        $allTransactions = [];
+        $nextPage = null;
+        $retryCount = 0;
+        $maxRetries = 3;
 
-        if (! $response->successful()) {
-            throw new \Exception('Failed to get transactions: '.$response->body());
-        }
+        do {
+            try {
+                $url = $nextPage ?? "{$this->baseUrl}/accounts/{$accountId}/transactions/";
+                $response = Http::withToken($this->getAccessToken())
+                    ->get($url, $params);
+
+                if (!$response->successful()) {
+                    throw new \Exception('Failed to get transactions: ' . $response->body());
+                }
+
+                $data = $response->json();
+                $transactions = $data['transactions'] ?? [];
+                
+                // Merge transactions
+                if (isset($transactions['booked'])) {
+                    $allTransactions['transactions']['booked'] = array_merge(
+                        $allTransactions['transactions']['booked'] ?? [],
+                        $transactions['booked']
+                    );
+                }
+                if (isset($transactions['pending'])) {
+                    $allTransactions['transactions']['pending'] = array_merge(
+                        $allTransactions['transactions']['pending'] ?? [],
+                        $transactions['pending']
+                    );
+                }
+
+                // Get next page URL if available
+                $nextPage = $data['next'] ?? null;
+
+                // Reset retry count on successful request
+                $retryCount = 0;
+
+            } catch (\Exception $e) {
+                $retryCount++;
+                if ($retryCount >= $maxRetries) {
+                    throw new \Exception('Failed to get transactions after ' . $maxRetries . ' retries: ' . $e->getMessage());
+                }
+                // Wait before retrying (exponential backoff)
+                sleep(pow(2, $retryCount));
+            }
+        } while ($nextPage);
 
         if ($this->useCache) {
-            Cache::put($cacheKey, $response->json(), $this->cacheDuration);
+            Cache::put($cacheKey, $allTransactions, $this->cacheDuration);
         }
 
-        return $response->json();
+        return $allTransactions;
     }
 
     /**

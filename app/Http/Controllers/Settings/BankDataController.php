@@ -374,4 +374,68 @@ class BankDataController extends Controller
 
         return response()->json(['exists' => $exists]);
     }
+
+    /**
+     * Sync transactions for a specific account.
+     *
+     * @param Request $request
+     * @param int $account
+     * @return JsonResponse
+     */
+    public function syncAccountTransactions(Request $request, int $account): JsonResponse
+    {
+        try {
+            $result = $this->gocardlessService->syncAccountTransactions($account);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Transactions synced successfully',
+                'data' => $result,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Transaction sync error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'account_id' => $account,
+                'user_id' => $request->user()->id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to sync transactions: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Sync all GoCardless accounts for the authenticated user.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function syncAllAccounts(Request $request): JsonResponse
+    {
+        try {
+            $results = $this->gocardlessService->syncAllAccounts();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'All accounts synced',
+                'data' => $results,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Sync all accounts error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user_id' => $request->user()->id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to sync accounts: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -11,7 +11,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->register(AuthServiceProvider::class);
+        // AuthServiceProvider is now registered in bootstrap/providers.php
     }
 
     /**
