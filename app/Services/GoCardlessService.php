@@ -20,12 +20,34 @@ class GoCardlessService
     ) {}
 
     /**
+     * Check if the GoCardless client is initialized.
+     */
+    private function isClientInitialized(): bool
+    {
+        return isset($this->client) && $this->client instanceof GoCardlessBankData;
+    }
+
+    /**
+     * Validate that the user has GoCardless credentials configured.
+     */
+    private function validateUserCredentials(User $user): void
+    {
+        if (! $user->gocardless_secret_id || ! $user->gocardless_secret_key) {
+            throw new \InvalidArgumentException('GoCardless credentials not configured for user. Please set up your GoCardless credentials first.');
+        }
+    }
+
+    /**
      * Initialize the GoCardless client with user credentials.
      */
     private function initializeClient(User $user): void
     {
         try {
-            $this->tokenManager = new TokenManager($user);
+            // Validate user credentials first
+            $this->validateUserCredentials($user);
+
+            // Use the service container to resolve TokenManager with the user
+            $this->tokenManager = app(TokenManager::class, ['user' => $user]);
             $accessToken = $this->tokenManager->getAccessToken();
 
             // Ensure datetime fields are properly converted
@@ -49,13 +71,30 @@ class GoCardlessService
                 $accessTokenExpires,
                 true // Enable caching
             );
+        } catch (\InvalidArgumentException $e) {
+            // Re-throw validation errors as-is
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Failed to initialize GoCardless client', [
                 'user_id' => $user->id,
                 'error' => $e->getMessage(),
             ]);
-            throw $e;
+            throw new \RuntimeException('Failed to initialize GoCardless client: '.$e->getMessage(), 0, $e);
         }
+    }
+
+    /**
+     * Get the GoCardless client, initializing it if necessary.
+     *
+     * @throws \RuntimeException When client cannot be initialized
+     */
+    private function getClient(User $user): GoCardlessBankData
+    {
+        if (! $this->isClientInitialized()) {
+            $this->initializeClient($user);
+        }
+
+        return $this->client;
     }
 
     /**
@@ -76,7 +115,7 @@ class GoCardlessService
         ]);
 
         // Initialize client with user
-        $this->initializeClient($user);
+        $this->getClient($user);
 
         // Get the account
         $account = $this->accountRepository->findByIdForUser($accountId, $user->id);
@@ -139,7 +178,7 @@ class GoCardlessService
     public function syncAllAccounts(User $user, bool $updateExisting = true, bool $forceMaxDateRange = false): array
     {
         // Initialize client with user
-        $this->initializeClient($user);
+        $this->getClient($user);
 
         $accounts = $this->accountRepository->getGocardlessSyncedAccounts($user->id);
         $results = [];
@@ -170,7 +209,7 @@ class GoCardlessService
      */
     public function getInstitutions(string $countryCode, User $user): array
     {
-        $this->initializeClient($user);
+        $this->getClient($user);
 
         return $this->client->getInstitutions($countryCode);
     }
@@ -180,7 +219,7 @@ class GoCardlessService
      */
     public function createRequisition(string $institutionId, string $redirectUrl, User $user): array
     {
-        $this->initializeClient($user);
+        $this->getClient($user);
 
         return $this->client->createRequisition($institutionId, $redirectUrl);
     }
@@ -190,7 +229,7 @@ class GoCardlessService
      */
     public function getRequisition(string $requisitionId, User $user): array
     {
-        $this->initializeClient($user);
+        $this->getClient($user);
 
         return $this->client->getRequisitions($requisitionId);
     }
@@ -202,7 +241,7 @@ class GoCardlessService
      */
     public function importAccount(string $gocardlessAccountId, User $user): Account
     {
-        $this->initializeClient($user);
+        $this->getClient($user);
 
         // Check if account already exists
         if ($this->accountRepository->gocardlessAccountExists($gocardlessAccountId, $user->id)) {

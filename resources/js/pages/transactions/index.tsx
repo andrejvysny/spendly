@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { DateRangeInput, TextInput } from '@/components/ui/form-inputs';
 import { LoadingDots } from '@/components/ui/loading-dots';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
+import { SmartForm } from '@/components/ui/smart-form';
 import { Switch } from '@/components/ui/switch';
 import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
@@ -42,7 +42,6 @@ interface Props {
     categories: Category[];
     merchants: Merchant[];
     accounts: { id: number; name: string }[];
-    totalCount: number;
     filters?: {
         search?: string;
         account_id?: string;
@@ -72,30 +71,42 @@ interface TotalSummary {
     noMerchantCount: number;
 }
 
-const filterSchema = z.object({
-    search: z.string().optional(),
-    account_id: z.string().optional(),
-    transactionType: z.enum(['income', 'expense', 'transfer', 'all', '']).optional(),
-    amountFilterType: z.enum(['exact', 'range', 'above', 'below', 'all', '']).optional(),
-    amountFilter: z.string().optional(),
-    amountMin: z.string().optional(),
-    amountMax: z.string().optional(),
-    amountExact: z.string().optional(),
-    amountAbove: z.string().optional(),
-    amountBelow: z.string().optional(),
-    dateFrom: z.string().optional(),
-    dateTo: z.string().optional(),
-    dateRange: z
-        .object({
-            from: z.string().optional(),
-            to: z.string().optional(),
-        })
-        .optional(),
-    merchant_id: z.string().optional(),
-    category_id: z.string().optional(),
+type FilterValues = {
+    search?: string;
+    account_id?: string;
+    transactionType?: 'income' | 'expense' | 'transfer' | 'all' | '';
+    amountFilterType?: 'exact' | 'range' | 'above' | 'below' | 'all' | '';
+    amountFilter?: string;
+    amountMin?: string;
+    amountMax?: string;
+    amountExact?: string;
+    amountAbove?: string;
+    amountBelow?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    dateRange?: {
+        from?: string;
+        to?: string;
+    };
+    merchant_id?: string;
+    category_id?: string;
+};
+
+// Zod schemas for SmartForm components
+const searchSchema = z.object({
+    search: z.string(),
 });
 
-type FilterValues = InferFormValues<typeof filterSchema>;
+const amountFilterSchema = z.object({
+    amountFilter: z.string(),
+});
+
+const dateRangeSchema = z.object({
+    dateRange: z.object({
+        from: z.string(),
+        to: z.string(),
+    }),
+});
 
 async function fetchTransactions(
     params: FilterValues,
@@ -166,7 +177,6 @@ export default function Index({
     categories,
     merchants,
     accounts,
-    totalCount: initialTotalCount,
     filters = {},
 }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -530,24 +540,6 @@ export default function Index({
             preserveScroll: true,
         });
     };
-
-    // Update the SmartForm schema for search
-    const searchSchema = z.object({
-        search: z.string(),
-    });
-
-    // Update the SmartForm schema for amount filter
-    const amountFilterSchema = z.object({
-        amountFilter: z.string(),
-    });
-
-    // Update the SmartForm schema for date range
-    const dateRangeSchema = z.object({
-        dateRange: z.object({
-            from: z.string(),
-            to: z.string(),
-        }),
-    });
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>

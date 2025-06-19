@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\BankProviders;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Services\GoCardlessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,13 +24,22 @@ class GoCardlessController extends Controller
     public function syncTransactions(Request $request, int $accountId): JsonResponse
     {
         try {
+            // Get and validate the authenticated user
+            $user = $request->user();
+            if (! $user || ! ($user instanceof User)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'User not authenticated or invalid user type',
+                ], 401);
+            }
+
             // Get updateExisting parameter from request, default to true
             $updateExisting = $request->boolean('update_existing', true);
 
             // Get forceMaxDateRange parameter from request, default to false
             $forceMaxDateRange = $request->boolean('force_max_date_range', false);
 
-            $result = $this->gocardlessService->syncAccountTransactions($accountId, $request->user(), $updateExisting, $forceMaxDateRange);
+            $result = $this->gocardlessService->syncAccountTransactions($accountId, $user, $updateExisting, $forceMaxDateRange);
 
             return response()->json([
                 'success' => true,
@@ -38,11 +48,14 @@ class GoCardlessController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            $user = $request->user();
+            $userId = $user instanceof User ? $user->id : 'unknown';
+
             Log::error('Transaction sync error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'account_id' => $accountId,
-                'user_id' => $request->user()->id,
+                'user_id' => $userId,
             ]);
 
             return response()->json([
@@ -58,13 +71,22 @@ class GoCardlessController extends Controller
     public function syncAllAccounts(Request $request): JsonResponse
     {
         try {
+            // Get and validate the authenticated user
+            $user = $request->user();
+            if (! $user || ! ($user instanceof User)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'User not authenticated or invalid user type',
+                ], 401);
+            }
+
             // Get updateExisting parameter from request, default to true
             $updateExisting = $request->boolean('update_existing', true);
 
             // Get forceMaxDateRange parameter from request, default to false
             $forceMaxDateRange = $request->boolean('force_max_date_range', false);
 
-            $results = $this->gocardlessService->syncAllAccounts($request->user(), $updateExisting, $forceMaxDateRange);
+            $results = $this->gocardlessService->syncAllAccounts($user, $updateExisting, $forceMaxDateRange);
 
             return response()->json([
                 'success' => true,
@@ -73,10 +95,13 @@ class GoCardlessController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            $user = $request->user();
+            $userId = $user instanceof User ? $user->id : 'unknown';
+
             Log::error('Sync all accounts error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'user_id' => $request->user()->id,
+                'user_id' => $userId,
             ]);
 
             return response()->json([

@@ -118,19 +118,19 @@ class GocardlessMapper
         // Try creditor name first
         $partner = $this->get($transaction, 'creditorName');
         if ($partner) {
-            return $partner;
+            return (string) $partner;
         }
 
         // Try debtor name
         $partner = $this->get($transaction, 'debtorName');
         if ($partner) {
-            return $partner;
+            return (string) $partner;
         }
 
         // Try remittance information
         $partner = $this->get($transaction, 'remittanceInformationUnstructuredArray.0');
         if ($partner) {
-            return $partner;
+            return (string) $partner;
         }
 
         return null;
@@ -207,17 +207,19 @@ class GocardlessMapper
         // Try to get the bank's proprietary code
         $bankCode = $this->get($transaction, 'proprietaryBankTransactionCode');
         if ($bankCode) {
-            return $bankCode;
+            return (string) $bankCode;
         }
 
         // Try to get the purpose code
         $purposeCode = $this->get($transaction, 'purposeCode');
         if ($purposeCode) {
-            return $purposeCode;
+            return (string) $purposeCode;
         }
 
         // Try to determine from amount
         $amount = $this->get($transaction, 'transactionAmount.amount', 0);
+        $amount = is_numeric($amount) ? (float) $amount : 0.0;
+
         if ($amount > 0) {
             return Transaction::TYPE_DEPOSIT;
         }

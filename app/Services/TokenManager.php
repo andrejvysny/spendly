@@ -102,6 +102,16 @@ class TokenManager
         }
 
         $data = $response->json();
+
+        // Validate response format
+        if (! is_array($data) || ! isset($data['access'])) {
+            Log::error('Invalid response format from GoCardless token refresh', [
+                'user_id' => $this->user->id,
+                'response_data' => $data,
+            ]);
+            throw new \Exception('Invalid response format from GoCardless API: missing access token');
+        }
+
         $this->updateTokens($data);
 
         return $data['access'];
@@ -130,6 +140,16 @@ class TokenManager
         }
 
         $data = $response->json();
+
+        // Validate response format
+        if (! is_array($data) || ! isset($data['access'])) {
+            Log::error('Invalid response format from GoCardless new token request', [
+                'user_id' => $this->user->id,
+                'response_data' => $data,
+            ]);
+            throw new \Exception('Invalid response format from GoCardless API: missing access token');
+        }
+
         $this->updateTokens($data);
 
         return $data['access'];
@@ -137,9 +157,34 @@ class TokenManager
 
     /**
      * Update user tokens in database.
+     *
+     * @throws \Exception
      */
     private function updateTokens(array $tokenData): void
     {
+        // Validate required keys exist
+        $requiredKeys = ['access', 'refresh', 'access_expires', 'refresh_expires'];
+        $missingKeys = array_diff($requiredKeys, array_keys($tokenData));
+
+        if (! empty($missingKeys)) {
+            Log::error('Missing required token data keys', [
+                'user_id' => $this->user->id,
+                'missing_keys' => $missingKeys,
+                'available_keys' => array_keys($tokenData),
+            ]);
+            throw new \Exception('Invalid token data: missing required keys: '.implode(', ', $missingKeys));
+        }
+
+        // Validate that expiry values are numeric
+        if (! is_numeric($tokenData['access_expires']) || ! is_numeric($tokenData['refresh_expires'])) {
+            Log::error('Invalid token expiry values', [
+                'user_id' => $this->user->id,
+                'access_expires' => $tokenData['access_expires'],
+                'refresh_expires' => $tokenData['refresh_expires'],
+            ]);
+            throw new \Exception('Invalid token data: expiry values must be numeric');
+        }
+
         $now = new DateTime;
 
         $accessExpiresAt = clone $now;

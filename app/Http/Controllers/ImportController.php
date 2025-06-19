@@ -575,7 +575,7 @@ class ImportController extends Controller
         $exists = $query->exists();
         Log::debug('Duplicate check result', ['is_duplicate' => $exists]);
 
-        return $exists;
+        return (bool) $exists;
     }
 
     /**
