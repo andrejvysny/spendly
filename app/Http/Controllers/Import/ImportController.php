@@ -42,7 +42,7 @@ class ImportController extends Controller
             $transactions = Transaction::where('metadata->import_id', $import->id)->get();
             foreach ($transactions as $transaction) {
                 // First detach any many-to-many relationships
-                TransactionFingerprint::where('transaction_id', $transaction->id)->delete();
+                // TransactionFingerprint::where('transaction_id', $transaction->id)->delete();
                 // Then delete the transaction
                 $transaction->delete();
             }

@@ -150,17 +150,7 @@ async function fetchTransactions(
         };
     }
 
-    interface TransactionData {
-        transactions?: {
-            has_more_pages?: boolean;
-            hasMorePages?: boolean;
-        };
-        hasMorePages?: boolean;
-    }
 
-    function getHasMorePages(data: TransactionData): boolean {
-        return data.transactions?.has_more_pages ?? data.transactions?.hasMorePages ?? data.hasMorePages ?? false;
-    }
     throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
 }
 
