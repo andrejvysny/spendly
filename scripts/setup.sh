@@ -25,6 +25,7 @@ echo "📦 Downloading Spendly image..."
 docker compose pull
 
 echo "⚙️ Setting up Environment..."
+touch .env
 curl -o .env https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/.env.example
 docker compose run app php artisan key:generate
 
