@@ -180,6 +180,17 @@ class DuplicateTransactionService
             }
         }
 
+        // Save the fingerprint for future duplicate checks
+        TransactionFingerprint::updateOrCreate(
+            [
+                'user_id' => $userId,
+                'fingerprint' => $fingerprint,
+            ],
+            [
+                'created_at' => now(),
+            ]
+        );
+
         return false;
     }
 
