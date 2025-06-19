@@ -6,8 +6,8 @@ use App\Services\GoCardlessBankData;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Tests\Unit\UnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Unit\UnitTestCase;
 
 class GoCardlessBankDataTest extends UnitTestCase
 {

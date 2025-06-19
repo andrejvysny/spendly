@@ -101,7 +101,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
     useEffect(() => {
         const fetchSavedMappings = async () => {
             try {
-                const response = await axios.get(route("imports.mappings.get"));
+                const response = await axios.get(route('imports.mappings.get'));
                 setSavedMappings(response.data.mappings || []);
             } catch (err) {
                 console.error('Failed to load saved mappings', err);
@@ -243,9 +243,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         setError(null);
 
         try {
-            const response = await axios.post(
-                route("imports.wizard.configure", { import: importId })
-                , {
+            const response = await axios.post(route('imports.wizard.configure', { import: importId }), {
                 column_mapping: columnMapping,
                 date_format: dateFormat,
                 amount_format: amountFormat,
@@ -501,11 +499,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                         <thead className="bg-card border-foreground border-b">
                             <tr>
                                 {headers.map((header, index) => (
-                                    <th
-                                        key={index}
-                                        className="px-4 py-2 text-left"
-                                        style={{ minWidth: `${Math.max(header.length * 8, 100)}px` }}
-                                    >
+                                    <th key={index} className="px-4 py-2 text-left" style={{ minWidth: `${Math.max(header.length * 8, 100)}px` }}>
                                         {header}
                                     </th>
                                 ))}
@@ -517,12 +511,10 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                                     {row.map((cell, cellIndex) => (
                                         <td
                                             key={cellIndex}
-                                            className="text-foreground px-4 py-2 max-w-md"
+                                            className="text-foreground max-w-md px-4 py-2"
                                             style={{ minWidth: `${Math.max(headers[cellIndex]?.length * 8 || 0, 100)}px` }}
                                         >
-                                            <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                                {cell}
-                                            </div>
+                                            <div className="overflow-hidden text-ellipsis whitespace-nowrap">{cell}</div>
                                         </td>
                                     ))}
                                 </tr>

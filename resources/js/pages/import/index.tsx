@@ -46,9 +46,7 @@ export default function Index({ imports }: Props) {
         if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
             axios.post(route('imports.revert', { import: importId })).then((r) => {
                 if (r.status === 200) {
-                    setImportsList(prevState => prevState.map(imp => 
-                        imp.id === importId ? { ...imp, status: 'reverted' } : imp
-                    ));
+                    setImportsList((prevState) => prevState.map((imp) => (imp.id === importId ? { ...imp, status: 'reverted' } : imp)));
                 } else {
                     alert('Failed to revert import. Please try again later.');
                 }
@@ -137,16 +135,16 @@ export default function Index({ imports }: Props) {
                         className: 'text-right',
                         render: (row) => (
                             <>
-                            <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
-                                Revert
-                            </Button>
+                                <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
+                                    Revert
+                                </Button>
 
-                            {(row.status == 'pending'|| row.status == 'failed' || row.status == 'reverted') ? (<Button variant="destructive" size="sm" onClick={() => handleDeleteImport(row.id)}>
-                                Delete
-                            </Button> ): null}
+                                {row.status == 'pending' || row.status == 'failed' || row.status == 'reverted' ? (
+                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteImport(row.id)}>
+                                        Delete
+                                    </Button>
+                                ) : null}
                             </>
-
-
                         ),
                     }, // Custom render for actions column,
                 ]}

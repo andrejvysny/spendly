@@ -23,7 +23,7 @@ import { formatDate } from '@/utils/date';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import { Settings } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface Props {
     account: Account;
@@ -176,9 +176,12 @@ export default function Detail({
     };
 
     // Filter values - always filter by this account
-    const filterValues: FilterValues = useMemo(() => ({
-        account_id: account.id.toString(),
-    }), [account.id]);
+    const filterValues: FilterValues = useMemo(
+        () => ({
+            account_id: account.id.toString(),
+        }),
+        [account.id],
+    );
 
     const handleSyncTransactions = async () => {
         setSyncing(true);
@@ -228,7 +231,7 @@ export default function Detail({
             const result = await fetchAccountTransactions(filterValues, Math.ceil(transactions.length / 10) + 1);
             if (result.monthlySummaries) {
                 // Merge new monthly summaries with existing ones
-                setMonthlySummaries(prev => {
+                setMonthlySummaries((prev) => {
                     const merged = { ...prev };
                     Object.entries(result.monthlySummaries).forEach(([month, summary]) => {
                         if (merged[month]) {
