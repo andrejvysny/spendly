@@ -26,7 +26,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('settings/bank_data', [BankDataController::class, 'destroy'])->name('bank_data.destroy');
 
     Route::prefix('/api/bank-data/gocardless')->group(function () {
-
         Route::get('/institutions', [BankDataController::class, 'getInstitutions']);
         Route::get('/requisitions', [BankDataController::class, 'getRequisitions']);
         Route::post('/requisitions', [BankDataController::class, 'createRequisition']);
@@ -36,7 +35,10 @@ Route::middleware('auth')->group(function () {
         // TODO: Uncomment this when we have a proper signed URL
         // ->middleware('signed'); // or create a custom token/verify middleware
         Route::post('/import/account', [BankDataController::class, 'importAccount']);
-        Route::post('/accounts/{account}/sync-transactions', [BankDataController::class, 'syncAccountTransactions']);
+        Route::post('/accounts/{account}/sync-transactions', [BankDataController::class, 'syncAccountTransactions'])
+            ->name('bank_data.syncAccountTransactions');
+        Route::post('/accounts/sync-all', [BankDataController::class, 'syncAllAccounts'])
+            ->name('bank_data.syncAllAccounts');
     });
 
 });

@@ -13,6 +13,7 @@ use Inertia\Response;
 class TagController extends Controller
 {
     use AuthorizesRequests;
+
     public function index(): Response
     {
         $tags = Auth::user()->tags()->get();
@@ -31,7 +32,7 @@ class TagController extends Controller
         return redirect()->back()->with('success', 'Tag created successfully');
     }
 
-    public function update(TagRequest $request, Tag $tag)
+    public function update(TagRequest $request, Tag $tag): RedirectResponse
     {
         $this->authorize('update', $tag);
 
@@ -50,5 +51,4 @@ class TagController extends Controller
 
         return redirect()->back()->with('success', 'Tag deleted successfully');
     }
-
 }

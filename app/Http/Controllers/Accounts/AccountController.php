@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Accounts;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -177,5 +178,42 @@ class AccountController extends Controller
             ->get();
 
         return $cashflow;
+    }
+
+    /**
+     * Update sync options for an account.
+     */
+    public function updateSyncOptions(Request $request, string|int $id): JsonResponse
+    {
+        try {
+            $account = Account::where('user_id', auth()->id())->findOrFail($id);
+
+            $validated = $request->validate([
+                'update_existing' => 'boolean',
+                'force_max_date_range' => 'boolean',
+            ]);
+
+            // Merge with existing sync options to preserve any other settings
+            $currentOptions = $account->sync_options ?? [];
+            $updatedOptions = array_merge($currentOptions, $validated);
+
+            $account->update([
+                'sync_options' => $updatedOptions,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sync options updated successfully',
+                'sync_options' => $updatedOptions,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to update sync options: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update sync options: '.$e->getMessage(),
+            ], 500);
+        }
     }
 }
