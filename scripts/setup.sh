@@ -27,7 +27,6 @@ docker compose pull
 echo "⚙️ Setting up Environment..."
 curl -o .env https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/.env.example
 docker compose run app php artisan key:generate
-touch database/database.sqlite
 
 echo "🚀 Starting Spendly services..."
 docker compose up -d
