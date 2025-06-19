@@ -20,7 +20,7 @@ import { formatAmount } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface Props {
     account: Account;
@@ -70,7 +70,7 @@ async function fetchAccountTransactions(
     totalCount?: number;
 }> {
     const endpoint = page ? '/transactions/load-more' : '/transactions/filter';
-    
+
     const response = await axios.get(endpoint, {
         params: page ? { ...params, page } : params,
         headers: {
@@ -120,7 +120,7 @@ export default function Detail({
 }: Props) {
     const [syncing, setSyncing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    
+
     // Load more functionality
     const {
         data: transactions,
@@ -144,9 +144,12 @@ export default function Detail({
     ];
 
     // Filter values - always filter by this account
-    const filterValues: FilterValues = useMemo(() => ({
-        account_id: account.id.toString(),
-    }), [account.id]);
+    const filterValues: FilterValues = useMemo(
+        () => ({
+            account_id: account.id.toString(),
+        }),
+        [account.id],
+    );
 
     const handleSyncTransactions = async () => {
         setSyncing(true);
@@ -194,7 +197,7 @@ export default function Detail({
             const result = await fetchAccountTransactions(filterValues, Math.ceil(transactions.length / 10) + 1);
             if (result.monthlySummaries) {
                 // Merge new monthly summaries with existing ones
-                setMonthlySummaries(prev => {
+                setMonthlySummaries((prev) => {
                     const merged = { ...prev };
                     Object.entries(result.monthlySummaries).forEach(([month, summary]) => {
                         if (merged[month]) {

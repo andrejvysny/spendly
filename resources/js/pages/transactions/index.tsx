@@ -72,6 +72,7 @@ interface TotalSummary {
     noMerchantCount: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const filterSchema = z.object({
     search: z.string().optional(),
     account_id: z.string().optional(),
@@ -166,7 +167,6 @@ export default function Index({
     categories,
     merchants,
     accounts,
-    totalCount: initialTotalCount,
     filters = {},
 }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
