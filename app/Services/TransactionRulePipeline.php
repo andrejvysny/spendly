@@ -35,12 +35,14 @@ class TransactionRulePipeline
             })
             ->toArray();
 
-        return app(Pipeline::class)
+        $result = app(Pipeline::class)
             ->send($transaction)
             ->through($rules)
             ->then(function (Transaction $transaction) {
                 return $transaction;
             });
+        $result->save();
+        return $result;
     }
 
     /**
@@ -73,7 +75,6 @@ class TransactionRulePipeline
                 if ($this->matchesCondition($transaction)) {
                     $this->applyAction($transaction);
                 }
-
                 return $transaction;
             }
 
@@ -134,7 +135,7 @@ class TransactionRulePipeline
             {
                 match ($this->rule->action_type) {
                     'add_tag' => $transaction->tags()->attach($this->rule->action_value),
-                    'set_category' => $transaction->category = $this->rule->action_value,
+                    'set_category' => $transaction->category_id = $this->rule->action_value,
                     'set_type' => $transaction->type = $this->rule->action_value,
                     default => null,
                 };
