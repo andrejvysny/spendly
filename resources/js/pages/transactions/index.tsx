@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { DateRangeInput, TextInput } from '@/components/ui/form-inputs';
 import { LoadingDots } from '@/components/ui/loading-dots';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
+import { SmartForm } from '@/components/ui/smart-form';
 import { Switch } from '@/components/ui/switch';
+import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import { BreadcrumbItem, Category, Merchant, Transaction } from '@/types/index';
@@ -23,6 +24,8 @@ interface Props {
         data: Transaction[];
         current_page: number;
         has_more_pages: boolean;
+        last_page: number;
+        total: number;
     };
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     totalSummary?: {
@@ -57,30 +60,98 @@ interface Props {
     };
 }
 
-const filterSchema = z.object({
-    search: z.string().optional(),
-    account_id: z.string().optional(),
-    transactionType: z.enum(['income', 'expense', 'transfer', 'all', '']).optional(),
-    amountFilterType: z.enum(['exact', 'range', 'above', 'below', 'all', '']).optional(),
-    amountFilter: z.string().optional(),
-    amountMin: z.string().optional(),
-    amountMax: z.string().optional(),
-    amountExact: z.string().optional(),
-    amountAbove: z.string().optional(),
-    amountBelow: z.string().optional(),
-    dateFrom: z.string().optional(),
-    dateTo: z.string().optional(),
-    dateRange: z
-        .object({
-            from: z.string().optional(),
-            to: z.string().optional(),
-        })
-        .optional(),
-    merchant_id: z.string().optional(),
-    category_id: z.string().optional(),
+interface TotalSummary {
+    count: number;
+    income: number;
+    expense: number;
+    balance: number;
+    categoriesCount: number;
+    merchantsCount: number;
+    uncategorizedCount: number;
+    noMerchantCount: number;
+}
+
+type FilterValues = {
+    search?: string;
+    account_id?: string;
+    transactionType?: 'income' | 'expense' | 'transfer' | 'all' | '';
+    amountFilterType?: 'exact' | 'range' | 'above' | 'below' | 'all' | '';
+    amountFilter?: string;
+    amountMin?: string;
+    amountMax?: string;
+    amountExact?: string;
+    amountAbove?: string;
+    amountBelow?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    dateRange?: {
+        from?: string;
+        to?: string;
+    };
+    merchant_id?: string;
+    category_id?: string;
+};
+
+// Zod schemas for SmartForm components
+const searchSchema = z.object({
+    search: z.string(),
 });
 
-type FilterValues = InferFormValues<typeof filterSchema>;
+const amountFilterSchema = z.object({
+    amountFilter: z.string(),
+});
+
+const dateRangeSchema = z.object({
+    dateRange: z.object({
+        from: z.string(),
+        to: z.string(),
+    }),
+});
+
+async function fetchTransactions(
+    params: FilterValues,
+    page?: number,
+): Promise<{
+    data: Transaction[];
+    current_page: number;
+    has_more_pages: boolean;
+    monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
+    totalSummary?: TotalSummary;
+    totalCount?: number;
+}> {
+    const endpoint = page ? '/transactions/load-more' : '/transactions/filter';
+    const filteredParams = filterEmptyValues(params);
+
+    function filterEmptyValues(obj: Record<string, unknown>): Record<string, unknown> {
+        return Object.fromEntries(
+            Object.entries(obj).filter(
+                ([, v]) => v !== '' && v !== null && v !== undefined && !(typeof v === 'object' && Object.values(v).every((sv) => sv === '')),
+            ),
+        );
+    }
+    const response = await axios.get(endpoint, {
+        params: page ? { ...filteredParams, page } : filteredParams,
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+        },
+    });
+
+    if (response.data.transactions) {
+        const transactions = response.data.transactions;
+        return {
+            data: transactions.data,
+            current_page: transactions.current_page,
+            has_more_pages: transactions.current_page < transactions.last_page,
+            monthlySummaries: response.data.monthlySummaries || {},
+            totalSummary: response.data.totalSummary as TotalSummary | undefined,
+            totalCount: transactions.total,
+        };
+    }
+
+    throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
+}
 
 /**
  * Displays and manages a paginated, filterable list of financial transactions with summary analytics and transaction creation capabilities.
@@ -110,10 +181,20 @@ export default function Index({
 }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const [transactions, setTransactions] = useState(initialTransactions.data);
-    const [currentPage, setCurrentPage] = useState(initialTransactions.current_page);
-    const [hasMorePages, setHasMorePages] = useState(initialTransactions.has_more_pages);
+    const {
+        data: transactions,
+        loadMore,
+        hasMore: hasMorePages,
+        isLoadingMore,
+        reset,
+        totalCount,
+    } = useLoadMore<Transaction, FilterValues>({
+        initialData: initialTransactions.data,
+        initialPage: initialTransactions.current_page,
+        initialHasMore: initialTransactions.last_page > initialTransactions.current_page,
+        initialTotalCount: initialTransactions.total,
+        fetcher: fetchTransactions,
+    });
     const [monthlySummaries, setMonthlySummaries] = useState(initialSummaries);
     const [totalSummary, setTotalSummary] = useState(initialTotalSummary);
     const [isFiltered, setIsFiltered] = useState(initialIsFiltered);
@@ -355,31 +436,24 @@ export default function Index({
                             (typeof value === 'object' && Object.values(value).every((v) => v === '')),
                     );
 
-                const response = await axios.get('/transactions/filter', {
-                    params: Object.fromEntries(Object.entries(values).filter((entry) => entry[1] !== '' && entry[1] !== null)),
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                    },
-                });
-                console.log('API response:', response.data);
-                if (response.data.transactions) {
-                    setTransactions(response.data.transactions.data);
-                    setCurrentPage(response.data.transactions.current_page);
-                    setHasMorePages(response.data.transactions.has_more_pages);
-                    setMonthlySummaries(response.data.monthlySummaries || {});
+                const result = await fetchTransactions(values);
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('API response:', result);
+                }
+                if (result.data) {
+                    reset(result.data, result.current_page, result.has_more_pages, result.totalCount);
+                    setMonthlySummaries(result.monthlySummaries || {});
                     if (isResettingFilters) {
                         setTotalSummary(undefined);
                         setIsFiltered(false);
                     } else {
-                        setTotalSummary(response.data.totalSummary || undefined);
+                        setTotalSummary(result.totalSummary || undefined);
                         setIsFiltered(
                             Object.values(values).some((value) => value !== '' && value !== 'all' && value !== null && value !== undefined),
                         );
                     }
                 } else {
-                    console.error('Invalid response format:', response.data);
+                    console.error('Invalid response format:', result);
                 }
             } catch (error) {
                 console.error('Error fetching filtered transactions:', error);
@@ -387,7 +461,7 @@ export default function Index({
                 setIsLoading(false);
             }
         },
-        [hasActiveFilters, setIsLoading, setTransactions, setMonthlySummaries, setTotalSummary, setIsFiltered],
+        [hasActiveFilters, setIsLoading, reset, setMonthlySummaries, setTotalSummary, setIsFiltered],
     );
 
     const debouncedFetchTransactions = useMemo(() => debounce(fetchTransactionsLogic, 300), [fetchTransactionsLogic]);
@@ -425,33 +499,8 @@ export default function Index({
     }, [filterValues, initialLoadComplete, debouncedFetchTransactions, hasActiveFilters, resetValues]);
 
     // Load more transactions
-    const loadMoreTransactions = async () => {
-        if (isLoadingMore || !hasMorePages) return;
-
-        setIsLoadingMore(true);
-        try {
-            const response = await axios.get('/transactions/load-more', {
-                params: {
-                    ...filterValues,
-                    page: currentPage + 1,
-                },
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                },
-            });
-
-            if (response.data.transactions) {
-                setTransactions((prev) => [...prev, ...response.data.transactions.data]);
-                setCurrentPage(response.data.transactions.current_page);
-                setHasMorePages(response.data.transactions.has_more_pages);
-            }
-        } catch (error) {
-            console.error('Error loading more transactions:', error);
-        } finally {
-            setIsLoadingMore(false);
-        }
+    const handleLoadMore = async () => {
+        await loadMore(filterValues);
     };
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -530,11 +579,11 @@ export default function Index({
                                     <label className={`mb-1 block text-sm ${getFilterLabelStyle('search')}`}>Search transactions</label>
                                     <div className="relative">
                                         <SmartForm
-                                            schema={filterSchema}
-                                            defaultValues={{ search: filterValues.search }}
+                                            schema={searchSchema}
+                                            defaultValues={{ search: filterValues.search || '' }}
                                             onChange={(values) => {
                                                 // Only update and trigger if the value actually changed
-                                                const newSearch = values.search || '';
+                                                const newSearch = values.search;
                                                 if (newSearch !== filterValues.search) {
                                                     const newValues = { ...filterValues, search: newSearch };
                                                     setFilterValues(newValues);
@@ -608,10 +657,10 @@ export default function Index({
                                         </label>
                                         <div className="relative">
                                             <SmartForm
-                                                schema={filterSchema}
-                                                defaultValues={{ amountFilter: filterValues.amountFilter }}
+                                                schema={amountFilterSchema}
+                                                defaultValues={{ amountFilter: filterValues.amountFilter || '' }}
                                                 onChange={(values) => {
-                                                    const newAmountFilter = values.amountFilter || '';
+                                                    const newAmountFilter = values.amountFilter;
                                                     if (newAmountFilter !== filterValues.amountFilter) {
                                                         handleAmountChange(newAmountFilter);
                                                     }
@@ -637,7 +686,7 @@ export default function Index({
                                             Date Range
                                         </label>
                                         <SmartForm
-                                            schema={filterSchema}
+                                            schema={dateRangeSchema}
                                             defaultValues={{
                                                 dateRange: {
                                                     from: filterValues.dateFrom || '',
@@ -859,8 +908,9 @@ export default function Index({
                                         merchants={merchants}
                                         showMonthlySummary={showMonthlySummary}
                                         hasMorePages={hasMorePages}
-                                        onLoadMore={loadMoreTransactions}
+                                        onLoadMore={handleLoadMore}
                                         isLoadingMore={isLoadingMore}
+                                        totalCount={totalCount}
                                     />
                                 </>
                             )}

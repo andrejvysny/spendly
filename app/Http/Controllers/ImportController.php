@@ -537,10 +537,6 @@ class ImportController extends Controller
      */
     private function isDuplicateTransaction(array $data, $accountId): bool
     {
-        return false; // Default to false for safety
-
-        // TODO not working correctly, needs to be fixed
-
         Log::debug('Checking for duplicate transaction', [
             'account_id' => $accountId,
             'data' => $data,
@@ -579,7 +575,7 @@ class ImportController extends Controller
         $exists = $query->exists();
         Log::debug('Duplicate check result', ['is_duplicate' => $exists]);
 
-        return $exists;
+        return (bool) $exists;
     }
 
     /**
