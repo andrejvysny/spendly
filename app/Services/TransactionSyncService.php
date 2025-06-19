@@ -137,32 +137,106 @@ class TransactionSyncService
 
     /**
      * Calculate date range for sync.
+     *
+     * @throws \InvalidArgumentException When invalid parameters are provided
+     * @throws \RuntimeException When date range calculation fails
      */
     public function calculateDateRange(Account $account, int $maxDays = 90, bool $forceMax = false): array
     {
-        $dateTo = now()->format('Y-m-d');
-
-        // TODO validate
-
-        // If account has been synced before, sync from last sync date
-        if ($account->gocardless_last_synced_at && ! $forceMax) {
-            // Ensure last synced date is not more than max days ago
-            if (! $account->gocardless_last_synced_at->isBefore(now()->subDays($maxDays))) {
-                // If last synced date is not more than max days ago, sync from that date subtracting one day for safety
-                $dateFrom = $account->gocardless_last_synced_at->subDays(1)->format('Y-m-d');
-            } else {
-                // If last synced date is more than max days ago, sync from max days ago
-                $dateFrom = now()->subDays($maxDays)->format('Y-m-d');
-            }
-
-        } else {
-            // Otherwise, sync from max days ago
-            $dateFrom = now()->subDays($maxDays)->format('Y-m-d');
+        // Validate input parameters
+        if ($maxDays <= 0) {
+            throw new \InvalidArgumentException('maxDays must be greater than 0');
         }
 
+        if ($maxDays > 365) {
+            throw new \InvalidArgumentException('maxDays cannot exceed 365 days');
+        }
+
+        // Calculate dateTo (today)
+        $dateTo = now();
+        if (! $dateTo->isValid()) {
+            throw new \RuntimeException('Failed to create valid dateTo');
+        }
+
+        $dateToFormatted = $dateTo->format('Y-m-d');
+
+        // Calculate dateFrom based on account sync history
+        $dateFrom = null;
+
+        if ($account->gocardless_last_synced_at && ! $forceMax) {
+            // Validate the last synced date
+            if (! $account->gocardless_last_synced_at->isValid()) {
+                Log::warning('Invalid last synced date for account', [
+                    'account_id' => $account->id,
+                    'last_synced_at' => $account->gocardless_last_synced_at,
+                ]);
+                // Fall back to max days ago
+                $dateFrom = $dateTo->copy()->subDays($maxDays);
+            } else {
+                // Check if last synced date is in the future (invalid scenario)
+                if ($account->gocardless_last_synced_at->isAfter($dateTo)) {
+                    Log::warning('Last synced date is in the future for account', [
+                        'account_id' => $account->id,
+                        'last_synced_at' => $account->gocardless_last_synced_at,
+                        'current_date' => $dateTo,
+                    ]);
+                    // Fall back to max days ago
+                    $dateFrom = $dateTo->copy()->subDays($maxDays);
+                } else {
+                    // Ensure last synced date is not more than max days ago
+                    $maxDaysAgo = $dateTo->copy()->subDays($maxDays);
+
+                    if (! $account->gocardless_last_synced_at->isBefore($maxDaysAgo)) {
+                        // If last synced date is not more than max days ago, sync from that date subtracting one day for safety
+                        $dateFrom = $account->gocardless_last_synced_at->copy()->subDays(1);
+                    } else {
+                        // If last synced date is more than max days ago, sync from max days ago
+                        $dateFrom = $maxDaysAgo;
+                    }
+                }
+            }
+        } else {
+            // Otherwise, sync from max days ago
+            $dateFrom = $dateTo->copy()->subDays($maxDays);
+        }
+
+        // Validate calculated dateFrom
+        if (! $dateFrom || ! $dateFrom->isValid()) {
+            throw new \RuntimeException('Failed to calculate valid dateFrom');
+        }
+
+        $dateFromFormatted = $dateFrom->format('Y-m-d');
+
+        // Validate that dateFrom is not after dateTo
+        if ($dateFrom->isAfter($dateTo)) {
+            throw new \RuntimeException('dateFrom cannot be after dateTo');
+        }
+
+        // Validate that the date range is not too large (safety check)
+        $daysDifference = $dateFrom->diffInDays($dateTo);
+        if ($daysDifference > $maxDays) {
+            Log::warning('Calculated date range exceeds maxDays', [
+                'account_id' => $account->id,
+                'date_from' => $dateFromFormatted,
+                'date_to' => $dateToFormatted,
+                'days_difference' => $daysDifference,
+                'max_days' => $maxDays,
+            ]);
+        }
+
+        // Log the calculated date range for debugging
+        Log::info('Calculated date range for sync', [
+            'account_id' => $account->id,
+            'date_from' => $dateFromFormatted,
+            'date_to' => $dateToFormatted,
+            'days_difference' => $daysDifference,
+            'max_days' => $maxDays,
+            'force_max' => $forceMax,
+        ]);
+
         return [
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
+            'date_from' => $dateFromFormatted,
+            'date_to' => $dateToFormatted,
         ];
     }
 }

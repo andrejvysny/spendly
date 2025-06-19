@@ -95,21 +95,51 @@ class GoCardlessBankData
      *
      * @param  \Illuminate\Http\Client\Response  $response  The HTTP response containing token data.
      * @return string The new access token.
+     *
+     * @throws \InvalidArgumentException When token response has invalid types or missing required fields.
      */
     private function processTokenResponse(\Illuminate\Http\Client\Response $response): string
     {
         $data = $response->json();
 
+        // Check for required keys
         if (! isset($data['access'], $data['refresh'], $data['access_expires'], $data['refresh_expires'])) {
-            throw new \InvalidArgumentException('Invalid token response');
+            throw new \InvalidArgumentException('Invalid token response: missing required fields');
+        }
+
+        // Validate that access and refresh tokens are strings
+        if (! is_string($data['access'])) {
+            throw new \InvalidArgumentException('Invalid token response: access token must be a string');
+        }
+
+        if (! is_string($data['refresh'])) {
+            throw new \InvalidArgumentException('Invalid token response: refresh token must be a string');
+        }
+
+        // Validate that expiry values are numeric (integers or floats)
+        if (! is_numeric($data['access_expires'])) {
+            throw new \InvalidArgumentException('Invalid token response: access_expires must be numeric');
+        }
+
+        if (! is_numeric($data['refresh_expires'])) {
+            throw new \InvalidArgumentException('Invalid token response: refresh_expires must be numeric');
+        }
+
+        // Validate that expiry values are positive
+        if ((int) $data['access_expires'] <= 0) {
+            throw new \InvalidArgumentException('Invalid token response: access_expires must be positive');
+        }
+
+        if ((int) $data['refresh_expires'] <= 0) {
+            throw new \InvalidArgumentException('Invalid token response: refresh_expires must be positive');
         }
 
         $this->accessToken = $data['access'];
         $this->refreshToken = $data['refresh'];
 
         // Calculate expiration times
-        $this->accessTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.$data['access_expires'].'S'));
-        $this->refreshTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.$data['refresh_expires'].'S'));
+        $this->accessTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.(int) $data['access_expires'].'S'));
+        $this->refreshTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.(int) $data['refresh_expires'].'S'));
 
         return $this->accessToken;
     }

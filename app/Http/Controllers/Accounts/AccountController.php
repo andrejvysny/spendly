@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Accounts;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -166,7 +167,7 @@ class AccountController extends Controller
     /**
      * Update sync options for an account.
      */
-    public function updateSyncOptions(Request $request, $id)
+    public function updateSyncOptions(Request $request, string|int $id): JsonResponse
     {
         try {
             $account = Account::where('user_id', auth()->id())->findOrFail($id);
@@ -191,7 +192,7 @@ class AccountController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to update sync options: '.$e->getMessage());
+            Log::error('Failed to update sync options: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
