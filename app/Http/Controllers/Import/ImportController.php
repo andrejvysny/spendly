@@ -33,6 +33,7 @@ class ImportController extends Controller
         $this->authorize($import);
         if ($import->status === Import::STATUS_REVERTED) {
             Log::info('Import already reverted', ['import_id' => $import->id]);
+
             return response()->json(['message' => 'Import already reverted'], 200);
         }
 
@@ -62,7 +63,7 @@ class ImportController extends Controller
     {
         $this->authorize($import);
 
-        $path = Storage::path('imports/' . $import->filename);
+        $path = Storage::path('imports/'.$import->filename);
         Log::debug('File stored', ['path' => $path]);
 
         if (file_exists($path)) {
@@ -70,6 +71,7 @@ class ImportController extends Controller
         }
 
         $import->delete();
+
         return response()->json(['message' => 'Import deleted successfully']);
     }
 

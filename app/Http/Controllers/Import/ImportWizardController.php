@@ -20,10 +20,7 @@ use Illuminate\Support\Str;
 
 class ImportWizardController extends Controller
 {
-
-    public function __construct(private readonly DuplicateTransactionService $duplicateService)
-    {
-    }
+    public function __construct(private readonly DuplicateTransactionService $duplicateService) {}
 
     public function upload(ImportUploadRequest $request): JsonResponse
     {
@@ -696,8 +693,6 @@ class ImportWizardController extends Controller
 
         return $previewData;
     }
-
-
 
     /**
      * Parse date from string based on format
