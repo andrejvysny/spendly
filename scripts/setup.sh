@@ -21,12 +21,13 @@ fi
 echo "⤵️ Downloading Spendly configuration..."
 curl -o compose.yml https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/compose.prod.yml
 
+echo "⚙️ Setting up Environment..."
+curl -o .env https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/.env.example
+
 echo "📦 Downloading Spendly image..."
 docker compose pull
 
-echo "⚙️ Setting up Environment..."
-touch .env
-curl -o .env https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/.env.example
+echo "🔑 Generating application key..."
 docker compose run app php artisan key:generate
 
 echo "🚀 Starting Spendly services..."
