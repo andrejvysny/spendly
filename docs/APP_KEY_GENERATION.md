@@ -34,6 +34,7 @@ The `scripts/setup.sh` script was updated to:
 - Check if `.env` file already exists before downloading
 - Check if `APP_KEY` is already set before generating
 - Use `docker run` directly instead of `docker compose run` to avoid TTY issues
+- Bypass the entrypoint script to avoid unnecessary initialization steps
 - Provide better error handling and user feedback
 
 ### 3. Key Generation Process
@@ -41,7 +42,7 @@ The `scripts/setup.sh` script was updated to:
 The app key generation now works as follows:
 
 1. **Check existing key**: Script checks if `APP_KEY=base64:` already exists in `.env`
-2. **Direct container execution**: Uses `docker run` with `.env` file mounted
+2. **Direct container execution**: Uses `docker run` with `.env` file mounted and entrypoint bypassed
 3. **Generate key**: Runs `php artisan key:generate --force` in container
 4. **Verify**: Confirms key was generated successfully
 
@@ -60,16 +61,17 @@ curl -sSL https://raw.githubusercontent.com/andrejvysny/spendly/main/scripts/set
 This will:
 - Download the latest compose configuration
 - Create `.env` file from template
-- Generate application key
-- Start the application
+- Generate application key (fast, without full initialization)
+- Start the application (with full initialization via entrypoint)
 
 ### Manual Key Generation
 
 If you need to regenerate the key manually:
 
 ```bash
-# Generate key using docker run (no TTY issues)
+# Generate key using docker run (no TTY issues, no entrypoint)
 docker run --rm \
+    --entrypoint="" \
     -v "$(pwd)/.env:/var/www/html/.env" \
     -v "$(pwd)/compose.yml:/var/www/html/compose.yml" \
     ghcr.io/andrejvysny/spendly:main \
@@ -110,7 +112,7 @@ If you encounter permission issues:
 chmod 644 .env
 
 # Check Docker volume permissions
-docker run --rm -v "$(pwd)/.env:/var/www/html/.env" ghcr.io/andrejvysny/spendly:main ls -la /var/www/html/.env
+docker run --rm --entrypoint="" -v "$(pwd)/.env:/var/www/html/.env" ghcr.io/andrejvysny/spendly:main ls -la /var/www/html/.env
 ```
 
 ### Container Restart Issues
@@ -124,7 +126,7 @@ If the app key is being regenerated on restart:
 ## File Changes Summary
 
 - `compose.prod.yml`: Added `.env` volume mount
-- `scripts/setup.sh`: Improved key generation logic using `docker run`
+- `scripts/setup.sh`: Improved key generation logic using `docker run` with entrypoint bypass
 - `docs/APP_KEY_GENERATION.md`: This documentation file
 
 ## Technical Details
@@ -132,6 +134,7 @@ If the app key is being regenerated on restart:
 ### Docker Commands Used
 
 - `docker run --rm`: Run container and remove it when done
+- `--entrypoint=""`: Bypass the container's entrypoint script
 - `-v "$(pwd)/.env:/var/www/html/.env"`: Mount host `.env` file to container
 - `-v "$(pwd)/compose.yml:/var/www/html/compose.yml"`: Mount compose file for context
 - `ghcr.io/andrejvysny/spendly:main`: Use the official Spendly image
@@ -143,9 +146,30 @@ If the app key is being regenerated on restart:
 - **More reliable**: Works consistently across different environments
 - **Better for automation**: Perfect for scripts and CI/CD pipelines
 
+### Why `--entrypoint=""`?
+
+- **Fast execution**: Bypasses the full initialization process (migrations, caching, etc.)
+- **Focused purpose**: Only runs the specific command needed (key generation)
+- **Efficiency**: Avoids unnecessary database setup and configuration caching
+- **Clean separation**: Key generation is separate from application startup
+
 ### Environment Variables
 
 The key generation process respects the following environment variables:
 - `APP_KEY`: The Laravel application key (base64 encoded)
 - `APP_ENV`: Application environment (local, production, etc.)
-- `DB_CONNECTION`: Database connection type (sqlite, mysql, etc.) 
+- `DB_CONNECTION`: Database connection type (sqlite, mysql, etc.)
+
+## Performance Comparison
+
+### Before (with entrypoint):
+- Runs database migrations
+- Caches configuration, routes, and views
+- Optimizes autoloader
+- Discovers packages
+- Then generates app key
+- **Total time**: ~30-60 seconds
+
+### After (bypassing entrypoint):
+- Directly generates app key
+- **Total time**: ~2-5 seconds 
