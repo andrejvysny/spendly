@@ -55,7 +55,7 @@ Spendly is an open-source personal finance tracker that helps you manage your fi
 
 Download and run setup script scripts/setup.sh
 ```bash
-curl -sSL https://raw.githubusercontent.com/andrejvysny/spendly/main/scripts/setup.sh | bash
+curl -sSL https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/scripts/setup.sh | bash
 ```
 
 
