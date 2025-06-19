@@ -35,6 +35,7 @@ The `scripts/setup.sh` script was updated to:
 - Check if `APP_KEY` is already set before generating
 - Use `docker run` directly instead of `docker compose run` to avoid TTY issues
 - Bypass the entrypoint script to avoid unnecessary initialization steps
+- Run as current user (UID/GID) to ensure write permissions and proper file ownership
 - Provide better error handling and user feedback
 
 ### 3. Key Generation Process
@@ -42,7 +43,7 @@ The `scripts/setup.sh` script was updated to:
 The app key generation now works as follows:
 
 1. **Check existing key**: Script checks if `APP_KEY=base64:` already exists in `.env`
-2. **Direct container execution**: Uses `docker run` with `.env` file mounted and entrypoint bypassed
+2. **Direct container execution**: Uses `docker run` with `.env` file mounted, entrypoint bypassed, and current user UID/GID
 3. **Generate key**: Runs `php artisan key:generate --force` in container
 4. **Verify**: Confirms key was generated successfully
 
@@ -69,9 +70,10 @@ This will:
 If you need to regenerate the key manually:
 
 ```bash
-# Generate key using docker run (no TTY issues, no entrypoint)
+# Generate key using docker run (no TTY issues, no entrypoint, current user)
 docker run --rm \
     --entrypoint="" \
+    --user "$(id -u):$(id -g)" \
     -v "$(pwd)/.env:/var/www/html/.env" \
     -v "$(pwd)/compose.yml:/var/www/html/compose.yml" \
     ghcr.io/andrejvysny/spendly:main \
@@ -83,8 +85,17 @@ docker run --rm \
 - The `.env` file contains sensitive information and should be kept secure
 - The app key should never be committed to version control
 - The key generation process uses `--force` flag to overwrite existing keys if needed
+- Running as current user (UID/GID) ensures proper file ownership and follows principle of least privilege
 
 ## Troubleshooting
+
+### Permission Denied Error
+
+If you encounter "Permission denied" errors when writing to `.env`:
+
+- The script now uses `--user "$(id -u):$(id -g)"` to run as current user
+- This ensures the generated `.env` file is owned by your user
+- If issues persist, ensure the `.env` file is writable: `chmod 644 .env`
 
 ### TTY Error
 
@@ -112,7 +123,7 @@ If you encounter permission issues:
 chmod 644 .env
 
 # Check Docker volume permissions
-docker run --rm --entrypoint="" -v "$(pwd)/.env:/var/www/html/.env" ghcr.io/andrejvysny/spendly:main ls -la /var/www/html/.env
+docker run --rm --entrypoint="" --user "$(id -u):$(id -g)" -v "$(pwd)/.env:/var/www/html/.env" ghcr.io/andrejvysny/spendly:main ls -la /var/www/html/.env
 ```
 
 ### Container Restart Issues
@@ -126,7 +137,7 @@ If the app key is being regenerated on restart:
 ## File Changes Summary
 
 - `compose.prod.yml`: Added `.env` volume mount
-- `scripts/setup.sh`: Improved key generation logic using `docker run` with entrypoint bypass
+- `scripts/setup.sh`: Improved key generation logic using `docker run` with entrypoint bypass and current user UID/GID
 - `docs/APP_KEY_GENERATION.md`: This documentation file
 
 ## Technical Details
@@ -135,6 +146,7 @@ If the app key is being regenerated on restart:
 
 - `docker run --rm`: Run container and remove it when done
 - `--entrypoint=""`: Bypass the container's entrypoint script
+- `--user "$(id -u):$(id -g)"`: Run as current user UID/GID for proper file ownership
 - `-v "$(pwd)/.env:/var/www/html/.env"`: Mount host `.env` file to container
 - `-v "$(pwd)/compose.yml:/var/www/html/compose.yml"`: Mount compose file for context
 - `ghcr.io/andrejvysny/spendly:main`: Use the official Spendly image
@@ -152,6 +164,13 @@ If the app key is being regenerated on restart:
 - **Focused purpose**: Only runs the specific command needed (key generation)
 - **Efficiency**: Avoids unnecessary database setup and configuration caching
 - **Clean separation**: Key generation is separate from application startup
+
+### Why `--user "$(id -u):$(id -g)"`?
+
+- **Security**: Follows principle of least privilege (not running as root)
+- **File ownership**: Generated files are owned by your user
+- **Cross-platform**: Works on Linux, macOS, and Windows
+- **No permission issues**: Uses your actual user ID and group ID
 
 ### Environment Variables
 
