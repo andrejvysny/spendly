@@ -4,7 +4,9 @@ use App\Http\Controllers\Accounts\AccountController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ImportController;
+use App\Http\Controllers\Import\ImportController;
+use App\Http\Controllers\Import\ImportMappingsController;
+use App\Http\Controllers\Import\ImportWizardController;
 use App\Http\Controllers\MerchantController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\Transactions\TransactionController;
@@ -12,7 +14,6 @@ use App\Http\Controllers\Transactions\TransactionRuleController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-
     if (! Auth::check()) {
         return redirect()->route('login');
     }
@@ -43,18 +44,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/transaction-rules/{rule}', [TransactionRuleController::class, 'destroy'])->name('transaction-rules.destroy');
     Route::post('/transaction-rules/reorder', [TransactionRuleController::class, 'reorder'])->name('transaction-rules.reorder');
 
-    // Import Routes
-    Route::get('/imports', [ImportController::class, 'index'])->name('imports.index');
-    Route::post('/imports/upload', [ImportController::class, 'upload'])->name('imports.upload');
-    Route::post('/imports/{import}/configure', [ImportController::class, 'configure'])->name('imports.configure');
-    Route::post('/imports/{import}/process', [ImportController::class, 'process'])->name('imports.process');
-    Route::get('/imports/categories', [ImportController::class, 'getCategories'])->name('imports.categories');
-    Route::get('/imports/mappings', [ImportController::class, 'getSavedMappings'])->name('imports.mappings.get');
-    Route::post('/imports/mappings', [ImportController::class, 'saveMapping'])->name('imports.mappings.save');
-    Route::put('/imports/mappings/{mapping}', [ImportController::class, 'updateMappingUsage'])->name('imports.mappings.usage');
-    Route::delete('/imports/mappings/{mapping}', [ImportController::class, 'deleteMapping'])->name('imports.mappings.delete');
-    Route::post('/imports/revert/{id}', [ImportController::class, 'revertImport'])->name('imports.revert');
-
     // Category routes
     Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
     Route::post('/categories', [CategoryController::class, 'store'])->name('categories.store');
@@ -72,6 +61,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/tags', [TagController::class, 'store'])->name('tags.store');
     Route::put('/tags/{tag}', [TagController::class, 'update'])->name('tags.update');
     Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
+
+    // Import routes
+    Route::group(['prefix' => 'imports', 'as' => 'imports.'], function () {
+        Route::get('/', [ImportController::class, 'index'])->name('index');
+        Route::post('/revert/{import}', [ImportController::class, 'revertImport'])->name('revert');
+        Route::delete('/{import}', [ImportController::class, 'deleteImport'])->name('delete');
+
+        Route::group(['prefix' => '/wizard', 'as' => 'wizard.'], function () {
+            Route::post('/upload', [ImportWizardController::class, 'upload'])->name('upload');
+            Route::post('/{import}/configure', [ImportWizardController::class, 'configure'])->name('configure');
+            Route::post('/{import}/process', [ImportWizardController::class, 'process'])->name('process');
+            Route::get('/categories', [ImportWizardController::class, 'getCategories'])->name('categories');
+        });
+
+        Route::group(['prefix' => '/mappings', 'as' => 'mappings.'], function () {
+            Route::get('/', [ImportMappingsController::class, 'index'])->name('get');
+            Route::post('/', [ImportMappingsController::class, 'store'])->name('save');
+            Route::put('/{mapping}', [ImportMappingsController::class, 'updateLastUsed'])->name('usage');
+            Route::delete('/{mapping}', [ImportMappingsController::class, 'delete'])->name('delete');
+        });
+    });
 
 });
 

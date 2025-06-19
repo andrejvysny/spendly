@@ -74,6 +74,13 @@ interface TransactionType {
     metadata: Record<string, unknown> | null;
     balance_after_transaction: number;
     account_id: number | null;
+    duplicate_identifier?: string;
+    original_amount?: number;
+    original_currency?: string;
+    original_booked_date?: string;
+    original_source_iban?: string;
+    original_target_iban?: string;
+    original_partner?: string;
     created_at: string;
     updated_at: string;
     account: Account | null;

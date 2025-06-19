@@ -42,6 +42,13 @@ export interface Transaction {
     metadata?: Record<string, unknown> | undefined;
     balance_after_transaction: number;
     account_id: number;
+    duplicate_identifier?: string;
+    original_amount?: number;
+    original_currency?: string;
+    original_booked_date?: string;
+    original_source_iban?: string;
+    original_target_iban?: string;
+    original_partner?: string;
     import_data?: Record<string, unknown> | undefined;
     merchant_id?: number;
     category_id?: number;
@@ -85,7 +92,7 @@ export interface Import {
     user_id: number;
     filename: string;
     original_filename: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed' | 'partially_failed' | 'completed_skipped_duplicates';
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'partially_failed' | 'completed_skipped_duplicates' | 'reverted';
     total_rows: number;
     processed_rows: number;
     failed_rows: number;
