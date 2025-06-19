@@ -18,9 +18,6 @@ class AccountController extends Controller
      */
     public function index()
     {
-
-        Log::debug('example debug message from AccountController@index');
-
         $accounts = Account::where('user_id', auth()->id())->get();
 
         if (request()->wantsJson()) {
