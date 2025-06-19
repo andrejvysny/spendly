@@ -29,6 +29,33 @@ concurrency:
 
 jobs:
 
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      build-artifacts: ${{ steps.build.outputs.build-artifacts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Build Assets
+        id: build
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: public/build
+          retention-days: 1
 
   node_tests:
     runs-on: ubuntu-latest
@@ -54,16 +81,23 @@ jobs:
 
   php_tests:
     runs-on: ubuntu-latest
+    needs: prepare
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: public/build
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: 8.4
           tools: composer:v2
-          coverage: xdebug
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, bcmath, zip, gd
 
       - name: Install Dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
@@ -74,5 +108,26 @@ jobs:
       - name: Generate Application Key
         run: php artisan key:generate
 
-      - name: Tests
-        run: ./vendor/bin/phpunit
+      - name: Set up test environment
+        run: |
+          php artisan config:clear
+          php artisan cache:clear
+          php artisan view:clear
+          php artisan route:clear
+
+      - name: Create SQLite database for testing
+        run: touch database/database.sqlite
+
+      - name: Run Database Migrations
+        run: php artisan migrate --force
+
+      - name: Run Tests
+        run: php artisan test
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+          LOG_CHANNEL: null
