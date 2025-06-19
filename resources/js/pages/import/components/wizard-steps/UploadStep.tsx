@@ -56,7 +56,7 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
             formData.append('quote_char', quoteChar);
 
             try {
-                const response = await axios.post(route("imports.wizard.upload"), formData, {
+                const response = await axios.post(route('imports.wizard.upload'), formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
                     },

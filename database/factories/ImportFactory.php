@@ -2,22 +2,25 @@
 
 namespace Database\Factories;
 
+use App\Models\Import;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Import>
- */
 class ImportFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = Import::class;
+
     public function definition(): array
     {
         return [
-            //
+            'user_id' => User::factory(),
+            'filename' => $this->faker->unique()->uuid.'.csv',
+            'original_filename' => $this->faker->word.'.csv',
+            'status' => Import::STATUS_PENDING,
+            'total_rows' => $this->faker->numberBetween(1, 10),
+            'processed_rows' => 0,
+            'failed_rows' => 0,
+            'metadata' => [],
         ];
     }
 }

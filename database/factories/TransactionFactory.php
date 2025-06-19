@@ -29,7 +29,8 @@ class TransactionFactory extends Factory
             'partner' => $partner,
         ];
         ksort($identifierFields);
-        $identifier = hash('sha256', json_encode($identifierFields));
+        $identifierJson = json_encode($identifierFields, JSON_THROW_ON_ERROR);
+        $identifier = hash('sha256', $identifierJson);
 
         return [
             'transaction_id' => 'TRX-'.$this->faker->unique()->numerify('######'),
