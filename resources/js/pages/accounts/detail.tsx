@@ -12,6 +12,8 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Switch } from '@/components/ui/switch';
 import ValueSplit from '@/components/ui/value-split';
 import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
@@ -20,6 +22,7 @@ import { formatAmount } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
+import { Settings } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 interface Props {
@@ -120,6 +123,9 @@ export default function Detail({
 }: Props) {
     const [syncing, setSyncing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [updateExisting, setUpdateExisting] = useState(account.sync_options?.update_existing ?? false);
+    const [forceMaxDateRange, setForceMaxDateRange] = useState(account.sync_options?.force_max_date_range ?? false);
+    const [savingOptions, setSavingOptions] = useState(false);
 
     // Load more functionality
     const {
@@ -143,6 +149,32 @@ export default function Detail({
         { title: account.name, href: `/accounts/${account.id}` },
     ];
 
+    const saveSyncOptions = async (options: { update_existing?: boolean; force_max_date_range?: boolean }) => {
+        setSavingOptions(true);
+        try {
+            const response = await axios.put(`/accounts/${account.id}/sync-options`, options);
+            if (response.data.success) {
+                console.log('Sync options saved successfully');
+            } else {
+                console.error('Failed to save sync options:', response.data.message);
+            }
+        } catch (error) {
+            console.error('Error saving sync options:', error);
+        } finally {
+            setSavingOptions(false);
+        }
+    };
+
+    const handleUpdateExistingChange = async (checked: boolean) => {
+        setUpdateExisting(checked);
+        await saveSyncOptions({ update_existing: checked });
+    };
+
+    const handleForceMaxDateRangeChange = async (checked: boolean) => {
+        setForceMaxDateRange(checked);
+        await saveSyncOptions({ force_max_date_range: checked });
+    };
+
     // Filter values - always filter by this account
     const filterValues: FilterValues = useMemo(
         () => ({
@@ -157,6 +189,8 @@ export default function Detail({
             axios
                 .post(`/api/bank-data/gocardless/accounts/${account.id}/sync-transactions`, {
                     account_id: account.id,
+                    update_existing: updateExisting,
+                    force_max_date_range: forceMaxDateRange,
                 })
                 .then((response) => {
                     if (response.status === 200) {
@@ -292,9 +326,68 @@ export default function Detail({
                                         ]}
                                     />
 
-                                    <Button onClick={handleSyncTransactions} disabled={syncing} className="w-full">
-                                        {syncing ? 'Syncing...' : 'Sync Transactions'}
-                                    </Button>
+                                    <div className="flex">
+                                        <Button onClick={handleSyncTransactions} disabled={syncing} className="flex-1 rounded-r-none">
+                                            {syncing ? 'Syncing...' : 'Sync Transactions'}
+                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    className="focus-none bg-foreground border-foreground text-background hover:bg-foreground/90 hover:text-background rounded-l-none border-1 focus-visible:ring-0"
+                                                    disabled={syncing}
+                                                >
+                                                    <Settings className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-56">
+                                                <div className="px-2 py-1.5 text-sm font-semibold">Sync Settings</div>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer items-center justify-between"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleUpdateExistingChange(!updateExisting);
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm">Update existing transactions</span>
+                                                        <span className="text-muted-foreground text-xs">
+                                                            Update existing transactions with latest data
+                                                        </span>
+                                                    </div>
+                                                    <Switch
+                                                        checked={updateExisting}
+                                                        onCheckedChange={handleUpdateExistingChange}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        disabled={savingOptions}
+                                                    />
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer items-center justify-between"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleForceMaxDateRangeChange(!forceMaxDateRange);
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm">Force full sync (max 90 days)</span>
+                                                        <span className="text-muted-foreground text-xs">
+                                                            Sync from 90 days ago instead of last sync
+                                                        </span>
+                                                    </div>
+                                                    <Switch
+                                                        checked={forceMaxDateRange}
+                                                        onCheckedChange={handleForceMaxDateRangeChange}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        disabled={savingOptions}
+                                                    />
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                 </div>
                             )}
                             {/* Analytics/Graphs Placeholder */}

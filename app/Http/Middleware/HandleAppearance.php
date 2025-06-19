@@ -16,7 +16,10 @@ class HandleAppearance
      */
     public function handle(Request $request, Closure $next): Response
     {
-        View::share('appearance', $request->cookie('appearance') ?? 'system');
+        // Only share view data if the application is bootstrapped
+        if (app()->isBooted()) {
+            View::share('appearance', $request->cookie('appearance') ?? 'system');
+        }
 
         return $next($request);
     }
