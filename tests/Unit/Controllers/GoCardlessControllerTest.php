@@ -9,8 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Mockery;
-use Tests\Unit\UnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Unit\UnitTestCase;
 
 class GoCardlessControllerTest extends UnitTestCase
 {
