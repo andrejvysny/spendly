@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Transactions;
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class TransactionController extends Controller
@@ -106,7 +108,7 @@ class TransactionController extends Controller
      *
      * Applies filters for search term, transaction type, account, merchant, category, and date range. Returns the paginated transactions and a flag indicating if more pages are available.
      *
-     * @return \Illuminate\Http\JsonResponse JSON response containing filtered transactions and pagination status.
+     * @return JsonResponse JSON response containing filtered transactions and pagination status.
      */
     public function loadMore(Request $request)
     {
@@ -146,7 +148,7 @@ class TransactionController extends Controller
                 'totalCount' => $transactions->total(),
             ]);
         } catch (\Exception $e) {
-            \Log::error('Load more transactions failed: '.$e->getMessage());
+            Log::error('Load more transactions failed: '.$e->getMessage());
 
             return response()->json(['error' => 'Failed to load more transactions'], 500);
         }
@@ -157,12 +159,12 @@ class TransactionController extends Controller
      *
      * Applies filters for search term, transaction type, account, amount (with support for exact, range, above, below), merchant, category, and date range. Returns paginated transactions, monthly summaries for the current page, total summary statistics, filter status, and pagination info.
      *
-     * @return \Illuminate\Http\JsonResponse Paginated filtered transactions and summary data.
+     * @return JsonResponse Paginated filtered transactions and summary data.
      */
-    public function filter(Request $request)
+    public function filter(Request $request): JsonResponse
     {
         try {
-            \Log::info('Filter request received', ['params' => $request->all()]);
+            Log::info('Filter request received', ['params' => $request->all()]);
 
             [$query, $isFiltered] = $this->buildTransactionQuery($request);
 
@@ -190,7 +192,7 @@ class TransactionController extends Controller
             // Get paginated transactions
             $transactions = $query->paginate(self::PAGINATION_COUNT);
 
-            \Log::info('Filtered transactions count: '.$transactions->count().', isFiltered: '.($isFiltered ? 'true' : 'false'));
+            Log::info('Filtered transactions count: '.$transactions->count().', isFiltered: '.($isFiltered ? 'true' : 'false'));
 
             // Calculate monthly summaries for the current page
             $monthlySummaries = [];
@@ -225,7 +227,7 @@ class TransactionController extends Controller
                 'totalCount' => $transactions->total(),
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error in transaction filter: '.$e->getMessage(), [
+            Log::error('Error in transaction filter: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'request' => $request->all(),
             ]);
@@ -279,7 +281,7 @@ class TransactionController extends Controller
 
             return redirect()->back()->with('success', 'Transaction created successfully');
         } catch (\Exception $e) {
-            \Log::error('Transaction creation failed: '.$e->getMessage());
+            Log::error('Transaction creation failed: '.$e->getMessage());
 
             return redirect()->back()->with('error', 'Failed to create transaction: '.$e->getMessage());
         }
@@ -311,7 +313,7 @@ class TransactionController extends Controller
 
             return redirect()->back()->with('success', 'Transaction updated successfully');
         } catch (\Exception $e) {
-            \Log::error('Transaction update failed: '.$e->getMessage());
+            Log::error('Transaction update failed: '.$e->getMessage());
 
             return redirect()->back()->with('error', 'Failed to update transaction: '.$e->getMessage());
         }
@@ -322,7 +324,7 @@ class TransactionController extends Controller
      *
      * Validates the request for transaction IDs and optional merchant and category IDs, then updates the specified fields for each transaction. Returns a JSON response indicating success or failure.
      *
-     * @return \Illuminate\Http\JsonResponse JSON response with a success message or error details.
+     * @return JsonResponse JSON response with a success message or error details.
      */
     public function bulkUpdate(Request $request)
     {
@@ -349,7 +351,7 @@ class TransactionController extends Controller
 
             return response()->json(['message' => 'Transactions updated successfully']);
         } catch (\Exception $e) {
-            \Log::error('Bulk transaction update failed: '.$e->getMessage());
+            Log::error('Bulk transaction update failed: '.$e->getMessage());
 
             return response()->json(['error' => 'Failed to update transactions'], 500);
         }
@@ -360,7 +362,7 @@ class TransactionController extends Controller
      *
      * Validates and updates the transaction's description, note, partner, and place fields if provided.
      *
-     * @return \Illuminate\Http\JsonResponse JSON response indicating success or failure.
+     * @return JsonResponse JSON response indicating success or failure.
      */
     public function updateTransaction(Request $request, Transaction $transaction)
     {
@@ -378,7 +380,7 @@ class TransactionController extends Controller
 
             return response()->json(['message' => 'Transaction updated successfully']);
         } catch (\Exception $e) {
-            \Log::error('Transaction update failed: '.$e->getMessage());
+            Log::error('Transaction update failed: '.$e->getMessage());
 
             return response()->json(['error' => 'Failed to update transaction'], 500);
         }

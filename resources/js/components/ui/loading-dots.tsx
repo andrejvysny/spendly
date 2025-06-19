@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface LoadingDotsProps {
     size?: 'sm' | 'md' | 'lg';
     className?: string;
@@ -9,7 +7,7 @@ export function LoadingDots({ size = 'md', className = '' }: LoadingDotsProps) {
     const sizeClasses = {
         sm: 'h-2 w-2',
         md: 'h-3 w-3',
-        lg: 'h-4 w-4'
+        lg: 'h-4 w-4',
     };
 
     return (
@@ -19,4 +17,4 @@ export function LoadingDots({ size = 'md', className = '' }: LoadingDotsProps) {
             <div className={`${sizeClasses[size]} animate-bounce rounded-full bg-current`}></div>
         </div>
     );
-} 
+}

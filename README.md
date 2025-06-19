@@ -49,39 +49,33 @@ Spendly is an open-source personal finance tracker that helps you manage your fi
 - **Testing**: PHPUnit, Jest
 - **Deployment**: Docker
 
-## 🐳 Quick Start
+---
 
-### Docker (Recommended)
+## 🐳 Quick Start - One line (Recommended)
+
+Download and run setup script scripts/setup.sh
+```bash
+curl -sSL https://raw.githubusercontent.com/andrejvysny/spendly/main/scripts/setup.sh | bash
+```
+
+
+## Manual Docker setup
 
 1. Make sure you have Docker installed on your system.
-
-2. Run the application:
-
+2. Download compose.prod.yml.
+3. Create .env file using .env.example and adjust parameters as needed.
+4. Generate app key.
 ```bash
-docker run -p 80:80 ghcr.io/andrejvysny/spendly:main
+docker compose run app php artisan key:generate
 ```
-
-3. Visit `http://localhost` in your browser.
-
-### Docker Compose
-
+5. Start Spendly 
 ```bash
-# Download docker-compose file
-curl -o compose.prod.yml https://raw.githubusercontent.com/andrejvysny/spendly/main/compose.prod.yml
-
-# Create environment file
-cat > .env << 'EOF'
-APP_KEY=base64:$(openssl rand -base64 32)
-MAIL_HOST=your-smtp-host
-MAIL_PORT=587
-MAIL_USERNAME=your-email@example.com
-MAIL_PASSWORD=your-password
-MAIL_FROM_ADDRESS=your-email@example.com
-EOF
-
-# Start Spendly
-docker compose -f compose.prod.yml up -d
+docker compose up -d
 ```
+6. Visit `http://localhost` in your browser and enjoy.
+
+
+---
 
 ## 📚 Documentation (WIP)
  
