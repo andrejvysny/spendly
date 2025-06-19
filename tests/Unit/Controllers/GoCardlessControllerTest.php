@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Mockery;
 use Tests\Unit\UnitTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class GoCardlessControllerTest extends UnitTestCase
 {
@@ -318,9 +319,8 @@ class GoCardlessControllerTest extends UnitTestCase
 
     /**
      * Test syncTransactions with different parameter combinations
-     *
-     * @dataProvider booleanParameterProvider
      */
+    #[DataProvider('booleanParameterProvider')]
     public function test_sync_transactions_parameter_combinations($updateExisting, $forceMaxDateRange)
     {
         $accountId = 123;

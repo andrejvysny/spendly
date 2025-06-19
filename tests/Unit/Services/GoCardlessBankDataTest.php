@@ -7,6 +7,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\Unit\UnitTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class GoCardlessBankDataTest extends UnitTestCase
 {
@@ -138,9 +139,8 @@ class GoCardlessBankDataTest extends UnitTestCase
 
     /**
      * Test token response with invalid data types
-     *
-     * @dataProvider invalidTokenResponseProvider
      */
+    #[DataProvider('invalidTokenResponseProvider')]
     public function test_token_response_validation($response, $expectedMessage)
     {
         Http::fake([
