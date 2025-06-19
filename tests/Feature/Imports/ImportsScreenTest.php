@@ -25,8 +25,7 @@ class ImportsScreenTest extends TestCase
         Import::factory()->count(2)->create();
 
         $response = $this->actingAs($user)
-            ->withHeaders(['X-Inertia' => 'true'])
-            ->get('/imports');
+            ->inertia('GET', '/imports');
 
         $response->assertOk();
         $response->assertJsonFragment(['component' => 'import/index']);
@@ -64,7 +63,7 @@ class ImportsScreenTest extends TestCase
             'metadata' => ['import_id' => $import->id],
         ]);
 
-        $response = $this->actingAs($user)->post('/imports/revert/' . $import->id);
+        $response = $this->actingAs($user)->post('/imports/revert/'.$import->id);
 
         $response->assertOk();
         $import->refresh();
@@ -82,7 +81,7 @@ class ImportsScreenTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->post('/imports/revert/' . $import->id)
+            ->post('/imports/revert/'.$import->id)
             ->assertForbidden();
     }
 }
