@@ -43,7 +43,7 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
     useEffect(() => {
         if (currentStep === 'map') {
             axios
-                .get(route("imports.wizard.categories"))
+                .get(route('imports.wizard.categories'))
                 .then((response) => {
                     setCategories(response.data.categories);
                 })

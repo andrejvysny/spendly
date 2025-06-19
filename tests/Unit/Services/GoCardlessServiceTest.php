@@ -69,7 +69,7 @@ class GoCardlessServiceTest extends UnitTestCase
 
         // Mock the service container to return our mocked dependencies
         $this->app->instance(TokenManager::class, $this->tokenManagerMock);
-        
+
         $this->service = new GoCardlessService(
             $this->accountRepository,
             $this->transactionSyncService,
@@ -110,7 +110,7 @@ class GoCardlessServiceTest extends UnitTestCase
         $account->user_id = $this->user->id;
         $account->is_gocardless_synced = true;
         $account->gocardless_account_id = 'gocardless_acc_123';
-        
+
         // Allow setAttribute calls on the account mock
         $account->shouldReceive('setAttribute')->andReturnSelf();
 
@@ -229,7 +229,7 @@ class GoCardlessServiceTest extends UnitTestCase
         $account->user_id = $this->user->id;
         $account->is_gocardless_synced = false;
         $account->gocardless_account_id = 'gocardless_acc_123';
-        
+
         // Allow setAttribute calls on the account mock
         $account->shouldReceive('setAttribute')->andReturnSelf();
 
@@ -261,7 +261,7 @@ class GoCardlessServiceTest extends UnitTestCase
         $account->user_id = $this->user->id;
         $account->is_gocardless_synced = true;
         $account->gocardless_account_id = 'gocardless_acc_123';
-        
+
         // Allow setAttribute calls on the account mock
         $account->shouldReceive('setAttribute')->andReturnSelf();
 
