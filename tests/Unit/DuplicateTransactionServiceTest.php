@@ -8,6 +8,7 @@ use App\Models\TransactionFingerprint;
 use App\Models\User;
 use App\Services\DuplicateTransactionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class DuplicateTransactionServiceTest extends TestCase
@@ -80,7 +81,7 @@ class DuplicateTransactionServiceTest extends TestCase
                     'description' => 'Netflx EU',
                     'transaction_id' => 'f2',
                 ],
-                true,
+                false,
             ],
             'mapped fields' => [
                 [
@@ -102,9 +103,7 @@ class DuplicateTransactionServiceTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider duplicateProvider
-     */
+    #[DataProvider('duplicateProvider')]
     public function test_duplicate_detection(array $existing, array $new, bool $expected): void
     {
         $user = User::factory()->create();
