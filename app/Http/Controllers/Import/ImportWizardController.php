@@ -405,6 +405,58 @@ class ImportWizardController extends Controller
     }
 
     /**
+     * Determines whether a transaction is a duplicate for the given account.
+     *
+     * Currently always returns false, effectively disabling duplicate transaction detection.
+     *
+     * @param  array  $data  Transaction data to check.
+     * @param  mixed  $accountId  Account identifier.
+     * @return bool Always returns false.
+     */
+    private function isDuplicateTransaction(array $data, $accountId): bool
+    {
+        Log::debug('Checking for duplicate transaction', [
+            'account_id' => $accountId,
+            'data' => $data,
+        ]);
+
+        // Get the booked date and create a date range for comparison
+        $bookedDate = \DateTime::createFromFormat('Y-m-d H:i:s', $data['booked_date']);
+        if (! $bookedDate) {
+            return false;
+        }
+
+        // Create a date range of ±1 day to account for slight variations
+        $startDate = (clone $bookedDate)->modify('-1 day')->format('Y-m-d H:i:s');
+        $endDate = (clone $bookedDate)->modify('+1 day')->format('Y-m-d H:i:s');
+
+        // Build the query to check for duplicates
+        $query = Transaction::where('account_id', $accountId)
+            ->where('amount', $data['amount'])
+            ->where('currency', $data['currency'])
+            ->where('partner', $data['partner'])
+            ->whereBetween('booked_date', [$startDate, $endDate]);
+
+        // Add description to the check if it exists
+        if (! empty($data['description'])) {
+            $query->where('description', $data['description']);
+        }
+
+        // Add target/source IBAN to the check if they exist
+        if (! empty($data['target_iban'])) {
+            $query->where('target_iban', $data['target_iban']);
+        }
+        if (! empty($data['source_iban'])) {
+            $query->where('source_iban', $data['source_iban']);
+        }
+
+        $exists = $query->exists();
+        Log::debug('Duplicate check result', ['is_duplicate' => $exists]);
+
+        return (bool) $exists;
+    }
+
+    /**
      * Process a CSV row into a transaction
      */
     private function processImportRow(array $row, Import $import, $accountId)
