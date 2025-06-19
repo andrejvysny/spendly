@@ -98,7 +98,7 @@ echo "Running: $CMD"
 eval $CMD
 
 if [ "$COVERAGE_TYPE" = "text" ]; then
-    echo "\n===== coverage/coverage.txt ====="
+    echo -e "\n===== coverage/coverage.txt ====="
     cat coverage/coverage.txt
     echo "==============================="
 fi
