@@ -1,5 +1,30 @@
 #!/bin/bash
 
+set -e
+
+# Check if docker compose is installed and accessible
+if ! command -v docker &> /dev/null; then
+    echo "❌ Error: Docker is not installed or not in PATH. Please install Docker and try again."
+    exit 1
+fi
+
+if ! docker compose version &> /dev/null; then
+    echo "❌ Error: 'docker compose' is not available. Please ensure you have Docker Compose V2 installed (use 'docker compose', not 'docker-compose')."
+    exit 1
+fi
+
+# Check if the 'test' service is defined in docker compose
+if ! docker compose config --services | grep -q '^test$'; then
+    echo "❌ Error: 'test' service is not defined in your docker-compose file. Please check your configuration."
+    exit 1
+fi
+
+# Check if Docker daemon is running
+if ! docker info &> /dev/null; then
+    echo "❌ Error: Docker daemon is not running. Please start Docker and try again."
+    exit 1
+fi
+
 # Default values
 COVERAGE=false
 COVERAGE_TYPE="html"
@@ -57,7 +82,8 @@ CMD="docker compose run test ./vendor/bin/phpunit"
 if [ "$COVERAGE" = true ]; then
     case $COVERAGE_TYPE in
         "text")
-            CMD="$CMD --coverage-text --coverage-filter app"
+            mkdir -p coverage
+            CMD="$CMD --coverage-text --coverage-filter app > coverage/coverage.txt"
             ;;
         "html")
             CMD="$CMD --coverage-html coverage/html --coverage-filter app"
@@ -70,6 +96,12 @@ fi
 
 echo "Running: $CMD"
 eval $CMD
+
+if [ "$COVERAGE_TYPE" = "text" ]; then
+    echo "\n===== coverage/coverage.txt ====="
+    cat coverage/coverage.txt
+    echo "==============================="
+fi
 
 echo "✅ Tests completed!"
 echo "📊 Coverage reports available in:"
