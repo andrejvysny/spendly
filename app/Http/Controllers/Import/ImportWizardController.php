@@ -528,7 +528,7 @@ class ImportWizardController extends Controller
         }
 
         // Check for duplicate transaction
-        $dup = $this->duplicateService->check($data, (int) $accountId);
+        $dup = $this->duplicateService->check($data, Auth::id());
         if ($dup['duplicate']) {
             Log::info('Skipping duplicate transaction', [
                 'account_id' => $accountId,
