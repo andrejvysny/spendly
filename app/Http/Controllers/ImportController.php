@@ -1,44 +1,67 @@
 <?php
 
-namespace App\Http\Controllers\Import;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\ImportUploadRequest;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Import;
 use App\Models\Transaction;
-use App\Models\TransactionFingerprint;
-use App\Services\CsvProcessor;
-use App\Services\DuplicateTransactionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
-class ImportWizardController extends Controller
+class ImportController extends Controller
 {
-
-    public function __construct(private readonly DuplicateTransactionService $duplicateService)
+    /**
+     * Display a listing of imports
+     */
+    public function index()
     {
+        Log::debug('Fetching imports for user', ['user_id' => Auth::id()]);
+
+        $imports = Import::where('user_id', Auth::id())
+            ->orderByDesc('created_at')
+            ->get();
+
+        Log::debug('Found imports', ['count' => $imports->count()]);
+
+        return Inertia::render('import/index', [
+            'imports' => $imports,
+            'accounts' => Account::where('user_id', Auth::id()),
+        ]);
     }
 
-    public function upload(ImportUploadRequest $request): JsonResponse
+    /**
+     * Upload a CSV file
+     */
+    public function upload(Request $request)
     {
         Log::debug('Starting file upload');
 
-        $request->validated();
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:2048',
+            'account_id' => 'required|exists:accounts,id',
+            'delimiter' => 'required|string|size:1',
+            'quote_char' => 'required|string|size:1',
+        ]);
+
         Log::debug('File validation passed');
 
-        $file = $request->getFile();
+        $file = $request->file('file');
         $originalFilename = $file->getClientOriginalName();
         $filename = Str::random(40).'.csv';
-        Log::debug('Generated filename', ['original' => $originalFilename, 'generated' => $filename]);
+
+        Log::debug('Generated filename', [
+            'original' => $originalFilename,
+            'generated' => $filename,
+        ]);
 
         // Preprocess the CSV file to ensure proper UTF-8 encoding
-        $preprocessedPath = (new CsvProcessor)->preprocessCSV($file, $request->getDelimiter(), $request->getQuoteChar());
+        $preprocessedPath = $this->preprocessCSV($file, $request->delimiter, $request->quote_char);
         Log::debug('CSV file preprocessed', ['path' => $preprocessedPath]);
 
         // Store preprocessed file in storage
@@ -46,12 +69,16 @@ class ImportWizardController extends Controller
         Log::debug('File stored', ['path' => $path]);
 
         // Read sample data from the file
-        $sampleData = $this->getSampleData($path, $request->getDelimiter(), $request->getQuoteChar());
+        $sampleData = $this->getSampleData($path, $request->delimiter, $request->quote_char);
         Log::debug('Sample data read', [
             'headers_count' => count($sampleData['headers']),
             'rows_count' => count($sampleData['rows']),
         ]);
+
+        // Calculate total rows (excluding header)
         $totalRows = count(file(Storage::path($path))) - 1;
+
+        // Create import record
         $import = Import::create([
             'user_id' => Auth::id(),
             'filename' => $filename,
@@ -61,9 +88,9 @@ class ImportWizardController extends Controller
             'metadata' => [
                 'headers' => $sampleData['headers'],
                 'sample_rows' => $sampleData['rows'],
-                'account_id' => $request->getAccountId(),
-                'delimiter' => $request->getDelimiter(),
-                'quote_char' => $request->getQuoteChar(),
+                'account_id' => $request->account_id,
+                'delimiter' => $request->delimiter,
+                'quote_char' => $request->quote_char,
             ],
         ]);
 
@@ -77,6 +104,93 @@ class ImportWizardController extends Controller
         ]);
     }
 
+    /**
+     * Preprocess CSV file to ensure proper UTF-8 encoding
+     */
+    private function preprocessCSV($file, string $delimiter, string $quoteChar)
+    {
+        Log::debug('Starting CSV preprocessing', [
+            'delimiter' => $delimiter,
+            'quote_char' => $quoteChar,
+        ]);
+
+        // Create a temporary file for the preprocessed content
+        $tempFile = tempnam(sys_get_temp_dir(), 'csv_');
+        $handle = fopen($tempFile, 'w');
+
+        // Read the first few bytes to detect BOM
+        $content = file_get_contents($file->getPathname(), false, null, 0, 10000);
+
+        // Check for BOM and detect encoding
+        $encoding = $this->detectEncoding($content);
+        Log::debug('Detected file encoding', ['encoding' => $encoding]);
+
+        // Convert file content to UTF-8 based on detected encoding
+        $fullContent = file_get_contents($file->getPathname());
+
+        if ($encoding != 'UTF-8') {
+            $fullContent = mb_convert_encoding($fullContent, 'UTF-8', $encoding);
+            Log::debug('Converted file from detected encoding to UTF-8');
+        }
+
+        // Remove NULL bytes
+        $fullContent = str_replace("\0", '', $fullContent);
+        Log::debug('Removed null bytes from content');
+
+        // Remove BOM if present
+        $fullContent = preg_replace('/^\xEF\xBB\xBF/', '', $fullContent);
+
+        // Write the processed content to the temp file
+        fwrite($handle, $fullContent);
+        fclose($handle);
+
+        Log::debug('CSV preprocessing completed', ['temp_file' => $tempFile]);
+
+        return $tempFile;
+    }
+
+    /**
+     * Detect file encoding with additional checks for UTF-16 variants
+     */
+    private function detectEncoding($content)
+    {
+        // Check for UTF-16LE BOM (FF FE)
+        if (substr($content, 0, 2) === "\xFF\xFE") {
+            return 'UTF-16LE';
+        }
+
+        // Check for UTF-16BE BOM (FE FF)
+        if (substr($content, 0, 2) === "\xFE\xFF") {
+            return 'UTF-16BE';
+        }
+
+        // Check for UTF-8 BOM (EF BB BF)
+        if (substr($content, 0, 3) === "\xEF\xBB\xBF") {
+            return 'UTF-8';
+        }
+
+        // No BOM found, try to detect encoding based on content
+        // Check for null bytes which might indicate UTF-16
+        if (strpos($content, "\0") !== false) {
+            // Detect if it's UTF-16LE or UTF-16BE based on pattern
+            if (preg_match('/[\x20-\x7E]\x00[\x20-\x7E]\x00/', $content)) {
+                return 'UTF-16LE';
+            } elseif (preg_match('/\x00[\x20-\x7E]\x00[\x20-\x7E]/', $content)) {
+                return 'UTF-16BE';
+            }
+        }
+
+        // Try to detect encoding using mb_detect_encoding
+        $detectedEncoding = mb_detect_encoding($content, [
+            'UTF-8', 'UTF-16LE', 'UTF-16BE', 'ASCII', 'ISO-8859-1', 'ISO-8859-15', 'Windows-1252',
+        ], true);
+
+        return $detectedEncoding ?: 'UTF-8'; // Default to UTF-8 if detection fails
+    }
+
+    /**
+     * Configure the column mapping for an import
+     */
     public function configure(Request $request, Import $import)
     {
         Log::debug('Starting import configuration', ['import_id' => $import->id]);
@@ -113,6 +227,9 @@ class ImportWizardController extends Controller
         ]);
     }
 
+    /**
+     * Process the import and create transactions
+     */
     public function process(Request $request, Import $import)
     {
         Log::debug('Starting import processing', ['import_id' => $import->id]);
@@ -289,10 +406,15 @@ class ImportWizardController extends Controller
         }
     }
 
-    public function getCategories(): JsonResponse
+    /**
+     * Get categories for mapping
+     */
+    public function getCategories()
     {
         Log::debug('Fetching categories for user', ['user_id' => Auth::id()]);
+
         $categories = Category::where('user_id', Auth::id())->get();
+
         Log::debug('Found categories', ['count' => $categories->count()]);
 
         return response()->json([
@@ -542,6 +664,7 @@ class ImportWizardController extends Controller
         }
 
         // Set required fields
+        $data['transaction_id'] = 'IMP-'.Str::random(10);
         $data['currency'] = $currency;
         $data['account_id'] = $accountId;
         // Use type from mapping if provided, otherwise default to "Imported"
@@ -580,64 +703,21 @@ class ImportWizardController extends Controller
         }
 
         // Check for duplicate transaction
-        $dup = $this->duplicateService->check($data, (int) $accountId);
-        if ($dup['duplicate']) {
+        if ($this->isDuplicateTransaction($data, $accountId)) {
             Log::info('Skipping duplicate transaction', [
                 'account_id' => $accountId,
-                'transaction_data' => [
-                    'description' => $data['description'] ?? null,
-                    'amount' => $data['amount'] ?? null,
-                    'booked_date' => $data['booked_date'] ?? null,
-                    'partner' => $data['partner'] ?? null,
-                ],
-                'duplicate_check_result' => [
-                    'level' => $dup['level'],
-                    'identifier' => $dup['identifier'],
-                    'fields' => $dup['fields'],
-                ],
-                'import_id' => $import->id,
-                'row_data' => $importDataAssoc,
+                'data' => $data,
             ]);
 
             return 'skipped';
         }
 
-        // Assign a unique identifier only now, after confirming the row is not a duplicate.
-        $data['transaction_id'] = 'IMP-'.Str::random(10);
-
-        // Add duplicate identifier to the transaction data
-        $data['duplicate_identifier'] = $dup['identifier'];
-
-        // Add duplicate information to metadata
-        $data['metadata']['duplicate_identifier'] = $dup['identifier'];
-        $data['metadata']['duplicate_fields'] = $dup['fields'];
-        $data['metadata']['duplicate_level'] = $dup['level'];
-
         Log::debug('Creating transaction', ['data' => json_encode($data)]);
 
         // Create transaction
         try {
-            $transaction = Transaction::create($data);
+            Transaction::create($data);
             Log::debug('Transaction created successfully');
-
-            // Re-compute fingerprint after all data mutations to ensure consistency
-            $account = Account::find($accountId);
-            if ($account) {
-                // Re-normalize and build fingerprint from final data state
-                $finalNormalized = $this->duplicateService->normalizeRecord($data);
-                $finalFingerprint = $this->duplicateService->buildFingerprint($finalNormalized);
-
-                TransactionFingerprint::create([
-                    'user_id' => $account->user_id,
-                    'fingerprint' => $finalFingerprint,
-                    'transaction_id' => $transaction->id,
-                ]);
-                Log::debug('Transaction fingerprint stored', [
-                    'fingerprint' => $finalFingerprint,
-                    'original_fingerprint' => $dup['identifier'],
-                    'transaction_id' => $transaction->id,
-                ]);
-            }
 
             return 'processed';
         } catch (\Exception $e) {
@@ -749,12 +829,10 @@ class ImportWizardController extends Controller
         return $previewData;
     }
 
-
-
     /**
      * Parse date from string based on format
      */
-    private function parseDate(string $dateString, string $format): ?string
+    private function parseDate(string $dateString, string $format)
     {
         Log::debug('Parsing date', ['date_string' => $dateString, 'format' => $format]);
 
@@ -814,7 +892,7 @@ class ImportWizardController extends Controller
     /**
      * Parse amount from string based on format
      */
-    private function parseAmount(string $amountString, string $format, string $strategy): ?float
+    private function parseAmount(string $amountString, string $format, string $strategy)
     {
         Log::debug('Parsing amount', [
             'amount_string' => $amountString,
@@ -871,5 +949,161 @@ class ImportWizardController extends Controller
 
             return null;
         }
+    }
+
+    /**
+     * Get saved import mappings for the authenticated user
+     */
+    public function getSavedMappings()
+    {
+        Log::debug('Fetching saved import mappings for user', ['user_id' => Auth::id()]);
+
+        $mappings = \App\Models\ImportMapping::where('user_id', Auth::id())
+            ->orderByDesc('last_used_at')
+            ->get();
+
+        Log::debug('Found import mappings', ['count' => $mappings->count()]);
+
+        return response()->json([
+            'mappings' => $mappings,
+        ]);
+    }
+
+    /**
+     * Save a new import mapping
+     */
+    public function saveMapping(Request $request)
+    {
+        Log::debug('Saving new import mapping', ['user_id' => Auth::id()]);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'bank_name' => 'nullable|string|max:255',
+            'column_mapping' => 'required|array',
+            'date_format' => 'required|string',
+            'amount_format' => 'required|string',
+            'amount_type_strategy' => 'required|string',
+            'currency' => 'required|string|size:3',
+        ]);
+
+        $mapping = \App\Models\ImportMapping::create([
+            'user_id' => Auth::id(),
+            'name' => $request->name,
+            'bank_name' => $request->bank_name,
+            'column_mapping' => $request->column_mapping,
+            'date_format' => $request->date_format,
+            'amount_format' => $request->amount_format,
+            'amount_type_strategy' => $request->amount_type_strategy,
+            'currency' => $request->currency,
+            'last_used_at' => now(),
+        ]);
+
+        Log::debug('Import mapping saved successfully', ['mapping_id' => $mapping->id]);
+
+        return response()->json([
+            'message' => 'Import mapping saved successfully',
+            'mapping' => $mapping,
+        ]);
+    }
+
+    /**
+     * Update the last used timestamp for a mapping
+     */
+    public function updateMappingUsage(Request $request, \App\Models\ImportMapping $mapping)
+    {
+        // Check that this mapping belongs to the authenticated user
+        if ($mapping->user_id !== Auth::id()) {
+            Log::warning('Unauthorized mapping access attempt', [
+                'mapping_id' => $mapping->id,
+                'user_id' => Auth::id(),
+            ]);
+            abort(403);
+        }
+
+        $mapping->last_used_at = now();
+        $mapping->save();
+
+        Log::debug('Updated mapping usage timestamp', ['mapping_id' => $mapping->id]);
+
+        return response()->json([
+            'message' => 'Mapping usage updated',
+            'mapping' => $mapping,
+        ]);
+    }
+
+    /**
+     * Deletes a saved import mapping for the authenticated user.
+     *
+     * Returns a JSON response confirming successful deletion. Aborts with a 403 error if the mapping does not belong to the user.
+     */
+    public function deleteMapping(\App\Models\ImportMapping $mapping)
+    {
+        // Check that this mapping belongs to the authenticated user
+        if ($mapping->user_id !== Auth::id()) {
+            Log::warning('Unauthorized mapping deletion attempt', [
+                'mapping_id' => $mapping->id,
+                'user_id' => Auth::id(),
+            ]);
+            abort(403);
+        }
+
+        $mapping->delete();
+
+        Log::debug('Deleted import mapping', ['mapping_id' => $mapping->id]);
+
+        return response()->json([
+            'message' => 'Import mapping deleted successfully',
+        ]);
+    }
+
+    /**
+     * Reverts an import by its ID, deleting all associated transactions and updating the import status.
+     *
+     * Returns a JSON response indicating the result. If the import does not exist, returns a 404 response. If the import is already reverted, returns a 200 response with a relevant message. Only the owner of the import can perform this action.
+     *
+     * @param  int  $id  The ID of the import to revert.
+     * @return JsonResponse JSON response with the result of the revert operation and updated import data.
+     */
+    public function revertImport(int $id): JsonResponse
+    {
+        Log::debug('Reverting import', ['import_id' => $id]);
+
+        // Find the import
+        $import = Import::find($id);
+        if (! $import) {
+            Log::error('Import not found', ['import_id' => $id]);
+
+            return response()->json(['message' => 'Import not found'], 404);
+        }
+
+        // Check if this import belongs to the authenticated user
+        if ($import->user_id !== Auth::id()) {
+            Log::warning('Unauthorized import revert attempt', [
+                'import_id' => $import->id,
+                'user_id' => Auth::id(),
+            ]);
+            abort(403);
+        }
+
+        // Check if the import is already reverted
+        if ($import->status === Import::STATUS_REVERTED) {
+            Log::info('Import already reverted', ['import_id' => $import->id]);
+
+            return response()->json(['message' => 'Import already reverted'], 200);
+        }
+
+        // Revert transactions created by this import
+        Transaction::where('metadata->import_id', $import->id)->delete();
+
+        // Update import status
+        $import->status = Import::STATUS_REVERTED;
+        $import->save();
+
+        Log::info('Import reverted successfully', ['import_id' => $import->id]);
+
+        return response()->json([
+            'message' => 'Import reverted successfully',
+            'import' => $import,
+        ]);
     }
 }

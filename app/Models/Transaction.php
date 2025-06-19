@@ -34,13 +34,6 @@ class Transaction extends Model
         'is_gocardless_synced',
         'gocardless_synced_at',
         'gocardless_account_id',
-        'duplicate_identifier',
-        'original_amount',
-        'original_currency',
-        'original_booked_date',
-        'original_source_iban',
-        'original_target_iban',
-        'original_partner',
     ];
 
     /**
@@ -60,13 +53,6 @@ class Transaction extends Model
         'is_gocardless_synced' => 'boolean',
         'gocardless_synced_at' => 'datetime',
         'gocardless_account_id' => 'string',
-        'duplicate_identifier' => 'string',
-        'original_amount' => 'decimal:2',
-        'original_currency' => 'string',
-        'original_booked_date' => 'datetime',
-        'original_source_iban' => 'string',
-        'original_target_iban' => 'string',
-        'original_partner' => 'string',
     ];
 
     /**
