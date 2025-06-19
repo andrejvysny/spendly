@@ -16,8 +16,8 @@ class TransactionController extends Controller
      *
      * Applies filters for search, transaction type, account, amount (with multiple filter types), merchant, category, and date range. Calculates total and monthly summaries for the filtered transactions. Provides related categories, merchants, tags, and accounts for filter dropdowns. Returns an Inertia.js response rendering the transactions index view.
      */
-
     const PAGINATION_COUNT = 10; // Define a constant for pagination count
+
     public function index(Request $request)
     {
         [$query, $isFiltered] = $this->buildTransactionQuery($request);
@@ -147,6 +147,7 @@ class TransactionController extends Controller
             ]);
         } catch (\Exception $e) {
             \Log::error('Load more transactions failed: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to load more transactions'], 500);
         }
     }

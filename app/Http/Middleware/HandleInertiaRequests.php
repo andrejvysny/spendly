@@ -37,20 +37,31 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
-
-        return [
+        $shared = [
             ...parent::share($request),
-            'name' => config('app.name'),
-            'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user(),
             ],
-            'ziggy' => fn (): array => [
-                ...(new Ziggy)->toArray(),
-                'location' => $request->url(),
-            ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
+
+        // Only add facade-dependent data if the application is bootstrapped
+        if (app()->isBooted()) {
+            try {
+                [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
+                $shared['quote'] = ['message' => trim($message), 'author' => trim($author)];
+                $shared['name'] = config('app.name');
+                $shared['ziggy'] = fn (): array => [
+                    ...(new Ziggy)->toArray(),
+                    'location' => $request->url(),
+                ];
+            } catch (\Exception $e) {
+                // Fallback if facades are not available
+                $shared['quote'] = ['message' => 'Build something amazing.', 'author' => 'Laravel'];
+                $shared['name'] = 'Laravel';
+            }
+        }
+
+        return $shared;
     }
 }
