@@ -12,7 +12,7 @@ The original `setup.sh` script had an issue where the application key was genera
 - Encrypted data becoming inaccessible
 - Inconsistent application state
 
-Additionally, when running the script via `curl | bash`, users encountered a "the input device is not a TTY" error.
+Additionally, when running the script via `curl | bash`, users encountered a "the input device is not a TTY" error when using `docker compose run`.
 
 ## Solution
 
@@ -33,8 +33,7 @@ The `scripts/setup.sh` script was updated to:
 
 - Check if `.env` file already exists before downloading
 - Check if `APP_KEY` is already set before generating
-- Use a temporary Docker Compose override to mount the `.env` file during key generation
-- Add `-T` flag to disable TTY allocation for non-interactive environments
+- Use `docker run` directly instead of `docker compose run` to avoid TTY issues
 - Provide better error handling and user feedback
 
 ### 3. Key Generation Process
@@ -42,10 +41,9 @@ The `scripts/setup.sh` script was updated to:
 The app key generation now works as follows:
 
 1. **Check existing key**: Script checks if `APP_KEY=base64:` already exists in `.env`
-2. **Create temporary override**: Creates `compose.keygen.yml` with `.env` volume mount
-3. **Generate key**: Runs `php artisan key:generate --force` in container with `-T` flag
-4. **Clean up**: Removes temporary compose file
-5. **Verify**: Confirms key was generated successfully
+2. **Direct container execution**: Uses `docker run` with `.env` file mounted
+3. **Generate key**: Runs `php artisan key:generate --force` in container
+4. **Verify**: Confirms key was generated successfully
 
 ## Usage
 
@@ -70,19 +68,12 @@ This will:
 If you need to regenerate the key manually:
 
 ```bash
-# Create temporary compose override
-cat > compose.keygen.yml << EOF
-services:
-  app:
-    volumes:
-      - ./.env:/var/www/html/.env
-EOF
-
-# Generate key (note the -T flag for non-interactive environments)
-docker compose -f compose.yml -f compose.keygen.yml run -T --rm app php artisan key:generate --force
-
-# Clean up
-rm compose.keygen.yml
+# Generate key using docker run (no TTY issues)
+docker run --rm \
+    -v "$(pwd)/.env:/var/www/html/.env" \
+    -v "$(pwd)/compose.yml:/var/www/html/compose.yml" \
+    ghcr.io/andrejvysny/spendly:main \
+    php artisan key:generate --force
 ```
 
 ## Security Considerations
@@ -90,7 +81,6 @@ rm compose.keygen.yml
 - The `.env` file contains sensitive information and should be kept secure
 - The app key should never be committed to version control
 - The key generation process uses `--force` flag to overwrite existing keys if needed
-- The temporary compose files are cleaned up after use
 
 ## Troubleshooting
 
@@ -98,9 +88,9 @@ rm compose.keygen.yml
 
 If you encounter "the input device is not a TTY" error:
 
-- The script now includes the `-T` flag to disable TTY allocation
-- This is especially important when running via `curl | bash`
-- The `-T` flag tells Docker to run in non-interactive mode
+- The script now uses `docker run` instead of `docker compose run`
+- This approach doesn't require TTY allocation
+- Works perfectly in non-interactive environments like `curl | bash`
 
 ### Key Not Generated
 
@@ -120,7 +110,7 @@ If you encounter permission issues:
 chmod 644 .env
 
 # Check Docker volume permissions
-docker compose run --rm app ls -la /var/www/html/.env
+docker run --rm -v "$(pwd)/.env:/var/www/html/.env" ghcr.io/andrejvysny/spendly:main ls -la /var/www/html/.env
 ```
 
 ### Container Restart Issues
@@ -134,16 +124,24 @@ If the app key is being regenerated on restart:
 ## File Changes Summary
 
 - `compose.prod.yml`: Added `.env` volume mount
-- `scripts/setup.sh`: Improved key generation logic with `-T` flag
+- `scripts/setup.sh`: Improved key generation logic using `docker run`
 - `docs/APP_KEY_GENERATION.md`: This documentation file
 
 ## Technical Details
 
-### Docker Compose Flags Used
+### Docker Commands Used
 
-- `-T`: Disable pseudo-TTY allocation (fixes TTY errors in non-interactive environments)
-- `--rm`: Automatically remove the container when it exits
-- `-f compose.yml -f compose.keygen.yml`: Use multiple compose files (base + override)
+- `docker run --rm`: Run container and remove it when done
+- `-v "$(pwd)/.env:/var/www/html/.env"`: Mount host `.env` file to container
+- `-v "$(pwd)/compose.yml:/var/www/html/compose.yml"`: Mount compose file for context
+- `ghcr.io/andrejvysny/spendly:main`: Use the official Spendly image
+
+### Why `docker run` instead of `docker compose run`?
+
+- **No TTY issues**: `docker run` doesn't try to allocate a pseudo-TTY by default
+- **Simpler**: No need for temporary compose override files
+- **More reliable**: Works consistently across different environments
+- **Better for automation**: Perfect for scripts and CI/CD pipelines
 
 ### Environment Variables
 
