@@ -19,6 +19,10 @@ export interface Account {
     gocardless_account_id: string | null;
     is_gocardless_synced: boolean;
     gocardless_last_synced_at: string | null;
+    sync_options?: {
+        update_existing?: boolean;
+        force_max_date_range?: boolean;
+    } | null;
     created_at: string;
     updated_at: string;
 }
@@ -88,7 +92,7 @@ export interface Import {
     user_id: number;
     filename: string;
     original_filename: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed' | 'partially_failed' | 'completed_skipped_duplicates';
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'partially_failed' | 'completed_skipped_duplicates' | 'reverted';
     total_rows: number;
     processed_rows: number;
     failed_rows: number;

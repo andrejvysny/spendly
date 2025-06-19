@@ -22,11 +22,13 @@ export function useLoadMore<T, P>({ initialData, initialPage, initialHasMore, fe
     const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
     const [totalCount, setTotalCount] = useState<number | undefined>(initialTotalCount);
+    const [error, setError] = useState<Error | null>(null);
 
     const loadMore = useCallback(
         async (params: P) => {
             if (isLoadingMore || !hasMore) return;
             setIsLoadingMore(true);
+            setError(null); // Clear any previous errors
             try {
                 const result = await fetcher(params, page + 1);
                 setData((prev) => [...prev, ...(result.data || [])]);
@@ -49,12 +51,13 @@ export function useLoadMore<T, P>({ initialData, initialPage, initialHasMore, fe
         setData(newData);
         setPage(newPage);
         setHasMore(hasMorePages);
+        setError(null); // Clear errors on reset
         if (typeof newTotalCount === 'number') {
             setTotalCount(newTotalCount);
         }
     }, []);
 
-    return { data, page, hasMore, isLoadingMore, loadMore, reset, totalCount, setData };
+    return { data, page, hasMore, isLoadingMore, loadMore, reset, totalCount, setData, error, setError };
 }
 
 export default useLoadMore;

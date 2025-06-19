@@ -8,15 +8,13 @@ use Carbon\Carbon;
 
 class GocardlessMapper
 {
-    /****
- * Initializes a new instance of the GocardlessMapper class.
- */
+    /**
+     * Initializes a new instance of the GocardlessMapper class.
+     */
     public function __construct() {}
 
     /**
      * Maps GoCardless account data into a structured array for application use.
-     *
-     * Converts the provided account data array into a normalized format with standard keys, default values for missing fields, and includes a JSON-encoded snapshot of the original data.
      *
      * @param  array  $data  Raw GoCardless account data.
      * @return array Structured account data suitable for internal processing.
@@ -60,9 +58,86 @@ class GocardlessMapper
     }
 
     /**
-     * Maps a GoCardless transaction array and associated account into a structured array for internal use.
+     * Safely parses a date string into a Carbon instance.
      *
-     * Extracts and normalizes transaction details such as account identifiers, IBANs, amounts, currency, booking and processing dates, partner information, description, transaction type, balance after transaction, metadata, and includes the original transaction data.
+     * @param  string|null  $date  The date string to parse.
+     * @return Carbon|null The parsed date or null if invalid.
+     */
+    private function parseDate(?string $date): ?Carbon
+    {
+        if (empty($date)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($date);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Extracts and formats the transaction description.
+     *
+     * @param  array  $transaction  The transaction data.
+     * @return string The formatted description.
+     */
+    private function formatDescription(array $transaction): string
+    {
+        $parts = [];
+
+        // Add unstructured remittance information
+        $unstructured = $this->get($transaction, 'remittanceInformationUnstructured');
+        if ($unstructured) {
+            $parts[] = $unstructured;
+        }
+
+        // Add structured remittance information
+        $structured = $this->get($transaction, 'remittanceInformationStructured');
+        if ($structured) {
+            $parts[] = $structured;
+        }
+
+        // Add additional information
+        $additional = $this->get($transaction, 'additionalInformation');
+        if ($additional) {
+            $parts[] = $additional;
+        }
+
+        return implode(' ', array_filter($parts));
+    }
+
+    /**
+     * Extracts the partner name from the transaction data.
+     *
+     * @param  array  $transaction  The transaction data.
+     * @return string|null The partner name or null if not found.
+     */
+    private function extractPartnerName(array $transaction): ?string
+    {
+        // Try creditor name first
+        $partner = $this->get($transaction, 'creditorName');
+        if ($partner) {
+            return (string) $partner;
+        }
+
+        // Try debtor name
+        $partner = $this->get($transaction, 'debtorName');
+        if ($partner) {
+            return (string) $partner;
+        }
+
+        // Try remittance information
+        $partner = $this->get($transaction, 'remittanceInformationUnstructuredArray.0');
+        if ($partner) {
+            return (string) $partner;
+        }
+
+        return null;
+    }
+
+    /**
+     * Maps a GoCardless transaction array and associated account into a structured array for internal use.
      *
      * @param  array  $transaction  Raw transaction data from GoCardless.
      * @param  Account  $account  The associated account model.
@@ -70,37 +145,122 @@ class GocardlessMapper
      */
     public function mapTransactionData(array $transaction, Account $account): array
     {
+        // Parse dates
         $bookedRaw = $this->get($transaction, 'bookingDateTime', $this->get($transaction, 'bookingDate'));
-        $bookedDateTime = $bookedRaw ? Carbon::parse($bookedRaw) : null;
+        $bookedDateTime = $this->parseDate($bookedRaw);
 
         $valueRaw = $this->get($transaction, 'valueDateTime', $this->get($transaction, 'valueDate', $bookedRaw));
-        $valueDateTime = $valueRaw ? Carbon::parse($valueRaw) : null;
-        $mapped = [
-            'account_id' => $account->id,
+        $valueDateTime = $this->parseDate($valueRaw);
 
+        // Extract amount and currency
+        $amount = $this->get($transaction, 'transactionAmount.amount', 0);
+        $currency = $this->get($transaction, 'transactionAmount.currency', 'EUR');
+
+        // Extract IBANs
+        $sourceIban = $this->get($transaction, 'debtorAccount.iban');
+        $targetIban = $this->get($transaction, 'creditorAccount.iban');
+
+        // Extract partner name
+        $partner = $this->extractPartnerName($transaction);
+
+        // Format description
+        $description = $this->formatDescription($transaction);
+
+        // Determine transaction type
+        $type = $this->determineTransactionType($transaction);
+
+        // Extract metadata
+        $metadata = $this->extractMetadata($transaction);
+
+        return [
+            'transaction_id' => $this->get($transaction, 'transactionId'),
+            'account_id' => $account->id,
             'gocardless_account_id' => $account->gocardless_account_id,
             'is_gocardless_synced' => true,
             'gocardless_synced_at' => now(),
 
-            'source_iban' => $this->get($transaction, 'debtorAccount.iban'),
-            'target_iban' => $this->get($transaction, 'creditorAccount.iban'),
-
-            'amount' => $this->get($transaction, 'transactionAmount.amount', 0),
-            'currency' => $this->get($transaction, 'transactionAmount.currency', 'EUR'),
+            'amount' => $amount,
+            'currency' => $currency,
             'booked_date' => $bookedDateTime,
             'processed_date' => $valueDateTime,
-            'partner' => $this->get($transaction, 'creditorName') ??
-                        $this->get($transaction, 'debtorName') ??
-                        $this->get($transaction, 'remittanceInformationUnstructuredArray.0'),
-            'description' => implode(' ', $this->get($transaction, 'remittanceInformationUnstructuredArray', [])).
-                ($this->get($transaction, 'remittanceInformationUnstructured') ? ', '.$this->get($transaction, 'remittanceInformationUnstructured') : ''),
-            'type' => $this->get($transaction, 'proprietaryBankTransactionCode', Transaction::TYPE_PAYMENT),
+
+            'source_iban' => $sourceIban,
+            'target_iban' => $targetIban,
+            'partner' => $partner,
+            'description' => $description,
+            'type' => $type,
 
             'balance_after_transaction' => $this->get($transaction, 'balanceAfterTransaction.balanceAmount.amount', 0),
-            'metadata' => $this->get($transaction, 'additionalDataStructured'),
-            'import_data' => $transaction,
+            'metadata' => $metadata,
+            'import_data' => json_encode($transaction, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
         ];
+    }
 
-        return $mapped;
+    /**
+     * Determines the transaction type based on the transaction data.
+     *
+     * @param  array  $transaction  The transaction data.
+     * @return string The determined transaction type.
+     */
+    private function determineTransactionType(array $transaction): string
+    {
+        // Try to get the bank's proprietary code
+        $bankCode = $this->get($transaction, 'proprietaryBankTransactionCode');
+        if ($bankCode) {
+            return (string) $bankCode;
+        }
+
+        // Try to get the purpose code
+        $purposeCode = $this->get($transaction, 'purposeCode');
+        if ($purposeCode) {
+            return (string) $purposeCode;
+        }
+
+        // Try to determine from amount
+        $amount = $this->get($transaction, 'transactionAmount.amount', 0);
+        $amount = is_numeric($amount) ? (float) $amount : 0.0;
+
+        if ($amount > 0) {
+            return Transaction::TYPE_DEPOSIT;
+        }
+
+        return Transaction::TYPE_PAYMENT;
+    }
+
+    /**
+     * Extracts metadata from the transaction data.
+     *
+     * @param  array  $transaction  The transaction data.
+     * @return array The extracted metadata.
+     */
+    private function extractMetadata(array $transaction): array
+    {
+        $metadata = [];
+
+        // Add merchant category code if available
+        $mcc = $this->get($transaction, 'merchantCategoryCode');
+        if ($mcc) {
+            $metadata['merchant_category_code'] = $mcc;
+        }
+
+        // Add end-to-end ID if available
+        $endToEndId = $this->get($transaction, 'endToEndId');
+        if ($endToEndId) {
+            $metadata['end_to_end_id'] = $endToEndId;
+        }
+
+        // Add mandate ID if available
+        $mandateId = $this->get($transaction, 'mandateId');
+        if ($mandateId) {
+            $metadata['mandate_id'] = $mandateId;
+        }
+
+        // Add additional structured data
+        $additionalData = $this->get($transaction, 'additionalDataStructured');
+        if ($additionalData) {
+            $metadata['additional_data'] = $additionalData;
+        }
+
+        return $metadata;
     }
 }
