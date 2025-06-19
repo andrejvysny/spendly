@@ -101,7 +101,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
     useEffect(() => {
         const fetchSavedMappings = async () => {
             try {
-                const response = await axios.get('/imports/mappings');
+                const response = await axios.get(route('imports.mappings.get'));
                 setSavedMappings(response.data.mappings || []);
             } catch (err) {
                 console.error('Failed to load saved mappings', err);
@@ -243,7 +243,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         setError(null);
 
         try {
-            const response = await axios.post(`/imports/${importId}/configure`, {
+            const response = await axios.post(route('imports.wizard.configure', { import: importId }), {
                 column_mapping: columnMapping,
                 date_format: dateFormat,
                 amount_format: amountFormat,
@@ -279,10 +279,12 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         } catch (err) {
             const axiosError = err as import('axios').AxiosError<{ message: string; errors: Record<string, string[]> } | undefined>;
             if (axiosError.response?.data?.errors) {
+                console.error('Configuration error:', axiosError.response.data.errors);
                 const firstError = Object.values(axiosError.response.data.errors)[0]?.[0];
                 setError(firstError || 'Failed to configure import');
             } else {
                 setError(axiosError.response?.data?.message || 'Failed to configure import');
+                console.error('Configuration error:', axiosError);
             }
         } finally {
             setIsLoading(false);
@@ -494,10 +496,10 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 <h6 className="text-foreground mb-4">Sample data from your uploaded CSV</h6>
                 <div className="border-foreground overflow-x-auto rounded-lg border">
                     <table className="w-full">
-                        <thead className="bg-muted-foreground border-foreground border-b">
+                        <thead className="bg-card border-foreground border-b">
                             <tr>
                                 {headers.map((header, index) => (
-                                    <th key={index} className="px-4 py-2 text-left">
+                                    <th key={index} className="px-4 py-2 text-left" style={{ minWidth: `${Math.max(header.length * 8, 100)}px` }}>
                                         {header}
                                     </th>
                                 ))}
@@ -507,8 +509,12 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                             {sampleRows.slice(0, 5).map((row, rowIndex) => (
                                 <tr key={rowIndex} className="border-muted-foreground border-b">
                                     {row.map((cell, cellIndex) => (
-                                        <td key={cellIndex} className="text-foreground truncate px-4 py-2 whitespace-nowrap">
-                                            {cell}
+                                        <td
+                                            key={cellIndex}
+                                            className="text-foreground max-w-md px-4 py-2"
+                                            style={{ minWidth: `${Math.max(headers[cellIndex]?.length * 8 || 0, 100)}px` }}
+                                        >
+                                            <div className="overflow-hidden text-ellipsis whitespace-nowrap">{cell}</div>
                                         </td>
                                     ))}
                                 </tr>

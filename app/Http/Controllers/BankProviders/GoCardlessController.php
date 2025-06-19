@@ -3,60 +3,111 @@
 namespace App\Http\Controllers\BankProviders;
 
 use App\Http\Controllers\Controller;
-use App\Models\Account;
-use App\Models\Transaction;
+use App\Models\User;
+use App\Services\GoCardlessService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessController extends Controller
 {
+    public function __construct(
+        private GoCardlessService $gocardlessService
+    ) {}
+
     /**
      * Synchronizes transactions for the specified account with GoCardless.
      *
-     * Retrieves booked transactions from GoCardless for the given account, creates new transaction records if they do not already exist, updates the account's last synced timestamp, and returns a JSON response with the results. Returns an error response if the account is not synced with GoCardless or if an exception occurs during the process.
-     *
-     * @param  int  $account  The ID of the account to synchronize.
-     * @return JsonResponse JSON response indicating the outcome of the synchronization, including counts of total and existing transactions.
+     * @param  int  $accountId  The ID of the account to synchronize.
+     * @return JsonResponse JSON response indicating the outcome of the synchronization.
      */
-    public function syncTransactions(int $account): JsonResponse
+    public function syncTransactions(Request $request, int $accountId): JsonResponse
     {
-        Log::info('Syncing transactions for account', [
-            'account_id' => $account,
-        ]);
-
         try {
-            $account = Account::findOrFail($account);
-
-            if (! $account->is_gocardless_synced) {
-                return response()->json(['error' => 'Account is not synced with GoCardless'], 400);
+            // Get and validate the authenticated user
+            $user = $request->user();
+            if (! $user || ! ($user instanceof User)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'User not authenticated or invalid user type',
+                ], 401);
             }
 
-            $transactions = $this->client->getTransactions($account->gocardless_account_id);
+            // Get updateExisting parameter from request, default to true
+            $updateExisting = $request->boolean('update_existing', true);
 
-            $bookedTransactions = $transactions['transactions']['booked'] ?? [];
+            // Get forceMaxDateRange parameter from request, default to false
+            $forceMaxDateRange = $request->boolean('force_max_date_range', false);
 
-            $existing = [];
-            foreach ($bookedTransactions as $transaction) {
-                $existing[] = Transaction::firstOrCreate(
-                    ['transaction_id' => $transaction['transactionId']],
-                    $this->mapper->mapTransactionData($transaction, $account)
-                );
-            }
+            $result = $this->gocardlessService->syncAccountTransactions($accountId, $user, $updateExisting, $forceMaxDateRange);
 
-            Log::info('Skipped transactions due to existing ID', ['count' => count($existing)]);
-            Log::info('New transactions created', ['count' => count($bookedTransactions) - count($existing)]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Transactions synced successfully',
+                'data' => $result,
+            ]);
 
-            // Update last synced timestamp
-            $account->update(['gocardless_last_synced_at' => now()]);
-
-            return response()->json(['message' => 'Transactions synced successfully', 'count' => count($bookedTransactions), 'count_existing' => count($existing)]);
         } catch (\Exception $e) {
+            $user = $request->user();
+            $userId = $user instanceof User ? $user->id : 'unknown';
+
             Log::error('Transaction sync error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
+                'account_id' => $accountId,
+                'user_id' => $userId,
             ]);
 
-            return response()->json(['error' => 'Failed to sync transactions: '.$e->getMessage()], 500);
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to sync transactions: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Sync all GoCardless accounts for the authenticated user.
+     */
+    public function syncAllAccounts(Request $request): JsonResponse
+    {
+        try {
+            // Get and validate the authenticated user
+            $user = $request->user();
+            if (! $user || ! ($user instanceof User)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'User not authenticated or invalid user type',
+                ], 401);
+            }
+
+            // Get updateExisting parameter from request, default to true
+            $updateExisting = $request->boolean('update_existing', true);
+
+            // Get forceMaxDateRange parameter from request, default to false
+            $forceMaxDateRange = $request->boolean('force_max_date_range', false);
+
+            $results = $this->gocardlessService->syncAllAccounts($user, $updateExisting, $forceMaxDateRange);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'All accounts synced',
+                'data' => $results,
+            ]);
+
+        } catch (\Exception $e) {
+            $user = $request->user();
+            $userId = $user instanceof User ? $user->id : 'unknown';
+
+            Log::error('Sync all accounts error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user_id' => $userId,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to sync accounts: '.$e->getMessage(),
+            ], 500);
         }
     }
 }
