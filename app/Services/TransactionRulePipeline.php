@@ -45,11 +45,13 @@ class TransactionRulePipeline
         // Ensure we have a Transaction instance before saving
         if ($processedTransaction instanceof Transaction) {
             $processedTransaction->save();
+
             return $processedTransaction;
         }
 
         // Fallback - should not happen in normal operation
         $transaction->save();
+
         return $transaction;
     }
 
@@ -83,6 +85,7 @@ class TransactionRulePipeline
                 if ($this->matchesCondition($transaction)) {
                     $this->applyAction($transaction);
                 }
+
                 return $transaction;
             }
 
