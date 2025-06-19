@@ -12,6 +12,8 @@ The original `setup.sh` script had an issue where the application key was genera
 - Encrypted data becoming inaccessible
 - Inconsistent application state
 
+Additionally, when running the script via `curl | bash`, users encountered a "the input device is not a TTY" error.
+
 ## Solution
 
 ### 1. Volume Mounting in `compose.prod.yml`
@@ -32,6 +34,7 @@ The `scripts/setup.sh` script was updated to:
 - Check if `.env` file already exists before downloading
 - Check if `APP_KEY` is already set before generating
 - Use a temporary Docker Compose override to mount the `.env` file during key generation
+- Add `-T` flag to disable TTY allocation for non-interactive environments
 - Provide better error handling and user feedback
 
 ### 3. Key Generation Process
@@ -39,8 +42,8 @@ The `scripts/setup.sh` script was updated to:
 The app key generation now works as follows:
 
 1. **Check existing key**: Script checks if `APP_KEY=base64:` already exists in `.env`
-2. **Create temporary override**: Creates `docker-compose.keygen.yml` with `.env` volume mount
-3. **Generate key**: Runs `php artisan key:generate --force` in container
+2. **Create temporary override**: Creates `compose.keygen.yml` with `.env` volume mount
+3. **Generate key**: Runs `php artisan key:generate --force` in container with `-T` flag
 4. **Clean up**: Removes temporary compose file
 5. **Verify**: Confirms key was generated successfully
 
@@ -49,6 +52,10 @@ The app key generation now works as follows:
 ### First-time Setup
 
 ```bash
+# Download and run setup script
+curl -sSL https://raw.githubusercontent.com/andrejvysny/spendly/main/scripts/setup.sh | bash
+
+# Or run locally if you have the repository
 ./scripts/setup.sh
 ```
 
@@ -58,32 +65,24 @@ This will:
 - Generate application key
 - Start the application
 
-### Testing Key Generation
-
-```bash
-./scripts/test-keygen.sh
-```
-
-This will test the key generation process in isolation.
-
 ### Manual Key Generation
 
 If you need to regenerate the key manually:
 
 ```bash
 # Create temporary compose override
-cat > docker-compose.keygen.yml << EOF
+cat > compose.keygen.yml << EOF
 services:
   app:
     volumes:
       - ./.env:/var/www/html/.env
 EOF
 
-# Generate key
-docker compose -f compose.yml -f docker-compose.keygen.yml run --rm app php artisan key:generate --force
+# Generate key (note the -T flag for non-interactive environments)
+docker compose -f compose.yml -f compose.keygen.yml run -T --rm app php artisan key:generate --force
 
 # Clean up
-rm docker-compose.keygen.yml
+rm compose.keygen.yml
 ```
 
 ## Security Considerations
@@ -94,6 +93,14 @@ rm docker-compose.keygen.yml
 - The temporary compose files are cleaned up after use
 
 ## Troubleshooting
+
+### TTY Error
+
+If you encounter "the input device is not a TTY" error:
+
+- The script now includes the `-T` flag to disable TTY allocation
+- This is especially important when running via `curl | bash`
+- The `-T` flag tells Docker to run in non-interactive mode
 
 ### Key Not Generated
 
@@ -127,6 +134,20 @@ If the app key is being regenerated on restart:
 ## File Changes Summary
 
 - `compose.prod.yml`: Added `.env` volume mount
-- `scripts/setup.sh`: Improved key generation logic
-- `scripts/test-keygen.sh`: Added test script for validation
-- `docs/APP_KEY_GENERATION.md`: This documentation file 
+- `scripts/setup.sh`: Improved key generation logic with `-T` flag
+- `docs/APP_KEY_GENERATION.md`: This documentation file
+
+## Technical Details
+
+### Docker Compose Flags Used
+
+- `-T`: Disable pseudo-TTY allocation (fixes TTY errors in non-interactive environments)
+- `--rm`: Automatically remove the container when it exits
+- `-f compose.yml -f compose.keygen.yml`: Use multiple compose files (base + override)
+
+### Environment Variables
+
+The key generation process respects the following environment variables:
+- `APP_KEY`: The Laravel application key (base64 encoded)
+- `APP_ENV`: Application environment (local, production, etc.)
+- `DB_CONNECTION`: Database connection type (sqlite, mysql, etc.) 

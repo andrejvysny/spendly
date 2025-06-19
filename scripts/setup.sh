@@ -48,10 +48,10 @@ services:
 EOF
     
     # Generate app key using docker compose with .env file mounted
-    docker compose -f compose.yml -f compose.keygen.yml run --rm app php artisan key:generate --force
+    docker compose -f compose.yml -f compose.keygen.yml run -T --rm app php artisan key:generate --force
     
     # Clean up temporary compose file
-    rm docker-compose.keygen.yml
+    rm compose.keygen.yml
     
     echo "✅ Application key generated successfully"
 fi
