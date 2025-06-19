@@ -193,7 +193,7 @@ function TransactionList({
                     const allMonthSelected = monthTransactionIds.length > 0 && monthTransactionIds.every((id) => selectedTransactions.includes(id));
 
                     return (
-                        <div key={month} className="mb-10 flex flex-col gap-2 pb-10">
+                        <div key={month} className="flex flex-col gap-2 pb-4">
                             {/* Summary at the top of the month */}
                             <div className="mb-1 flex items-center justify-between">
                                 <span className="text-2xl font-semibold">{month}</span>
