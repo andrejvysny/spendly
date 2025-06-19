@@ -32,7 +32,7 @@ class TagController extends Controller
         return redirect()->back()->with('success', 'Tag created successfully');
     }
 
-    public function update(TagRequest $request, Tag $tag)
+    public function update(TagRequest $request, Tag $tag): RedirectResponse
     {
         $this->authorize('update', $tag);
 

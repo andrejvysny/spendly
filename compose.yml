@@ -1,24 +1,54 @@
 services:
   cli:
     image: ghcr.io/andrejvysny/php-cli:8.3
+    env_file: .env
+    working_dir: /var/www/html
+    environment:
+      - XDEBUG_MODE=coverage
+      - XDEBUG_CONFIG=client_host=host.docker.internal
     volumes:
-      - .:/var/www
+      - .:/var/www/html
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
 
   node:
     image: node:20-alpine
-    working_dir: /var/www
+    working_dir: /var/www/html
     volumes:
-      - .:/var/www
+      - .:/var/www/html
     ports:
       - "3000:3000"
-  laravel:
-        image: php:8.4-fpm
-        volumes:
-          - .:/var/www/html
-        ports:
-          - "80:80"
-        working_dir: /var/www/html
-        env_file: .env
 
-        command: sh -c "php artisan serve --host=0.0.0.0 --port=80 --verbose"
+  laravel:
+    image: php:8.4-fpm
+    volumes:
+      - .:/var/www/html
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    ports:
+      - "80:80"
+    working_dir: /var/www/html
+    env_file: .env
+    environment:
+      - XDEBUG_MODE=coverage
+      - XDEBUG_CONFIG=client_host=host.docker.internal
+    command: sh -c "php artisan serve --host=0.0.0.0 --port=80 --verbose"
+
+  test:
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile.test
+    environment:
+      - XDEBUG_MODE=coverage
+      - XDEBUG_CONFIG=client_host=host.docker.internal
+      - APP_ENV=testing
+      - LOG_CHANNEL=null
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=":memory:"
+      - CACHE_STORE=array
+      - SESSION_DRIVER=array
+      - QUEUE_CONNECTION=sync
+    volumes:
+      - .:/var/www/html
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    working_dir: /var/www/html
+    command: sh -c "composer install && php artisan test --coverage"
 

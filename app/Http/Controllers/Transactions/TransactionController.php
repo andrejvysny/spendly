@@ -16,6 +16,8 @@ class TransactionController extends Controller
      *
      * Applies filters for search, transaction type, account, amount (with multiple filter types), merchant, category, and date range. Calculates total and monthly summaries for the filtered transactions. Provides related categories, merchants, tags, and accounts for filter dropdowns. Returns an Inertia.js response rendering the transactions index view.
      */
+    const PAGINATION_COUNT = 10; // Define a constant for pagination count
+
     public function index(Request $request)
     {
         [$query, $isFiltered] = $this->buildTransactionQuery($request);
@@ -47,7 +49,7 @@ class TransactionController extends Controller
         }
 
         // Get paginated transactions
-        $transactions = $query->paginate(100);
+        $transactions = $query->paginate(self::PAGINATION_COUNT);
 
         // Calculate monthly summaries for the current page
         $monthlySummaries = [];
@@ -75,7 +77,13 @@ class TransactionController extends Controller
         $accounts = Auth::user()->accounts;
 
         return Inertia::render('transactions/index', [
-            'transactions' => $transactions,
+            'transactions' => [
+                'data' => $transactions->items(),
+                'current_page' => $transactions->currentPage(),
+                'has_more_pages' => $transactions->hasMorePages(),
+                'last_page' => $transactions->lastPage(),
+                'total' => $transactions->total(),
+            ],
             'monthlySummaries' => $monthlySummaries,
             'totalSummary' => $totalSummary,
             'isFiltered' => $isFiltered,
@@ -105,14 +113,36 @@ class TransactionController extends Controller
         try {
             [$query] = $this->buildTransactionQuery($request);
 
-            $transactions = $query->paginate(100, ['*'], 'page', $request->page);
+            $transactions = $query->paginate(self::PAGINATION_COUNT, ['*'], 'page', $request->page);
+
+            // Calculate monthly summaries for the current page
+            $monthlySummaries = [];
+            foreach ($transactions->items() as $transaction) {
+                $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
+                if (! isset($monthlySummaries[$month])) {
+                    $monthlySummaries[$month] = [
+                        'income' => 0,
+                        'expense' => 0,
+                        'balance' => 0,
+                    ];
+                }
+                if ($transaction->amount > 0) {
+                    $monthlySummaries[$month]['income'] += $transaction->amount;
+                } else {
+                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                }
+                $monthlySummaries[$month]['balance'] += $transaction->amount;
+            }
 
             return response()->json([
                 'transactions' => [
                     'data' => $transactions->items(),
                     'current_page' => $transactions->currentPage(),
-                    'hasMorePages' => $transactions->hasMorePages(),
+                    'has_more_pages' => $transactions->currentPage() < $transactions->lastPage(),
+                    'last_page' => $transactions->lastPage(),
+                    'total' => $transactions->total(),
                 ],
+                'monthlySummaries' => $monthlySummaries,
                 'totalCount' => $transactions->total(),
             ]);
         } catch (\Exception $e) {
@@ -158,7 +188,7 @@ class TransactionController extends Controller
             ];
 
             // Get paginated transactions
-            $transactions = $query->paginate(100);
+            $transactions = $query->paginate(self::PAGINATION_COUNT);
 
             \Log::info('Filtered transactions count: '.$transactions->count().', isFiltered: '.($isFiltered ? 'true' : 'false'));
 
@@ -182,11 +212,16 @@ class TransactionController extends Controller
             }
 
             return response()->json([
-                'transactions' => $transactions,
+                'transactions' => [
+                    'data' => $transactions->items(),
+                    'current_page' => $transactions->currentPage(),
+                    'has_more_pages' => $transactions->hasMorePages(),
+                    'last_page' => $transactions->lastPage(),
+                    'total' => $transactions->total(),
+                ],
                 'monthlySummaries' => $monthlySummaries,
                 'totalSummary' => $totalSummary,
                 'isFiltered' => $isFiltered,
-                'hasMorePages' => $transactions->hasMorePages(),
                 'totalCount' => $transactions->total(),
             ]);
         } catch (\Exception $e) {
