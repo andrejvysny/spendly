@@ -572,11 +572,11 @@ class ImportWizardController extends Controller
                 $finalNormalized = $this->duplicateService->normalizeRecord($data);
                 $finalFingerprint = $this->duplicateService->buildFingerprint($finalNormalized);
 
-                TransactionFingerprint::create([
-                    'user_id' => $account->user_id,
-                    'fingerprint' => $finalFingerprint,
-                    'transaction_id' => $transaction->id,
-                ]);
+//                TransactionFingerprint::create([
+//                    'user_id' => $account->user_id,
+//                    'fingerprint' => $finalFingerprint,
+//                    'transaction_id' => $transaction->id,
+//                ]);
                 Log::debug('Transaction fingerprint stored', [
                     'fingerprint' => $finalFingerprint,
                     'original_fingerprint' => $dup['identifier'],

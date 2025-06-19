@@ -18,7 +18,7 @@ version: "3.8"
 services:
   app:
     image: laravel-app
-    build: .
+    build: ..
     volumes:
       - ./:/var/www/html
     ports:
