@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -92,19 +93,53 @@ class GoCardlessBankData
     /**
      * Parses the token response, updates access and refresh tokens, and sets their expiration times.
      *
-     * @param  mixed  $response  The HTTP response containing token data.
+     * @param  \Illuminate\Http\Client\Response  $response  The HTTP response containing token data.
      * @return string The new access token.
+     *
+     * @throws \InvalidArgumentException When token response has invalid types or missing required fields.
      */
-    private function processTokenResponse($response): string
+    private function processTokenResponse(\Illuminate\Http\Client\Response $response): string
     {
         $data = $response->json();
+
+        // Check for required keys
+        if (! isset($data['access'], $data['refresh'], $data['access_expires'], $data['refresh_expires'])) {
+            throw new \InvalidArgumentException('Invalid token response: missing required fields');
+        }
+
+        // Validate that access and refresh tokens are strings
+        if (! is_string($data['access'])) {
+            throw new \InvalidArgumentException('Invalid token response: access token must be a string');
+        }
+
+        if (! is_string($data['refresh'])) {
+            throw new \InvalidArgumentException('Invalid token response: refresh token must be a string');
+        }
+
+        // Validate that expiry values are numeric (integers or floats)
+        if (! is_numeric($data['access_expires'])) {
+            throw new \InvalidArgumentException('Invalid token response: access_expires must be numeric');
+        }
+
+        if (! is_numeric($data['refresh_expires'])) {
+            throw new \InvalidArgumentException('Invalid token response: refresh_expires must be numeric');
+        }
+
+        // Validate that expiry values are positive
+        if ((int) $data['access_expires'] <= 0) {
+            throw new \InvalidArgumentException('Invalid token response: access_expires must be positive');
+        }
+
+        if ((int) $data['refresh_expires'] <= 0) {
+            throw new \InvalidArgumentException('Invalid token response: refresh_expires must be positive');
+        }
 
         $this->accessToken = $data['access'];
         $this->refreshToken = $data['refresh'];
 
         // Calculate expiration times
-        $this->accessTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.$data['access_expires'].'S'));
-        $this->refreshTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.$data['refresh_expires'].'S'));
+        $this->accessTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.(int) $data['access_expires'].'S'));
+        $this->refreshTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.(int) $data['refresh_expires'].'S'));
 
         return $this->accessToken;
     }
@@ -184,22 +219,21 @@ class GoCardlessBankData
         return $response->json();
     }
 
-    /****
+    /**
      * Retrieves transactions for a specified account, optionally filtered by date range.
      *
-     * Checks cache before making an API request. Returns the list of transactions as an array.
-     *
-     * @param string $accountId The unique identifier of the account.
-     * @param string|null $dateFrom Optional start date (YYYY-MM-DD) to filter transactions.
-     * @param string|null $dateTo Optional end date (YYYY-MM-DD) to filter transactions.
+     * @param  string  $accountId  The unique identifier of the account.
+     * @param  string|null  $dateFrom  Optional start date (YYYY-MM-DD) to filter transactions.
+     * @param  string|null  $dateTo  Optional end date (YYYY-MM-DD) to filter transactions.
      * @return array Array of transactions for the account.
+     *
      * @throws \Exception If the API request fails.
      */
     public function getTransactions(string $accountId, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         // Check cache first
         $cacheKey = "gocardless_transactions_{$accountId}_{$dateFrom}_{$dateTo}";
-        if (Cache::has($cacheKey)) {
+        if ($this->useCache && Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
         }
 
@@ -211,17 +245,59 @@ class GoCardlessBankData
             $params['date_to'] = $dateTo;
         }
 
-        $response = Http::withToken($this->getAccessToken())
-            ->get("{$this->baseUrl}/accounts/{$accountId}/transactions/", $params);
+        $allTransactions = [];
+        $nextPage = null;
+        $retryCount = 0;
+        $maxRetries = 3;
 
-        if (! $response->successful()) {
-            throw new \Exception('Failed to get transactions: '.$response->body());
-        }
+        do {
+            try {
+                $url = $nextPage ?? "{$this->baseUrl}/accounts/{$accountId}/transactions/";
+                $response = Http::withToken($this->getAccessToken())
+                    ->get($url, $params);
+
+                if (! $response->successful()) {
+                    throw new \Exception('Failed to get transactions: '.$response->body());
+                }
+
+                $data = $response->json();
+                $transactions = $data['transactions'] ?? [];
+
+                // Merge transactions
+                if (isset($transactions['booked'])) {
+                    $allTransactions['transactions']['booked'] = array_merge(
+                        $allTransactions['transactions']['booked'] ?? [],
+                        $transactions['booked']
+                    );
+                }
+                if (isset($transactions['pending'])) {
+                    $allTransactions['transactions']['pending'] = array_merge(
+                        $allTransactions['transactions']['pending'] ?? [],
+                        $transactions['pending']
+                    );
+                }
+
+                // Get next page URL if available
+                $nextPage = $data['next'] ?? null;
+
+                // Reset retry count on successful request
+                $retryCount = 0;
+
+            } catch (\Exception $e) {
+                $retryCount++;
+                if ($retryCount >= $maxRetries) {
+                    throw new \Exception('Failed to get transactions after '.$maxRetries.' retries: '.$e->getMessage());
+                }
+                // Wait before retrying (exponential backoff)
+                sleep(pow(2, $retryCount));
+            }
+        } while ($nextPage);
 
         if ($this->useCache) {
-            Cache::put($cacheKey, $response->json(), $this->cacheDuration);
+            Cache::put($cacheKey, $allTransactions, $this->cacheDuration);
         }
-        return $response->json();
+
+        return $allTransactions;
     }
 
     /**

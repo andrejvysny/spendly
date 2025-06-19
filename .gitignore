@@ -26,3 +26,5 @@ yarn-error.log
 .vscode/
 *.sqlite*
 **/.DS_Store
+/coverage
+.phpunit.cache/

@@ -1,7 +1,7 @@
 import HeadingSmall from '@/components/app/heading-small';
 import InputError from '@/components/app/input-error';
 import GoCardlessImportWizard from '@/components/settings/GoCardlessImportWizard';
-import Requisition from '@/components/settings/requisition';
+import Requisition, { RequisitionDto } from '@/components/settings/requisition';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +24,7 @@ interface RequisitionsResponse {
     count: number;
     next: string | null;
     previous: string | null;
-    results: Requisition[];
+    results: RequisitionDto[];
 }
 
 type BankDataForm = {

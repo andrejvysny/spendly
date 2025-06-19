@@ -54,7 +54,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'gocardless_token_expires_at' => 'datetime',
+            'gocardless_refresh_token_expires_at' => 'datetime',
+            'gocardless_access_token_expires_at' => 'datetime',
         ];
     }
 

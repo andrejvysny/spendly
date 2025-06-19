@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import axios from 'axios';
 import React, { useState } from 'react';
 
-interface Requisition {
+export interface RequisitionDto {
     id: string;
     created: string;
     redirect: string;
@@ -24,7 +24,7 @@ interface RequisitionsResponse {
     count: number;
     next: string | null;
     previous: string | null;
-    results: Requisition[];
+    results: RequisitionDto[];
 }
 
 /**
@@ -39,7 +39,7 @@ function Requisition({
     requisition,
     setRequisitions,
 }: {
-    requisition: Requisition;
+    requisition: RequisitionDto;
     setRequisitions: React.Dispatch<React.SetStateAction<RequisitionsResponse>>;
 }) {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -57,9 +57,7 @@ function Requisition({
         setIsDeleting(true);
         try {
             // await the delete so errors go into the catch below
-            await axios.delete(
-                `/api/bank-data/gocardless/requisitions/${requisitionToDelete}`
-            );
+            await axios.delete(`/api/bank-data/gocardless/requisitions/${requisitionToDelete}`);
 
             setRequisitions((prev) => ({
                 ...prev,

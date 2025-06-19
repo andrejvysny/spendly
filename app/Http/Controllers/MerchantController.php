@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\MerchantRequest;
 use App\Models\Merchant;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,7 +14,7 @@ class MerchantController extends Controller
 {
     use AuthorizesRequests;
 
-    public function index()
+    public function index(): \Inertia\Response
     {
         $merchants = Auth::user()->merchants()->get();
 
@@ -22,7 +23,7 @@ class MerchantController extends Controller
         ]);
     }
 
-    public function store(MerchantRequest $request)
+    public function store(MerchantRequest $request): \Illuminate\Http\RedirectResponse
     {
         $validated = $request->validated();
 
@@ -31,7 +32,7 @@ class MerchantController extends Controller
         return redirect()->back()->with('success', 'Merchant created successfully');
     }
 
-    public function update(MerchantRequest $request, Merchant $merchant)
+    public function update(MerchantRequest $request, Merchant $merchant): \Illuminate\Http\RedirectResponse
     {
         $this->authorize('update', $merchant);
 
@@ -42,7 +43,10 @@ class MerchantController extends Controller
         return redirect()->back()->with('success', 'Merchant updated successfully');
     }
 
-    public function destroy(Request $request, Merchant $merchant)
+    /**
+     * @throws AuthorizationException
+     */
+    public function destroy(Request $request, Merchant $merchant): \Illuminate\Http\RedirectResponse
     {
         $this->authorize('delete', $merchant);
 
