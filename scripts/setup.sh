@@ -18,17 +18,17 @@ if ! docker info &> /dev/null; then
     exit 1
 fi
 
-echo "⤵️ Downloading Spendly configuration..."
-curl -o compose.yml https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/compose.prod.yml
+echo -e "\n ⤵️ Downloading Spendly configuration..."
+curl -s -o compose.yml https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/compose.prod.yml
 
-echo "⚙️ Setting up Environment..."
-curl -o .env https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/.env.example
+echo -e "\n ⚙️ Setting up Environment..."
+curl -s -o .env https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/.env.example
 
-echo "📦 Downloading Spendly image..."
+echo -e "\n 📦 Downloading Spendly image..."
 docker compose pull
 
-echo "🔑 Generating application key..."
+echo -e "\n 🔑 Generating application key..."
 docker compose run app php artisan key:generate
 
-echo "🚀 Starting Spendly services..."
+echo -e "\n 🚀 Starting Spendly services..."
 docker compose up -d
