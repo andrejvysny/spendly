@@ -39,8 +39,9 @@ if grep -q "^APP_KEY=base64:" .env; then
     echo "✅ Application key already exists"
 else
     echo "🔑 Generating application key..."
-    # Generate app key using docker run directly (no TTY issues)
+    # Generate app key using docker run directly, bypassing entrypoint
     docker run --rm \
+        --entrypoint="" \
         -v "$(pwd)/.env:/var/www/html/.env" \
         -v "$(pwd)/compose.yml:/var/www/html/compose.yml" \
         ghcr.io/andrejvysny/spendly:main \
