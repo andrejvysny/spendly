@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/andrejvysny/spendly:develop
+    image: ghcr.io/andrejvysny/spendly:main #For development version use ghcr.io/andrejvysny/spendly:develop
     container_name: spendly
     restart: unless-stopped
     ports:
