@@ -105,8 +105,14 @@ jobs:
       - name: Copy Environment File
         run: cp .env.example .env
 
+      - name: Create SQLite database for testing
+        run: touch database/database.sqlite
+
       - name: Generate Application Key
         run: php artisan key:generate
+
+      - name: Run Database Migrations
+        run: php artisan migrate --force
 
       - name: Set up test environment
         run: |
@@ -114,12 +120,6 @@ jobs:
           php artisan cache:clear
           php artisan view:clear
           php artisan route:clear
-
-      - name: Create SQLite database for testing
-        run: touch database/database.sqlite
-
-      - name: Run Database Migrations
-        run: php artisan migrate --force
 
       - name: Run Tests
         run: php artisan test
