@@ -34,6 +34,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/accounts/{id}', [AccountController::class, 'show'])->name('accounts.show');
     Route::delete('/accounts/{id}', [AccountController::class, 'destroy'])->name('accounts.destroy');
+    Route::put('/accounts/{id}/sync-options', [AccountController::class, 'updateSyncOptions'])->name('accounts.sync-options.update');
 
     // Transaction Rules
     Route::get('/transaction-rules', [TransactionRuleController::class, 'index'])->name('transaction-rules.index');
