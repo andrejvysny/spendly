@@ -1,0 +1,20 @@
+services:
+  app:
+    image: ghcr.io/andrejvysny/spendly:main #For development version use ghcr.io/andrejvysny/spendly:develop
+    container_name: spendly
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    env_file: .env
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_bootstrap:/var/www/html/bootstrap/cache
+      - app_database:/var/www/html/database
+
+volumes:
+  app_storage:
+    driver: local
+  app_bootstrap:
+    driver: local
+  app_database:
+    driver: local

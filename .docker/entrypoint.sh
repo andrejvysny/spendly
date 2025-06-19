@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+# Check if variable DB_DATABASE is set and if it is not set, set it to database/database.sqlite
+if [ -z "$DB_DATABASE" ]; then
+    DB_DATABASE="database/database.sqlite"
+fi
+
 # Initialize SQLite database if using SQLite and database doesn't exist
 if [ "$DB_CONNECTION" = "sqlite" ] && [ ! -f "$DB_DATABASE" ]; then
     echo "Initializing SQLite database..."
