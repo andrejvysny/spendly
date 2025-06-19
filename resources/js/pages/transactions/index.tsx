@@ -150,7 +150,6 @@ async function fetchTransactions(
         };
     }
 
-
     throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
 }
 
