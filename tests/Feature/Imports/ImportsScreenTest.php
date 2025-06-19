@@ -39,6 +39,7 @@ class ImportsScreenTest extends TestCase
 
     public function test_user_can_revert_import(): void
     {
+        $this->withoutExceptionHandling();
         $user = User::factory()->create();
         $account = Account::create([
             'user_id' => $user->id,
