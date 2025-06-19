@@ -35,14 +35,22 @@ class TransactionRulePipeline
             })
             ->toArray();
 
-        $result = app(Pipeline::class)
+        $processedTransaction = app(Pipeline::class)
             ->send($transaction)
             ->through($rules)
             ->then(function (Transaction $transaction) {
                 return $transaction;
             });
-        $result->save();
-        return $result;
+
+        // Ensure we have a Transaction instance before saving
+        if ($processedTransaction instanceof Transaction) {
+            $processedTransaction->save();
+            return $processedTransaction;
+        }
+
+        // Fallback - should not happen in normal operation
+        $transaction->save();
+        return $transaction;
     }
 
     /**
