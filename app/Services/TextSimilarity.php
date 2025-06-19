@@ -10,10 +10,10 @@ class TextSimilarity
     {
         $text = strip_tags($text);
         $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
-        $text = iconv('UTF-8', 'ASCII//TRANSLIT', $text);
+        $text = (string) iconv('UTF-8', 'ASCII//TRANSLIT', $text) ?: '';
         $text = strtolower($text);
-        $text = preg_replace('/[\p{P}]/u', '', $text);
-        $text = preg_replace('/\s+/', ' ', $text);
+        $text = (string) preg_replace('/[\p{P}]/u', '', $text);
+        $text = (string) preg_replace('/\s+/', ' ', $text);
 
         return trim($text);
     }

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { DateRangeInput, TextInput } from '@/components/ui/form-inputs';
 import { LoadingDots } from '@/components/ui/loading-dots';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
+import { SmartForm } from '@/components/ui/smart-form';
 import { Switch } from '@/components/ui/switch';
 import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
@@ -24,6 +24,8 @@ interface Props {
         data: Transaction[];
         current_page: number;
         has_more_pages: boolean;
+        last_page: number;
+        total: number;
     };
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     totalSummary?: {
@@ -40,7 +42,6 @@ interface Props {
     categories: Category[];
     merchants: Merchant[];
     accounts: { id: number; name: string }[];
-    totalCount: number;
     filters?: {
         search?: string;
         account_id?: string;
@@ -59,30 +60,53 @@ interface Props {
     };
 }
 
-const filterSchema = z.object({
-    search: z.string().optional(),
-    account_id: z.string().optional(),
-    transactionType: z.enum(['income', 'expense', 'transfer', 'all', '']).optional(),
-    amountFilterType: z.enum(['exact', 'range', 'above', 'below', 'all', '']).optional(),
-    amountFilter: z.string().optional(),
-    amountMin: z.string().optional(),
-    amountMax: z.string().optional(),
-    amountExact: z.string().optional(),
-    amountAbove: z.string().optional(),
-    amountBelow: z.string().optional(),
-    dateFrom: z.string().optional(),
-    dateTo: z.string().optional(),
-    dateRange: z
-        .object({
-            from: z.string().optional(),
-            to: z.string().optional(),
-        })
-        .optional(),
-    merchant_id: z.string().optional(),
-    category_id: z.string().optional(),
+interface TotalSummary {
+    count: number;
+    income: number;
+    expense: number;
+    balance: number;
+    categoriesCount: number;
+    merchantsCount: number;
+    uncategorizedCount: number;
+    noMerchantCount: number;
+}
+
+type FilterValues = {
+    search?: string;
+    account_id?: string;
+    transactionType?: 'income' | 'expense' | 'transfer' | 'all' | '';
+    amountFilterType?: 'exact' | 'range' | 'above' | 'below' | 'all' | '';
+    amountFilter?: string;
+    amountMin?: string;
+    amountMax?: string;
+    amountExact?: string;
+    amountAbove?: string;
+    amountBelow?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    dateRange?: {
+        from?: string;
+        to?: string;
+    };
+    merchant_id?: string;
+    category_id?: string;
+};
+
+// Zod schemas for SmartForm components
+const searchSchema = z.object({
+    search: z.string(),
 });
 
-type FilterValues = InferFormValues<typeof filterSchema>;
+const amountFilterSchema = z.object({
+    amountFilter: z.string(),
+});
+
+const dateRangeSchema = z.object({
+    dateRange: z.object({
+        from: z.string(),
+        to: z.string(),
+    }),
+});
 
 async function fetchTransactions(
     params: FilterValues,
@@ -92,7 +116,7 @@ async function fetchTransactions(
     current_page: number;
     has_more_pages: boolean;
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
-    totalSummary?: Record<string, number>;
+    totalSummary?: TotalSummary;
     totalCount?: number;
 }> {
     const endpoint = page ? '/transactions/load-more' : '/transactions/filter';
@@ -115,19 +139,17 @@ async function fetchTransactions(
     });
 
     if (response.data.transactions) {
+        const transactions = response.data.transactions;
         return {
-            data: response.data.transactions.data,
-            current_page: response.data.transactions.current_page,
-            has_more_pages: getHasMorePages(response.data),
+            data: transactions.data,
+            current_page: transactions.current_page,
+            has_more_pages: transactions.current_page < transactions.last_page,
             monthlySummaries: response.data.monthlySummaries || {},
-            totalSummary: response.data.totalSummary,
-            totalCount: response.data.totalCount,
+            totalSummary: response.data.totalSummary as TotalSummary | undefined,
+            totalCount: transactions.total,
         };
     }
 
-    function getHasMorePages(data: Record<string, unknown>): boolean {
-        return data.transactions?.has_more_pages ?? data.transactions?.hasMorePages ?? data.hasMorePages ?? false;
-    }
     throw new Error(`Invalid response from endpoint "${endpoint}". Response data: ${JSON.stringify(response.data)}`);
 }
 
@@ -155,7 +177,6 @@ export default function Index({
     categories,
     merchants,
     accounts,
-    totalCount: initialTotalCount,
     filters = {},
 }: Props) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -170,8 +191,8 @@ export default function Index({
     } = useLoadMore<Transaction, FilterValues>({
         initialData: initialTransactions.data,
         initialPage: initialTransactions.current_page,
-        initialHasMore: initialTransactions.has_more_pages ?? initialTransactions.hasMorePages,
-        initialTotalCount: initialTotalCount,
+        initialHasMore: initialTransactions.last_page > initialTransactions.current_page,
+        initialTotalCount: initialTransactions.total,
         fetcher: fetchTransactions,
     });
     const [monthlySummaries, setMonthlySummaries] = useState(initialSummaries);
@@ -420,7 +441,7 @@ export default function Index({
                     console.log('API response:', result);
                 }
                 if (result.data) {
-                    reset(result.data, result.current_page, result.has_more_pages ?? result.hasMorePages, result.totalCount);
+                    reset(result.data, result.current_page, result.has_more_pages, result.totalCount);
                     setMonthlySummaries(result.monthlySummaries || {});
                     if (isResettingFilters) {
                         setTotalSummary(undefined);
@@ -558,11 +579,11 @@ export default function Index({
                                     <label className={`mb-1 block text-sm ${getFilterLabelStyle('search')}`}>Search transactions</label>
                                     <div className="relative">
                                         <SmartForm
-                                            schema={filterSchema}
-                                            defaultValues={{ search: filterValues.search }}
+                                            schema={searchSchema}
+                                            defaultValues={{ search: filterValues.search || '' }}
                                             onChange={(values) => {
                                                 // Only update and trigger if the value actually changed
-                                                const newSearch = values.search || '';
+                                                const newSearch = values.search;
                                                 if (newSearch !== filterValues.search) {
                                                     const newValues = { ...filterValues, search: newSearch };
                                                     setFilterValues(newValues);
@@ -636,10 +657,10 @@ export default function Index({
                                         </label>
                                         <div className="relative">
                                             <SmartForm
-                                                schema={filterSchema}
-                                                defaultValues={{ amountFilter: filterValues.amountFilter }}
+                                                schema={amountFilterSchema}
+                                                defaultValues={{ amountFilter: filterValues.amountFilter || '' }}
                                                 onChange={(values) => {
-                                                    const newAmountFilter = values.amountFilter || '';
+                                                    const newAmountFilter = values.amountFilter;
                                                     if (newAmountFilter !== filterValues.amountFilter) {
                                                         handleAmountChange(newAmountFilter);
                                                     }
@@ -665,7 +686,7 @@ export default function Index({
                                             Date Range
                                         </label>
                                         <SmartForm
-                                            schema={filterSchema}
+                                            schema={dateRangeSchema}
                                             defaultValues={{
                                                 dateRange: {
                                                     from: filterValues.dateFrom || '',

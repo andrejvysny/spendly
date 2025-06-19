@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\TransactionFingerprint;
 use Carbon\Carbon;
@@ -11,6 +12,11 @@ use Illuminate\Database\Eloquent\Collection;
 
 class DuplicateTransactionService
 {
+    /**
+     * Threshold for description similarity to consider it a match
+     */
+    private const DESCRIPTION_SIMILARITY_THRESHOLD = 0.8;
+
     /**
      * Mapping of canonical field names to possible aliases.
      *
@@ -42,6 +48,7 @@ class DuplicateTransactionService
         foreach (['description', 'booked_date', 'reference_id'] as $canonical) {
             if (isset($input[$canonical]) && $input[$canonical] !== null) {
                 $normalized[$canonical] = $input[$canonical];
+
                 continue;
             }
             foreach ($this->fieldMapping[$canonical] ?? [] as $alias) {
@@ -69,8 +76,15 @@ class DuplicateTransactionService
             $date = '';
         }
 
-        $amount = abs((float) ($normalized['amount'] ?? 0));
-        $desc = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) ($normalized['description'] ?? '')));
+        // Format amount to 2 decimal places to avoid float precision issues
+        $amountRaw = abs((float) ($normalized['amount'] ?? 0));
+        $amount = number_format($amountRaw, 2, '.', '');
+
+        // Normalize description: first collapse whitespace, then remove special chars
+        $desc = (string) ($normalized['description'] ?? '');
+        $desc = preg_replace('/\s+/u', ' ', trim($desc)); // collapse whitespace
+        $desc = strtolower(preg_replace('/[^a-z0-9]/i', '', $desc)); // remove special chars
+
         $reference = (string) ($normalized['reference_id'] ?? '');
 
         return hash('sha256', $date.'|'.$amount.'|'.$desc.'|'.$reference);
@@ -103,28 +117,43 @@ class DuplicateTransactionService
     /**
      * Compute a weighted duplicate score against an existing transaction.
      *
+     * Scoring policy:
+     * - Date MUST match exactly - different dates mean NOT a duplicate
+     * - If dates match, then score based on:
+     *   - Amount match: 0.40 (exact amount including sign)
+     *   - Description similarity: 0.35 (≥80% similarity threshold)
+     *   - Reference ID match: 0.25 (exact match)
+     *
+     * A score ≥ 0.80 indicates a duplicate (only possible when dates match).
+     *
      * @param  array<string, mixed>  $normalized
      */
     public function computeScore(array $normalized, Transaction $existing): float
     {
         $dateMatch = false;
         try {
-            $inputDate = Carbon::parse((string) ($normalized['booked_date'] ?? $normalized['processed_date']))->toDateString();
-            $dateMatch = $existing->booked_date->toDateString() === $inputDate;
+            $inputDate = Carbon::parse((string) ($normalized['booked_date'] ?? $normalized['processed_date']))->startOfDay();
+            $existingDate = $existing->booked_date->startOfDay();
+            $dateMatch = $inputDate->equalTo($existingDate);
         } catch (\Exception $e) {
             // ignore parsing errors
         }
 
-        $amountMatch = abs((float) $existing->amount) === abs((float) ($normalized['amount'] ?? 0));
+        // If dates don't match, it's definitively NOT a duplicate
+        if (! $dateMatch) {
+            return 0.0;
+        }
+
+        $amountMatch = (float) $existing->amount === (float) ($normalized['amount'] ?? 0);
         $referenceExact = isset($normalized['reference_id']) && $existing->transaction_id === $normalized['reference_id'];
 
         $descriptionScore = TextSimilarity::similarity((string) $existing->description, (string) ($normalized['description'] ?? ''));
-        $descriptionScore = $descriptionScore >= 0.90 ? 1.0 : 0.0;
+        $descriptionScore = $descriptionScore >= self::DESCRIPTION_SIMILARITY_THRESHOLD ? 1.0 : 0.0;
 
-        return ($dateMatch ? 0.50 : 0.0)
-            + ($amountMatch ? 0.30 : 0.0)
-            + ($descriptionScore * 0.15)
-            + ($referenceExact ? 0.05 : 0.0);
+        // Only calculate score if dates match
+        return ($amountMatch ? 0.40 : 0.0)
+            + ($descriptionScore * 0.35)
+            + ($referenceExact ? 0.25 : 0.0);
     }
 
     /**
@@ -151,6 +180,17 @@ class DuplicateTransactionService
             }
         }
 
+        // Save the fingerprint for future duplicate checks
+        TransactionFingerprint::updateOrCreate(
+            [
+                'user_id' => $userId,
+                'fingerprint' => $fingerprint,
+            ],
+            [
+                'created_at' => now(),
+            ]
+        );
+
         return false;
     }
 
@@ -158,14 +198,21 @@ class DuplicateTransactionService
      * Backwards compatibility wrapper for old check method.
      *
      * @param  array<string, mixed>  $data
-     * @param  int  $accountId
      * @return array{duplicate: bool, level: int, identifier: string, fields: array<string, mixed>}
      */
     public function check(array $data, int $accountId): array
     {
+        // Get user_id from account
+        $account = Account::find($accountId);
+        if (! $account) {
+            throw new \InvalidArgumentException("Account with ID {$accountId} not found");
+        }
+
+        $userId = $account->user_id;
+
         $normalized = $this->normalizeRecord($data);
         $identifier = $this->buildFingerprint($normalized);
-        $duplicate = $this->isDuplicate($data, $accountId);
+        $duplicate = $this->isDuplicate($data, $userId);
 
         return [
             'duplicate' => $duplicate,

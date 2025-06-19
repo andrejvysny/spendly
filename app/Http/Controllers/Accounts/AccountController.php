@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Accounts;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -80,13 +81,17 @@ class AccountController extends Controller
             return redirect()->route('accounts.index')->with('error', 'Account not found');
         }
 
-        // Get the transactions for this account
-        $transactions = $account->transactions()->with('category')->get();
-        $total_transactions = $transactions->count();
+        // Get initial paginated transactions for this account (first page only)
+        $transactions = $account->transactions()
+            ->with(['category', 'merchant', 'tags'])
+            ->orderBy('booked_date', 'desc')
+            ->paginate(10); // Use same pagination count as TransactionController
 
-        // Calculate monthly summaries
+        $total_transactions = $account->transactions()->count();
+
+        // Calculate monthly summaries for the current page only
         $monthlySummaries = [];
-        foreach ($transactions as $transaction) {
+        foreach ($transactions->items() as $transaction) {
             $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
             if (! isset($monthlySummaries[$month])) {
                 $monthlySummaries[$month] = [
@@ -106,13 +111,25 @@ class AccountController extends Controller
         $cashflow_last_month = $this->getCashflowOfMonth([$account->id], 1);
         $cashflow_this_month = $this->getCashflowOfMonth([$account->id], 0);
 
+        // Get categories and merchants for the filter dropdowns
+        $categories = auth()->user()->categories;
+        $merchants = auth()->user()->merchants;
+
         return Inertia::render('accounts/detail', [
             'account' => $account,
             'cashflow_last_month' => $cashflow_last_month,
             'cashflow_this_month' => $cashflow_this_month,
-            'transactions' => $transactions,
+            'transactions' => [
+                'data' => $transactions->items(),
+                'current_page' => $transactions->currentPage(),
+                'has_more_pages' => $transactions->hasMorePages(),
+                'last_page' => $transactions->lastPage(),
+                'total' => $transactions->total(),
+            ],
             'monthlySummaries' => $monthlySummaries,
             'total_transactions' => $total_transactions,
+            'categories' => $categories,
+            'merchants' => $merchants,
         ]);
     }
 
@@ -161,5 +178,42 @@ class AccountController extends Controller
             ->get();
 
         return $cashflow;
+    }
+
+    /**
+     * Update sync options for an account.
+     */
+    public function updateSyncOptions(Request $request, string|int $id): JsonResponse
+    {
+        try {
+            $account = Account::where('user_id', auth()->id())->findOrFail($id);
+
+            $validated = $request->validate([
+                'update_existing' => 'boolean',
+                'force_max_date_range' => 'boolean',
+            ]);
+
+            // Merge with existing sync options to preserve any other settings
+            $currentOptions = $account->sync_options ?? [];
+            $updatedOptions = array_merge($currentOptions, $validated);
+
+            $account->update([
+                'sync_options' => $updatedOptions,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sync options updated successfully',
+                'sync_options' => $updatedOptions,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to update sync options: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update sync options: '.$e->getMessage(),
+            ], 500);
+        }
     }
 }
