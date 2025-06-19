@@ -22,13 +22,39 @@ echo -e "\n ⤵️ Downloading Spendly configuration..."
 curl -s -o compose.yml https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/compose.prod.yml
 
 echo -e "\n ⚙️ Setting up Environment..."
-curl -s -o .env https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/.env.example
+# Only download .env.example if .env doesn't exist
+if [ ! -f .env ]; then
+    curl -s -o .env https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/.env.example
+    echo "✅ Created .env file from template"
+else
+    echo "✅ .env file already exists"
+fi
 
 echo -e "\n 📦 Downloading Spendly image..."
 docker compose pull
 
-echo -e "\n 🔑 Generating application key..."
-docker compose run app php artisan key:generate
+echo -e "\n 🔑 Checking application key..."
+# Check if APP_KEY is already set in .env file
+if grep -q "^APP_KEY=base64:" .env; then
+    echo "✅ Application key already exists"
+else
+    echo "🔑 Generating application key..."
+    # Create a temporary compose override to mount .env file for key generation
+    cat > compose.keygen.yml << EOF
+services:
+  app:
+    volumes:
+      - ./.env:/var/www/html/.env
+EOF
+    
+    # Generate app key using docker compose with .env file mounted
+    docker compose -f compose.yml -f compose.keygen.yml run --rm app php artisan key:generate --force
+    
+    # Clean up temporary compose file
+    rm docker-compose.keygen.yml
+    
+    echo "✅ Application key generated successfully"
+fi
 
 echo -e "\n 🚀 Starting Spendly services..."
 docker compose up -d
