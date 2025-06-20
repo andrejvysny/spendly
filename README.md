@@ -7,14 +7,21 @@ SPDX-License-Identifier: GPL-3.0-or-later
 SPDX-FileCopyrightText: 2024 Spendly Contributors
 -->
 
+
+
+[![Build and Push Docker Image](https://github.com/andrejvysny/spendly/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/andrejvysny/spendly/actions/workflows/build.yml)
+[![tests](https://github.com/andrejvysny/spendly/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/andrejvysny/spendly/actions/workflows/tests.yml)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/andrejvysny/spendly?utm_source=oss&utm_medium=github&utm_campaign=andrejvysny%2Fspendly&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
+
+![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/andrejvysny/spendly)
+![GitHub Issues or Pull Requests](https://img.shields.io/github/issues-pr/andrejvysny/spendly)
 
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![SPDX](https://img.shields.io/badge/SPDX-GPL--3.0--or--later-blue.svg)](https://spdx.org/licenses/GPL-3.0-or-later.html)
-[![Laravel](https://img.shields.io/badge/Laravel-10.x-red.svg)](https://laravel.com)
-[![React](https://img.shields.io/badge/React-18.x-blue.svg)](https://reactjs.org)
-[![Security](https://img.shields.io/badge/Security-Bank--Level-green.svg)](docs/SECURITY.md)
+[![Laravel](https://img.shields.io/badge/Laravel-12.x-red.svg)](https://laravel.com)
+[![React](https://img.shields.io/badge/React-19.x-blue.svg)](https://reactjs.org)
 [![Self-Hosting](https://img.shields.io/badge/Self--Hosting-Ready-blue.svg)](docs/DEPLOYMENT.md)
 
 > ⚠️ **Development Status Notice**
@@ -63,10 +70,16 @@ curl -sSL https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/
 
 1. Make sure you have Docker installed on your system.
 2. Download compose.prod.yml.
-3. Create .env file using .env.example and adjust parameters as needed.
-4. Generate app key.
+3. Create .env file using .env.example and adjust settings as needed.
+4. Generate app key using docker or use one from https://laravel-encryption-key-generator.vercel.app/.
 ```bash
-docker compose run app php artisan key:generate
+docker run --rm \
+        --entrypoint="" \
+        --user "$(id -u):$(id -g)" \
+        -v "$(pwd)/.env:/var/www/html/.env" \
+        -v "$(pwd)/compose.yml:/var/www/html/compose.yml" \
+        ghcr.io/andrejvysny/spendly:main \
+        php artisan key:generate --force
 ```
 5. Start Spendly 
 ```bash
@@ -90,10 +103,15 @@ docker compose up -d
 
 See [Development Guide](docs/DEVELOPMENT.md) for detailed instructions.
 See [Testing Guide](docs/TESTING.md) for testing setup.
+
+
 ## 🔒 Security
 
 Spendly takes security seriously, especially when handling financial data:
 
+- **Data encryption** for sensitive information
+- **All data stored locally**: Your data remains on your device and is never sent to external servers, giving you full control.
+- **Secure API keys** and credentials management
 - **Regular security audits** and dependency updates
 - **Secure authentication** with Laravel Sanctum
 - **Input validation** and SQL injection prevention
