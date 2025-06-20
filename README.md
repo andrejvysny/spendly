@@ -41,11 +41,11 @@ Spendly is an open-source personal finance tracker that helps you manage your fi
 
 ## 🚀 Tech Stack
 
-- **Backend**: Laravel 10.x
-- **Frontend**: React 18.x with TypeScript
+- **Backend**: Laravel 12.x
+- **Frontend**: React 19.x with TypeScript
 - **Database**: SQLite (default), MySQL, PostgreSQL
 - **Authentication**: Laravel Sanctum
-- **API Integration**: GoCardless API (WIP)
+- **API Integration**: GoCardless API
 - **Testing**: PHPUnit, Jest
 - **Deployment**: Docker
 
@@ -79,7 +79,7 @@ docker compose up -d
 
 ## 📚 Documentation (WIP)
  
-- **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions
+- **[Installation Guide](docs/ai/INSTALLATION.md)** - Detailed setup instructions
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Self-hosting and production deployment
 - **[Development Setup](docs/DEVELOPMENT.md)** - Local development environment
 - **[API Documentation](docs/API.md)** - RESTful API reference
@@ -89,79 +89,7 @@ docker compose up -d
 ## 🔧 Development
 
 See [Development Guide](docs/DEVELOPMENT.md) for detailed instructions.
-
-## 🧪 Testing
-
-Spendly uses PHPUnit for backend testing. Tests are configured to run without coverage by default for faster execution, but you can enable coverage when needed.
-
-### Running Tests
-
-#### Without Coverage (Default - Fast)
-```bash
-# Using the provided script
-./docker-test.sh
-
-# Or directly with Docker
-docker compose run test ./vendor/bin/phpunit
-```
-
-#### With Coverage Reports
-
-**Text Coverage Report:**
-```bash
-./docker-test.sh --coverage-text
-```
-
-**HTML Coverage Report:**
-```bash
-./docker-test.sh --coverage-html
-```
-
-**Clover XML Coverage Report:**
-```bash
-./docker-test.sh --coverage-clover
-```
-
-### Test Script Options
-
-The `docker-test.sh` script provides convenient options:
-
-```bash
-./docker-test.sh --help
-```
-
-**Available Options:**
-- `--coverage` - Run tests with HTML coverage report
-- `--coverage-text` - Run tests with text coverage report  
-- `--coverage-html` - Run tests with HTML coverage report (default)
-- `--coverage-clover` - Run tests with Clover XML coverage report
-- `--help, -h` - Show help message
-
-### Coverage Reports
-
-When running with coverage, reports are generated in:
-- **HTML**: `coverage/html/index.html` - Interactive web report
-- **Clover XML**: `coverage/clover.xml` - For CI/CD integration
-- **Text**: Console output - Quick summary
-
-### Test Structure
-
-```
-tests/
-├── Feature/          # Feature tests (HTTP requests, database)
-│   ├── Auth/        # Authentication tests
-│   └── Settings/    # Settings functionality tests
-└── Unit/            # Unit tests (isolated components)
-    ├── Controllers/ # Controller logic tests
-    └── Services/    # Service layer tests
-```
-
-### Writing Tests
-
-- **Feature Tests**: Test complete user workflows and HTTP endpoints
-- **Unit Tests**: Test individual classes and methods in isolation
-- **Database Tests**: Use SQLite in-memory database for fast execution
-
+See [Testing Guide](docs/TESTING.md) for testing setup.
 ## 🔒 Security
 
 Spendly takes security seriously, especially when handling financial data:
@@ -204,7 +132,7 @@ This project is licensed under the GNU General Public License v3.0 (GPLv3). See 
 
 ## 📞 Support
 
-- **Documentation**: [Installation](docs/INSTALLATION.md) | [API](docs/API.md) | [Deployment](docs/DEPLOYMENT.md)
+- **Documentation**: [Installation](docs/ai/INSTALLATION.md) | [API](docs/API.md) | [Deployment](docs/DEPLOYMENT.md)
 - **GitHub Issues**: [Report bugs or request features](https://github.com/andrejvysny/spendly/issues)
 - **Security Issues**: vysnyandrej@gmail.com
 - **Community**: [GitHub Discussions](https://github.com/andrejvysny/spendly/discussions)

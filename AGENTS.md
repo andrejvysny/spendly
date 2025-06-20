@@ -5,8 +5,8 @@
 Spendly is an open-source personal finance tracker built with Laravel (backend) and React/TypeScript (frontend). This document provides guidelines for AI assistants working on this codebase.
 
 **Tech Stack:**
-- **Backend**: Laravel 10.x with PHP 8.1+
-- **Frontend**: React 18.x with TypeScript 5.x
+- **Backend**: Laravel 12.x with PHP 8.3+
+- **Frontend**: React 19.x with TypeScript 5.x
 - **Database**: SQLite/MySQL/PostgreSQL with Eloquent ORM
 - **UI Framework**: Tailwind CSS + shadcn/ui components
 - **Build Tool**: Vite
