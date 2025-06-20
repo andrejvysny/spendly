@@ -71,7 +71,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::group(['prefix' => '/wizard', 'as' => 'wizard.'], function () {
             Route::post('/upload', [ImportWizardController::class, 'upload'])->name('upload');
             Route::post('/{import}/configure', [ImportWizardController::class, 'configure'])->name('configure');
-            Route::post('/{import}/process', [ImportWizardController::class, 'process'])->name('process');
+            Route::post('/{account}/{import}/process', [ImportWizardController::class, 'process'])->name('process');
             Route::get('/categories', [ImportWizardController::class, 'getCategories'])->name('categories');
         });
 
