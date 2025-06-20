@@ -1,5 +1,7 @@
 # Spendly API Documentation - WIP
 
+>This Document is placeholder for the Spendly API documentation. It is a work in progress and will be updated with detailed information about the API endpoints, request/response formats, authentication, and more.
+
 This document describes the Spendly REST API endpoints for managing personal finance data.
 
 ## Base URL

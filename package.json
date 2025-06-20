@@ -1,5 +1,6 @@
 {
-    "private": true,
+    "private": false,
+    "name": "spendly",
     "type": "module",
     "license": "GPL-3.0-or-later",
     "scripts": {

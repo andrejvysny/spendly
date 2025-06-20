@@ -16,70 +16,70 @@ Define services for your app, database, and each test suite in `docker-compose.y
 ```yaml
 version: "3.8"
 services:
-  app:
-    image: laravel-app
-    build: ..
-    volumes:
-      - ./:/var/www/html
-    ports:
-      - "8000:8000"
-    command: php artisan serve --host=0.0.0.0 --port=8000
+    app:
+        image: laravel-app
+        build: ../..
+        volumes:
+            - ./:/var/www/html
+        ports:
+            - "8000:8000"
+        command: php artisan serve --host=0.0.0.0 --port=8000
 
-  db:
-    image: mysql:8.0
-    environment:
-      MYSQL_DATABASE: testing
-      MYSQL_ALLOW_EMPTY_PASSWORD: yes
+    db:
+        image: mysql:8.0
+        environment:
+            MYSQL_DATABASE: testing
+            MYSQL_ALLOW_EMPTY_PASSWORD: yes
 
-  unit:
-    image: php:8.2-cli
-    working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html
-    depends_on:
-      - app
-    command: vendor/bin/phpunit --testsuite=Unit
+    unit:
+        image: php:8.2-cli
+        working_dir: /var/www/html
+        volumes:
+            - ./:/var/www/html
+        depends_on:
+            - app
+        command: vendor/bin/phpunit --testsuite=Unit
 
-  feature:
-    image: php:8.2-cli
-    working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html
-    depends_on:
-      - app
-      - db
-    command: vendor/bin/phpunit --testsuite=Feature
+    feature:
+        image: php:8.2-cli
+        working_dir: /var/www/html
+        volumes:
+            - ./:/var/www/html
+        depends_on:
+            - app
+            - db
+        command: vendor/bin/phpunit --testsuite=Feature
 
-  integration:
-    image: php:8.2-cli
-    working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html
-    depends_on:
-      - app
-      - db
-    command: vendor/bin/phpunit --testsuite=Integration
+    integration:
+        image: php:8.2-cli
+        working_dir: /var/www/html
+        volumes:
+            - ./:/var/www/html
+        depends_on:
+            - app
+            - db
+        command: vendor/bin/phpunit --testsuite=Integration
 
-  functional:
-    image: php:8.2-cli
-    working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html
-    depends_on:
-      - app
-      - db
-    command: vendor/bin/phpunit --testsuite=Functional
+    functional:
+        image: php:8.2-cli
+        working_dir: /var/www/html
+        volumes:
+            - ./:/var/www/html
+        depends_on:
+            - app
+            - db
+        command: vendor/bin/phpunit --testsuite=Functional
 
-  dusk:
-    image: cypress/browsers:node-22.14.0-chrome-133.0.6943.126-1-ff-135.0.1
-    working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html
-    depends_on:
-      - app
-    environment:
-      APP_URL: http://app:8000
-    command: php artisan dusk --headless
+    dusk:
+        image: cypress/browsers:node-22.14.0-chrome-133.0.6943.126-1-ff-135.0.1
+        working_dir: /var/www/html
+        volumes:
+            - ./:/var/www/html
+        depends_on:
+            - app
+        environment:
+            APP_URL: http://app:8000
+        command: php artisan dusk --headless
 ```
 
 ## 1. Unit Tests

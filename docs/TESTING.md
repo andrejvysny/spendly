@@ -1,156 +1,72 @@
-# Testing Setup
 
-This project includes a comprehensive testing setup with Docker support for code coverage.
+## 🧪 Testing
 
-## Prerequisites
+Spendly uses PHPUnit for backend testing. Tests are configured to run without coverage by default for faster execution, but you can enable coverage when needed.
 
-- Docker and Docker Compose installed
-- Git
+### Running Tests
 
-## Quick Start
-
-### 1. Set up Development Environment
-
+#### Without Coverage (Default - Fast)
 ```bash
-./docker-dev.sh
+# Using the provided script
+./scripts/docker-test.sh
+
+# Or directly with Docker
+docker compose run test ./vendor/bin/phpunit
 ```
 
-This script will:
-- Build all Docker containers
-- Install PHP and Node.js dependencies
-- Build frontend assets
-- Set up Laravel configuration
-- Set proper permissions
+#### With Coverage Reports
 
-### 2. Run Tests with Coverage
-
+**Text Coverage Report:**
 ```bash
-./docker-test.sh
+./scripts/docker-test.sh --coverage-text
 ```
 
-This script will:
-- Build the test container with Xdebug support
-- Run all tests with code coverage
-- Generate coverage reports
+**HTML Coverage Report:**
+```bash
+./scripts/docker-test.sh --coverage-html
+```
 
-## Coverage Reports
+**Clover XML Coverage Report:**
+```bash
+./scripts/docker-test.sh --coverage-clover
+```
 
-After running tests, coverage reports are available in:
+### Test Script Options
 
-- **HTML Report**: `coverage/html/index.html` - Interactive web interface
+The `docker-test.sh` script provides convenient options:
+
+```bash
+./scripts/docker-test.sh --help
+```
+
+**Available Options:**
+- `--coverage` - Run tests with HTML coverage report
+- `--coverage-text` - Run tests with text coverage report
+- `--coverage-html` - Run tests with HTML coverage report (default)
+- `--coverage-clover` - Run tests with Clover XML coverage report
+- `--help, -h` - Show help message
+
+### Coverage Reports
+
+When running with coverage, reports are generated in:
+- **HTML**: `coverage/html/index.html` - Interactive web report
 - **Clover XML**: `coverage/clover.xml` - For CI/CD integration
-- **Text Report**: `coverage/coverage.txt` - Plain text summary
+- **Text**: Console output - Quick summary
 
-## Manual Testing Commands
+### Test Structure
 
-### Run All Tests
-```bash
-docker-compose run --rm test php artisan test
+```
+tests/
+├── Feature/          # Feature tests (HTTP requests, database)
+│   ├── Auth/        # Authentication tests
+│   └── Settings/    # Settings functionality tests
+└── Unit/            # Unit tests (isolated components)
+    ├── Controllers/ # Controller logic tests
+    └── Services/    # Service layer tests
 ```
 
-### Run Specific Test Suite
-```bash
-# Unit tests only
-docker-compose run --rm test php artisan test --testsuite=Unit
+### Writing Tests
 
-# Feature tests only
-docker-compose run --rm test php artisan test --testsuite=Feature
-```
-
-### Run Specific Test File
-```bash
-docker-compose run --rm test php artisan test tests/Unit/Services/GoCardlessServiceTest.php
-```
-
-### Run Tests with Coverage
-```bash
-docker-compose run --rm test php artisan test --coverage
-```
-
-### Run Tests with Verbose Output
-```bash
-docker-compose run --rm test php artisan test --verbose
-```
-
-## Test Configuration
-
-### Environment Variables
-
-The test environment is configured with the following settings:
-
-- `APP_ENV=testing`
-- `LOG_CHANNEL=null` (suppresses logging during tests)
-- `DB_CONNECTION=sqlite`
-- `DB_DATABASE=:memory:` (in-memory database)
-- `CACHE_STORE=array`
-- `SESSION_DRIVER=array`
-- `QUEUE_CONNECTION=sync`
-- `XDEBUG_MODE=coverage`
-
-### PHPUnit Configuration
-
-The `phpunit.xml` file includes:
-
-- Coverage configuration for the `app` directory
-- Exclusions for Console, Exceptions, and Providers directories
-- Multiple report formats (HTML, Clover XML, Text)
-- Test suite organization (Unit and Feature)
-
-## Troubleshooting
-
-### Xdebug Issues
-
-If you encounter Xdebug-related warnings:
-
-1. Ensure the test container is built with Xdebug:
-   ```bash
-   docker-compose build test
-   ```
-
-2. Check Xdebug is enabled:
-   ```bash
-   docker-compose run --rm test php -m | grep xdebug
-   ```
-
-3. Verify Xdebug mode:
-   ```bash
-   docker-compose run --rm test php -i | grep xdebug.mode
-   ```
-
-### Permission Issues
-
-If you encounter permission issues:
-
-```bash
-docker-compose run --rm cli chmod -R 775 storage bootstrap/cache
-```
-
-### Database Issues
-
-The tests use SQLite in-memory database. If you need to use a different database:
-
-1. Update the test environment variables in `compose.yml`
-2. Ensure the database driver is installed in the test container
-3. Update `phpunit.xml` environment variables
-
-## Continuous Integration
-
-For CI/CD pipelines, the coverage reports can be integrated using:
-
-- **Clover XML**: Upload to services like Codecov, Coveralls, or SonarQube
-- **HTML Report**: Deploy to a static hosting service for team review
-- **Text Report**: Parse for coverage thresholds in CI scripts
-
-## Development Workflow
-
-1. Write tests in the appropriate test suite directory
-2. Run tests locally: `./docker-test.sh`
-3. Check coverage reports for uncovered code
-4. Commit and push changes
-5. CI/CD will run tests automatically
-
-## Test Structure
-
-- **Unit Tests** (`tests/Unit/`): Test individual classes and methods in isolation
-- **Feature Tests** (`tests/Feature/`): Test complete features and HTTP endpoints
-- **Test Helpers**: Common test utilities and factories in `tests/TestCase.php` 
+- **Feature Tests**: Test complete user workflows and HTTP endpoints
+- **Unit Tests**: Test individual classes and methods in isolation
+- **Database Tests**: Use SQLite in-memory database for fast execution
