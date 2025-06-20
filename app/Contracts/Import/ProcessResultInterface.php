@@ -9,27 +9,37 @@ namespace App\Contracts\Import;
 interface ProcessResultInterface
 {
     /**
-     * Check if the processing was successful.
-     */
+ * Determines whether the processing operation was successful.
+ *
+ * @return bool True if the processing succeeded; otherwise, false.
+ */
     public function isSuccess(): bool;
 
     /**
-     * Check if the row was skipped (neither success nor failure).
-     */
+ * Determines whether the processing operation was skipped.
+ *
+ * @return bool True if the operation was skipped; otherwise, false.
+ */
     public function isSkipped(): bool;
 
     /**
-     * Get the processing message.
-     */
+ * Retrieves a message describing the result of the processing operation.
+ *
+ * @return string The message related to the processing outcome.
+ */
     public function getMessage(): string;
 
     /**
-     * Get the processed data.
-     */
+ * Returns the data produced by the processing operation.
+ *
+ * @return array|object|null The processed data, or null if no data was produced.
+ */
     public function getData(): array|object|null;
 
     /**
-     * Get any errors that occurred during processing.
-     */
+ * Returns an array of errors encountered during processing.
+ *
+ * @return array The list of errors, or an empty array if none occurred.
+ */
     public function getErrors(): array;
 }

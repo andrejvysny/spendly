@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Log;
  */
 readonly class TransactionImportService
 {
+    /**
+     * Initializes the TransactionImportService with required dependencies for CSV processing, row processing, and transaction persistence.
+     */
     public function __construct(
         private CsvProcessor $csvProcessor,
         private TransactionRowProcessor $rowProcessor,
@@ -20,11 +23,13 @@ readonly class TransactionImportService
     ) {}
 
     /**
-     * Process a transaction import.
+     * Executes the transaction import process for a given import model and account.
      *
-     * @param  Import  $import  The import model
-     * @param  int  $accountId  The account to import transactions into
-     * @return array Import results
+     * Initiates CSV row processing, updates import status throughout the workflow, persists results, and returns a summary of the import outcome. If an error occurs, marks the import as failed and rethrows the exception.
+     *
+     * @param Import $import The import model containing transaction data and metadata.
+     * @param int $accountId The ID of the account to import transactions into.
+     * @return array Summary of the import results, including counts of processed, successful, failed, and skipped rows.
      */
     public function processImport(Import $import, int $accountId): array
     {
@@ -75,7 +80,13 @@ readonly class TransactionImportService
     }
 
     /**
-     * Get a preview of the import data.
+     * Returns a preview of the import data limited to the specified number of rows.
+     *
+     * Processes the import file in preview mode and collects successfully processed row data up to the requested preview size.
+     *
+     * @param Import $import The import model containing file and metadata.
+     * @param int $previewSize The maximum number of preview rows to return. Defaults to 10.
+     * @return array An array of successfully processed preview rows.
      */
     public function getPreview(Import $import, int $previewSize = 10): array
     {
@@ -104,7 +115,11 @@ readonly class TransactionImportService
     }
 
     /**
-     * Prepare configuration for processing.
+     * Builds and returns a configuration array for transaction import processing based on the import model and account ID.
+     *
+     * @param Import $import The import model containing mapping, formatting, and metadata settings.
+     * @param int $accountId The ID of the account associated with the import.
+     * @return array The configuration array for processing the import.
      */
     private function prepareConfiguration(Import $import, int $accountId): array
     {
@@ -124,7 +139,9 @@ readonly class TransactionImportService
     }
 
     /**
-     * Update import status based on results.
+     * Updates the import record's status and metadata based on batch processing results.
+     *
+     * Determines the appropriate import status (failed, partially failed, completed with skipped duplicates, or completed) using counts of processed, failed, and skipped rows, then updates the import model accordingly.
      */
     private function updateImportStatus(Import $import, BatchResultInterface $batch): void
     {
@@ -167,7 +184,12 @@ readonly class TransactionImportService
     }
 
     /**
-     * Format results for response.
+     * Returns a summary array of batch processing results.
+     *
+     * The summary includes counts of processed, failed, and skipped rows, the total number of rows processed, and a flag indicating complete success.
+     *
+     * @param BatchResultInterface $result The batch result to summarize.
+     * @return array Summary of the batch processing results.
      */
     private function formatResults(BatchResultInterface $result): array
     {

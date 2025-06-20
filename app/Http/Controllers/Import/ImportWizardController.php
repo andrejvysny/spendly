@@ -20,11 +20,24 @@ use Illuminate\Support\Str;
 
 class ImportWizardController extends Controller
 {
+    /**
+     * Initializes the controller with services for CSV processing and transaction import handling.
+     *
+     * @param CsvProcessor $csvProcessor Service for handling CSV file operations.
+     * @param TransactionImportService $importService Service for processing transaction imports.
+     */
     public function __construct(
         private readonly CsvProcessor $csvProcessor,
         private readonly TransactionImportService $importService
     ) {}
 
+    /**
+     * Handles CSV file upload, preprocessing, and import record creation.
+     *
+     * Processes the uploaded CSV file by applying the specified delimiter and quote character, stores the preprocessed file, extracts sample data and headers, counts total data rows, and creates a new import record associated with the authenticated user.
+     *
+     * @return JsonResponse JSON response containing the import ID, headers, sample rows, and total row count.
+     */
     public function upload(ImportUploadRequest $request): JsonResponse
     {
         Log::debug('Starting file upload');
@@ -100,7 +113,11 @@ class ImportWizardController extends Controller
     }
 
     /**
-     * Configure import settings and get preview.
+     * Updates the configuration settings for a given import and returns the updated import along with preview data.
+     *
+     * @param ImportConfigureRequest $request The validated request containing import configuration settings.
+     * @param Import $import The import record to be configured.
+     * @return JsonResponse JSON response with the updated import and preview data.
      */
     public function configure(ImportConfigureRequest $request, Import $import): JsonResponse
     {
@@ -124,6 +141,13 @@ class ImportWizardController extends Controller
         ]);
     }
 
+    /**
+     * Placeholder for cleaning old import data before importing.
+     *
+     * Returns a JSON response indicating that old imports have been cleaned. Actual cleaning functionality is not yet implemented.
+     *
+     * @return JsonResponse
+     */
     public function clean(): JsonResponse
     {
         // TODO: implement functionality to clean data before importing
@@ -133,6 +157,13 @@ class ImportWizardController extends Controller
         ]);
     }
 
+    /**
+     * Placeholder for validating column mappings before importing.
+     *
+     * Returns a JSON response indicating that columns have been mapped. Actual validation logic is not yet implemented.
+     *
+     * @return JsonResponse
+     */
     public function map(): JsonResponse
     {
         // TODO: implement functionality to validate map columns before importing
@@ -143,7 +174,13 @@ class ImportWizardController extends Controller
     }
 
     /**
-     * Process the import.
+     * Processes a pending import for the specified account.
+     *
+     * Verifies user ownership of both the import and account, then delegates import processing to the transaction import service. Returns a JSON response with the outcome message, refreshed import data, and processing statistics. If the import is not pending, returns a message indicating it was already processed. On failure, updates the import status and returns an error response.
+     *
+     * @param Account $account The account to associate imported transactions with.
+     * @param Import $import The import record to process.
+     * @return JsonResponse JSON response containing the result message, import data, and processing statistics.
      */
     public function process(Account $account, Import $import): JsonResponse
     {
@@ -205,7 +242,9 @@ class ImportWizardController extends Controller
     }
 
     /**
-     * Get categories for the authenticated user.
+     * Retrieves all categories belonging to the authenticated user.
+     *
+     * @return JsonResponse JSON response containing the user's categories.
      */
     public function getCategories(): JsonResponse
     {

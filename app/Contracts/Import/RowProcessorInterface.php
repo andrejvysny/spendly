@@ -9,15 +9,19 @@ namespace App\Contracts\Import;
 interface RowProcessorInterface
 {
     /**
-     * Process a single row of data.
-     *
-     * @param  array  $row  The row data to process
-     * @param  array  $configuration  Additional configuration for processing
-     */
+ * Processes a single row of data using the provided configuration.
+ *
+ * @param array $row The data row to be processed.
+ * @param array $configuration Optional configuration parameters that influence processing.
+ * @return ProcessResultInterface The result of processing the row.
+ */
     public function processRow(array $row, array $configuration = []): ProcessResultInterface;
 
     /**
-     * Validate if the processor can handle the given configuration.
-     */
+ * Determines whether the processor can handle the specified configuration.
+ *
+ * @param array $configuration The configuration to validate.
+ * @return bool True if the processor supports the configuration; otherwise, false.
+ */
     public function canProcess(array $configuration): bool;
 }

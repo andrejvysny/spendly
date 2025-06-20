@@ -17,8 +17,18 @@ class TransactionPersister
 
     private int $batchSize = 500;
 
-    public function __construct() {}
+    /**
+ * Initializes a new instance of the TransactionPersister class.
+ */
+public function __construct() {}
 
+    /**
+     * Persists a batch of successful transaction results to the database, processing them in batches for efficiency.
+     *
+     * Iterates over successful results in the provided batch, enriches each transaction's metadata, and queues them for batch insertion. Triggers batch processing when the queue exceeds the configured batch size, and ensures any remaining transactions are persisted after processing the batch.
+     *
+     * @param BatchResultInterface $transactions The batch of transaction processing results to persist.
+     */
     public function persistBatch(BatchResultInterface $transactions): void
     {
         foreach ($transactions->getSuccessResults() as $transaction) {
@@ -51,7 +61,9 @@ class TransactionPersister
     }
 
     /**
-     * Add transaction to batch queue.
+     * Adds a transaction DTO to the internal batch queue for later processing.
+     *
+     * @param TransactionDto $data The transaction data to queue.
      */
     private function addToBatch(TransactionDto $data): void
     {
@@ -59,7 +71,9 @@ class TransactionPersister
     }
 
     /**
-     * Process the current batch of transactions.
+     * Persists all queued transactions to the database in batches.
+     *
+     * Attempts to insert transactions in chunks for efficiency and memory management. If a batch insert fails, falls back to inserting each transaction individually and logs any errors encountered.
      */
     private function processBatch(): void
     {
@@ -128,7 +142,12 @@ class TransactionPersister
     }
 
     /**
-     * Prepare transaction data for bulk insert.
+     * Prepares a transaction data array for bulk database insertion.
+     *
+     * Converts array fields to JSON strings, adds timestamp fields, and filters the data to include only fillable attributes.
+     *
+     * @param array $data The transaction data to prepare.
+     * @return array The formatted data ready for insertion.
      */
     private function prepareForInsert(array $data): array
     {
@@ -152,7 +171,9 @@ class TransactionPersister
     }
 
     /**
-     * Force process any remaining transactions in the batch.
+     * Processes any remaining transactions in the batch queue.
+     *
+     * Ensures that all queued transactions are persisted to the database by triggering batch processing if the queue is not empty.
      */
     public function flush(): void
     {

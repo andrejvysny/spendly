@@ -61,13 +61,20 @@ class Import extends Model
     public const STATUS_PARTIALLY_FAILED = 'partially_failed';
 
     /**
-     * Get the user that owns the import.
+     * Returns the user associated with this import.
+     *
+     * @return BelongsTo The relationship instance linking to the owning user.
      */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Determines if the import is currently pending.
+     *
+     * @return bool True if the import status is pending; otherwise, false.
+     */
     public function isPending(): bool
     {
         return $this->status === self::STATUS_PENDING;

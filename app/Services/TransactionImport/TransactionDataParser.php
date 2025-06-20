@@ -12,13 +12,14 @@ use Illuminate\Support\Facades\Log;
 class TransactionDataParser
 {
     /**
-     * Parse raw row data into transaction format.
+     * Parses a raw CSV row into a structured transaction array according to the provided import configuration.
      *
-     * @param  array  $row  The raw CSV row data
-     * @param  array  $configuration  Import configuration
-     * @return array Parsed transaction data
+     * Maps and converts fields such as dates and amounts, applies validation for required fields, sets defaults, and preserves the original import data. Throws an exception if required fields are missing or invalid.
      *
-     * @throws \Exception If required fields are missing or invalid
+     * @param array $row The raw CSV row data.
+     * @param array $configuration The import configuration specifying column mappings, headers, and parsing options.
+     * @return array The parsed and normalized transaction data.
+     * @throws \Exception If required fields are missing or invalid.
      */
     public function parse(array $row, array $configuration): array
     {
@@ -65,7 +66,14 @@ class TransactionDataParser
     }
 
     /**
-     * Parse a specific field value.
+     * Parses a field value from a transaction row according to its type and configuration.
+     *
+     * For date fields, parses the value using the configured date format. For amount fields, parses the value using the configured amount format and strategy. All other fields are trimmed of whitespace.
+     *
+     * @param string $field The name of the field to parse (e.g., 'booked_date', 'amount').
+     * @param string $value The raw value from the CSV row.
+     * @param array $configuration The import configuration specifying formats and strategies.
+     * @return mixed The parsed value, with type depending on the field (string, float, or null).
      */
     private function parseField(string $field, string $value, array $configuration)
     {
@@ -87,7 +95,13 @@ class TransactionDataParser
     }
 
     /**
-     * Parse date from string.
+     * Parses a date string into a standardized `Y-m-d H:i:s` format using the specified format or common alternatives.
+     *
+     * Cleans the input string and attempts to parse it with the provided format. If parsing fails, tries several alternative date formats. Returns null if parsing is unsuccessful or the input is empty.
+     *
+     * @param string $dateString The raw date string to parse.
+     * @param string $format The expected date format.
+     * @return string|null The parsed date in `Y-m-d H:i:s` format, or null if parsing fails.
      */
     private function parseDate(string $dateString, string $format): ?string
     {
@@ -133,7 +147,14 @@ class TransactionDataParser
     }
 
     /**
-     * Parse amount from string.
+     * Parses a monetary amount string into a float value according to the specified format and sign strategy.
+     *
+     * Cleans the input string, normalizes it based on locale-specific formatting, and applies the sign convention as defined by the strategy.
+     *
+     * @param string $amountString The raw amount string to parse.
+     * @param string $format The expected number format (e.g., '1,234.56', '1.234,56', or '1234,56').
+     * @param string $strategy The sign strategy, such as 'expense_positive' to invert positive values.
+     * @return float|null The parsed amount as a float, or null if the input is empty or invalid.
      */
     private function parseAmount(string $amountString, string $format, string $strategy): ?float
     {
@@ -171,7 +192,10 @@ class TransactionDataParser
     }
 
     /**
-     * Check if a field is required.
+     * Determines whether the specified field is required for transaction import.
+     *
+     * @param string $field The field name to check.
+     * @return bool True if the field is required; otherwise, false.
      */
     private function isRequiredField(string $field): bool
     {
@@ -179,7 +203,12 @@ class TransactionDataParser
     }
 
     /**
-     * Handle required fields and set defaults.
+     * Validates presence of required transaction fields and sets default values for optional fields.
+     *
+     * Ensures that 'booked_date', 'amount', and 'partner' are present and not null, throwing an exception if any are missing. Sets defaults for 'processed_date', 'description', 'type', and generates a unique 'transaction_id' if not provided.
+     *
+     * @param array $data Reference to the transaction data array to validate and update.
+     * @throws \Exception If any required field is missing or null.
      */
     private function handleRequiredFields(array &$data): void
     {
@@ -212,7 +241,13 @@ class TransactionDataParser
     }
 
     /**
-     * Build import data for storage.
+     * Constructs an associative array mapping headers to their corresponding row values.
+     *
+     * If a header is missing for a given index, a default key in the format "col_{index}" is used.
+     *
+     * @param array $row The array of raw row values.
+     * @param array $headers The array of header names corresponding to each column index.
+     * @return array Associative array of header (or default column key) to value.
      */
     private function buildImportData(array $row, array $headers): array
     {

@@ -11,6 +11,11 @@ class ImportUploadRequest extends FormRequest
         return true;
     }
 
+    /**
+     * Returns the validation rules for the import file upload request.
+     *
+     * @return array The validation rules for file, account ID, delimiter, quote character, and optional sample rows count.
+     */
     public function rules(): array
     {
         return [
@@ -37,11 +42,23 @@ class ImportUploadRequest extends FormRequest
         return $this->input('delimiter');
     }
 
+    /**
+     * Retrieves the quote character specified in the import upload request.
+     *
+     * @return string|null The quote character, or null if not provided.
+     */
     public function getQuoteChar(): ?string
     {
         return $this->input('quote_char');
     }
 
+    /**
+     * Retrieves the number of sample rows to process from the request input.
+     *
+     * Returns the value of 'sample_rows_count' as an integer, or 10 if not provided.
+     *
+     * @return int|null The number of sample rows to process.
+     */
     public function getSampleRowsCount(): ?int
     {
         return $this->input('sample_rows_count', 10); // Default to 10 if not provided

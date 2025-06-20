@@ -15,6 +15,14 @@ interface ImportWizardProps {
 
 type WizardStep = 'upload' | 'configure' | 'clean' | 'map' | 'confirm';
 
+/**
+ * A multi-step wizard component for importing transaction data.
+ *
+ * Guides users through uploading, configuring, cleaning, mapping, and confirming imported data. Manages step progression, state, and API interactions, and invokes callbacks on completion or cancellation.
+ *
+ * @param onComplete - Callback invoked with the final import data when the wizard completes successfully.
+ * @param onCancel - Callback invoked when the wizard is canceled.
+ */
 export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     const [currentStep, setCurrentStep] = useState<WizardStep>('upload');
     const [uploadedData, setUploadedData] = useState<{
