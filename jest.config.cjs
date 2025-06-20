@@ -4,9 +4,10 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
+    '^.+\\.(ts|tsx|js|jsx)$': 'ts-jest',
   },
   moduleNameMapper: {
+    '^@/Components/(.*)$': '<rootDir>/resources/js/components/$1',
     '^@/(.*)$': '<rootDir>/resources/js/$1',
     '\\.(css|scss)$': 'identity-obj-proxy',
   },
