@@ -234,4 +234,4 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
 
         $this->csvProcessor->processRows('nonexistent.csv', ',', '"', $processor);
     }
-} 
+}

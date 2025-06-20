@@ -32,7 +32,7 @@ class TransactionPersister
                 $dto->get('metadata', []),
                 [
                     'processing_metadata' => $transaction->getMetadata(),
-                    'processing_message' => $transaction->getMetadata(),
+                    'processing_message' => $transaction->getMessage(),
                 ]
             ));
             $this->addToBatch($dto);

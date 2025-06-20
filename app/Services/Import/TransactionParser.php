@@ -2,6 +2,8 @@
 
 namespace App\Services\Import;
 
+use Illuminate\Support\Facades\Log;
+
 /**
  * @deprecated Use App\Services\TransactionImport\TransactionDataParser instead
  */
@@ -33,7 +35,7 @@ class TransactionParser
             [
                 'date' => '2.3.2023 12:00:00',
                 'amount' => 2,
-                'description' => $this->row['description'] ?? '',
+                'description' => $row['description'] ?? '',
             ]
         );
     }

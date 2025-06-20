@@ -136,13 +136,13 @@ class CsvProcessor
             try {
                 // Skip null lines or empty arrays
                 if ($row === null || (is_array($row) && count($row) === 0)) {
-                    Log::warning('Skipping empty line', ['row_number' => $totalRows + 1]);
+                    Log::warning('Skipping empty line', ['row_number' => $skip_header ? $totalRows : $totalRows + 1]);
 
                     continue;
                 }
 
                 $result = $callback($row, [
-                    'row_number' => $totalRows + 1,
+                    'row_number' => $skip_header ? $totalRows : $totalRows + 1,
                     'headers' => $skip_header ? $headers : null,
                     'delimiter' => $delimiter,
                     'quote_char' => $quoteChar,
@@ -168,7 +168,7 @@ class CsvProcessor
                 );
                 Log::error('Failed to process row', [
                     'error' => $e->getMessage(),
-                    'row_number' => $totalRows + 1,
+                    'row_number' => $skip_header ? $totalRows : $totalRows + 1,
                     'message' => 'Added to manual review',
                 ]);
             }
