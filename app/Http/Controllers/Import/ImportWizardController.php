@@ -61,7 +61,17 @@ class ImportWizardController extends Controller
         );
 
         // Count total rows
-        $totalRows = count(file(Storage::path($path))) - 1;
+        // Count total rows efficiently
+        $totalRows = 0;
+        $handle = fopen(Storage::path($path), 'r');
+        if ($handle) {
+            while (! feof($handle)) {
+                fgets($handle);
+                $totalRows++;
+            }
+            fclose($handle);
+            $totalRows--; // Subtract 1 for header
+        }
 
         // Create import record
         $import = Import::create([

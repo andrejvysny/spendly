@@ -12,7 +12,7 @@ class TransactionDataParserTest extends UnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->parser = new TransactionDataParser();
+        $this->parser = new TransactionDataParser;
     }
 
     public function test_parse_with_basic_mapping()
@@ -104,7 +104,7 @@ class TransactionDataParserTest extends UnitTestCase
     public function test_parse_amount_type_strategy()
     {
         $row = ['2023-12-25', '100.00', 'Partner'];
-        
+
         // Test expense_positive strategy
         $configuration = [
             'column_mapping' => [
@@ -269,4 +269,4 @@ class TransactionDataParserTest extends UnitTestCase
 
         $this->assertEquals(1234.56, $result['amount']);
     }
-} 
+}

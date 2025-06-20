@@ -15,18 +15,21 @@ use Tests\Unit\UnitTestCase;
 class TransactionRowProcessorTest extends UnitTestCase
 {
     private TransactionRowProcessor $processor;
+
     private TransactionDataParser $parser;
+
     private TransactionValidator $validator;
+
     private DuplicateTransactionService $duplicateService;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->parser = $this->createMock(TransactionDataParser::class);
         $this->validator = $this->createMock(TransactionValidator::class);
         $this->duplicateService = $this->createMock(DuplicateTransactionService::class);
-        
+
         $this->processor = new TransactionRowProcessor(
             $this->parser,
             $this->validator,
@@ -43,7 +46,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         ];
 
         $this->processor->configure($configuration);
-        
+
         // No exception should be thrown
         $this->assertTrue(true);
     }
@@ -70,7 +73,7 @@ class TransactionRowProcessorTest extends UnitTestCase
             'date_format' => 'Y-m-d',
             'amount_format' => '1,234.56',
         ];
-        
+
         $this->processor->configure($configuration);
 
         $result = $this->processor->processRow($row, $metadata);
@@ -289,7 +292,7 @@ class TransactionRowProcessorTest extends UnitTestCase
             'date_format' => 'Y-m-d',
             'amount_format' => '1,234.56',
         ];
-        
+
         $this->processor->configure($configuration);
 
         // Test the __invoke method
@@ -325,4 +328,4 @@ class TransactionRowProcessorTest extends UnitTestCase
             $this->assertFalse($canProcess);
         }
     }
-} 
+}

@@ -39,4 +39,9 @@ enum TransactionParserRowStatus implements CsvProcessorRowStatus
     {
         return $this === self::INVALID_FORMAT;
     }
+
+    public function isDuplicate(): bool
+    {
+        return $this === self::DUPLICATE;
+    }
 }

@@ -3,8 +3,8 @@
 namespace Tests\Unit\Services\Csv;
 
 use App\Services\Csv\CsvBatchResult;
-use App\Services\Csv\CsvProcessResult;
 use App\Services\Csv\CsvProcessor;
+use App\Services\Csv\CsvProcessResult;
 use App\Services\Csv\CsvRowProcessor;
 use Illuminate\Support\Facades\Storage;
 use Tests\Unit\UnitTestCase;
@@ -16,7 +16,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->csvProcessor = new CsvProcessor();
+        $this->csvProcessor = new CsvProcessor;
     }
 
     public function test_process_rows_with_headers()
@@ -27,7 +27,8 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::put($path, $csvContent);
 
         // Create a mock processor
-        $processor = new class implements CsvRowProcessor {
+        $processor = new class implements CsvRowProcessor
+        {
             public function __invoke(array $row, array $metadata = []): CsvProcessResult
             {
                 return CsvProcessResult::success('Row processed', $row, $metadata);
@@ -54,13 +55,15 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::put($path, $csvContent);
 
         // Create a mock processor that verifies no headers are passed
-        $processor = new class implements CsvRowProcessor {
+        $processor = new class implements CsvRowProcessor
+        {
             public function __invoke(array $row, array $metadata = []): CsvProcessResult
             {
                 // When skip_header is false, headers should be null in metadata
                 if (isset($metadata['headers'])) {
                     throw new \Exception('Headers should not be set when skip_header is false');
                 }
+
                 return CsvProcessResult::success('Row processed', $row, $metadata);
             }
         };
@@ -82,7 +85,8 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         $path = 'test.csv';
         Storage::put($path, $csvContent);
 
-        $processor = new class implements CsvRowProcessor {
+        $processor = new class implements CsvRowProcessor
+        {
             public function __invoke(array $row, array $metadata = []): CsvProcessResult
             {
                 return CsvProcessResult::success('Row processed', $row, $metadata);
@@ -104,7 +108,8 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         $path = 'test.csv';
         Storage::put($path, $csvContent);
 
-        $processor = new class implements CsvRowProcessor {
+        $processor = new class implements CsvRowProcessor
+        {
             private int $count = 0;
 
             public function __invoke(array $row, array $metadata = []): CsvProcessResult
@@ -113,6 +118,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
                 if ($this->count === 1) {
                     return CsvProcessResult::success('First row success', $row, $metadata);
                 }
+
                 return CsvProcessResult::failure('Second row failed', $row, $metadata);
             }
         };
@@ -134,13 +140,15 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         $path = 'test.csv';
         Storage::put($path, $csvContent);
 
-        $processor = new class implements CsvRowProcessor {
+        $processor = new class implements CsvRowProcessor
+        {
             public function __invoke(array $row, array $metadata = []): CsvProcessResult
             {
                 // Skip empty rows
                 if (empty(array_filter($row))) {
                     return CsvProcessResult::skipped('Empty row', $row, $metadata);
                 }
+
                 return CsvProcessResult::success('Row processed', $row, $metadata);
             }
         };
@@ -163,7 +171,8 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         $path = 'test.csv';
         Storage::put($path, $csvContent);
 
-        $processor = new class implements CsvRowProcessor {
+        $processor = new class implements CsvRowProcessor
+        {
             public function __invoke(array $row, array $metadata = []): CsvProcessResult
             {
                 throw new \Exception('Processing error');
@@ -192,7 +201,8 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::put($path, $csvContent);
 
         $capturedMetadata = null;
-        $processor = new class($capturedMetadata) implements CsvRowProcessor {
+        $processor = new class($capturedMetadata) implements CsvRowProcessor
+        {
             private $capturedMetadata;
 
             public function __construct(&$capturedMetadata)
@@ -203,6 +213,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
             public function __invoke(array $row, array $metadata = []): CsvProcessResult
             {
                 $this->capturedMetadata = $metadata;
+
                 return CsvProcessResult::success('Row processed', $row, $metadata);
             }
         };
@@ -225,7 +236,8 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('CSV file not found: nonexistent.csv');
 
-        $processor = new class implements CsvRowProcessor {
+        $processor = new class implements CsvRowProcessor
+        {
             public function __invoke(array $row, array $metadata = []): CsvProcessResult
             {
                 return CsvProcessResult::success('Row processed', $row);

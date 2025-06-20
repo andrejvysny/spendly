@@ -90,7 +90,7 @@ class TransactionValidator
     private function validateBusinessRules(array $data, array $configuration, array &$errors): void
     {
         // Validate amount is not zero
-        if (isset($data['amount']) && $data['amount'] == 0) {
+        if (isset($data['amount']) && (float) $data['amount'] === 0.0) {
             $errors[] = 'Amount cannot be zero';
         }
 
@@ -122,10 +122,38 @@ class TransactionValidator
         }
 
         try {
-            $parsed = \DateTime::createFromFormat('Y-m-d H:i:s', $date);
 
-            return $parsed && $parsed->format('Y-m-d H:i:s') === $date;
+            $formats = [
+                // Hyphen delimited
+                'Y-m-d',
+                'Y-m-d H:i:s',
+                'd-m-Y',
+                'd-m-Y H:i:s',
+                'm-d-Y',
+                'm-d-Y H:i:s',
+
+                // Slash delimited
+                'd/m/Y',
+                'm/d/Y',
+                'Y/m/d',
+
+                // Dot delimited
+                'd.m.Y',
+                'd.m.Y H:i:s',
+                'm.d.Y',
+                'm.d.Y H:i:s',
+            ];
+
+            foreach ($formats as $format) {
+                $parsed = \DateTime::createFromFormat($format, $date);
+                if ($parsed && $parsed->format($format) === $date) {
+                    return true;
+                }
+            }
+
+            return false;
         } catch (\Exception $e) {
+            // If any exception occurs, the date is invalid
             return false;
         }
     }
