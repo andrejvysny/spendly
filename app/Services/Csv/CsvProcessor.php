@@ -163,7 +163,6 @@ class CsvProcessor
                     CsvProcessResult::failure(
                         $e->getMessage(),
                         $row,
-                        errors: $e->getTrace(),
                     )
                 );
                 Log::error('Failed to process row', [

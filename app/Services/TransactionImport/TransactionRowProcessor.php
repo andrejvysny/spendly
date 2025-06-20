@@ -101,7 +101,6 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
                 'Processing error: '.$e->getMessage(),
                 data: $row,
                 metadata: $metadata,
-                errors: $e->getTrace(),
             );
         }
     }

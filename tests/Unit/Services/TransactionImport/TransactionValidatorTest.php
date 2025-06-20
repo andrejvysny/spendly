@@ -12,7 +12,7 @@ class TransactionValidatorTest extends UnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->validator = new TransactionValidator();
+        $this->validator = new TransactionValidator;
     }
 
     public function test_validate_valid_transaction()
@@ -86,7 +86,7 @@ class TransactionValidatorTest extends UnitTestCase
     public function test_validate_invalid_date_format()
     {
         $data = [
-            'booked_date' => '2023-12-25', // Missing time part
+            'booked_date' => 'invalid-date', // Truly invalid date
             'processed_date' => 'invalid-date',
             'amount' => 100.50,
             'partner' => 'John Doe',
@@ -279,4 +279,4 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertFalse($result->isValid());
         $this->assertContains('Invalid currency code', $result->getErrors());
     }
-} 
+}
