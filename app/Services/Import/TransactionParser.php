@@ -10,12 +10,10 @@ class TransactionParser
     // This class is deprecated and kept only for backward compatibility
     // All functionality has been moved to App\Services\TransactionImport module
 
-
     /**
      * Parse a transaction from a row of data
      *
-     * @param array $row The row data to parse
-     * @return TransactionProcessedRow
+     * @param  array  $row  The row data to parse
      */
     public function parseTransaction(array $row): TransactionProcessedRow
     {
@@ -33,7 +31,7 @@ class TransactionParser
             TransactionParserRowStatus::SUCCESS,
             'Transaction parsed successfully',
             [
-                'date' => "2.3.2023 12:00:00",
+                'date' => '2.3.2023 12:00:00',
                 'amount' => 2,
                 'description' => $this->row['description'] ?? '',
             ]

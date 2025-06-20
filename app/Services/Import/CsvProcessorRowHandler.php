@@ -7,7 +7,5 @@ namespace App\Services\Import;
  */
 interface CsvProcessorRowHandler
 {
-
     public function __invoke(array $row): CsvProcessorRowResult;
-
 }

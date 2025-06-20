@@ -4,20 +4,21 @@ namespace App\Services\Csv;
 
 use App\Contracts\Import\BatchResultInterface;
 use App\Contracts\Import\ProcessResultInterface;
-use PHPStan\Type\Php\IteratorToArrayFunctionReturnTypeExtension;
 
 /**
  * Implementation of BatchResultInterface for CSV batch processing.
  */
-class CsvBatchResult implements BatchResultInterface, \Iterator
+class CsvBatchResult implements \Iterator, BatchResultInterface
 {
     private array $results = [];
+
     private int $successCount = 0;
+
     private int $failedCount = 0;
+
     private int $skippedCount = 0;
 
     private int $currentIndex = 0;
-
 
     public function addResult(ProcessResultInterface $result): void
     {
@@ -60,7 +61,7 @@ class CsvBatchResult implements BatchResultInterface, \Iterator
     public function getFailedResults(): array
     {
         return array_filter($this->results, function (ProcessResultInterface $result) {
-            return !$result->isSuccess() && !$result->isSkipped();
+            return ! $result->isSuccess() && ! $result->isSkipped();
         });
     }
 
@@ -88,6 +89,7 @@ class CsvBatchResult implements BatchResultInterface, \Iterator
         if ($this->currentIndex < count($this->results)) {
             return $this->results[$this->currentIndex];
         }
+
         return null;
     }
 

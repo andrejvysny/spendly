@@ -14,10 +14,10 @@ use Illuminate\Support\Facades\Log;
  * Processes individual rows of transaction data.
  * Adapts between the generic row processing interface and transaction-specific logic.
  */
-class TransactionRowProcessor implements RowProcessorInterface, CsvRowProcessor
+class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
 {
-
     private array $configuration = [];
+
     public function __construct(
         private readonly TransactionDataParser $parser,
         private readonly TransactionValidator $validator,
@@ -30,7 +30,7 @@ class TransactionRowProcessor implements RowProcessorInterface, CsvRowProcessor
         Log::debug('Configuring TransactionRowProcessor', ['configuration' => $configuration]);
         $this->configuration = $configuration;
 
-        if (!$this->canProcess($configuration)) {
+        if (! $this->canProcess($configuration)) {
             throw new \InvalidArgumentException('Invalid configuration for TransactionRowProcessor');
         }
     }
@@ -63,7 +63,7 @@ class TransactionRowProcessor implements RowProcessorInterface, CsvRowProcessor
                 'errors' => $transactionDto->getValidationResult()->getErrors(),
             ]);
 
-            if (!$transactionDto->isValid()) {
+            if (! $transactionDto->isValid()) {
                 return CsvProcessResult::failure(
                     "Validation failed for row {$rowNumber}",
                     data: $row,
@@ -82,6 +82,7 @@ class TransactionRowProcessor implements RowProcessorInterface, CsvRowProcessor
                     'row_number' => $rowNumber,
                     'transaction_id' => $parsedData['transaction_id'],
                 ]);
+
                 return CsvProcessResult::skipped('Duplicate transaction', data: $row, metadata: [
                     'metadata' => $metadata,
                     'parsed_data' => $parsedData,
@@ -97,7 +98,7 @@ class TransactionRowProcessor implements RowProcessorInterface, CsvRowProcessor
             ]);
 
             return CsvProcessResult::failure(
-                "Processing error: " . $e->getMessage(),
+                'Processing error: '.$e->getMessage(),
                 data: $row,
                 metadata: $metadata,
                 errors: $e->getTrace(),
@@ -114,7 +115,7 @@ class TransactionRowProcessor implements RowProcessorInterface, CsvRowProcessor
         $required = ['column_mapping', 'date_format', 'amount_format'];
 
         foreach ($required as $key) {
-            if (!isset($configuration[$key])) {
+            if (! isset($configuration[$key])) {
                 return false;
             }
         }
@@ -128,9 +129,7 @@ class TransactionRowProcessor implements RowProcessorInterface, CsvRowProcessor
     private function isEmptyRow(array $row): bool
     {
         return empty(array_filter($row, function ($value) {
-            return !is_null($value) && trim((string) $value) !== '';
+            return ! is_null($value) && trim((string) $value) !== '';
         }));
     }
-
-
 }

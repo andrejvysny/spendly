@@ -5,8 +5,6 @@ namespace App\Services\TransactionImport;
 use App\Contracts\Import\BatchResultInterface;
 use App\Models\Import;
 use App\Services\Csv\CsvProcessor;
-use App\Services\DuplicateTransactionService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,16 +14,16 @@ use Illuminate\Support\Facades\Log;
 readonly class TransactionImportService
 {
     public function __construct(
-        private CsvProcessor            $csvProcessor,
+        private CsvProcessor $csvProcessor,
         private TransactionRowProcessor $rowProcessor,
-        private TransactionPersister    $persister,
+        private TransactionPersister $persister,
     ) {}
 
     /**
      * Process a transaction import.
      *
-     * @param Import $import The import model
-     * @param int $accountId The account to import transactions into
+     * @param  Import  $import  The import model
+     * @param  int  $accountId  The account to import transactions into
      * @return array Import results
      */
     public function processImport(Import $import, int $accountId): array
@@ -45,7 +43,7 @@ readonly class TransactionImportService
 
             $batch = $this->csvProcessor->processRows(
                 "imports/{$import->filename}",
-                $import->metadata['delimiter'] ?? ";",
+                $import->metadata['delimiter'] ?? ';',
                 $import->metadata['quote_char'] ?? '"',
                 $this->rowProcessor,
             );
@@ -58,9 +56,7 @@ readonly class TransactionImportService
                 'skipped_count' => $batch->getSkippedCount(),
             ]);
 
-
             $this->persister->persistBatch($batch, $configuration);
-
 
             $this->updateImportStatus($import, $batch);
 
@@ -80,10 +76,6 @@ readonly class TransactionImportService
 
     /**
      * Get a preview of the import data.
-     *
-     * @param Import $import
-     * @param int $previewSize
-     * @return array
      */
     public function getPreview(Import $import, int $previewSize = 10): array
     {
@@ -93,7 +85,7 @@ readonly class TransactionImportService
 
         $result = $this->csvProcessor->processRows(
             "imports/{$import->filename}",
-            $import->metadata['delimiter'] ?? ";",
+            $import->metadata['delimiter'] ?? ';',
             $import->metadata['quote_char'] ?? '"',
             $this->rowProcessor,
             $configuration

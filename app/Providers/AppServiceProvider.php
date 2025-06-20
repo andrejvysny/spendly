@@ -2,13 +2,13 @@
 
 namespace App\Providers;
 
+use App\Services\Csv\CsvProcessor;
 use App\Services\DuplicateTransactionService;
 use App\Services\TransactionImport\TransactionDataParser;
 use App\Services\TransactionImport\TransactionImportService;
 use App\Services\TransactionImport\TransactionPersister;
 use App\Services\TransactionImport\TransactionRowProcessor;
 use App\Services\TransactionImport\TransactionValidator;
-use App\Services\Csv\CsvProcessor;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider

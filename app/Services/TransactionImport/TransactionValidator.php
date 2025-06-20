@@ -10,9 +10,8 @@ class TransactionValidator
     /**
      * Validate transaction data.
      *
-     * @param array $data Transaction data to validate
-     * @param array $configuration Additional configuration
-     * @return ValidationResult
+     * @param  array  $data  Transaction data to validate
+     * @param  array  $configuration  Additional configuration
      */
     public function validate(array $data, array $configuration = []): ValidationResult
     {
@@ -45,7 +44,7 @@ class TransactionValidator
         ];
 
         foreach ($requiredFields as $field => $label) {
-            if (!isset($data[$field]) || $data[$field] === null || $data[$field] === '') {
+            if (! isset($data[$field]) || $data[$field] === null || $data[$field] === '') {
                 $errors[] = "{$label} is required";
             }
         }
@@ -57,31 +56,31 @@ class TransactionValidator
     private function validateDataTypes(array $data, array &$errors): void
     {
         // Validate amount is numeric
-        if (isset($data['amount']) && !is_numeric($data['amount'])) {
-            $errors[] = "Amount must be a number";
+        if (isset($data['amount']) && ! is_numeric($data['amount'])) {
+            $errors[] = 'Amount must be a number';
         }
 
         // Validate dates
-        if (isset($data['booked_date']) && !$this->isValidDate($data['booked_date'])) {
-            $errors[] = "Invalid booked date format";
+        if (isset($data['booked_date']) && ! $this->isValidDate($data['booked_date'])) {
+            $errors[] = 'Invalid booked date format';
         }
 
-        if (isset($data['processed_date']) && !$this->isValidDate($data['processed_date'])) {
-            $errors[] = "Invalid processed date format";
+        if (isset($data['processed_date']) && ! $this->isValidDate($data['processed_date'])) {
+            $errors[] = 'Invalid processed date format';
         }
 
         // Validate currency code
-        if (isset($data['currency']) && !$this->isValidCurrency($data['currency'])) {
-            $errors[] = "Invalid currency code";
+        if (isset($data['currency']) && ! $this->isValidCurrency($data['currency'])) {
+            $errors[] = 'Invalid currency code';
         }
 
         // Validate IBANs if present
-        if (!empty($data['source_iban']) && !$this->isValidIban($data['source_iban'])) {
-            $errors[] = "Invalid source IBAN format";
+        if (! empty($data['source_iban']) && ! $this->isValidIban($data['source_iban'])) {
+            $errors[] = 'Invalid source IBAN format';
         }
 
-        if (!empty($data['target_iban']) && !$this->isValidIban($data['target_iban'])) {
-            $errors[] = "Invalid target IBAN format";
+        if (! empty($data['target_iban']) && ! $this->isValidIban($data['target_iban'])) {
+            $errors[] = 'Invalid target IBAN format';
         }
     }
 
@@ -92,24 +91,24 @@ class TransactionValidator
     {
         // Validate amount is not zero
         if (isset($data['amount']) && $data['amount'] == 0) {
-            $errors[] = "Amount cannot be zero";
+            $errors[] = 'Amount cannot be zero';
         }
 
         // Validate account exists (in non-preview mode)
-        if (!($configuration['preview_mode'] ?? false)) {
+        if (! ($configuration['preview_mode'] ?? false)) {
             if (empty($data['account_id'])) {
-                $errors[] = "Account ID is required for import";
+                $errors[] = 'Account ID is required for import';
             }
         }
 
         // Validate description length
         if (isset($data['description']) && strlen($data['description']) > 1000) {
-            $errors[] = "Description is too long (max 1000 characters)";
+            $errors[] = 'Description is too long (max 1000 characters)';
         }
 
         // Validate partner length
         if (isset($data['partner']) && strlen($data['partner']) > 255) {
-            $errors[] = "Partner name is too long (max 255 characters)";
+            $errors[] = 'Partner name is too long (max 255 characters)';
         }
     }
 
@@ -118,12 +117,13 @@ class TransactionValidator
      */
     private function isValidDate($date): bool
     {
-        if (!is_string($date)) {
+        if (! is_string($date)) {
             return false;
         }
 
         try {
             $parsed = \DateTime::createFromFormat('Y-m-d H:i:s', $date);
+
             return $parsed && $parsed->format('Y-m-d H:i:s') === $date;
         } catch (\Exception $e) {
             return false;
