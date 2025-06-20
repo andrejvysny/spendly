@@ -18,12 +18,21 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
 {
     private array $configuration = [];
 
+    /**
+     * Initializes the TransactionRowProcessor with services for parsing, validating, and detecting duplicate transactions.
+     */
     public function __construct(
         private readonly TransactionDataParser $parser,
         private readonly TransactionValidator $validator,
         private readonly DuplicateTransactionService $duplicateService,
     ) {}
 
+    /**
+     * Sets and validates the configuration for the transaction row processor.
+     *
+     * @param array $configuration Configuration settings required for processing transaction rows.
+     * @throws \InvalidArgumentException If the configuration is missing required keys.
+     */
     public function configure(array $configuration): void
     {
         // Configuration logic if needed
@@ -35,11 +44,27 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
         }
     }
 
+    /**
+     * Processes a single transaction row with optional metadata and returns the result.
+     *
+     * @param array $row The transaction data row to process.
+     * @param array $metadata Optional metadata associated with the row.
+     * @return CsvProcessResult The result of processing the transaction row.
+     */
     public function __invoke(array $row, array $metadata = []): CsvProcessResult
     {
         return $this->processRow($row, $metadata);
     }
 
+    /**
+     * Processes a single transaction row, performing parsing, validation, and duplicate detection.
+     *
+     * Skips empty rows, returns validation errors if present, and supports preview mode. If the transaction is a duplicate, it is skipped. On success, returns the imported transaction data.
+     *
+     * @param array $row The transaction row data to process.
+     * @param array $metadata Optional metadata associated with the row, such as row number.
+     * @return ProcessResultInterface The result of processing, indicating success, failure, or skip status.
+     */
     public function processRow(array $row, array $metadata = []): ProcessResultInterface
     {
         $rowNumber = $metadata['row_number'] ?? 0;
@@ -106,7 +131,10 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
     }
 
     /**
-     * Check if the processor can handle the given configuration.
+     * Determines if the provided configuration contains all required keys for processing.
+     *
+     * @param array $configuration The configuration array to check.
+     * @return bool True if all required configuration keys are present, false otherwise.
      */
     public function canProcess(array $configuration): bool
     {
@@ -123,7 +151,10 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
     }
 
     /**
-     * Check if a row is empty.
+     * Determines whether the given row contains only null or whitespace values.
+     *
+     * @param array $row The row data to check.
+     * @return bool True if the row is empty; otherwise, false.
      */
     private function isEmptyRow(array $row): bool
     {

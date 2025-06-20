@@ -13,9 +13,10 @@ class TransactionParser
     // All functionality has been moved to App\Services\TransactionImport module
 
     /**
-     * Parse a transaction from a row of data
+     * Parses a transaction from the provided data row and returns a processed transaction result.
      *
-     * @param  array  $row  The row data to parse
+     * @param array $row The input data row containing transaction details.
+     * @return TransactionProcessedRow The processed transaction result with status, message, and parsed fields.
      */
     public function parseTransaction(array $row): TransactionProcessedRow
     {
@@ -41,7 +42,14 @@ class TransactionParser
     }
 
     /**
-     * Parse date from string based on format
+     * Parses a date string into a standardized datetime format using the specified format or common alternatives.
+     *
+     * Cleans the input string of null bytes, whitespace, and control characters before attempting to parse.
+     * Returns the date as a string in 'Y-m-d H:i:s' format if successful, or null if parsing fails.
+     *
+     * @param string $dateString The input date string to parse.
+     * @param string $format The expected date format for parsing.
+     * @return string|null The parsed date in 'Y-m-d H:i:s' format, or null if parsing fails.
      */
     public function parseDate(string $dateString, string $format): ?string
     {
@@ -101,7 +109,14 @@ class TransactionParser
     }
 
     /**
-     * Parse amount from string based on format
+     * Parses a monetary amount from a string using the specified format and sign strategy.
+     *
+     * Cleans the input string, normalizes decimal and thousand separators according to the given format, and converts it to a float. The sign of the amount is determined by the provided strategy.
+     *
+     * @param string $amountString The raw amount string to parse.
+     * @param string $format The expected number format (e.g., '1,234.56', '1.234,56', '1234,56').
+     * @param string $strategy The strategy for determining the sign of the amount ('signed_amount', 'income_positive', or 'expense_positive').
+     * @return float|null The parsed amount as a float, or null if parsing fails.
      */
     public function parseAmount(string $amountString, string $format, string $strategy): ?float
     {

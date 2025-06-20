@@ -7,5 +7,11 @@ namespace App\Services\Import;
  */
 interface CsvProcessorRowHandler
 {
-    public function __invoke(array $row): CsvProcessorRowResult;
+    /**
+ * Processes a single CSV row and returns the result.
+ *
+ * @param array $row The data for a single row from the CSV file.
+ * @return CsvProcessorRowResult The result of processing the row.
+ */
+public function __invoke(array $row): CsvProcessorRowResult;
 }

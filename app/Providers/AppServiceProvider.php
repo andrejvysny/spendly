@@ -14,7 +14,9 @@ use Illuminate\Support\ServiceProvider;
 class AppServiceProvider extends ServiceProvider
 {
     /**
-     * Register any application services.
+     * Registers application service bindings for transaction import and processing.
+     *
+     * Configures dependency injection for services involved in authentication, CSV processing, transaction data parsing, validation, duplicate detection, row processing, persistence, and import orchestration.
      */
     public function register(): void
     {

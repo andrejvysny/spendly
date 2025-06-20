@@ -8,45 +8,65 @@ namespace App\Contracts\Import;
 interface BatchResultInterface
 {
     /**
-     * Get the total number of rows processed.
-     */
+ * Returns the total number of rows processed in the batch.
+ *
+ * @return int The total count of processed rows.
+ */
     public function getTotalProcessed(): int;
 
     /**
-     * Get the number of successful rows.
-     */
+ * Returns the number of rows that were successfully processed in the batch.
+ *
+ * @return int The count of successful rows.
+ */
     public function getSuccessCount(): int;
 
     /**
-     * Get the number of failed rows.
-     */
+ * Returns the number of rows that failed during batch processing.
+ *
+ * @return int The count of failed rows.
+ */
     public function getFailedCount(): int;
 
     /**
-     * Get the number of skipped rows.
-     */
+ * Returns the number of rows that were skipped during batch processing.
+ *
+ * @return int The count of skipped rows.
+ */
     public function getSkippedCount(): int;
 
     /**
-     * Get detailed results for each row.
-     *
-     * @return ProcessResultInterface[]
-     */
+ * Returns detailed results for all processed rows in the batch.
+ *
+ * @return ProcessResultInterface[] An array of result objects for each processed row.
+ */
     public function getResults(): array;
 
     /**
-     * Get all failed results.
-     *
-     * @return ProcessResultInterface[]
-     */
+ * Returns an array of results corresponding to rows that failed during batch processing.
+ *
+ * @return ProcessResultInterface[] List of failed row results.
+ */
     public function getFailedResults(): array;
 
-    public function getSkippedResults(): array;
-
-    public function getSuccessResults(): array;
+    /**
+ * Retrieves the results for all skipped rows in the batch.
+ *
+ * @return ProcessResultInterface[] An array of results corresponding to skipped rows.
+ */
+public function getSkippedResults(): array;
 
     /**
-     * Check if the batch was completely successful.
-     */
+ * Retrieves an array of results for rows that were processed successfully.
+ *
+ * @return ProcessResultInterface[] List of successful row processing results.
+ */
+public function getSuccessResults(): array;
+
+    /**
+ * Determines whether the entire batch was processed successfully without any failures.
+ *
+ * @return bool True if all rows were processed successfully; false otherwise.
+ */
     public function isCompleteSuccess(): bool;
 }

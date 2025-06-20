@@ -157,9 +157,13 @@ class DuplicateTransactionService
     }
 
     /**
-     * Determine if a record is a duplicate for the given user.
+     * Determines whether the given transaction record is a duplicate for the specified user.
      *
-     * @param  array<string, mixed>  $input
+     * Currently, this method always returns false as duplicate detection is temporarily disabled.
+     *
+     * @param array<string, mixed> $input The transaction data to check.
+     * @param int $userId The ID of the user to check for duplicates.
+     * @return bool Always returns false while duplicate checks are disabled.
      */
     public function isDuplicate(array $input, int $userId): bool
     {

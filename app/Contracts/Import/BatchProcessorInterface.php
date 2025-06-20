@@ -9,20 +9,26 @@ namespace App\Contracts\Import;
 interface BatchProcessorInterface
 {
     /**
-     * Process multiple rows in a batch.
-     *
-     * @param  array  $rows  Array of rows to process
-     * @param  array  $configuration  Processing configuration
-     */
+ * Processes an array of rows in a single batch operation.
+ *
+ * @param array $rows The rows to be processed in the batch.
+ * @param array $configuration Optional configuration settings for batch processing.
+ * @return BatchResultInterface The result of the batch processing operation.
+ */
     public function processBatch(array $rows, array $configuration = []): BatchResultInterface;
 
     /**
-     * Get the optimal batch size for this processor.
-     */
+ * Returns the current optimal batch size for processing operations.
+ *
+ * @return int The number of items to process in each batch.
+ */
     public function getBatchSize(): int;
 
     /**
-     * Set the batch size.
-     */
+ * Sets the batch size for processing operations.
+ *
+ * @param int $size The number of items to process in each batch.
+ * @return self Returns the instance for method chaining.
+ */
     public function setBatchSize(int $size): self;
 }

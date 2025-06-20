@@ -9,12 +9,16 @@ use Illuminate\Support\Facades\Storage;
 class CsvProcessor
 {
     /**
-     * Get rows from a CSV file
+     * Reads rows from a CSV file and returns the headers and data rows.
      *
-     * @param  string  $path  Filepath
-     * @param  string  $delimiter  CSV delimiter
-     * @param  string  $quoteChar  CSV quote character
-     * @param  int|null  $rows  Number of rows to return (null = all rows)
+     * Validates the file's existence, opens it, reads the header row, and then reads up to the specified number of data rows (or all rows if not specified). Returns a CsvData object containing the headers and data rows.
+     *
+     * @param string $path The path to the CSV file.
+     * @param string $delimiter The delimiter character used in the CSV file.
+     * @param string $quoteChar The quote character used in the CSV file.
+     * @param int|null $rows The maximum number of data rows to read, or null to read all rows.
+     * @return CsvData The headers and data rows from the CSV file.
+     * @throws \RuntimeException If the file does not exist or cannot be opened.
      */
     public function getRows(string $path, string $delimiter, string $quoteChar, ?int $rows = null): CsvData
     {
@@ -64,6 +68,16 @@ class CsvProcessor
         return new CsvData($headers, $dataRows);
     }
 
+    /**
+     * Preprocesses an uploaded CSV file by normalizing its encoding and content.
+     *
+     * Detects the file's encoding (including UTF-16 variants), converts it to UTF-8 if necessary, removes null bytes and any UTF-8 BOM, and writes the cleaned content to a temporary file.
+     *
+     * @param UploadedFile|null $file The uploaded CSV file to preprocess.
+     * @param string $delimiter The delimiter character used in the CSV.
+     * @param string $quoteChar The quote character used in the CSV.
+     * @return false|string The path to the preprocessed temporary file, or false on failure.
+     */
     public function preprocessCSV(?UploadedFile $file, string $delimiter, string $quoteChar): false|string
     {
         Log::debug('Starting CSV preprocessing', [
@@ -106,6 +120,21 @@ class CsvProcessor
         return $tempFile;
     }
 
+    /**
+     * Processes rows from a CSV file by applying a callback to each row.
+     *
+     * Iterates through the CSV file at the given path, optionally skipping the header row, and invokes the provided callback for each data row. Collects the results in a CsvBatchResult object, tracking successes, failures, and skipped rows. Processing stops after the specified number of rows if provided.
+     *
+     * @param string $path The path to the CSV file.
+     * @param string $delimiter The delimiter character used in the CSV file.
+     * @param string $quoteChar The quote character used in the CSV file.
+     * @param CsvRowProcessor $callback The callback function to process each row.
+     * @param bool $skip_header Whether to skip the first row as headers (default: true).
+     * @param int|null $num_rows The maximum number of rows to process, or all if null.
+     * @param int $offset The number of rows to skip before processing (default: 0).
+     * @return CsvBatchResult|null The batch result containing processing outcomes, or null if no rows were processed.
+     * @throws \RuntimeException If the CSV file does not exist.
+     */
     public function processRows(string $path, string $delimiter, string $quoteChar, CsvRowProcessor $callback, bool $skip_header = true, ?int $num_rows = null, int $offset = 0): ?CsvBatchResult
     {
 
@@ -190,7 +219,12 @@ class CsvProcessor
     }
 
     /**
-     * Detect file encoding with additional checks for UTF-16 variants
+     * Detects the character encoding of the given content, with special handling for UTF-16LE, UTF-16BE, and UTF-8 BOMs.
+     *
+     * Examines byte order marks and content patterns to identify UTF-16 variants, and falls back to `mb_detect_encoding` for other encodings. Defaults to UTF-8 if detection is inconclusive.
+     *
+     * @param string $content The file content to analyze.
+     * @return string The detected encoding (e.g., 'UTF-8', 'UTF-16LE', 'UTF-16BE').
      */
     private function detectEncoding($content)
     {
@@ -229,7 +263,14 @@ class CsvProcessor
     }
 
     /**
-     * Safely get a CSV line with error handling
+     * Reads a single CSV line from a file resource with robust error handling and data cleaning.
+     *
+     * Attempts to parse a CSV line using the specified delimiter and quote character, removing null bytes and control characters from each field. If parsing fails or the line is malformed, it tries to recover by manually splitting the raw line. Returns false on end of file or if a valid line cannot be obtained.
+     *
+     * @param resource $file The file handle to read from.
+     * @param string $delimiter The field delimiter character.
+     * @param string $quoteChar The field enclosure character.
+     * @return array|false The parsed and cleaned CSV fields as an array, or false on failure or end of file.
      */
     private function safelyGetCSVLine($file, string $delimiter, string $quoteChar): false|array
     {
