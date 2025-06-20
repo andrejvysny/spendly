@@ -56,7 +56,7 @@ readonly class TransactionImportService
                 'skipped_count' => $batch->getSkippedCount(),
             ]);
 
-            $this->persister->persistBatch($batch, $configuration);
+            $this->persister->persistBatch($batch);
 
             $this->updateImportStatus($import, $batch);
 
@@ -82,6 +82,8 @@ readonly class TransactionImportService
         $configuration = $this->prepareConfiguration($import, null);
         $configuration['preview_mode'] = true;
         $configuration['max_rows'] = $previewSize + 1; // +1 for header
+
+        $this->rowProcessor->configure($configuration);
 
         $result = $this->csvProcessor->processRows(
             "imports/{$import->filename}",

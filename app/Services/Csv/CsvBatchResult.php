@@ -105,7 +105,7 @@ class CsvBatchResult implements \Iterator, BatchResultInterface
 
     public function valid(): bool
     {
-        return $this->currentIndex < count($this->results) && isset($this->items[$this->currentIndex]);
+        return $this->currentIndex < count($this->results) && isset($this->results[$this->currentIndex]);
     }
 
     public function rewind(): void
