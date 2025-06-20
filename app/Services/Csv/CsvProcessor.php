@@ -6,15 +6,15 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
-class CsvProcessor{
+class CsvProcessor
+{
     /**
      * Get rows from a CSV file
      *
-     * @param string $path Filepath
-     * @param string $delimiter CSV delimiter
-     * @param string $quoteChar CSV quote character
-     * @param int|null $rows Number of rows to return (null = all rows)
-     * @return CsvData
+     * @param  string  $path  Filepath
+     * @param  string  $delimiter  CSV delimiter
+     * @param  string  $quoteChar  CSV quote character
+     * @param  int|null  $rows  Number of rows to return (null = all rows)
      */
     public function getRows(string $path, string $delimiter, string $quoteChar, ?int $rows = null): CsvData
     {
@@ -25,12 +25,12 @@ class CsvProcessor{
             'quote_char' => $quoteChar,
         ]);
 
-        if (!Storage::exists($path)) {
+        if (! Storage::exists($path)) {
             Log::error('CSV file not found', ['path' => $path]);
-            throw new \RuntimeException('CSV file not found: ' . $path);
+            throw new \RuntimeException('CSV file not found: '.$path);
         }
         $file = fopen(Storage::path($path), 'r');
-        if (!$file) {
+        if (! $file) {
             throw new \RuntimeException('Unable to open CSV file');
         }
 
@@ -40,10 +40,9 @@ class CsvProcessor{
         $headers = $this->safelyGetCSVLine($file, $delimiter, $quoteChar);
         Log::debug('Read headers', ['count' => count($headers)]);
 
-
         // Read data rows
         $rowCount = 0;
-        while (($rows === null || $rowCount < $rows) && !feof($file)) {
+        while (($rows === null || $rowCount < $rows) && ! feof($file)) {
             $row = $this->safelyGetCSVLine($file, $delimiter, $quoteChar);
             if ($row === false) {
                 break;
@@ -64,6 +63,7 @@ class CsvProcessor{
 
         return new CsvData($headers, $dataRows);
     }
+
     public function preprocessCSV(?UploadedFile $file, string $delimiter, string $quoteChar): false|string
     {
         Log::debug('Starting CSV preprocessing', [
@@ -105,19 +105,21 @@ class CsvProcessor{
 
         return $tempFile;
     }
-    public function processRows(string $path, string $delimiter, string $quoteChar, CsvRowProcessor $callback, bool $skip_header = true, int $num_rows = null, int $offset = 0): ?CsvBatchResult{
+
+    public function processRows(string $path, string $delimiter, string $quoteChar, CsvRowProcessor $callback, bool $skip_header = true, ?int $num_rows = null, int $offset = 0): ?CsvBatchResult
+    {
 
         Log::debug('Processing rows from CSV', [
             'path' => $path,
             'delimiter' => $delimiter,
             'quote_char' => $quoteChar,
-            'num_rows' => $num_rows === null ? "all" : $num_rows,
+            'num_rows' => $num_rows === null ? 'all' : $num_rows,
         ]);
 
-        //Validate the file path
-        if (!Storage::exists($path)) {
+        // Validate the file path
+        if (! Storage::exists($path)) {
             Log::error('CSV file not found', ['path' => $path]);
-            throw new \RuntimeException('CSV file not found: ' . $path);
+            throw new \RuntimeException('CSV file not found: '.$path);
         }
         $file = fopen(Storage::path($path), 'r');
 
@@ -127,7 +129,7 @@ class CsvProcessor{
         }
 
         $totalRows = 0;
-        $batch = new CsvBatchResult();
+        $batch = new CsvBatchResult;
 
         while (($row = $this->safelyGetCSVLine($file, $delimiter, $quoteChar)) !== false) {
             $totalRows++;
@@ -135,6 +137,7 @@ class CsvProcessor{
                 // Skip null lines or empty arrays
                 if ($row === null || (is_array($row) && count($row) === 0)) {
                     Log::warning('Skipping empty line', ['row_number' => $totalRows + 1]);
+
                     continue;
                 }
 
@@ -166,7 +169,7 @@ class CsvProcessor{
                 Log::error('Failed to process row', [
                     'error' => $e->getMessage(),
                     'row_number' => $totalRows + 1,
-                    'message' => "Added to manual review",
+                    'message' => 'Added to manual review',
                 ]);
             }
 
@@ -183,6 +186,7 @@ class CsvProcessor{
             'failed_count' => $batch->getFailedCount(),
             'skipped_count' => $batch->getSkippedCount(),
         ]);
+
         return $batch;
     }
 
@@ -225,13 +229,8 @@ class CsvProcessor{
         return $detectedEncoding ?: 'UTF-8'; // Default to UTF-8 if detection fails
     }
 
-
     /**
      * Safely get a CSV line with error handling
-     * @param $file
-     * @param string $delimiter
-     * @param string $quoteChar
-     * @return false|array
      */
     private function safelyGetCSVLine($file, string $delimiter, string $quoteChar): false|array
     {
@@ -294,7 +293,4 @@ class CsvProcessor{
             return false;
         }
     }
-
-
-
 }

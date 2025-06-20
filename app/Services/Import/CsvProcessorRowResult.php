@@ -8,6 +8,8 @@ namespace App\Services\Import;
 interface CsvProcessorRowResult
 {
     public function getData(): array|object;
+
     public function getStatus(): CsvProcessorRowStatus;
+
     public function getMessage(): string;
 }

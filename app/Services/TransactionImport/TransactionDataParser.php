@@ -14,9 +14,10 @@ class TransactionDataParser
     /**
      * Parse raw row data into transaction format.
      *
-     * @param array $row The raw CSV row data
-     * @param array $configuration Import configuration
+     * @param  array  $row  The raw CSV row data
+     * @param  array  $configuration  Import configuration
      * @return array Parsed transaction data
+     *
      * @throws \Exception If required fields are missing or invalid
      */
     public function parse(array $row, array $configuration): array
@@ -39,14 +40,14 @@ class TransactionDataParser
 
         // Map fields based on column mapping
         foreach ($mapping as $field => $columnIndex) {
-            if ($columnIndex === null || !isset($row[$columnIndex])) {
+            if ($columnIndex === null || ! isset($row[$columnIndex])) {
                 continue;
             }
 
             $value = $row[$columnIndex];
 
             // Skip empty values for optional fields
-            if (trim($value) === '' && !$this->isRequiredField($field)) {
+            if (trim($value) === '' && ! $this->isRequiredField($field)) {
                 continue;
             }
 
@@ -100,7 +101,7 @@ class TransactionDataParser
         try {
             $date = Carbon::createFromFormat($format, $dateString);
 
-            if (!$date) {
+            if (! $date) {
                 // Try alternative formats
                 $alternativeFormats = [
                     'd.m.Y', 'Y-m-d', 'd/m/Y', 'm/d/Y', 'Y.m.d',
@@ -126,6 +127,7 @@ class TransactionDataParser
                 'format' => $format,
                 'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -184,13 +186,13 @@ class TransactionDataParser
         // Validate required fields
         $requiredFields = ['booked_date', 'amount', 'partner'];
         foreach ($requiredFields as $field) {
-            if (!isset($data[$field]) || $data[$field] === null) {
+            if (! isset($data[$field]) || $data[$field] === null) {
                 throw new \Exception("Missing required field: {$field}");
             }
         }
 
         // Set defaults for optional fields
-        if (!isset($data['processed_date'])) {
+        if (! isset($data['processed_date'])) {
             $data['processed_date'] = $data['booked_date'];
         }
 
@@ -205,7 +207,7 @@ class TransactionDataParser
 
         // Generate transaction ID if not provided
         if (empty($data['transaction_id'])) {
-            $data['transaction_id'] = 'IMP-' . uniqid();
+            $data['transaction_id'] = 'IMP-'.uniqid();
         }
     }
 

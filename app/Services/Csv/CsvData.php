@@ -4,8 +4,8 @@ namespace App\Services\Csv;
 
 use ArrayAccess;
 use Countable;
-use Iterator;
 use InvalidArgumentException;
+use Iterator;
 
 /**
  * Represents CSV file data with headers and rows.
@@ -14,7 +14,9 @@ use InvalidArgumentException;
 class CsvData implements ArrayAccess, Countable, Iterator
 {
     private array $headers;
+
     private array $rows;
+
     private int $position = 0;
 
     public function __construct(array $headers = [], array $rows = [])
@@ -56,6 +58,7 @@ class CsvData implements ArrayAccess, Countable, Iterator
     public function getHeaderIndex(string $headerName): ?int
     {
         $index = array_search($headerName, $this->headers, true);
+
         return $index !== false ? $index : null;
     }
 
@@ -110,6 +113,7 @@ class CsvData implements ArrayAccess, Countable, Iterator
         foreach ($this->rows as $index => $row) {
             $assocRows[$index] = $this->getRowAsAssoc($index);
         }
+
         return $assocRows;
     }
 
@@ -154,6 +158,7 @@ class CsvData implements ArrayAccess, Countable, Iterator
     public function filter(callable $callback): self
     {
         $filteredRows = array_filter($this->rows, $callback);
+
         return new self($this->headers, array_values($filteredRows));
     }
 
@@ -163,6 +168,7 @@ class CsvData implements ArrayAccess, Countable, Iterator
     public function map(callable $callback): self
     {
         $mappedRows = array_map($callback, $this->rows);
+
         return new self($this->headers, $mappedRows);
     }
 
@@ -172,6 +178,7 @@ class CsvData implements ArrayAccess, Countable, Iterator
     public function slice(int $offset, ?int $length = null): self
     {
         $slicedRows = array_slice($this->rows, $offset, $length);
+
         return new self($this->headers, $slicedRows);
     }
 
@@ -199,7 +206,7 @@ class CsvData implements ArrayAccess, Countable, Iterator
         // Ensure row has same number of columns as headers
         if (count($row) !== count($this->headers)) {
             throw new InvalidArgumentException(
-                "Row must have " . count($this->headers) . " columns, got " . count($row)
+                'Row must have '.count($this->headers).' columns, got '.count($row)
             );
         }
 
@@ -251,9 +258,10 @@ class CsvData implements ArrayAccess, Countable, Iterator
     public function toArray(): array
     {
         $result = ['rows' => $this->rows];
-        if (!empty($this->headers)) {
+        if (! empty($this->headers)) {
             $result['headers'] = $this->headers;
         }
+
         return $result;
     }
 
@@ -265,7 +273,7 @@ class CsvData implements ArrayAccess, Countable, Iterator
         return [
             'total_rows' => count($this->rows),
             'total_columns' => count($this->headers),
-            'has_headers' => !empty($this->headers),
+            'has_headers' => ! empty($this->headers),
             'headers' => $this->headers,
         ];
     }
@@ -283,7 +291,7 @@ class CsvData implements ArrayAccess, Countable, Iterator
 
     public function offsetSet(mixed $offset, mixed $value): void
     {
-        if (!is_array($value)) {
+        if (! is_array($value)) {
             throw new InvalidArgumentException('Value must be an array');
         }
 

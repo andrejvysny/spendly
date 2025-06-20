@@ -6,7 +6,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class ImportConfigureRequest extends FormRequest
 {
-
     public function rules(): array
     {
         return [
@@ -22,22 +21,24 @@ class ImportConfigureRequest extends FormRequest
     {
         return $this->input('column_mapping', []);
     }
+
     public function getDateFormat(): string
     {
         return $this->input('date_format');
     }
+
     public function getAmountFormat(): string
     {
         return $this->input('amount_format');
     }
+
     public function getAmountTypeStrategy(): string
     {
         return $this->input('amount_type_strategy');
     }
+
     public function getCurrency(): string
     {
         return $this->input('currency');
     }
-
-
 }

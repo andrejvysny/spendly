@@ -3,11 +3,8 @@
 namespace App\Services\TransactionImport;
 
 use App\Contracts\Import\BatchResultInterface;
-use App\Models\Account;
 use App\Models\Transaction;
 use App\Services\Csv\CsvProcessResult;
-use App\Services\DuplicateTransactionService;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -17,11 +14,10 @@ use Illuminate\Support\Facades\Log;
 class TransactionPersister
 {
     private array $batchQueue = [];
+
     private int $batchSize = 500;
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     public function persistBatch(BatchResultInterface $transactions): void
     {
@@ -48,7 +44,7 @@ class TransactionPersister
         }
 
         // Process any remaining in the batch
-        if (!empty($this->batchQueue)) {
+        if (! empty($this->batchQueue)) {
             $this->processBatch();
         }
 
@@ -160,7 +156,7 @@ class TransactionPersister
      */
     public function flush(): void
     {
-        if (!empty($this->batchQueue)) {
+        if (! empty($this->batchQueue)) {
             $this->processBatch();
         }
     }

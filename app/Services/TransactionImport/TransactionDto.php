@@ -4,9 +4,8 @@ namespace App\Services\TransactionImport;
 
 class TransactionDto
 {
-
     public function __construct(
-        private array                     $data,
+        private array $data,
         private readonly ValidationResult $validationResult,
     ) {}
 
@@ -23,6 +22,7 @@ class TransactionDto
     public function set(string $key, mixed $value): TransactionDto
     {
         $this->data[$key] = $value;
+
         return $this;
     }
 
@@ -35,5 +35,4 @@ class TransactionDto
     {
         return $this->validationResult->isValid();
     }
-
 }

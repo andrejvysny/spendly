@@ -13,7 +13,6 @@ use App\Models\Import;
 use App\Services\Csv\CsvProcessor;
 use App\Services\TransactionImport\TransactionImportService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -26,14 +25,13 @@ class ImportWizardController extends Controller
         private readonly TransactionImportService $importService
     ) {}
 
-
     public function upload(ImportUploadRequest $request): JsonResponse
     {
         Log::debug('Starting file upload');
 
         $file = $request->getFile();
         $originalFilename = $file->getClientOriginalName();
-        $filename = Str::random(40) . '.csv';
+        $filename = Str::random(40).'.csv';
         Storage::makeDirectory('imports');
         // Preprocess the CSV file
         $preprocessedPath = $this->csvProcessor->preprocessCSV(
@@ -44,8 +42,9 @@ class ImportWizardController extends Controller
 
         // Store a preprocessed file
         $path = Storage::putFileAs('imports', $preprocessedPath, $filename);
-        if (!$path) {
+        if (! $path) {
             Log::error('Failed to store file', ['filename' => $filename]);
+
             return response()->json(['message' => 'Failed to store file'], 500);
         }
         Log::debug('File stored', ['path' => $path]);
@@ -115,7 +114,6 @@ class ImportWizardController extends Controller
         ]);
     }
 
-
     public function clean(): JsonResponse
     {
         // TODO: implement functionality to clean data before importing
@@ -127,7 +125,7 @@ class ImportWizardController extends Controller
 
     public function map(): JsonResponse
     {
-        //TODO: implement functionality to validate map columns before importing
+        // TODO: implement functionality to validate map columns before importing
 
         return response()->json([
             'message' => 'Columns mapped',
@@ -147,7 +145,7 @@ class ImportWizardController extends Controller
         }
 
         // Check if already processed
-        if (!$import->isPending()) {
+        if (! $import->isPending()) {
             return response()->json([
                 'message' => 'Import already processed',
                 'import' => $import,
@@ -190,7 +188,7 @@ class ImportWizardController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Import failed: ' . $e->getMessage(),
+                'message' => 'Import failed: '.$e->getMessage(),
                 'import' => $import->fresh(),
             ], 500);
         }

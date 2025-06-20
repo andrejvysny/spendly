@@ -102,7 +102,7 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
 
         try {
             const response = await axios.post(route('imports.wizard.process', { account: uploadedData.accountId, import: uploadedData.importId }), {
-             category_mappings: categoryMappings, //TODO: process in mapping step
+                category_mappings: categoryMappings, //TODO: process in mapping step
             });
 
             onComplete(response.data.import);

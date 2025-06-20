@@ -43,10 +43,12 @@ class ImportMappingRequest extends FormRequest
     {
         return $this->input('amount_format');
     }
+
     public function getAmountTypeStrategy(): string
     {
         return $this->input('amount_type_strategy');
     }
+
     public function getCurrency(): string
     {
         return $this->input('currency');

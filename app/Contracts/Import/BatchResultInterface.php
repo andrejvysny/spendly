@@ -9,29 +9,21 @@ interface BatchResultInterface
 {
     /**
      * Get the total number of rows processed.
-     *
-     * @return int
      */
     public function getTotalProcessed(): int;
 
     /**
      * Get the number of successful rows.
-     *
-     * @return int
      */
     public function getSuccessCount(): int;
 
     /**
      * Get the number of failed rows.
-     *
-     * @return int
      */
     public function getFailedCount(): int;
 
     /**
      * Get the number of skipped rows.
-     *
-     * @return int
      */
     public function getSkippedCount(): int;
 
@@ -49,15 +41,12 @@ interface BatchResultInterface
      */
     public function getFailedResults(): array;
 
-
     public function getSkippedResults(): array;
 
     public function getSuccessResults(): array;
 
     /**
      * Check if the batch was completely successful.
-     *
-     * @return bool
      */
     public function isCompleteSuccess(): bool;
 }

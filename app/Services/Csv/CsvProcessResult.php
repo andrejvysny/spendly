@@ -10,24 +10,24 @@ use App\Contracts\Import\ProcessResultInterface;
 readonly class CsvProcessResult implements ProcessResultInterface
 {
     public function __construct(
-        private bool              $success = true,
-        private string            $message,
+        private bool $success,
+        private string $message,
         private array|object|null $data = null,
-        private array             $errors = [],
-        private bool              $skipped = false,
-        private ?array            $metadata = null
+        private array $errors = [],
+        private bool $skipped = false,
+        private ?array $metadata = null
     ) {
         if (empty($message)) {
             throw new \InvalidArgumentException('Message cannot be empty');
         }
     }
 
-    public static function success(string $message, array|object $data,array $metadata = []): self
+    public static function success(string $message, array|object $data, array $metadata = []): self
     {
         return new self(true, $message, $data, metadata: $metadata);
     }
 
-    public static function failure(string $message,array $data,array $metadata = [], array $errors = []): self
+    public static function failure(string $message, array $data, array $metadata = [], array $errors = []): self
     {
         return new self(false, $message, $data, $errors);
     }

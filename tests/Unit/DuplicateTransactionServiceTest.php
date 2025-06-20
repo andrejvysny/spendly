@@ -120,13 +120,13 @@ class DuplicateTransactionServiceTest extends TestCase
         $existing['account_id'] = $account->id;
         $existingTransaction = Transaction::factory()->create($existing);
 
-//        TransactionFingerprint::create([
-//            'user_id' => $user->id,
-//            'transaction_id' => $existingTransaction->id,
-//            'fingerprint' => $this->service->buildFingerprint(
-//                $this->service->normalizeRecord($existing)
-//            ),
-//        ]);
+        //        TransactionFingerprint::create([
+        //            'user_id' => $user->id,
+        //            'transaction_id' => $existingTransaction->id,
+        //            'fingerprint' => $this->service->buildFingerprint(
+        //                $this->service->normalizeRecord($existing)
+        //            ),
+        //        ]);
 
         $new['account_id'] = $account->id;
         $result = $this->service->isDuplicate($new, $user->id);

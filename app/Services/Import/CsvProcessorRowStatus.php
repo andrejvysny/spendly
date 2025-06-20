@@ -16,5 +16,4 @@ interface CsvProcessorRowStatus
     public function isSkipped(): bool;
 
     public function isInvalidFormat(): bool;
-
 }

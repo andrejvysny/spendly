@@ -7,14 +7,11 @@ namespace App\Services\Import;
  */
 readonly class TransactionProcessedRow implements CsvProcessorRowResult
 {
-
     public function __construct(
         private TransactionParserRowStatus $status,
-        private string                     $message,
-        private array|object                      $data
-    )
-    {
-    }
+        private string $message,
+        private array|object $data
+    ) {}
 
     public function getStatus(): TransactionParserRowStatus
     {

@@ -4,7 +4,6 @@ namespace Tests\Unit\Services\Csv;
 
 use App\Services\Csv\CsvData;
 use App\Services\Csv\CsvProcessor;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\Unit\UnitTestCase;
 
@@ -15,7 +14,7 @@ class CsvProcessorTest extends UnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->csvProcessor = new CsvProcessor();
+        $this->csvProcessor = new CsvProcessor;
     }
 
     public function test_get_rows_returns_csv_data_object()
