@@ -67,4 +67,9 @@ class Import extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function isPending(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
 }
