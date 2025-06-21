@@ -178,7 +178,8 @@ class RuleRepository
     public function getRuleGroups(User $user, bool $activeOnly = false): Collection
     {
         $query = $user->ruleGroups()->with(['rules' => function ($query) {
-            $query->orderBy('order');
+            $query->with(['conditionGroups.conditions', 'actions'])
+                  ->orderBy('order');
         }]);
 
         if ($activeOnly) {

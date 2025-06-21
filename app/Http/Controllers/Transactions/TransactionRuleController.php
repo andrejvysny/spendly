@@ -7,6 +7,13 @@ use App\Models\TransactionRule;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
+/**
+ * @deprecated This controller is deprecated. Use App\Http\Controllers\RuleEngine\RuleController instead.
+ * 
+ * This class handles the legacy transaction rules functionality.
+ * New rule functionality is handled by the RuleController in the RuleEngine namespace.
+ */
+
 class TransactionRuleController extends Controller
 {
     public function index()
