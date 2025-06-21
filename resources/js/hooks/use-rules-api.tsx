@@ -42,6 +42,8 @@ interface UseRulesApiReturn {
     executeRulesOnTransactions: (transactionIds: number[], ruleIds?: number[], dryRun?: boolean) => Promise<any>;
     executeRulesOnDateRange: (startDate: string, endDate: string, ruleIds?: number[], dryRun?: boolean) => Promise<any>;
     testRule: (transactionIds: number[], ruleData: Omit<CreateRuleForm, 'rule_group_id' | 'name'>) => Promise<any>;
+    executeRule: (ruleId: number, dryRun?: boolean) => Promise<any>;
+    executeRuleGroup: (groupId: number, dryRun?: boolean) => Promise<any>;
     
     // Utility
     clearError: () => void;
@@ -345,6 +347,42 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
+    const executeRule = useCallback(async (ruleId: number, dryRun?: boolean): Promise<any> => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const response = await axios.post(`/api/rules/${ruleId}/execute`, {
+                dry_run: dryRun,
+            });
+            
+            return response.data;
+        } catch (err) {
+            handleError(err);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const executeRuleGroup = useCallback(async (groupId: number, dryRun?: boolean): Promise<any> => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const response = await axios.post(`/api/rules/groups/${groupId}/execute`, {
+                dry_run: dryRun,
+            });
+            
+            return response.data;
+        } catch (err) {
+            handleError(err);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     const clearError = useCallback(() => {
         setError(null);
     }, []);
@@ -368,6 +406,8 @@ export function useRulesApi(): UseRulesApiReturn {
         executeRulesOnTransactions,
         executeRulesOnDateRange,
         testRule,
+        executeRule,
+        executeRuleGroup,
         clearError,
     };
 } 

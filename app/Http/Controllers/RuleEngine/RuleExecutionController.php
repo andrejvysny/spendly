@@ -5,6 +5,7 @@ namespace App\Http\Controllers\RuleEngine;
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Http\Controllers\Controller;
 use App\Models\Rule;
+use App\Models\RuleGroup;
 use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -281,6 +282,111 @@ class RuleExecutionController extends Controller
         }
         
         return false;
+    }
+
+    /**
+     * Execute a single rule manually.
+     */
+    public function executeRule(Request $request, int $ruleId): JsonResponse
+    {
+        $user = $request->user();
+        
+        // Get the rule and verify ownership
+        $rule = Rule::where('id', $ruleId)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$rule) {
+            return response()->json(['error' => 'Rule not found or unauthorized'], 404);
+        }
+
+        // Get all transactions for the user
+        $transactions = Transaction::whereHas('account', function ($query) use ($user) {
+            $query->where('user_id', $user->id);
+        })->get();
+
+        // Execute the rule
+        $this->ruleEngine
+            ->setUser($user)
+            ->setDryRun($request->boolean('dry_run', false))
+            ->clearExecutionResults();
+
+        $this->ruleEngine->processTransactionsForRules(
+            $transactions,
+            collect([$ruleId])
+        );
+
+        $results = $this->ruleEngine->getExecutionResults();
+
+        return response()->json([
+            'message' => $request->boolean('dry_run') 
+                ? 'Rule dry run completed successfully' 
+                : 'Rule executed successfully',
+            'data' => [
+                'rule_id' => $ruleId,
+                'rule_name' => $rule->name,
+                'total_transactions' => $transactions->count(),
+                'total_rules_matched' => count(array_filter($results, fn($r) => !empty($r['actions']))),
+                'results' => $results,
+            ],
+        ]);
+    }
+
+    /**
+     * Execute all rules in a rule group manually.
+     */
+    public function executeRuleGroup(Request $request, int $groupId): JsonResponse
+    {
+        $user = $request->user();
+        
+        // Get the rule group and verify ownership
+        $ruleGroup = RuleGroup::where('id', $groupId)
+            ->where('user_id', $user->id)
+            ->with('rules')
+            ->first();
+
+        if (!$ruleGroup) {
+            return response()->json(['error' => 'Rule group not found or unauthorized'], 404);
+        }
+
+        if ($ruleGroup->rules->isEmpty()) {
+            return response()->json(['error' => 'Rule group has no rules to execute'], 400);
+        }
+
+        // Get all transactions for the user
+        $transactions = Transaction::whereHas('account', function ($query) use ($user) {
+            $query->where('user_id', $user->id);
+        })->get();
+
+        // Get rule IDs from the group
+        $ruleIds = $ruleGroup->rules->pluck('id')->toArray();
+
+        // Execute the rules
+        $this->ruleEngine
+            ->setUser($user)
+            ->setDryRun($request->boolean('dry_run', false))
+            ->clearExecutionResults();
+
+        $this->ruleEngine->processTransactionsForRules(
+            $transactions,
+            collect($ruleIds)
+        );
+
+        $results = $this->ruleEngine->getExecutionResults();
+
+        return response()->json([
+            'message' => $request->boolean('dry_run') 
+                ? 'Rule group dry run completed successfully' 
+                : 'Rule group executed successfully',
+            'data' => [
+                'rule_group_id' => $groupId,
+                'rule_group_name' => $ruleGroup->name,
+                'total_rules' => count($ruleIds),
+                'total_transactions' => $transactions->count(),
+                'total_rules_matched' => count(array_filter($results, fn($r) => !empty($r['actions']))),
+                'results' => $results,
+            ],
+        ]);
     }
 
     /**

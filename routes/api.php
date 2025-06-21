@@ -49,5 +49,9 @@ Route::middleware(['web', 'auth'])->prefix('rules')->group(function () {
         ->name('rules.execute.date-range');
     Route::post('/test', [RuleExecutionController::class, 'testRule'])
         ->name('rules.test');
+    Route::post('/{id}/execute', [RuleExecutionController::class, 'executeRule'])
+        ->name('rules.execute.rule');
+    Route::post('/groups/{id}/execute', [RuleExecutionController::class, 'executeRuleGroup'])
+        ->name('rules.execute.group');
 });
 

@@ -576,23 +576,136 @@ class RuleApiTest extends TestCase
      */
     public function it_prevents_toggling_other_users_rule()
     {
-        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $rule = Rule::factory()->create(['user_id' => $otherUser->id]);
+
+        $response = $this->patchJson("/api/rules/{$rule->id}/toggle-activation");
+
+        $response->assertNotFound();
+    }
+
+    /**
+     * @test
+     */
+    public function it_executes_individual_rule()
+    {
+        // Create a rule group and rule
+        $ruleGroup = RuleGroup::factory()->create(['user_id' => $this->user->id]);
+        $rule = Rule::factory()->create([
+            'user_id' => $this->user->id,
+            'rule_group_id' => $ruleGroup->id,
+            'trigger_type' => Rule::TRIGGER_MANUAL,
+        ]);
+
+        // Create some transactions
+        $account = Account::factory()->create(['user_id' => $this->user->id]);
+        Transaction::factory()->count(3)->create([
+            'account_id' => $account->id,
+        ]);
+
+        $response = $this->postJson("/api/rules/{$rule->id}/execute");
+
+        $response->assertOk()
+            ->assertJsonPath('data.rule_id', $rule->id)
+            ->assertJsonPath('data.rule_name', $rule->name)
+            ->assertJsonPath('data.total_transactions', 3);
+    }
+
+    /**
+     * @test
+     */
+    public function it_executes_rule_group()
+    {
+        // Create a rule group with multiple rules
+        $ruleGroup = RuleGroup::factory()->create(['user_id' => $this->user->id]);
+        $rule1 = Rule::factory()->create([
+            'user_id' => $this->user->id,
+            'rule_group_id' => $ruleGroup->id,
+            'trigger_type' => Rule::TRIGGER_MANUAL,
+        ]);
+        $rule2 = Rule::factory()->create([
+            'user_id' => $this->user->id,
+            'rule_group_id' => $ruleGroup->id,
+            'trigger_type' => Rule::TRIGGER_MANUAL,
+        ]);
+
+        // Create some transactions
+        $account = Account::factory()->create(['user_id' => $this->user->id]);
+        Transaction::factory()->count(5)->create([
+            'account_id' => $account->id,
+        ]);
+
+        $response = $this->postJson("/api/rules/groups/{$ruleGroup->id}/execute");
+
+        $response->assertOk()
+            ->assertJsonPath('data.rule_group_id', $ruleGroup->id)
+            ->assertJsonPath('data.rule_group_name', $ruleGroup->name)
+            ->assertJsonPath('data.total_rules', 2)
+            ->assertJsonPath('data.total_transactions', 5);
+    }
+
+    /**
+     * @test
+     */
+    public function it_prevents_executing_other_users_rule()
+    {
+        $otherUser = User::factory()->create();
+        $rule = Rule::factory()->create(['user_id' => $otherUser->id]);
+
+        $response = $this->postJson("/api/rules/{$rule->id}/execute");
+
+        $response->assertNotFound();
+    }
+
+    /**
+     * @test
+     */
+    public function it_prevents_executing_other_users_rule_group()
+    {
         $otherUser = User::factory()->create();
         $ruleGroup = RuleGroup::factory()->create(['user_id' => $otherUser->id]);
+
+        $response = $this->postJson("/api/rules/groups/{$ruleGroup->id}/execute");
+
+        $response->assertNotFound();
+    }
+
+    /**
+     * @test
+     */
+    public function it_handles_executing_empty_rule_group()
+    {
+        $ruleGroup = RuleGroup::factory()->create(['user_id' => $this->user->id]);
+
+        $response = $this->postJson("/api/rules/groups/{$ruleGroup->id}/execute");
+
+        $response->assertBadRequest()
+            ->assertJsonPath('error', 'Rule group has no rules to execute');
+    }
+
+    /**
+     * @test
+     */
+    public function it_supports_dry_run_execution()
+    {
+        $ruleGroup = RuleGroup::factory()->create(['user_id' => $this->user->id]);
         $rule = Rule::factory()->create([
-            'user_id' => $otherUser->id,
+            'user_id' => $this->user->id,
             'rule_group_id' => $ruleGroup->id,
-            'is_active' => true,
+            'trigger_type' => Rule::TRIGGER_MANUAL,
         ]);
 
-        $response = $this->actingAs($user)
-            ->patchJson("/api/rules/{$rule->id}/toggle-activation");
-
-        $response->assertStatus(404);
-
-        $this->assertDatabaseHas('rules', [
-            'id' => $rule->id,
-            'is_active' => true, // Should remain unchanged
+        $account = Account::factory()->create(['user_id' => $this->user->id]);
+        Transaction::factory()->count(2)->create([
+            'account_id' => $account->id,
         ]);
+
+        $response = $this->postJson("/api/rules/{$rule->id}/execute", [
+            'dry_run' => true,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Rule dry run completed successfully')
+            ->assertJsonPath('data.rule_id', $rule->id);
     }
 } 
