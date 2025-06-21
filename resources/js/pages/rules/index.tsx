@@ -9,7 +9,7 @@ import { Head, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { useRulesApi } from '@/hooks/use-rules-api';
 import { RuleGroup, Rule } from '@/types/rules';
-import { Plus, Edit, Trash2, Copy, MoreHorizontal, ChevronRight, ChevronDown, Power, PowerOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Copy, MoreHorizontal, ChevronRight, ChevronDown, Power, PowerOff, Play } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { CreateRuleModal } from '@/components/rules/CreateRuleModal';
@@ -28,6 +28,9 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
     const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false);
     const [selectedGroupForNewRule, setSelectedGroupForNewRule] = useState<number | undefined>();
     const [isCreateRuleGroupModalOpen, setIsCreateRuleGroupModalOpen] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [executingRuleId, setExecutingRuleId] = useState<number | null>(null);
+    const [executingGroupId, setExecutingGroupId] = useState<number | null>(null);
 
     const {
         loading,
@@ -38,6 +41,8 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
         duplicateRule,
         toggleRuleGroupActivation,
         toggleRuleActivation,
+        executeRule,
+        executeRuleGroup,
         clearError,
     } = useRulesApi();
 
@@ -123,6 +128,38 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
         if (updatedRule) {
             await loadRuleGroups(); // Refresh data
         }
+    };
+
+    const handleExecuteRule = async (rule: Rule) => {
+        setExecutingRuleId(rule.id);
+        try {
+            const result = await executeRule(rule.id, false);
+            if (result) {
+                setSuccessMessage(`Rule "${rule.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
+                // Clear success message after 5 seconds
+                setTimeout(() => setSuccessMessage(null), 5000);
+            }
+        } finally {
+            setExecutingRuleId(null);
+        }
+    };
+
+    const handleExecuteRuleGroup = async (group: RuleGroup) => {
+        setExecutingGroupId(group.id);
+        try {
+            const result = await executeRuleGroup(group.id, false);
+            if (result) {
+                setSuccessMessage(`Rule group "${group.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
+                // Clear success message after 5 seconds
+                setTimeout(() => setSuccessMessage(null), 5000);
+            }
+        } finally {
+            setExecutingGroupId(null);
+        }
+    };
+
+    const clearSuccessMessage = () => {
+        setSuccessMessage(null);
     };
 
     const openCreateRuleModal = (groupId?: number) => {
@@ -224,10 +261,22 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
                                         <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                                <DropdownMenuContent>
                                     <DropdownMenuItem>
                                         <Edit className="h-4 w-4 mr-2" />
                                         Edit Group
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                        onClick={() => handleExecuteRuleGroup(group)}
+                                        disabled={executingGroupId === group.id}
+                                    >
+                                        {executingGroupId === group.id ? (
+                                            <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                        ) : (
+                                            <Play className="h-4 w-4 mr-2" />
+                                        )}
+                                        {executingGroupId === group.id ? 'Executing...' : 'Execute Group'}
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => handleToggleRuleGroupActivation(group)}>
@@ -330,6 +379,18 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
                                                             Duplicate
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
+                                                        <DropdownMenuItem 
+                                                            onClick={() => handleExecuteRule(rule)}
+                                                            disabled={executingRuleId === rule.id}
+                                                        >
+                                                            {executingRuleId === rule.id ? (
+                                                                <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                            ) : (
+                                                                <Play className="h-4 w-4 mr-2" />
+                                                            )}
+                                                            {executingRuleId === rule.id ? 'Executing...' : 'Execute Rule'}
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
                                                         <DropdownMenuItem onClick={() => handleToggleRuleActivation(rule)}>
                                                             {rule.is_active ? (
                                                                 <>
@@ -411,7 +472,21 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
                     </Alert>
                 )}
 
-
+                {successMessage && (
+                    <Alert className="mb-6" variant="default">
+                        <AlertDescription>
+                            {successMessage}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="ml-2 h-auto p-0 text-sm underline"
+                                onClick={clearSuccessMessage}
+                            >
+                                Dismiss
+                            </Button>
+                        </AlertDescription>
+                    </Alert>
+                )}
 
                 {loading && ruleGroups.length === 0 ? (
                     <div className="text-center py-12">

@@ -221,7 +221,31 @@ Body:
 }
 ```
 
-#### Test Rule (Without Saving)
+#### Execute Individual Rule
+```
+POST /api/rules/{id}/execute
+```
+Executes a single rule on all user transactions. Useful for testing or manual processing.
+Body:
+```json
+{
+  "dry_run": false  // Optional, false by default
+}
+```
+
+#### Execute Rule Group
+```
+POST /api/rules/groups/{id}/execute
+```
+Executes all rules in a rule group on all user transactions. Useful for bulk processing.
+Body:
+```json
+{
+  "dry_run": false  // Optional, false by default
+}
+```
+
+#### Test Rule Configuration
 ```
 POST /api/rules/test
 ```
