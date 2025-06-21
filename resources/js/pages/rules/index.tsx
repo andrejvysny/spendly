@@ -9,7 +9,7 @@ import { Head, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { useRulesApi } from '@/hooks/use-rules-api';
 import { RuleGroup, Rule } from '@/types/rules';
-import { Plus, Edit, Trash2, Copy, MoreHorizontal, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, Edit, Trash2, Copy, MoreHorizontal, ChevronRight, ChevronDown, Power, PowerOff } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { CreateRuleModal } from '@/components/rules/CreateRuleModal';
@@ -36,6 +36,7 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
         deleteRule,
         deleteRuleGroup,
         duplicateRule,
+        toggleRuleGroupActivation,
         clearError,
     } = useRulesApi();
 
@@ -105,6 +106,13 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
     const handleDuplicateRule = async (rule: Rule) => {
         const newRule = await duplicateRule(rule.id, `${rule.name} (Copy)`);
         if (newRule) {
+            await loadRuleGroups(); // Refresh data
+        }
+    };
+
+    const handleToggleRuleGroupActivation = async (group: RuleGroup) => {
+        const updatedGroup = await toggleRuleGroupActivation(group.id);
+        if (updatedGroup) {
             await loadRuleGroups(); // Refresh data
         }
     };
@@ -212,6 +220,20 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
                                     <DropdownMenuItem>
                                         <Edit className="h-4 w-4 mr-2" />
                                         Edit Group
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleToggleRuleGroupActivation(group)}>
+                                        {group.is_active ? (
+                                            <>
+                                                <PowerOff className="h-4 w-4 mr-2" />
+                                                Deactivate
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Power className="h-4 w-4 mr-2" />
+                                                Activate
+                                            </>
+                                        )}
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
