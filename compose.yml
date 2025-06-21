@@ -11,15 +11,24 @@ services:
       - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
 
   node:
-    image: node:20-alpine
-    working_dir: /var/www/html
+    container_name: node
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile
+      target: node
+    working_dir: /app
     volumes:
-      - .:/var/www/html
-    ports:
-      - "3000:3000"
+      - .:/app
+      - ./node_modules:/app/node_modules
+    network_mode: host
+    command: sh -c "npm run dev"
 
-  laravel:
-    image: php:8.4-fpm
+  app:
+    container_name: app
+    build:
+        context: .
+        dockerfile: .docker/Dockerfile
+        target: development
     volumes:
       - .:/var/www/html
       - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
@@ -33,9 +42,11 @@ services:
     command: sh -c "php artisan serve --host=0.0.0.0 --port=80 --verbose"
 
   test:
+    container_name: test
     build:
       context: .
-      dockerfile: .docker/Dockerfile.test
+      dockerfile: .docker/Dockerfile
+      target: testing
     environment:
       - XDEBUG_MODE=coverage
       - XDEBUG_CONFIG=client_host=host.docker.internal

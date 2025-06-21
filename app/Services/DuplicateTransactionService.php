@@ -163,15 +163,18 @@ class DuplicateTransactionService
      */
     public function isDuplicate(array $input, int $userId): bool
     {
+        return false; // Temporarily disable duplicate checks
+
+        // TODO: Re-enable duplicate checks when TransactionFingerprint model is implemented
         $normalized = $this->normalizeRecord($input);
         $fingerprint = $this->buildFingerprint($normalized);
 
-//        $exists = TransactionFingerprint::where('user_id', $userId)
-//            ->where('fingerprint', $fingerprint)
-//            ->exists();
-//        if ($exists) {
-//            return true;
-//        }
+        //        $exists = TransactionFingerprint::where('user_id', $userId)
+        //            ->where('fingerprint', $fingerprint)
+        //            ->exists();
+        //        if ($exists) {
+        //            return true;
+        //        }
 
         $candidates = $this->fetchCandidates($normalized, $userId);
         foreach ($candidates as $candidate) {
@@ -181,15 +184,15 @@ class DuplicateTransactionService
         }
 
         // Save the fingerprint for future duplicate checks
-//        TransactionFingerprint::updateOrCreate(
-//            [
-//                'user_id' => $userId,
-//                'fingerprint' => $fingerprint,
-//            ],
-//            [
-//                'created_at' => now(),
-//            ]
-//        );
+        //        TransactionFingerprint::updateOrCreate(
+        //            [
+        //                'user_id' => $userId,
+        //                'fingerprint' => $fingerprint,
+        //            ],
+        //            [
+        //                'created_at' => now(),
+        //            ]
+        //        );
 
         return false;
     }

@@ -506,7 +506,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                             </tr>
                         </thead>
                         <tbody>
-                            {sampleRows.slice(0, 5).map((row, rowIndex) => (
+                            {sampleRows.map((row, rowIndex) => (
                                 <tr key={rowIndex} className="border-muted-foreground border-b">
                                     {row.map((cell, cellIndex) => (
                                         <td
