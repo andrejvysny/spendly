@@ -88,6 +88,13 @@ const ACTION_LABELS: Record<ActionType, string> = {
     create_merchant_if_not_exists: 'Create merchant if not exists',
 };
 
+// Trigger type display names
+const TRIGGER_LABELS: Record<TriggerType, string> = {
+    manual: 'Manual',
+    transaction_created: 'When transaction is created',
+    transaction_updated: 'When transaction is updated',
+};
+
 export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, selectedGroupId }: CreateRuleModalProps) {
     const [ruleName, setRuleName] = useState('');
     const [selectedGroupId_, setSelectedGroupId_] = useState(selectedGroupId || ruleGroups[0]?.id || 0);
@@ -282,7 +289,7 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
 
                 <div className="space-y-6">
                     {/* Rule Basic Info */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                         <div>
                             <Label htmlFor="ruleName">Rule Name</Label>
                             <Input
@@ -317,6 +324,21 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                     You need to create a rule group first before creating rules.
                                 </p>
                             )}
+                        </div>
+                        <div>
+                            <Label htmlFor="triggerType">Trigger Type</Label>
+                            <Select value={triggerType} onValueChange={(value: TriggerType) => setTriggerType(value)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select trigger type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ruleOptions.trigger_types.map((triggerType) => (
+                                        <SelectItem key={triggerType} value={triggerType}>
+                                            {TRIGGER_LABELS[triggerType]}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 
