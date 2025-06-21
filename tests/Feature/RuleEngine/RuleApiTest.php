@@ -519,4 +519,80 @@ class RuleApiTest extends TestCase
             'is_active' => true, // Should remain unchanged
         ]);
     }
+
+    /**
+     * @test
+     */
+    public function it_toggles_rule_activation()
+    {
+        $user = User::factory()->create();
+        $ruleGroup = RuleGroup::factory()->create(['user_id' => $user->id]);
+        $rule = Rule::factory()->create([
+            'user_id' => $user->id,
+            'rule_group_id' => $ruleGroup->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->patchJson("/api/rules/{$rule->id}/toggle-activation");
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'message',
+                'data' => [
+                    'id',
+                    'user_id',
+                    'rule_group_id',
+                    'name',
+                    'description',
+                    'trigger_type',
+                    'stop_processing',
+                    'order',
+                    'is_active',
+                    'created_at',
+                    'updated_at',
+                ]
+            ]);
+
+        $this->assertDatabaseHas('rules', [
+            'id' => $rule->id,
+            'is_active' => false,
+        ]);
+
+        // Toggle again to test the reverse
+        $response = $this->actingAs($user)
+            ->patchJson("/api/rules/{$rule->id}/toggle-activation");
+
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('rules', [
+            'id' => $rule->id,
+            'is_active' => true,
+        ]);
+    }
+
+    /**
+     * @test
+     */
+    public function it_prevents_toggling_other_users_rule()
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $ruleGroup = RuleGroup::factory()->create(['user_id' => $otherUser->id]);
+        $rule = Rule::factory()->create([
+            'user_id' => $otherUser->id,
+            'rule_group_id' => $ruleGroup->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->patchJson("/api/rules/{$rule->id}/toggle-activation");
+
+        $response->assertStatus(404);
+
+        $this->assertDatabaseHas('rules', [
+            'id' => $rule->id,
+            'is_active' => true, // Should remain unchanged
+        ]);
+    }
 } 

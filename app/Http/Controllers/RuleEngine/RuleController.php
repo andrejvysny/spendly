@@ -344,6 +344,23 @@ class RuleController extends Controller
     }
 
     /**
+     * Toggle the activation status of a rule.
+     */
+    public function toggleRuleActivation(Request $request, int $id): JsonResponse
+    {
+        $rule = Rule::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $rule->update(['is_active' => !$rule->is_active]);
+
+        return response()->json([
+            'message' => 'Rule activation status updated successfully',
+            'data' => $rule,
+        ]);
+    }
+
+    /**
      * Get available fields, operators, and action types.
      */
     public function getOptions(): JsonResponse

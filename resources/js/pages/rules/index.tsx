@@ -37,6 +37,7 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
         deleteRuleGroup,
         duplicateRule,
         toggleRuleGroupActivation,
+        toggleRuleActivation,
         clearError,
     } = useRulesApi();
 
@@ -113,6 +114,13 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
     const handleToggleRuleGroupActivation = async (group: RuleGroup) => {
         const updatedGroup = await toggleRuleGroupActivation(group.id);
         if (updatedGroup) {
+            await loadRuleGroups(); // Refresh data
+        }
+    };
+
+    const handleToggleRuleActivation = async (rule: Rule) => {
+        const updatedRule = await toggleRuleActivation(rule.id);
+        if (updatedRule) {
             await loadRuleGroups(); // Refresh data
         }
     };
@@ -320,6 +328,20 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
                                                         <DropdownMenuItem onClick={() => handleDuplicateRule(rule)}>
                                                             <Copy className="h-4 w-4 mr-2" />
                                                             Duplicate
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem onClick={() => handleToggleRuleActivation(rule)}>
+                                                            {rule.is_active ? (
+                                                                <>
+                                                                    <PowerOff className="h-4 w-4 mr-2" />
+                                                                    Deactivate
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Power className="h-4 w-4 mr-2" />
+                                                                    Activate
+                                                                </>
+                                                            )}
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
