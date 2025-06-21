@@ -135,6 +135,12 @@ export interface RuleResponse {
     data: Rule;
 }
 
+export interface ActionInputConfig {
+    type: 'select' | 'text' | 'none';
+    model?: string;
+    placeholder: string;
+}
+
 export interface RuleOptionsResponse {
     data: {
         trigger_types: TriggerType[];
@@ -146,6 +152,17 @@ export interface RuleOptionsResponse {
             numeric: ConditionOperator[];
             string: ConditionOperator[];
         };
+        // Data for select inputs
+        categories: Array<{ id: number; name: string }>;
+        merchants: Array<{ id: number; name: string }>;
+        tags: Array<{ id: number; name: string }>;
+        transaction_types: Record<string, string>;
+    };
+}
+
+export interface ActionInputConfigResponse {
+    data: {
+        action_input_types: Record<ActionType, ActionInputConfig>;
     };
 }
 

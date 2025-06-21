@@ -19,6 +19,7 @@ import {
     TriggerType,
     LogicOperator,
     RuleOptionsResponse,
+    ActionInputConfig,
 } from '@/types/rules';
 
 interface CreateRuleModalProps {
@@ -118,8 +119,9 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
     const [applyToAll, setApplyToAll] = useState(true);
     const [startDate, setStartDate] = useState('');
     const [ruleOptions, setRuleOptions] = useState<RuleOptionsResponse['data'] | null>(null);
+    const [actionInputConfig, setActionInputConfig] = useState<Record<ActionType, ActionInputConfig> | null>(null);
 
-    const { createRule, fetchRuleOptions, loading, error } = useRulesApi();
+    const { createRule, fetchRuleOptions, fetchActionInputConfig, loading, error } = useRulesApi();
 
     // Load rule options when modal opens
     useEffect(() => {
@@ -139,11 +141,26 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                             numeric: ['equals', 'greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal'],
                             string: ['equals', 'contains', 'starts_with', 'ends_with'],
                         },
+                        categories: [],
+                        merchants: [],
+                        tags: [],
+                        transaction_types: {},
                     });
                 }
             });
         }
     }, [isOpen, ruleOptions, fetchRuleOptions]);
+
+    // Load action input configuration when modal opens
+    useEffect(() => {
+        if (isOpen && !actionInputConfig) {
+            fetchActionInputConfig().then(config => {
+                if (config) {
+                    setActionInputConfig(config.action_input_types);
+                }
+            });
+        }
+    }, [isOpen, actionInputConfig, fetchActionInputConfig]);
 
     // Reset form when modal closes
     useEffect(() => {
@@ -158,6 +175,8 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
             setActions([{ action_type: 'set_description', action_value: '' }]);
             setApplyToAll(true);
             setStartDate('');
+            setRuleOptions(null);
+            setActionInputConfig(null);
         }
     }, [isOpen, selectedGroupId, ruleGroups]);
 
@@ -232,6 +251,78 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
         setActions(actions.map((action, i) => 
             i === actionIndex ? { ...action, ...updates } : action
         ));
+    };
+
+    const renderActionInput = (action: CreateRuleActionForm, actionIndex: number) => {
+        if (!actionInputConfig || !ruleOptions) {
+            return (
+                <Input
+                    value={action.action_value || ''}
+                    onChange={(e) => updateAction(actionIndex, { action_value: e.target.value })}
+                    placeholder="Enter a value"
+                />
+            );
+        }
+
+        const config = actionInputConfig[action.action_type];
+        if (!config) {
+            return (
+                <Input
+                    value={action.action_value || ''}
+                    onChange={(e) => updateAction(actionIndex, { action_value: e.target.value })}
+                    placeholder="Enter a value"
+                />
+            );
+        }
+
+        if (config.type === 'none') {
+            return (
+                <div className="text-sm text-muted-foreground flex items-center h-10 px-3 bg-muted rounded-md">
+                    {config.placeholder}
+                </div>
+            );
+        }
+
+        if (config.type === 'select') {
+            let options: Array<{ value: string | number; label: string }> = [];
+            
+            if (config.model === 'categories') {
+                options = ruleOptions.categories.map(cat => ({ value: cat.id, label: cat.name }));
+            } else if (config.model === 'merchants') {
+                options = ruleOptions.merchants.map(merchant => ({ value: merchant.id, label: merchant.name }));
+            } else if (config.model === 'tags') {
+                options = ruleOptions.tags.map(tag => ({ value: tag.id, label: tag.name }));
+            } else if (config.model === 'transaction_types') {
+                options = Object.entries(ruleOptions.transaction_types).map(([key, value]) => ({ value: key, label: value }));
+            }
+
+            return (
+                <Select 
+                    value={action.action_value?.toString() || ''} 
+                    onValueChange={(value) => updateAction(actionIndex, { action_value: value })}
+                >
+                    <SelectTrigger>
+                        <SelectValue placeholder={config.placeholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {options.map((option) => (
+                            <SelectItem key={option.value} value={option.value.toString()}>
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            );
+        }
+
+        // Default to text input
+        return (
+            <Input
+                value={action.action_value || ''}
+                onChange={(e) => updateAction(actionIndex, { action_value: e.target.value })}
+                placeholder={config.placeholder}
+            />
+        );
     };
 
     const handleSubmit = async () => {
@@ -511,11 +602,7 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                     <span className="text-sm text-muted-foreground">to</span>
                                 </div>
                                 <div className="col-span-5">
-                                    <Input
-                                        value={action.action_value || ''}
-                                        onChange={(e) => updateAction(actionIndex, { action_value: e.target.value })}
-                                        placeholder="Enter a value"
-                                    />
+                                    {renderActionInput(action, actionIndex)}
                                 </div>
                                 <div className="col-span-1">
                                     <Button

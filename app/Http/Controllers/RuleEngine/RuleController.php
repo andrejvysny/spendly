@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Models\Transaction;
 
 class RuleController extends Controller
 {
@@ -365,6 +366,8 @@ class RuleController extends Controller
      */
     public function getOptions(): JsonResponse
     {
+        $user = auth()->user();
+        
         return response()->json([
             'data' => [
                 'trigger_types' => Rule::getTriggerTypes(),
@@ -375,6 +378,100 @@ class RuleController extends Controller
                 'field_operators' => [
                     'numeric' => RuleCondition::getNumericOperators(),
                     'string' => RuleCondition::getStringOperators(),
+                ],
+                // Add data for select inputs
+                'categories' => $user->categories()->select('id', 'name')->get(),
+                'merchants' => $user->merchants()->select('id', 'name')->get(),
+                'tags' => $user->tags()->select('id', 'name')->get(),
+                'transaction_types' => [
+                    Transaction::TYPE_TRANSFER => 'Transfer',
+                    Transaction::TYPE_CARD_PAYMENT => 'Card Payment',
+                    Transaction::TYPE_EXCHANGE => 'Exchange',
+                    Transaction::TYPE_PAYMENT => 'Payment',
+                    Transaction::TYPE_WITHDRAWAL => 'Withdrawal',
+                    Transaction::TYPE_DEPOSIT => 'Deposit',
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Get action input configuration for frontend.
+     */
+    public function getActionInputConfig(): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'action_input_types' => [
+                    RuleAction::ACTION_SET_CATEGORY => [
+                        'type' => 'select',
+                        'model' => 'categories',
+                        'placeholder' => 'Select a category',
+                    ],
+                    RuleAction::ACTION_SET_MERCHANT => [
+                        'type' => 'select',
+                        'model' => 'merchants',
+                        'placeholder' => 'Select a merchant',
+                    ],
+                    RuleAction::ACTION_ADD_TAG => [
+                        'type' => 'select',
+                        'model' => 'tags',
+                        'placeholder' => 'Select a tag',
+                    ],
+                    RuleAction::ACTION_REMOVE_TAG => [
+                        'type' => 'select',
+                        'model' => 'tags',
+                        'placeholder' => 'Select a tag',
+                    ],
+                    RuleAction::ACTION_REMOVE_ALL_TAGS => [
+                        'type' => 'none',
+                        'placeholder' => 'No value needed',
+                    ],
+                    RuleAction::ACTION_SET_DESCRIPTION => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter description',
+                    ],
+                    RuleAction::ACTION_APPEND_DESCRIPTION => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter text to append',
+                    ],
+                    RuleAction::ACTION_PREPEND_DESCRIPTION => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter text to prepend',
+                    ],
+                    RuleAction::ACTION_SET_NOTE => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter note',
+                    ],
+                    RuleAction::ACTION_APPEND_NOTE => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter text to append',
+                    ],
+                    RuleAction::ACTION_SET_TYPE => [
+                        'type' => 'select',
+                        'model' => 'transaction_types',
+                        'placeholder' => 'Select transaction type',
+                    ],
+                    RuleAction::ACTION_MARK_RECONCILED => [
+                        'type' => 'none',
+                        'placeholder' => 'No value needed',
+                    ],
+                    RuleAction::ACTION_SEND_NOTIFICATION => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter notification message',
+                    ],
+                    RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter tag name',
+                    ],
+                    RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter category name',
+                    ],
+                    RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => [
+                        'type' => 'text',
+                        'placeholder' => 'Enter merchant name',
+                    ],
                 ],
             ],
         ]);

@@ -95,12 +95,67 @@ class RuleApiTest extends TestCase
                         'numeric',
                         'string',
                     ],
+                    'categories',
+                    'merchants',
+                    'tags',
+                    'transaction_types',
                 ],
             ])
             ->assertJsonPath('data.trigger_types', Rule::getTriggerTypes())
             ->assertJsonPath('data.fields', RuleCondition::getFields())
             ->assertJsonPath('data.operators', RuleCondition::getOperators())
             ->assertJsonPath('data.action_types', RuleAction::getActionTypes());
+    }
+
+    /**
+     * @test
+     */
+    public function it_gets_action_input_configuration()
+    {
+        $response = $this->getJson('/api/rules/action-input-config');
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    'action_input_types' => [
+                        RuleAction::ACTION_SET_CATEGORY => [
+                            'type',
+                            'model',
+                            'placeholder',
+                        ],
+                        RuleAction::ACTION_SET_MERCHANT => [
+                            'type',
+                            'model',
+                            'placeholder',
+                        ],
+                        RuleAction::ACTION_ADD_TAG => [
+                            'type',
+                            'model',
+                            'placeholder',
+                        ],
+                        RuleAction::ACTION_REMOVE_ALL_TAGS => [
+                            'type',
+                            'placeholder',
+                        ],
+                        RuleAction::ACTION_SET_DESCRIPTION => [
+                            'type',
+                            'placeholder',
+                        ],
+                    ],
+                ],
+            ]);
+
+        $data = $response->json('data.action_input_types');
+        
+        // Test specific action types
+        $this->assertEquals('select', $data[RuleAction::ACTION_SET_CATEGORY]['type']);
+        $this->assertEquals('categories', $data[RuleAction::ACTION_SET_CATEGORY]['model']);
+        $this->assertEquals('select', $data[RuleAction::ACTION_SET_MERCHANT]['type']);
+        $this->assertEquals('merchants', $data[RuleAction::ACTION_SET_MERCHANT]['model']);
+        $this->assertEquals('select', $data[RuleAction::ACTION_ADD_TAG]['type']);
+        $this->assertEquals('tags', $data[RuleAction::ACTION_ADD_TAG]['model']);
+        $this->assertEquals('none', $data[RuleAction::ACTION_REMOVE_ALL_TAGS]['type']);
+        $this->assertEquals('text', $data[RuleAction::ACTION_SET_DESCRIPTION]['type']);
     }
 
     /**
