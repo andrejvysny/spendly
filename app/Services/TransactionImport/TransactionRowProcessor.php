@@ -77,16 +77,20 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
                 return CsvProcessResult::success('Preview data', data: $transactionDto, metadata: $metadata);
             }
 
-            if ($this->duplicateService->isDuplicate($parsedData, Auth::id())) {
+            $userId = Auth::id();
+            if (! is_int($userId)) {
+                throw new \RuntimeException('User must be authenticated to process transactions');
+            }
+            if ($this->duplicateService->isDuplicate($parsedData, $userId)) {
                 Log::info('Duplicate transaction found', [
                     'row_number' => $rowNumber,
                     'transaction_id' => $parsedData['transaction_id'],
                 ]);
 
-                return CsvProcessResult::skipped('Duplicate transaction', data: $row, metadata: [
-                    'metadata' => $metadata,
-                    'parsed_data' => $parsedData,
-                ]);
+                return CsvProcessResult::skipped('Duplicate transaction', data: $row, metadata: array_merge(
+                    $metadata,
+                    ['duplicate' => true, 'parsedData' => $parsedData]
+                ));
             }
 
             return CsvProcessResult::success('Transaction imported', $transactionDto, metadata: $metadata);

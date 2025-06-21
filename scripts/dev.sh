@@ -76,7 +76,11 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Start services
+echo "🚀 Starting services..."
+docker compose up -d app node
+
 echo "✅ Development environment ready!"
 echo "🌐 Laravel app: http://localhost:80"
-echo "📊 Node.js dev server: http://localhost:3000"
-echo "🧪 Run tests: ./docker-test.sh"
+echo "📊 Node.js dev server: http://localhost:5173"
+echo "🧪 Run tests: ./test.sh"

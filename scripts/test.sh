@@ -77,7 +77,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Build the PHPUnit command
-CMD="docker compose run test ./vendor/bin/phpunit"
+CMD="docker compose run test ./vendor/bin/phpunit --colors=always --stop-on-failure --testdox"
 
 if [ "$COVERAGE" = true ]; then
     case $COVERAGE_TYPE in
@@ -103,8 +103,22 @@ if [ "$COVERAGE_TYPE" = "text" ]; then
     echo "==============================="
 fi
 
-echo "✅ Tests completed!"
-echo "📊 Coverage reports available in:"
-echo "   - HTML: coverage/html/index.html"
-echo "   - Clover XML: coverage/clover.xml"
-echo "   - Text: coverage/coverage.txt" 
+echo -e "\n\n✅ PHP Tests completed!"
+echo -e "\n📊 Coverage reports available in:"
+echo -e "\n   - HTML: coverage/html/index.html"
+echo -e "\n   - Clover XML: coverage/clover.xml"
+echo -e "\n   - Text: coverage/coverage.txt"
+
+
+
+echo -e "📦 Running JavaScript tests...\n"
+docker compose run --rm node npm test
+if [ $? -ne 0 ]; then
+    echo "❌ Error: JavaScript tests failed. Exiting."
+    exit 1
+fi
+echo -e "\n✅ JavaScript tests completed successfully!"
+
+
+
+echo -e "\n\n 🚀 All tests passed successfully!"

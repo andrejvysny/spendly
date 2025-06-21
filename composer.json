@@ -15,9 +15,11 @@
         "laravel/framework": "^12.0",
         "laravel/octane": "^2.9",
         "laravel/tinker": "^2.10.1",
-        "tightenco/ziggy": "^2.4"
+        "tightenco/ziggy": "^2.4",
+        "ext-bcmath": "*"
     },
     "require-dev": {
+        "brianium/paratest": "^7.8",
         "fakerphp/faker": "^1.23",
         "laravel/pail": "^1.2.2",
         "laravel/pint": "^1.18",

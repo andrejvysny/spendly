@@ -29,7 +29,7 @@ readonly class CsvProcessResult implements ProcessResultInterface
 
     public static function failure(string $message, array $data, array $metadata = [], array $errors = []): self
     {
-        return new self(false, $message, $data, $errors);
+        return new self(false, $message, $data, $errors, metadata: $metadata);
     }
 
     public static function skipped(string $message, array $data, array $metadata): self

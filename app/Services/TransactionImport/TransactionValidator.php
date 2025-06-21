@@ -13,7 +13,7 @@ class TransactionValidator
      * @param  array  $data  Transaction data to validate
      * @param  array  $configuration  Additional configuration
      */
-    public function validate(array $data, array $configuration = []): ValidationResult
+    public function validate(array $data, array $configuration = []): ValidationResult\ValidationResult
     {
         $errors = [];
 
@@ -26,7 +26,7 @@ class TransactionValidator
         // Validate business rules
         $this->validateBusinessRules($data, $configuration, $errors);
 
-        return new ValidationResult(empty($errors), $errors);
+        return new ValidationResult\ValidationResult(empty($errors), $errors);
     }
 
     /**
@@ -44,7 +44,7 @@ class TransactionValidator
         ];
 
         foreach ($requiredFields as $field => $label) {
-            if (! isset($data[$field]) || $data[$field] === null || $data[$field] === '') {
+            if (! isset($data[$field]) || $data[$field] === '') {
                 $errors[] = "{$label} is required";
             }
         }
@@ -163,6 +163,11 @@ class TransactionValidator
      */
     private function isValidCurrency(string $currency): bool
     {
+        $validCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY'];
+        if (in_array(strtoupper($currency), $validCurrencies, true)) {
+            return true;
+        }
+
         // Basic validation - should be 3 uppercase letters
         return preg_match('/^[A-Z]{3}$/', $currency) === 1;
     }
@@ -174,29 +179,20 @@ class TransactionValidator
     {
         // Remove spaces and convert to uppercase
         $iban = strtoupper(str_replace(' ', '', $iban));
+        // Basic format check
+        if (! preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/', $iban)) {
+            return false;
+        }
 
-        // Basic format check (2 letters followed by 2 digits and up to 30 alphanumeric characters)
-        return preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/', $iban) === 1;
-    }
-}
+        // Implement mod-97 checksum validation
+        $rearranged = substr($iban, 4).substr($iban, 0, 4);
+        $numeric = '';
 
-/**
- * Validation result value object.
- */
-class ValidationResult
-{
-    public function __construct(
-        private readonly bool $valid,
-        private readonly array $errors = []
-    ) {}
+        for ($i = 0; $i < strlen($rearranged); $i++) {
+            $char = $rearranged[$i];
+            $numeric .= is_numeric($char) ? $char : (ord($char) - ord('A') + 10);
+        }
 
-    public function isValid(): bool
-    {
-        return $this->valid;
-    }
-
-    public function getErrors(): array
-    {
-        return $this->errors;
+        return \bcmod($numeric, '97') === '1';
     }
 }

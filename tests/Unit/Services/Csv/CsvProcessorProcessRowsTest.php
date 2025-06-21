@@ -36,7 +36,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         };
 
         $result = $this->csvProcessor->processRows($path, ',', '"', $processor, true);
-
+        $this->assertNotNull($result);
         $this->assertInstanceOf(CsvBatchResult::class, $result);
         $this->assertEquals(2, $result->getTotalProcessed());
         $this->assertEquals(2, $result->getSuccessCount());
@@ -69,7 +69,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         };
 
         $result = $this->csvProcessor->processRows($path, ',', '"', $processor, false);
-
+        $this->assertNotNull($result);
         $this->assertInstanceOf(CsvBatchResult::class, $result);
         $this->assertEquals(2, $result->getTotalProcessed());
         $this->assertEquals(2, $result->getSuccessCount());
@@ -95,6 +95,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
 
         $result = $this->csvProcessor->processRows($path, ',', '"', $processor, true, 2);
 
+        $this->assertNotNull($result);
         $this->assertEquals(2, $result->getTotalProcessed());
         $this->assertEquals(2, $result->getSuccessCount());
 
@@ -124,7 +125,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         };
 
         $result = $this->csvProcessor->processRows($path, ',', '"', $processor, true);
-
+        $this->assertNotNull($result);
         $this->assertEquals(2, $result->getTotalProcessed());
         $this->assertEquals(1, $result->getSuccessCount());
         $this->assertEquals(1, $result->getFailedCount());
@@ -154,7 +155,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         };
 
         $result = $this->csvProcessor->processRows($path, ',', '"', $processor, true);
-
+        $this->assertNotNull($result);
         $this->assertEquals(3, $result->getTotalProcessed());
         $this->assertEquals(2, $result->getSuccessCount());
         $this->assertEquals(0, $result->getFailedCount());
@@ -180,7 +181,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         };
 
         $result = $this->csvProcessor->processRows($path, ',', '"', $processor, true);
-
+        $this->assertNotNull($result);
         $this->assertEquals(1, $result->getTotalProcessed());
         $this->assertEquals(0, $result->getSuccessCount());
         $this->assertEquals(1, $result->getFailedCount());

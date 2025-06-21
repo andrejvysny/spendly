@@ -28,17 +28,31 @@ class ImportWizardController extends Controller
     public function upload(ImportUploadRequest $request): JsonResponse
     {
         Log::debug('Starting file upload');
+        $request->validated();
 
         $file = $request->getFile();
+
+        if (! $file->isValid()) {
+            Log::error('File upload failed', ['error' => $file->getErrorMessage()]);
+
+            return response()->json(['message' => 'File upload failed: '.$file->getErrorMessage()], 400);
+        }
+
         $originalFilename = $file->getClientOriginalName();
-        $filename = Str::random(40).'.csv';
+        $filename = 'import_'.Str::random(40).'.csv';
         Storage::makeDirectory('imports');
         // Preprocess the CSV file
         $preprocessedPath = $this->csvProcessor->preprocessCSV(
             $file,
-            $request->getDelimiter(),
-            $request->getQuoteChar()
+            $request->getDelimiter() ?? ',',
+            $request->getQuoteChar() ?? '"',
         );
+
+        if ($preprocessedPath === false) {
+            Log::error('Failed to preprocess CSV file', ['filename' => $originalFilename]);
+
+            return response()->json(['message' => 'Failed to preprocess CSV file'], 500);
+        }
 
         // Store a preprocessed file
         $path = Storage::putFileAs('imports', $preprocessedPath, $filename);

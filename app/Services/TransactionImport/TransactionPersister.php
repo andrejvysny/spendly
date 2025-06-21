@@ -28,8 +28,15 @@ class TransactionPersister
 
             $dto = $transaction->getData();
             assert($dto instanceof TransactionDto, 'Expected TransactionDto in persistBatch');
+
+            // Ensure metadata is always an array before merging
+            $metadata = $dto->get('metadata', []);
+            if (! is_array($metadata)) {
+                $metadata = [];
+            }
+
             $dto->set('metadata', array_merge(
-                $dto->get('metadata', []),
+                $metadata,
                 [
                     'processing_metadata' => $transaction->getMetadata(),
                     'processing_message' => $transaction->getMessage(),
@@ -37,7 +44,7 @@ class TransactionPersister
             ));
             $this->addToBatch($dto);
 
-            if (count($this->batchQueue) > $this->batchSize) {
+            if (count($this->batchQueue) >= $this->batchSize) {
                 // Process the batch if it exceeds the batch size
                 $this->processBatch();
             }
@@ -97,7 +104,7 @@ class TransactionPersister
                     }
 
                     // Bulk insert
-                    Transaction::insert($insertData);
+                    \DB::table('transactions')->insert($insertData);
                 }
 
                 Log::info('Batch processed successfully', [
@@ -120,7 +127,7 @@ class TransactionPersister
                 } catch (\Exception $individualError) {
                     Log::error('Individual transaction insert failed', [
                         'error' => $individualError->getMessage(),
-                        'transaction_id' => $data['transaction_id'] ?? 'unknown',
+                        'transaction_id' => $data->get('transaction_id', 'unknown'),
                     ]);
                 }
             }

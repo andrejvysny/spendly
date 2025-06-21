@@ -2,6 +2,8 @@
 
 namespace App\Services\TransactionImport;
 
+use App\Services\TransactionImport\ValidationResult\ValidationResult;
+
 class TransactionDto
 {
     public function __construct(
