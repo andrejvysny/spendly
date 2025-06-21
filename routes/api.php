@@ -29,6 +29,7 @@ Route::middleware(['web', 'auth'])->prefix('rules')->group(function () {
     // Rule management
     Route::get('/', [RuleController::class, 'index'])->name('rules.api.index');
     Route::get('/options', [RuleController::class, 'getOptions'])->name('rules.options');
+    Route::get('/action-input-config', [RuleController::class, 'getActionInputConfig'])->name('rules.action-input-config');
     Route::post('/groups', [RuleController::class, 'storeGroup'])->name('rules.groups.store');
     Route::put('/groups/{id}', [RuleController::class, 'updateGroup'])->name('rules.groups.update');
     Route::delete('/groups/{id}', [RuleController::class, 'destroyGroup'])->name('rules.groups.destroy');

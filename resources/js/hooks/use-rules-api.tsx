@@ -6,6 +6,7 @@ import {
     RuleGroupsResponse,
     RuleResponse,
     RuleOptionsResponse,
+    ActionInputConfigResponse,
     CreateRuleGroupForm,
     CreateRuleForm,
     ApiError,
@@ -34,6 +35,7 @@ interface UseRulesApiReturn {
     
     // Options
     fetchRuleOptions: () => Promise<RuleOptionsResponse['data'] | null>;
+    fetchActionInputConfig: () => Promise<ActionInputConfigResponse['data'] | null>;
     
     // Statistics
     fetchRuleStatistics: (id: number, days?: number) => Promise<RuleStatisticsResponse['data'] | null>;
@@ -257,6 +259,22 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
+    const fetchActionInputConfig = useCallback(async (): Promise<ActionInputConfigResponse['data'] | null> => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const response = await axios.get('/api/rules/action-input-config');
+            const result: ActionInputConfigResponse = response.data;
+            return result.data;
+        } catch (err) {
+            handleError(err);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     // Statistics API
     const fetchRuleStatistics = useCallback(async (id: number, days = 30): Promise<RuleStatisticsResponse['data'] | null> => {
         try {
@@ -402,6 +420,7 @@ export function useRulesApi(): UseRulesApiReturn {
         duplicateRule,
         toggleRuleActivation,
         fetchRuleOptions,
+        fetchActionInputConfig,
         fetchRuleStatistics,
         executeRulesOnTransactions,
         executeRulesOnDateRange,
