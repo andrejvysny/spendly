@@ -450,4 +450,73 @@ class RuleApiTest extends TestCase
                 'actions.0.action_type',
             ]);
     }
+
+    /**
+     * @test
+     */
+    public function it_toggles_rule_group_activation()
+    {
+        $user = User::factory()->create();
+        $ruleGroup = RuleGroup::factory()->create([
+            'user_id' => $user->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->patchJson("/api/rules/groups/{$ruleGroup->id}/toggle-activation");
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'message',
+                'data' => [
+                    'id',
+                    'user_id',
+                    'name',
+                    'description',
+                    'order',
+                    'is_active',
+                    'created_at',
+                    'updated_at',
+                ]
+            ]);
+
+        $this->assertDatabaseHas('rule_groups', [
+            'id' => $ruleGroup->id,
+            'is_active' => false,
+        ]);
+
+        // Toggle again to test the reverse
+        $response = $this->actingAs($user)
+            ->patchJson("/api/rules/groups/{$ruleGroup->id}/toggle-activation");
+
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('rule_groups', [
+            'id' => $ruleGroup->id,
+            'is_active' => true,
+        ]);
+    }
+
+    /**
+     * @test
+     */
+    public function it_prevents_toggling_other_users_rule_group()
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $ruleGroup = RuleGroup::factory()->create([
+            'user_id' => $otherUser->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->patchJson("/api/rules/groups/{$ruleGroup->id}/toggle-activation");
+
+        $response->assertStatus(404);
+
+        $this->assertDatabaseHas('rule_groups', [
+            'id' => $ruleGroup->id,
+            'is_active' => true, // Should remain unchanged
+        ]);
+    }
 } 

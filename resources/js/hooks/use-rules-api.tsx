@@ -22,6 +22,7 @@ interface UseRulesApiReturn {
     createRuleGroup: (data: CreateRuleGroupForm) => Promise<RuleGroup | null>;
     updateRuleGroup: (id: number, data: Partial<CreateRuleGroupForm>) => Promise<RuleGroup | null>;
     deleteRuleGroup: (id: number) => Promise<boolean>;
+    toggleRuleGroupActivation: (id: number) => Promise<RuleGroup | null>;
     
     // Rules
     fetchRule: (id: number) => Promise<Rule | null>;
@@ -124,6 +125,21 @@ export function useRulesApi(): UseRulesApiReturn {
         } catch (err) {
             handleError(err);
             return false;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const toggleRuleGroupActivation = useCallback(async (id: number): Promise<RuleGroup | null> => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const response = await axios.patch(`/api/rules/groups/${id}/toggle-activation`);
+            return response.data.data;
+        } catch (err) {
+            handleError(err);
+            return null;
         } finally {
             setLoading(false);
         }
@@ -324,6 +340,7 @@ export function useRulesApi(): UseRulesApiReturn {
         createRuleGroup,
         updateRuleGroup,
         deleteRuleGroup,
+        toggleRuleGroupActivation,
         fetchRule,
         createRule,
         updateRule,

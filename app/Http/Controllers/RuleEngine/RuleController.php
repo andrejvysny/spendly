@@ -327,6 +327,23 @@ class RuleController extends Controller
     }
 
     /**
+     * Toggle the activation status of a rule group.
+     */
+    public function toggleGroupActivation(Request $request, int $id): JsonResponse
+    {
+        $ruleGroup = RuleGroup::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $ruleGroup->update(['is_active' => !$ruleGroup->is_active]);
+
+        return response()->json([
+            'message' => 'Rule group activation status updated successfully',
+            'data' => $ruleGroup,
+        ]);
+    }
+
+    /**
      * Get available fields, operators, and action types.
      */
     public function getOptions(): JsonResponse

@@ -32,6 +32,7 @@ Route::middleware(['web', 'auth'])->prefix('rules')->group(function () {
     Route::post('/groups', [RuleController::class, 'storeGroup'])->name('rules.groups.store');
     Route::put('/groups/{id}', [RuleController::class, 'updateGroup'])->name('rules.groups.update');
     Route::delete('/groups/{id}', [RuleController::class, 'destroyGroup'])->name('rules.groups.destroy');
+    Route::patch('/groups/{id}/toggle-activation', [RuleController::class, 'toggleGroupActivation'])->name('rules.groups.toggle-activation');
     Route::post('/', [RuleController::class, 'store'])->name('rules.store');
     Route::get('/{id}', [RuleController::class, 'show'])->name('rules.show');
     Route::put('/{id}', [RuleController::class, 'update'])->name('rules.update');
