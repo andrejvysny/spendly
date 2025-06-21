@@ -38,6 +38,7 @@ Route::middleware(['web', 'auth'])->prefix('rules')->group(function () {
     Route::put('/{id}', [RuleController::class, 'update'])->name('rules.update');
     Route::delete('/{id}', [RuleController::class, 'destroy'])->name('rules.destroy');
     Route::post('/{id}/duplicate', [RuleController::class, 'duplicate'])->name('rules.duplicate');
+    Route::patch('/{id}/toggle-activation', [RuleController::class, 'toggleRuleActivation'])->name('rules.toggle-activation');
     Route::get('/{id}/statistics', [RuleController::class, 'statistics'])->name('rules.statistics');
     Route::post('/reorder', [RuleController::class, 'reorder'])->name('rules.reorder');
 

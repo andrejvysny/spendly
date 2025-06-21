@@ -30,6 +30,7 @@ interface UseRulesApiReturn {
     updateRule: (id: number, data: Partial<CreateRuleForm>) => Promise<Rule | null>;
     deleteRule: (id: number) => Promise<boolean>;
     duplicateRule: (id: number, newName?: string) => Promise<Rule | null>;
+    toggleRuleActivation: (id: number) => Promise<Rule | null>;
     
     // Options
     fetchRuleOptions: () => Promise<RuleOptionsResponse['data'] | null>;
@@ -222,6 +223,21 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
+    const toggleRuleActivation = useCallback(async (id: number): Promise<Rule | null> => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const response = await axios.patch(`/api/rules/${id}/toggle-activation`);
+            return response.data.data;
+        } catch (err) {
+            handleError(err);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     // Options API
     const fetchRuleOptions = useCallback(async (): Promise<RuleOptionsResponse['data'] | null> => {
         try {
@@ -346,6 +362,7 @@ export function useRulesApi(): UseRulesApiReturn {
         updateRule,
         deleteRule,
         duplicateRule,
+        toggleRuleActivation,
         fetchRuleOptions,
         fetchRuleStatistics,
         executeRulesOnTransactions,
