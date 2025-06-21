@@ -67,7 +67,7 @@ class TransactionDataParser
     /**
      * Parse a specific field value.
      */
-    private function parseField(string $field, string $value, array $configuration)
+    private function parseField(string $field, string $value, array $configuration): string|float|null
     {
         switch ($field) {
             case 'booked_date':

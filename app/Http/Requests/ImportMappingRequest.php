@@ -21,36 +21,36 @@ class ImportMappingRequest extends FormRequest
 
     public function getName(): string
     {
-        return $this->input('name');
+        return (string) $this->input('name');
     }
 
     public function getBankName(): ?string
     {
-        return $this->input('bank_name');
+        return $this->input('bank_name') ? (string) $this->input('bank_name') : null;
     }
 
     public function getColumnMapping(): array
     {
-        return $this->input('column_mapping', []);
+        return (array) $this->input('column_mapping', []);
     }
 
     public function getDateFormat(): string
     {
-        return $this->input('date_format');
+        return (string) $this->input('date_format');
     }
 
     public function getAmountFormat(): string
     {
-        return $this->input('amount_format');
+        return (string) $this->input('amount_format');
     }
 
     public function getAmountTypeStrategy(): string
     {
-        return $this->input('amount_type_strategy');
+        return (string) $this->input('amount_type_strategy');
     }
 
     public function getCurrency(): string
     {
-        return $this->input('currency');
+        return (string) $this->input('currency');
     }
 }

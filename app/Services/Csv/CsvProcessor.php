@@ -38,6 +38,11 @@ class CsvProcessor
 
         // Read headers first if we need them
         $headers = $this->safelyGetCSVLine($file, $delimiter, $quoteChar);
+        if ($headers === false) {
+            fclose($file);
+            throw new \RuntimeException('Unable to read CSV headers');
+        }
+
         Log::debug('Read headers', ['count' => count($headers)]);
 
         // Read data rows
@@ -64,7 +69,7 @@ class CsvProcessor
         return new CsvData($headers, $dataRows);
     }
 
-    public function preprocessCSV(?UploadedFile $file, string $delimiter, string $quoteChar): false|string
+    public function preprocessCSV(UploadedFile $file, string $delimiter, string $quoteChar): false|string
     {
         Log::debug('Starting CSV preprocessing', [
             'delimiter' => $delimiter,

@@ -8,7 +8,7 @@ use App\Services\TransactionImport\TransactionDataParser;
 use App\Services\TransactionImport\TransactionDto;
 use App\Services\TransactionImport\TransactionRowProcessor;
 use App\Services\TransactionImport\TransactionValidator;
-use App\Services\TransactionImport\ValidationResult;
+use App\Services\TransactionImport\ValidationResult\ValidationResult;
 use Illuminate\Support\Facades\Auth;
 use Tests\Unit\UnitTestCase;
 

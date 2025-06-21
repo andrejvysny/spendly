@@ -276,6 +276,22 @@ class TransactionValidatorTest extends UnitTestCase
 
         $result = $this->validator->validate($data);
 
+        $this->assertTrue($result->isValid());
+    }
+
+    public function test_validate_lowercase_currency_code_invalid()
+    {
+        $data = [
+            'booked_date' => '2023-12-25 00:00:00',
+            'amount' => 100.50,
+            'partner' => 'John Doe',
+            'description' => 'Payment',
+            'account_id' => 123,
+            'currency' => 'feay', // lowercase
+        ];
+
+        $result = $this->validator->validate($data);
+
         $this->assertFalse($result->isValid());
         $this->assertContains('Invalid currency code', $result->getErrors());
     }
