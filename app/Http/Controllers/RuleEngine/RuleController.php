@@ -10,7 +10,10 @@ use App\Models\RuleGroup;
 use App\Repositories\RuleRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class RuleController extends Controller
 {
@@ -22,7 +25,22 @@ class RuleController extends Controller
     }
 
     /**
-     * Display a listing of rule groups and rules.
+     * Display the rules page using Inertia.
+     */
+    public function indexPage(Request $request): Response
+    {
+        $ruleGroups = $this->ruleRepository->getRuleGroups(
+            $request->user(),
+            $request->boolean('active_only', false)
+        );
+
+        return Inertia::render('rules/index', [
+            'initialRuleGroups' => $ruleGroups,
+        ]);
+    }
+
+    /**
+     * Display a listing of rule groups and rules for API calls.
      */
     public function index(Request $request): JsonResponse
     {
@@ -64,6 +82,57 @@ class RuleController extends Controller
     }
 
     /**
+     * Update a rule group.
+     */
+    public function updateGroup(Request $request, int $id): JsonResponse
+    {
+        $ruleGroup = RuleGroup::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $ruleGroup = $this->ruleRepository->updateRuleGroup($ruleGroup, $validator->validated());
+
+        return response()->json([
+            'message' => 'Rule group updated successfully',
+            'data' => $ruleGroup,
+        ]);
+    }
+
+    /**
+     * Delete a rule group.
+     */
+    public function destroyGroup(Request $request, int $id): JsonResponse
+    {
+        $ruleGroup = RuleGroup::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        // Check if group has rules
+        if ($ruleGroup->rules()->count() > 0) {
+            return response()->json([
+                'error' => 'Cannot delete rule group that contains rules. Please delete all rules first.'
+            ], 422);
+        }
+
+        $ruleGroup->delete();
+
+        return response()->json([
+            'message' => 'Rule group deleted successfully',
+        ]);
+    }
+
+    /**
      * Store a new rule.
      */
     public function store(Request $request): JsonResponse
@@ -99,12 +168,14 @@ class RuleController extends Controller
         if ($ruleGroup->user_id !== $request->user()->id) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-        DB::transaction(function () use ($request, $validator) {
-            $rule = $this->ruleRepository->createRule(
+        
+        $rule = DB::transaction(function () use ($request, $validator) {
+            return $this->ruleRepository->createRule(
                 $request->user(),
                 $validator->validated()
             );
         });
+        
         return response()->json([
             'message' => 'Rule created successfully',
             'data' => $rule,
@@ -220,6 +291,39 @@ class RuleController extends Controller
         return response()->json([
             'data' => $statistics,
         ]);
+    }
+
+    /**
+     * Reorder rules within a group or globally.
+     */
+    public function reorder(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'rules' => 'required|array',
+            'rules.*.id' => 'required|exists:rules,id',
+            'rules.*.order' => 'required|integer|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Verify all rules belong to the current user
+        $ruleIds = collect($validator->validated()['rules'])->pluck('id');
+        $userRules = Rule::whereIn('id', $ruleIds)
+            ->where('user_id', $request->user()->id)
+            ->pluck('id');
+
+        if ($userRules->count() !== $ruleIds->count()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Update rule orders
+        foreach ($validator->validated()['rules'] as $ruleData) {
+            Rule::where('id', $ruleData['id'])->update(['order' => $ruleData['order']]);
+        }
+
+        return response()->json(['message' => 'Rules reordered successfully']);
     }
 
     /**

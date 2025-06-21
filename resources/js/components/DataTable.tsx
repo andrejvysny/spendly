@@ -13,12 +13,13 @@ interface DataTableProps<T> {
     data: T[];
     rowKey: (row: T) => string | number;
     emptyMessage?: string;
+    embedded?: boolean;
 }
 
-export function DataTable<T>({ columns, data, rowKey, emptyMessage = 'No data.' }: DataTableProps<T>) {
+export function DataTable<T>({ columns, data, rowKey, emptyMessage = 'No data.', embedded = false }: DataTableProps<T>) {
     return (
         <div className="mx-auto w-full max-w-7xl p-4">
-            <div className="bg-card rounded-lg border-1 p-6 shadow-xs">
+            <div className={"bg-card rounded-lg " + (embedded ?"p-0": "border-1 p-6 shadow-xs")}>
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>

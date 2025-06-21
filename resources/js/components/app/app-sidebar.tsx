@@ -45,7 +45,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Rules',
-        href: '/transaction-rules',
+        href: '/rules',
         icon: TagIcon,
     },
     {
