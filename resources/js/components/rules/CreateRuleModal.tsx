@@ -339,6 +339,11 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {triggerType === 'manual' && 'Rule will only run when manually triggered'}
+                                {triggerType === 'transaction_created' && 'Rule will automatically run when new transactions are created'}
+                                {triggerType === 'transaction_updated' && 'Rule will automatically run when transactions are modified'}
+                            </p>
                         </div>
                     </div>
 
