@@ -24,6 +24,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'account_id' => 123,
             'currency' => 'USD',
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -44,8 +45,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertFalse($result->isValid());
         $errors = $result->getErrors();
         $this->assertContains('Booked date is required', $errors);
-        $this->assertContains('Partner is required', $errors);
-        $this->assertContains('Description is required', $errors);
+        $this->assertContains('Transaction type is required', $errors);
         $this->assertContains('Account ID is required', $errors);
     }
 
@@ -58,6 +58,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'account_id' => 123,
             'currency' => 'USD',
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -75,6 +76,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'account_id' => 123,
             'currency' => 'USD',
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -93,6 +95,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'account_id' => 123,
             'currency' => 'USD',
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -112,6 +115,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'account_id' => 123,
             'currency' => 'US', // Should be 3 letters
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -131,6 +135,7 @@ class TransactionValidatorTest extends UnitTestCase
             'currency' => 'EUR',
             'source_iban' => 'INVALID-IBAN',
             'target_iban' => 'GB',
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -152,6 +157,7 @@ class TransactionValidatorTest extends UnitTestCase
             'currency' => 'EUR',
             'source_iban' => 'GB82WEST12345698765432',
             'target_iban' => 'DE89370400440532013000',
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -168,6 +174,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => str_repeat('a', 1001), // 1001 characters
             'account_id' => 123,
             'currency' => 'USD',
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -185,6 +192,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'account_id' => 123,
             'currency' => 'USD',
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -201,6 +209,7 @@ class TransactionValidatorTest extends UnitTestCase
             'partner' => 'John Doe',
             'description' => 'Payment',
             'currency' => 'USD',
+            'type' => 'PAYMENT',
             // No account_id
         ];
 
@@ -221,6 +230,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'currency' => 'USD',
             'account_id' => 123,
+            'type' => 'PAYMENT',
         ];
 
         $configuration = ['preview_mode' => true];
@@ -272,6 +282,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'account_id' => 123,
             'currency' => 'usd', // lowercase
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);
@@ -288,6 +299,7 @@ class TransactionValidatorTest extends UnitTestCase
             'description' => 'Payment',
             'account_id' => 123,
             'currency' => 'feay', // lowercase
+            'type' => 'PAYMENT',
         ];
 
         $result = $this->validator->validate($data);

@@ -37,8 +37,7 @@ class TransactionValidator
         $requiredFields = [
             'booked_date' => 'Booked date',
             'amount' => 'Amount',
-            'partner' => 'Partner',
-            'description' => 'Description',
+            'type' => 'Transaction type',
             'account_id' => 'Account ID',
             'currency' => 'Currency',
         ];
