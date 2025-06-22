@@ -30,6 +30,9 @@ class AnalyticsController extends Controller
                 ->values(); // Reset array keys to prevent issues
         }
 
+        // Get available data range for user feedback
+        $availableDataRange = $this->getAvailableDataRange($accountIds);
+
         // Parse date range from request
         $dateRange = $this->parseDateRange($request);
         $startDate = $dateRange['start'];
@@ -39,6 +42,11 @@ class AnalyticsController extends Controller
         $cashflow = $this->getCashflowData($accountIds, $startDate, $endDate);
         $categorySpending = $this->getCategorySpending($accountIds, $startDate, $endDate);
         $merchantSpending = $this->getMerchantSpending($accountIds, $startDate, $endDate);
+
+        // Check if we have any data in the selected period
+        $hasData = $cashflow->isNotEmpty() || 
+                  collect($categorySpending['categorized'])->isNotEmpty() || 
+                  collect($merchantSpending['withMerchant'])->isNotEmpty();
 
         return Inertia::render('Analytics/Index', [
             'accounts' => $user_accounts,
@@ -52,6 +60,8 @@ class AnalyticsController extends Controller
                 'end' => $endDate->format('Y-m-d'),
             ],
             'period' => $request->input('period', 'last_month'),
+            'availableDataRange' => $availableDataRange,
+            'hasData' => $hasData,
         ]);
     }
 
@@ -66,6 +76,14 @@ class AnalyticsController extends Controller
         $specificMonth = $request->input('specific_month'); // Format: YYYY-MM
 
         $now = Carbon::now();
+
+        // Get data-aware default dates if no period specified or if last_month has no data
+        if ($period === 'last_month' && !$request->has('period')) {
+            $dataAwareRange = $this->getDataAwareDateRange($request);
+            if ($dataAwareRange) {
+                return $dataAwareRange;
+            }
+        }
 
         // Default to previous month
         $start = $now->copy()->subMonth()->startOfMonth();
@@ -112,6 +130,90 @@ class AnalyticsController extends Controller
         return [
             'start' => $start,
             'end' => $end,
+        ];
+    }
+
+    /**
+     * Get a data-aware date range based on actual transaction data
+     */
+    private function getDataAwareDateRange(Request $request)
+    {
+        // Check if user is authenticated
+        if (!auth()->check()) {
+            return null;
+        }
+        
+        $user_accounts = \App\Models\Account::where('user_id', auth()->user()->id)->get();
+        $selectedAccountIds = $request->input('account_ids', []);
+
+        // If no accounts selected, use all user accounts
+        if (empty($selectedAccountIds)) {
+            $accountIds = $user_accounts->pluck('id');
+        } else {
+            $accountIds = collect($selectedAccountIds)
+                ->unique()
+                ->filter(function ($id) use ($user_accounts) {
+                    return $user_accounts->contains('id', $id);
+                })
+                ->values();
+        }
+
+        if ($accountIds->isEmpty()) {
+            return null;
+        }
+
+        // Get the date range of actual transaction data
+        $transactionDateRange = DB::table('transactions')
+            ->whereIn('account_id', $accountIds->toArray())
+            ->selectRaw('MIN(processed_date) as min_date, MAX(processed_date) as max_date')
+            ->first();
+
+        if (!$transactionDateRange || !$transactionDateRange->min_date) {
+            return null;
+        }
+
+        $minDate = Carbon::parse($transactionDateRange->min_date);
+        $maxDate = Carbon::parse($transactionDateRange->max_date);
+        $now = Carbon::now();
+
+        // If we have recent data (within last 3 months), use last month
+        if ($maxDate->diffInMonths($now) <= 3) {
+            return [
+                'start' => $maxDate->copy()->subMonth()->startOfMonth(),
+                'end' => $maxDate->copy()->subMonth()->endOfMonth()->endOfDay(),
+            ];
+        }
+
+        // Otherwise, use the last complete month of available data
+        $lastCompleteMonth = $maxDate->copy()->startOfMonth();
+        
+        return [
+            'start' => $lastCompleteMonth->copy()->startOfMonth(),
+            'end' => $lastCompleteMonth->copy()->endOfMonth()->endOfDay(),
+        ];
+    }
+
+    /**
+     * Get the available data range for user accounts
+     */
+    private function getAvailableDataRange($accountIds)
+    {
+        if (!$accountIds || $accountIds->isEmpty()) {
+            return null;
+        }
+
+        $transactionDateRange = DB::table('transactions')
+            ->whereIn('account_id', $accountIds->toArray())
+            ->selectRaw('MIN(processed_date) as min_date, MAX(processed_date) as max_date')
+            ->first();
+
+        if (!$transactionDateRange || !$transactionDateRange->min_date) {
+            return null;
+        }
+
+        return [
+            'start' => Carbon::parse($transactionDateRange->min_date)->format('Y-m-d'),
+            'end' => Carbon::parse($transactionDateRange->max_date)->format('Y-m-d'),
         ];
     }
 
