@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\Csv\CsvProcessor;
 use App\Services\DuplicateTransactionService;
 use App\Services\ImportMappingService;
+use App\Services\TransactionImport\ImportFailurePersister;
 use App\Services\TransactionImport\TransactionDataParser;
 use App\Services\TransactionImport\TransactionImportService;
 use App\Services\TransactionImport\TransactionPersister;
@@ -39,11 +40,8 @@ class AppServiceProvider extends ServiceProvider
         // Register transaction import services
         $this->app->singleton(TransactionDataParser::class);
         $this->app->singleton(TransactionValidator::class);
-        $this->app->singleton(TransactionPersister::class, function ($app) {
-            return new TransactionPersister(
-                $app->make(DuplicateTransactionService::class)
-            );
-        });
+        $this->app->singleton(TransactionPersister::class);
+        $this->app->singleton(ImportFailurePersister::class);
 
         $this->app->singleton(TransactionRowProcessor::class, function ($app) {
             return new TransactionRowProcessor(
@@ -57,7 +55,8 @@ class AppServiceProvider extends ServiceProvider
             return new TransactionImportService(
                 $app->make(CsvProcessor::class),
                 $app->make(TransactionRowProcessor::class),
-                $app->make(TransactionPersister::class)
+                $app->make(TransactionPersister::class),
+                $app->make(ImportFailurePersister::class)
             );
         });
     }

@@ -5,6 +5,7 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Import\ImportController;
+use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\Import\ImportMappingsController;
 use App\Http\Controllers\Import\ImportWizardController;
 use App\Http\Controllers\MerchantController;
@@ -66,6 +67,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Import routes
     Route::group(['prefix' => 'imports', 'as' => 'imports.'], function () {
         Route::get('/', [ImportController::class, 'index'])->name('index');
+        Route::get('/{import}/failures', [ImportFailureController::class, 'failuresPage'])->name('failures');
         Route::post('/revert/{import}', [ImportController::class, 'revertImport'])->name('revert');
         Route::delete('/{import}', [ImportController::class, 'deleteImport'])->name('delete');
 
