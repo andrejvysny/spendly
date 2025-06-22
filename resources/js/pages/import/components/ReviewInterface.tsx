@@ -114,24 +114,24 @@ const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
 type FormValues = Record<string, any>;
 
 import FieldMappingService from '@/pages/import/FieldMappingService';
+import { toast } from 'react-toastify';
 
 function ReviewInterface({
     pendingFailures,
     currentReviewIndex,
     setReviewMode,
-    handleReviewTransactionCreate,
+
     handleMarkAsReviewed,
     handleMarkAsIgnored,
-    isSubmitting,
+    handleNextFailure, // Default to no-op if not provided
     importData,
 }: {
     pendingFailures: any[];
     currentReviewIndex: number;
     setReviewMode: (mode: string) => void;
-    handleReviewTransactionCreate: (values: any) => Promise<void>;
     handleMarkAsReviewed: () => void;
     handleMarkAsIgnored: () => void;
-    isSubmitting: boolean;
+    handleNextFailure: () => Promise<void>; // Function to handle moving to next failure
     importData: any;
 }) {
     // ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL RETURNS
@@ -140,6 +140,29 @@ function ReviewInterface({
     const [mappedValues, setMappedValues] = useState<Record<string, any>>({});
     const [actuallyMappedFields, setActuallyMappedFields] = useState<Set<string>>(new Set());
     const [accountDetails, setAccountDetails] = useState<{ id: number; name: string; iban: string } | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+
+    const handleReviewTransactionCreate = async (values: FormValues) => {
+        if (!pendingFailures[currentReviewIndex]) return;
+
+        const currentFailure = pendingFailures[currentReviewIndex];
+        setIsSubmitting(true);
+
+        try {
+            // Create transaction using the new endpoint
+            await axios.post(`/api/imports/${importData.id}/failures/${currentFailure.id}/create-transaction`, values);
+
+            toast.success('Transaction created successfully');
+            await handleNextFailure();
+        } catch (error) {
+            toast.error('Failed to create transaction');
+            console.error('Transaction creation failed:', error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
 
     // Load field definitions from backend
     useEffect(() => {
