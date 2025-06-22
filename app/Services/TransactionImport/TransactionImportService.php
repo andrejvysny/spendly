@@ -17,6 +17,7 @@ readonly class TransactionImportService
         private CsvProcessor $csvProcessor,
         private TransactionRowProcessor $rowProcessor,
         private TransactionPersister $persister,
+        private ImportFailurePersister $failurePersister,
     ) {}
 
     /**
@@ -56,7 +57,16 @@ readonly class TransactionImportService
                 'skipped_count' => $batch->getSkippedCount(),
             ]);
 
+            // Persist successful transactions
             $this->persister->persistBatch($batch);
+
+            // Persist failures and skipped transactions for manual review
+            $failureStats = $this->failurePersister->persistFailures($batch, $import);
+
+            Log::info('Import failure persistence completed', [
+                'import_id' => $import->id,
+                'failure_stats' => $failureStats,
+            ]);
 
             $this->updateImportStatus($import, $batch);
 
@@ -134,14 +144,18 @@ readonly class TransactionImportService
         $skipped = $batch->getSkippedCount();
         $total = $batch->getTotalProcessed();
 
-        // Determine status
+        // Determine status with improved logic
         if ($processed === 0 && $total > 0) {
+            // All transactions failed
             $status = Import::STATUS_FAILED;
-        } elseif ($failed > $processed && $total > 10) {
+        } elseif ($failed > 0 || ($skipped > 0 && $skipped > ($processed * 0.1))) {
+            // Some failures occurred, or more than 10% were skipped
             $status = Import::STATUS_PARTIALLY_FAILED;
         } elseif ($skipped > 0) {
+            // Only duplicates/minor skips
             $status = Import::STATUS_COMPLETED_SKIPPED_DUPLICATES;
         } else {
+            // All transactions processed successfully
             $status = Import::STATUS_COMPLETED;
         }
 

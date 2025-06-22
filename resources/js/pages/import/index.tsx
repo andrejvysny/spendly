@@ -1,11 +1,13 @@
 import { DataTable } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import { BreadcrumbItem, Import } from '@/types/index';
 import { formatDate } from '@/utils/date';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import axios from 'axios';
+import { AlertTriangle, MoreHorizontal, Eye, FileX, Trash, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 import ImportWizard from './components/ImportWizard';
@@ -145,17 +147,46 @@ export default function Index({ imports }: Props) {
                         key: 'actions',
                         className: 'text-right',
                         render: (row) => (
-                            <>
-                                <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
-                                    Revert
-                                </Button>
-
-                                {row.status == 'pending' || row.status == 'failed' || row.status == 'reverted' ? (
-                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteImport(row.id)}>
-                                        Delete
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Open menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
                                     </Button>
-                                ) : null}
-                            </>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    {(row.status === 'failed' || row.status === 'partially_failed') && (
+                                        <DropdownMenuItem asChild>
+                                            <Link href={`/imports/${row.id}/failures`} className="flex items-center">
+                                                <AlertTriangle className="mr-2 h-4 w-4 text-orange-500" />
+                                                Review Failures
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem asChild>
+                                        <Link href={`/imports/${row.id}`} className="flex items-center">
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            View Details
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                        onClick={() => handleRevertImport(row.id)}
+                                        className="flex items-center"
+                                    >
+                                        <RotateCcw className="mr-2 h-4 w-4" />
+                                        Revert Import
+                                    </DropdownMenuItem>
+                                    {(row.status === 'pending' || row.status === 'failed' || row.status === 'reverted') && (
+                                        <DropdownMenuItem 
+                                            onClick={() => handleDeleteImport(row.id)}
+                                            className="flex items-center text-red-600"
+                                        >
+                                            <Trash className="mr-2 h-4 w-4" />
+                                            Delete
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         ),
                     }, // Custom render for actions column,
                 ]}

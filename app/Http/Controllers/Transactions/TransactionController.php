@@ -279,9 +279,25 @@ class TransactionController extends Controller
                 $transaction->tags()->attach($tagIds);
             }
 
+            // Check if this is an API request
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Transaction created successfully',
+                    'transaction' => $transaction->load(['account', 'merchant', 'category', 'tags'])
+                ], 201);
+            }
+
             return redirect()->back()->with('success', 'Transaction created successfully');
         } catch (\Exception $e) {
             Log::error('Transaction creation failed: '.$e->getMessage());
+
+            // Check if this is an API request
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'error' => 'Failed to create transaction',
+                    'message' => $e->getMessage()
+                ], 500);
+            }
 
             return redirect()->back()->with('error', 'Failed to create transaction: '.$e->getMessage());
         }

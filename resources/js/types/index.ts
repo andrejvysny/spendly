@@ -104,10 +104,57 @@ export interface Import {
     metadata: {
         headers?: string[];
         sample_rows?: string[][];
+        skipped_rows?: number;
+        failed_rows?: number;
+        processed_rows?: number;
+        total_rows?: number;
     };
     processed_at: string | null;
     created_at: string;
     updated_at: string;
+}
+
+export interface ImportFailure {
+    id: number;
+    import_id: number;
+    row_number: number | null;
+    raw_data: any[];
+    error_type: 'validation_failed' | 'duplicate' | 'processing_error' | 'parsing_error';
+    error_message: string;
+    error_details: {
+        message: string;
+        errors?: string[];
+        field?: string;
+        validation_errors?: string[];
+        duplicate_fingerprint?: string;
+        exception?: string;
+    };
+    parsed_data: {
+        booked_date?: string;
+        amount?: number;
+        partner?: string;
+        description?: string;
+        currency?: string;
+        account_id?: number;
+        transaction_id?: string;
+        [key: string]: any;
+    } | null;
+    metadata: {
+        row_number?: number;
+        headers?: string[];
+        delimiter?: string;
+        quote_char?: string;
+        duplicate?: boolean;
+        [key: string]: any;
+    };
+    status: 'pending' | 'reviewed' | 'resolved' | 'ignored';
+    review_notes: string | null;
+    reviewed_at: string | null;
+    reviewed_by: number | null;
+    created_at: string;
+    updated_at: string;
+    reviewer?: User;
+    import?: Import;
 }
 
 export interface Category {
