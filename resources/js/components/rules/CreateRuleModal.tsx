@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,7 +126,15 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
     const [applyToAll, setApplyToAll] = useState(true);
     const [startDate, setStartDate] = useState('');
 
-    const { createRule, loading, error } = useRulesApi();
+    const { createRule, loading, error, clearError } = useRulesApi();
+
+    // Handle errors with toast
+    useEffect(() => {
+        if (error) {
+            toast.error(error);
+            clearError();
+        }
+    }, [error, clearError]);
 
     // Reset form when modal closes
     useEffect(() => {
@@ -599,11 +608,7 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                         </div>
                     </div>
 
-                    {error && (
-                        <div className="bg-destructive/10 border border-destructive rounded-lg p-3">
-                            <p className="text-sm text-destructive">{error}</p>
-                        </div>
-                    )}
+
 
                     {ruleGroups?.length === 0 && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">

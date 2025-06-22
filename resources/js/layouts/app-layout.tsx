@@ -13,7 +13,7 @@ export default ({ children, breadcrumbs, ...props }: AppLayoutProps) => (
     <AppLayoutTemplate breadcrumbs={breadcrumbs} {...props}>
         <ToastContainer
             position="top-center"
-            autoClose={5000}
+            autoClose={3000}
             hideProgressBar={false}
             newestOnTop
             closeOnClick
