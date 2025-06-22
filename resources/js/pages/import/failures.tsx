@@ -101,6 +101,30 @@ export default function ImportFailures({ import: importData, failures: initialFa
         }
     };
 
+    const loadMoreFailures = async () => {
+        try {
+            setIsLoadingFilters(true);
+            const params = new URLSearchParams();
+            if (filters.error_type) params.append('error_type', filters.error_type);
+            if (filters.status) params.append('status', filters.status);
+            if (filters.search) params.append('search', filters.search);
+            params.append('page', (failures.meta.current_page + 1).toString());
+
+            const response = await axios.get(`/api/imports/${importData.id}/failures?${params.toString()}`);
+            
+            // Append new failures to existing ones
+            setFailures(prevFailures => ({
+                ...response.data.failures,
+                data: [...prevFailures.data, ...response.data.failures.data]
+            }));
+            setStats(response.data.stats);
+        } catch (error) {
+            toast.error('Failed to load more failures');
+        } finally {
+            setIsLoadingFilters(false);
+        }
+    };
+
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
             loadFailures();
@@ -125,7 +149,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
         }
     };
 
-    const handleBulkAction = async (action: 'reviewed' | 'resolved' | 'ignored', notes?: string) => {
+    const handleBulkAction = async (action: 'reviewed' | 'resolved' | 'ignored' | 'pending', notes?: string) => {
         if (selectedFailures.length === 0) {
             toast.error('Please select failures to update');
             return;
@@ -139,15 +163,34 @@ export default function ImportFailures({ import: importData, failures: initialFa
                 notes,
             });
 
-            toast.success(`Marked ${selectedFailures.length} failures as ${action}`);
+            const actionName = action === 'pending' ? 'unmarked (reverted to pending)' : action;
+            toast.success(`Marked ${selectedFailures.length} failures as ${actionName}`);
             setSelectedFailures([]);
             await loadFailures();
         } catch (error) {
-            toast.error(`Failed to mark failures as ${action}`);
+            const actionName = action === 'pending' ? 'unmark' : `mark as ${action}`;
+            toast.error(`Failed to ${actionName} failures`);
         } finally {
             setIsMarkingReviewed(false);
         }
     };
+
+    const handleUnmarkAsPending = async (failureId: number, notes?: string) => {
+        setIsMarkingReviewed(true);
+        try {
+            await axios.patch(`/api/imports/${importData.id}/failures/${failureId}/pending`, {
+                notes: notes || 'Unmarked and reverted to pending',
+            });
+
+            toast.success('Failure unmarked and reverted to pending');
+            await loadFailures();
+        } catch (error) {
+            toast.error('Failed to unmark failure');
+        } finally {
+            setIsMarkingReviewed(false);
+        }
+    };
+
     // Enhanced review mode handlers
     const handleEnterReviewMode = () => {
         if (pendingFailures.length > 0) {
@@ -383,6 +426,14 @@ export default function ImportFailures({ import: importData, failures: initialFa
                                             >
                                                 Mark as Reviewed ({selectedFailures.length})
                                             </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleBulkAction('pending', 'Bulk unmarked')}
+                                                disabled={isMarkingReviewed}
+                                            >
+                                                Unmark ({selectedFailures.length})
+                                            </Button>
                                         </div>
                                     )}
                                 </div>
@@ -392,15 +443,22 @@ export default function ImportFailures({ import: importData, failures: initialFa
                         {/* Failures List */}
                         <div className="space-y-4">
                             {failures.data.length > 0 && (
-                                <div className="mb-4 flex items-center space-x-2">
-                                    <Checkbox
-                                        id="select-all"
-                                        checked={selectedFailures.length === failures.data.length}
-                                        onCheckedChange={handleSelectAll}
-                                    />
-                                    <Label htmlFor="select-all" className="text-sm font-medium">
-                                        Select all ({failures.data.length})
-                                    </Label>
+                                <div className="mb-4 flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="select-all"
+                                            checked={selectedFailures.length === failures.data.length}
+                                            onCheckedChange={handleSelectAll}
+                                        />
+                                        <Label htmlFor="select-all" className="text-sm font-medium">
+                                            Select all ({failures.data.length})
+                                        </Label>
+                                    </div>
+                                    {failures.meta && failures.meta.total > failures.data.length && (
+                                        <div className="text-sm text-gray-500">
+                                            Showing {failures.data.length} of {failures.meta.total} failures
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -410,8 +468,33 @@ export default function ImportFailures({ import: importData, failures: initialFa
                                     failure={failure}
                                     selectedFailures={selectedFailures}
                                     handleSelectFailure={handleSelectFailure}
+                                    handleUnmarkAsPending={handleUnmarkAsPending}
+                                    isMarkingReviewed={isMarkingReviewed}
                                 />
                             ))}
+
+                            {/* Load More Button */}
+                            {failures.meta && failures.meta.current_page < failures.meta.last_page && (
+                                <div className="mt-6 text-center">
+                                    <Button
+                                        variant="outline"
+                                        onClick={loadMoreFailures}
+                                        disabled={isLoadingFilters}
+                                        className="w-full md:w-auto"
+                                    >
+                                        {isLoadingFilters ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Loading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                Load More ({failures.meta.total - failures.data.length} remaining)
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
 
                             {failures.data.length === 0 && (
                                 <Card>

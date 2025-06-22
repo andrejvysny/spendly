@@ -143,4 +143,17 @@ class ImportFailure extends Model
             'review_notes' => $notes,
         ]);
     }
+
+    /**
+     * Mark as pending (unmark/revert status)
+     */
+    public function markAsPending(?string $notes = null): bool
+    {
+        return $this->update([
+            'status' => self::STATUS_PENDING,
+            'reviewed_at' => null,
+            'reviewed_by' => null,
+            'review_notes' => $notes,
+        ]);
+    }
 }

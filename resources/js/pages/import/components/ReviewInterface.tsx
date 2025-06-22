@@ -46,7 +46,15 @@ const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
         switch (fieldDef.type) {
             case 'number':
                 if (fieldDef.required) {
-                    schema = z.coerce.number().min(0.01, { message: `${fieldDef.label} must be greater than 0` });
+                    // Allow negative amounts for expenses - don't enforce minimum value for amount field
+                    if (fieldName === 'amount') {
+                        schema = z.coerce.number({
+                            required_error: `${fieldDef.label} is required`,
+                            invalid_type_error: `${fieldDef.label} must be a number`
+                        });
+                    } else {
+                        schema = z.coerce.number().min(0.01, { message: `${fieldDef.label} must be greater than 0` });
+                    }
                 } else {
                     schema = z.coerce.number().optional().nullable();
                 }
@@ -61,12 +69,16 @@ const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
             case 'select':
                 if (fieldDef.options && fieldDef.options.length > 0) {
                     const values = fieldDef.options.map(opt => opt.value.toString());
+                    // Add '__none__' as a valid option for form compatibility
+                    const validValues = [...values, '__none__'];
                     if (fieldDef.required) {
-                        schema = z.enum(values as [string, ...string[]], {
+                        schema = z.enum(validValues as [string, ...string[]], {
                             required_error: `${fieldDef.label} is required`,
+                        }).refine((val) => val !== '__none__', {
+                            message: `${fieldDef.label} is required`,
                         });
                     } else {
-                        schema = z.enum(values as [string, ...string[]]).nullable().optional();
+                        schema = z.enum(validValues as [string, ...string[]]).nullable().optional();
                     }
                 } else {
                     schema = fieldDef.required
@@ -114,6 +126,8 @@ function ReviewInterface({
     // ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL RETURNS
     const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinitions | null>(null);
     const [isLoadingFields, setIsLoadingFields] = useState(true);
+    const [mappedValues, setMappedValues] = useState<Record<string, any>>({});
+    const [actuallyMappedFields, setActuallyMappedFields] = useState<Set<string>>(new Set());
 
     // Load field definitions from backend
     useEffect(() => {
@@ -131,11 +145,8 @@ function ReviewInterface({
         loadFieldDefinitions();
     }, []);
 
-    // Get current failure and prepare form data
+    // Get current failure and prepare initial default values
     const currentFailure = pendingFailures[currentReviewIndex];
-    const defaultValues = currentFailure && fieldDefinitions
-        ? FieldMappingService.mapFields(currentFailure, importData, fieldDefinitions)
-        : {};
 
     // Create dynamic schema - use empty schema if fieldDefinitions not ready
     const dynamicSchema = fieldDefinitions
@@ -145,16 +156,65 @@ function ReviewInterface({
     // useForm hook must always be called - cannot be conditional
     const form = useForm<FormValues>({
         resolver: zodResolver(dynamicSchema),
-        defaultValues,
+        defaultValues: {}, // Start with empty defaults, will be populated in useEffect
     });
 
-    // Reset form when fieldDefinitions or currentFailure changes
+    // Map fields and reset form when currentFailure or fieldDefinitions change
     useEffect(() => {
         if (currentFailure && fieldDefinitions) {
-            const newDefaultValues = FieldMappingService.mapFields(currentFailure, importData, fieldDefinitions);
-            form.reset(newDefaultValues);
+            console.log('🔄 Mapping fields for failure:', currentFailure.id);
+
+            // Get mapped values from FieldMappingService
+            const mappingResult = FieldMappingService.mapFields(
+                currentFailure,
+                importData,
+                fieldDefinitions
+            );
+
+            const newMappedValues = mappingResult.values;
+            const newActuallyMappedFields = mappingResult.actuallyMappedFields;
+
+            console.log('📊 Mapped values:', newMappedValues);
+            console.log('🎯 Actually mapped fields:', Array.from(newActuallyMappedFields));
+
+            setMappedValues(newMappedValues);
+            setActuallyMappedFields(newActuallyMappedFields);
+
+            // Transform values for form compatibility (especially select fields)
+            const formValues: Record<string, any> = {};
+
+            fieldDefinitions.field_order.forEach((fieldName) => {
+                const fieldDef = fieldDefinitions.fields[fieldName];
+                let value = newMappedValues[fieldName];
+
+                // Handle select fields - convert null/undefined to __none__ for form compatibility
+                if (fieldDef?.type === 'select') {
+                    if (value === null || value === undefined) {
+                        value = fieldDef.required ? '' : '__none__';
+                    } else {
+                        value = value.toString();
+                    }
+                }
+
+                // Handle number fields - ensure they're numbers
+                if (fieldDef?.type === 'number' && value !== null && value !== undefined) {
+                    value = Number(value);
+                }
+
+                formValues[fieldName] = value;
+            });
+
+            console.log('📝 Form values being set:', formValues);
+
+            // Reset form with transformed values
+            form.reset(formValues);
+
+            // Force form to re-render by triggering validation
+            setTimeout(() => {
+                form.trigger();
+            }, 0);
         }
-    }, [currentFailure, fieldDefinitions, form, importData, FieldMappingService]);
+    }, [currentFailure, fieldDefinitions, form, importData]);
 
     // NOW WE CAN HAVE CONDITIONAL RENDERING
     if (isLoadingFields) {
@@ -189,14 +249,33 @@ function ReviewInterface({
     }
 
     const handleSubmit = async (values: FormValues) => {
-        await handleReviewTransactionCreate(values);
+        // Transform form values back for submission
+        const submitValues: Record<string, any> = {};
+
+        Object.entries(values).forEach(([fieldName, value]) => {
+            const fieldDef = fieldDefinitions.fields[fieldName];
+
+            // Convert __none__ back to null for select fields
+            if (fieldDef?.type === 'select' && value === '__none__') {
+                submitValues[fieldName] = null;
+            } else {
+                submitValues[fieldName] = value;
+            }
+        });
+
+        console.log('🚀 Submitting values:', submitValues);
+        await handleReviewTransactionCreate(submitValues);
     };
 
     const renderField = (fieldName: string, fieldDef: FieldDefinition) => {
         const error = form.formState.errors[fieldName];
+        const currentValue = form.watch(fieldName);
+        // Only mark as mapped if it was actually mapped from raw data, not just has a value
+        const isMapped = actuallyMappedFields.has(fieldName);
+
         const commonProps = {
             id: fieldName,
-            className: error ? 'border-red-500' : '',
+            className: `${error ? 'border-destructive' : ''} ${isMapped ? 'border-primary bg-primary/5' : ''}`,
         };
 
         switch (fieldDef.type) {
@@ -206,7 +285,7 @@ function ReviewInterface({
                         {...commonProps}
                         type="number"
                         step={fieldDef.step || '0.01'}
-                        {...form.register(fieldName)}
+                        {...form.register(fieldName, { valueAsNumber: true })}
                     />
                 );
             case 'date':
@@ -220,10 +299,16 @@ function ReviewInterface({
             case 'select':
                 return (
                     <Select
-                        value={form.watch(fieldName) === null || form.watch(fieldName) === undefined ? '__none__' : form.watch(fieldName)?.toString() || ''}
-                        onValueChange={(value) => form.setValue(fieldName, value === '__none__' ? null : value)}
+                        value={currentValue?.toString() || '__none__'}
+                        onValueChange={(value) => {
+                            console.log(`🔄 Select field ${fieldName} changed to:`, value);
+                            form.setValue(fieldName, value === '__none__' ? null : value, {
+                                shouldValidate: true,
+                                shouldDirty: true
+                            });
+                        }}
                     >
-                        <SelectTrigger className={error ? 'border-red-500' : ''}>
+                        <SelectTrigger className={`${error ? 'border-destructive' : ''} ${isMapped ? 'border-primary bg-primary/5' : ''}`}>
                             <SelectValue placeholder={`Select ${fieldDef.label}`} />
                         </SelectTrigger>
                         <SelectContent>
@@ -318,24 +403,58 @@ function ReviewInterface({
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                            {/* Auto-mapping Summary */}
+                            {actuallyMappedFields.size > 0 && (
+                                <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                                    <h4 className="text-sm font-medium text-primary mb-2">
+                                        🤖 Auto-mapped Fields ({actuallyMappedFields.size})
+                                    </h4>
+                                    <div className="text-xs text-primary/80 grid grid-cols-2 gap-1">
+                                        {Array.from(actuallyMappedFields)
+                                            .map((fieldName) => {
+                                                const fieldDef = fieldDefinitions.fields[fieldName];
+                                                const value = mappedValues[fieldName];
+                                                return (
+                                                    <div key={fieldName} className="flex justify-between">
+                                                        <span className="font-medium">{fieldDef?.label || fieldName}:</span>
+                                                        <span className="ml-2 truncate max-w-20" title={value?.toString()}>
+                                                            {value?.toString().length > 15
+                                                                ? `${value.toString().substring(0, 15)}...`
+                                                                : value?.toString()}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                    </div>
+                                </div>
+                            )}
+
                             {fieldDefinitions.field_order.map((fieldName) => {
                                 const fieldDef = fieldDefinitions.fields[fieldName];
                                 if (!fieldDef) return null;
 
+                                const isMapped = actuallyMappedFields.has(fieldName);
+
                                 return (
-                                    <div key={fieldName}>
-                                        <Label htmlFor={fieldName}>
+                                    <div key={fieldName} className="relative">
+                                        <Label htmlFor={fieldName} className="flex items-center gap-2">
                                             {fieldDef.label}
                                             {fieldDef.required && ' *'}
+                                            {isMapped && (
+                                                <span className="inline-flex items-center gap-1 rounded-full px-2  text-xs font-medium text-blue-500 ">
+                                                    <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+                                                    auto-mapped
+                                                </span>
+                                            )}
                                         </Label>
                                         {renderField(fieldName, fieldDef)}
                                         {form.formState.errors[fieldName] && (
-                                            <p className="mt-1 text-sm text-red-600">
+                                            <p className="mt-1 text-sm text-destructive">
                                                 {form.formState.errors[fieldName]?.message as string}
                                             </p>
                                         )}
                                         {fieldDef.description && (
-                                            <p className="mt-1 text-xs text-gray-500">{fieldDef.description}</p>
+                                            <p className="mt-1 text-xs text-muted-foreground">{fieldDef.description}</p>
                                         )}
                                     </div>
                                 );
