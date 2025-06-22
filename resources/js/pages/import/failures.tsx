@@ -206,25 +206,6 @@ export default function ImportFailures({ import: importData, failures: initialFa
         }
     };
 
-    const handleReviewTransactionCreate = async (values: FormValues) => {
-        if (!pendingFailures[currentReviewIndex]) return;
-
-        const currentFailure = pendingFailures[currentReviewIndex];
-        setIsSubmitting(true);
-
-        try {
-            // Create transaction using the new endpoint
-            await axios.post(`/api/imports/${importData.id}/failures/${currentFailure.id}/create-transaction`, values);
-
-            toast.success('Transaction created successfully');
-            await handleNextFailure();
-        } catch (error) {
-            toast.error('Failed to create transaction');
-            console.error('Transaction creation failed:', error);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
 
     const handleMarkAsReviewed = async (notes?: string) => {
         if (!pendingFailures[currentReviewIndex]) return;
@@ -291,10 +272,9 @@ export default function ImportFailures({ import: importData, failures: initialFa
                         pendingFailures={pendingFailures}
                         currentReviewIndex={currentReviewIndex}
                         setReviewMode={(mode) => setReviewMode(mode as 'list' | 'review')}
-                        handleReviewTransactionCreate={handleReviewTransactionCreate}
                         handleMarkAsReviewed={handleMarkAsReviewed}
                         handleMarkAsIgnored={handleMarkAsIgnored}
-                        isSubmitting={isSubmitting}
+                        handleNextFailure={handleNextFailure}
                         importData={importData}
                     />
                 ) : (

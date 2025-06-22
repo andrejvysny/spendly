@@ -257,7 +257,7 @@ class TransactionController extends Controller
                 'target_iban' => 'nullable|string|max:255',
                 'source_iban' => 'nullable|string|max:255',
                 'partner' => 'nullable|string|max:255',
-                'type' => 'required|string|in:TRANSFER,DEPOSIT,WITHDRAWAL,PAYMENT',
+                'type' => 'required|string|max:255',
                 'metadata' => 'nullable|array',
                 'balance_after_transaction' => 'required|numeric',
                 'account_id' => 'required|exists:accounts,id',

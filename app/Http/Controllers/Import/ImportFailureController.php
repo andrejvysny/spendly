@@ -48,7 +48,7 @@ class ImportFailureController extends Controller
 
         // Determine pagination size - use larger size when showing all records
         $hasFilters = $request->filled('error_type') || $request->filled('status') || $request->filled('search');
-        $perPage = $hasFilters 
+        $perPage = $hasFilters
             ? $request->input('per_page', 50)  // Use 50 for filtered results
             : $request->input('per_page', 1000); // Use 1000 for "all" to show everything
 
@@ -97,7 +97,7 @@ class ImportFailureController extends Controller
 
         // Determine pagination size - use larger size when showing all records
         $hasFilters = $request->filled('error_type') || $request->filled('status') || $request->filled('search');
-        $perPage = $hasFilters 
+        $perPage = $hasFilters
             ? $request->input('per_page', 50)  // Use 50 for filtered results
             : $request->input('per_page', 1000); // Use 1000 for "all" to show everything
 
@@ -434,11 +434,14 @@ class ImportFailureController extends Controller
             'target_iban' => 'nullable|string|max:255',
             'source_iban' => 'nullable|string|max:255',
             'partner' => 'nullable|string|max:255',
-            'type' => 'required|string|in:TRANSFER,DEPOSIT,WITHDRAWAL,PAYMENT,CARD_PAYMENT,EXCHANGE',
-            'balance_after_transaction' => 'nullable|numeric',
+            'type' => 'required|string|max:255',
+            'metadata' => 'nullable|array',
+            'balance_after_transaction' => 'required|numeric',
             'account_id' => 'required|exists:accounts,id',
             'merchant_id' => 'nullable|exists:merchants,id',
             'category_id' => 'nullable|exists:categories,id',
+            'tags' => 'nullable|array',
+            'tags.*' => 'exists:tags,id',
             'note' => 'nullable|string',
             'recipient_note' => 'nullable|string',
             'place' => 'nullable|string|max:255',
