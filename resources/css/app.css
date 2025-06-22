@@ -169,3 +169,15 @@
 .bg-gray-700 {
     background-color: #404040;
 }
+
+.border-success {
+    border-color: #22c55e !important;
+}
+
+.text-success {
+    color: #22c55e !important;
+}
+
+.bg-success{
+    background-color: #22c55e !important;
+}
