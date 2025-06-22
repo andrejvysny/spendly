@@ -364,4 +364,101 @@ class ImportFailureController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
+
+    /**
+     * Create a transaction from an import failure review.
+     */
+    public function createTransactionFromReview(Import $import, ImportFailure $failure, Request $request): JsonResponse
+    {
+        Gate::authorize('update', $import);
+
+        // Ensure the failure belongs to the import
+        if ($failure->import_id !== $import->id) {
+            return response()->json(['error' => 'Failure not found in this import'], 404);
+        }
+
+        $request->validate([
+            'transaction_id' => 'required|string|max:255',
+            'amount' => 'required|numeric',
+            'currency' => 'required|string|max:3',
+            'booked_date' => 'required|date',
+            'processed_date' => 'required|date',
+            'description' => 'required|string|max:255',
+            'target_iban' => 'nullable|string|max:255',
+            'source_iban' => 'nullable|string|max:255',
+            'partner' => 'nullable|string|max:255',
+            'type' => 'required|string|in:TRANSFER,DEPOSIT,WITHDRAWAL,PAYMENT,CARD_PAYMENT,EXCHANGE',
+            'balance_after_transaction' => 'nullable|numeric',
+            'account_id' => 'required|exists:accounts,id',
+            'merchant_id' => 'nullable|exists:merchants,id',
+            'category_id' => 'nullable|exists:categories,id',
+            'note' => 'nullable|string',
+            'recipient_note' => 'nullable|string',
+            'place' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Create the transaction
+            $transaction = \App\Models\Transaction::create([
+                'transaction_id' => $request->input('transaction_id'),
+                'amount' => $request->input('amount'),
+                'currency' => $request->input('currency'),
+                'booked_date' => $request->input('booked_date'),
+                'processed_date' => $request->input('processed_date'),
+                'description' => $request->input('description'),
+                'target_iban' => $request->input('target_iban'),
+                'source_iban' => $request->input('source_iban'),
+                'partner' => $request->input('partner'),
+                'type' => $request->input('type'),
+                'balance_after_transaction' => $request->input('balance_after_transaction'),
+                'account_id' => $request->input('account_id'),
+                'merchant_id' => $request->input('merchant_id'),
+                'category_id' => $request->input('category_id'),
+                'note' => $request->input('note'),
+                'recipient_note' => $request->input('recipient_note'),
+                'place' => $request->input('place'),
+                'import_data' => [
+                    'import_id' => $import->id,
+                    'failure_id' => $failure->id,
+                    'created_from_review' => true,
+                    'raw_data' => $failure->raw_data,
+                ],
+            ]);
+
+            // Mark failure as resolved
+            $user = Auth::user();
+            $failure->markAsResolved($user, 'Transaction created from review');
+
+            DB::commit();
+
+            Log::info('Transaction created from import failure review', [
+                'transaction_id' => $transaction->id,
+                'failure_id' => $failure->id,
+                'import_id' => $import->id,
+                'created_by' => $user->id,
+            ]);
+
+            return response()->json([
+                'message' => 'Transaction created successfully',
+                'transaction' => $transaction->load(['account', 'merchant', 'category']),
+                'failure' => $failure->fresh()->load('reviewer'),
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to create transaction from import failure review', [
+                'failure_id' => $failure->id,
+                'import_id' => $import->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to create transaction',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

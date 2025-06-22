@@ -23,8 +23,9 @@ Route::middleware('auth')->get('/user', function (Request $request) {
 });
 
 // Transactions endpoints
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/transactions', [TransactionController::class, 'store'])->name('api.transactions.store');
+    Route::get('/transactions/field-definitions', [TransactionController::class, 'getFieldDefinitions'])->name('api.transactions.field-definitions');
 });
 
 // Rule Engine API Routes - JSON responses for CRUD operations
@@ -88,6 +89,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     // Mark failure as ignored
     Route::patch('/imports/{import}/failures/{failure}/ignored', [ImportFailureController::class, 'markAsIgnored'])
         ->name('api.imports.failures.ignored');
+
+    // Create transaction from failure review
+    Route::post('/imports/{import}/failures/{failure}/create-transaction', [ImportFailureController::class, 'createTransactionFromReview'])
+        ->name('api.imports.failures.create-transaction');
 
     // Bulk update failures
     Route::patch('/imports/{import}/failures/bulk', [ImportFailureController::class, 'bulkUpdate'])

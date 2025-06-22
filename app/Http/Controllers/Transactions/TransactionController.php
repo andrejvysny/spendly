@@ -624,4 +624,152 @@ class TransactionController extends Controller
 
         return $isFiltered;
     }
+
+    /**
+     * Get transaction field definitions for dynamic form generation.
+     */
+    public function getFieldDefinitions(): JsonResponse
+    {
+        $fields = [
+            'transaction_id' => [
+                'type' => 'text',
+                'label' => 'Transaction ID',
+                'required' => true,
+                'description' => 'Unique identifier for the transaction'
+            ],
+            'amount' => [
+                'type' => 'number',
+                'label' => 'Amount',
+                'required' => true,
+                'step' => '0.01',
+                'description' => 'Transaction amount'
+            ],
+            'currency' => [
+                'type' => 'select',
+                'label' => 'Currency',
+                'required' => true,
+                'options' => [
+                    ['value' => 'EUR', 'label' => 'Euro (€)'],
+                    ['value' => 'USD', 'label' => 'US Dollar ($)'],
+                    ['value' => 'GBP', 'label' => 'British Pound (£)'],
+                    ['value' => 'CZK', 'label' => 'Czech Koruna (Kč)'],
+                ],
+                'description' => 'Transaction currency'
+            ],
+            'booked_date' => [
+                'type' => 'date',
+                'label' => 'Booked Date',
+                'required' => true,
+                'description' => 'Date when transaction was booked'
+            ],
+            'processed_date' => [
+                'type' => 'date',
+                'label' => 'Processed Date',
+                'required' => true,
+                'description' => 'Date when transaction was processed'
+            ],
+            'description' => [
+                'type' => 'textarea',
+                'label' => 'Description',
+                'required' => true,
+                'description' => 'Transaction description or purpose'
+            ],
+            'partner' => [
+                'type' => 'text',
+                'label' => 'Partner',
+                'required' => true,
+                'description' => 'Transaction partner or counterparty'
+            ],
+            'type' => [
+                'type' => 'text',
+                'label' => 'Type',
+                'required' => true,
+                'description' => 'Type of transaction'
+            ],
+            'target_iban' => [
+                'type' => 'text',
+                'label' => 'Target IBAN',
+                'required' => false,
+                'description' => 'Destination account IBAN'
+            ],
+            'source_iban' => [
+                'type' => 'text',
+                'label' => 'Source IBAN',
+                'required' => false,
+                'description' => 'Source account IBAN'
+            ],
+            'balance_after_transaction' => [
+                'type' => 'number',
+                'label' => 'Balance After',
+                'required' => false,
+                'step' => '0.01',
+                'description' => 'Account balance after this transaction'
+            ],
+            'note' => [
+                'type' => 'textarea',
+                'label' => 'Note',
+                'required' => false,
+                'description' => 'Additional notes about the transaction'
+            ],
+            'recipient_note' => [
+                'type' => 'textarea',
+                'label' => 'Recipient Note',
+                'required' => false,
+                'description' => 'Note for the recipient'
+            ],
+            'place' => [
+                'type' => 'text',
+                'label' => 'Place',
+                'required' => false,
+                'description' => 'Location where transaction occurred'
+            ],
+            'account_id' => [
+                'type' => 'select',
+                'label' => 'Account',
+                'required' => true,
+                'options' => Auth::user()->accounts->map(function ($account) {
+                    return [
+                        'value' => $account->id,
+                        'label' => $account->name . ' (' . $account->iban . ')'
+                    ];
+                })->toArray(),
+                'description' => 'Associated account'
+            ],
+            'merchant_id' => [
+                'type' => 'select',
+                'label' => 'Merchant',
+                'required' => false,
+                'options' => Auth::user()->merchants->map(function ($merchant) {
+                    return [
+                        'value' => $merchant->id,
+                        'label' => $merchant->name
+                    ];
+                })->toArray(),
+                'description' => 'Associated merchant'
+            ],
+            'category_id' => [
+                'type' => 'select',
+                'label' => 'Category',
+                'required' => false,
+                'options' => Auth::user()->categories->map(function ($category) {
+                    return [
+                        'value' => $category->id,
+                        'label' => $category->name
+                    ];
+                })->toArray(),
+                'description' => 'Transaction category'
+            ],
+        ];
+
+        return response()->json([
+            'fields' => $fields,
+            'field_order' => [
+                'transaction_id',  'amount', 'currency','description', 'booked_date', 'processed_date','partner','place', 'type',
+
+                'target_iban', 'source_iban', 'balance_after_transaction',
+                'account_id', 'merchant_id', 'category_id',
+                'note', 'recipient_note',
+            ]
+        ]);
+    }
 }

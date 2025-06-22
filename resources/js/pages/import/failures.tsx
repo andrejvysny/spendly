@@ -56,233 +56,11 @@ const transactionSchema = z.object({
 
 type FormValues = InferFormValues<typeof transactionSchema>;
 
-const transactionTypes = [
-    { value: 'TRANSFER', label: 'Transfer' },
-    { value: 'DEPOSIT', label: 'Deposit' },
-    { value: 'WITHDRAWAL', label: 'Withdrawal' },
-    { value: 'PAYMENT', label: 'Payment' },
-];
-
-const currencies = [
-    { value: 'EUR', label: 'Euro (€)' },
-    { value: 'USD', label: 'US Dollar ($)' },
-    { value: 'GBP', label: 'British Pound (£)' },
-];
-
-// Enhanced field mapping service
-class FieldMappingService {
-    private static fieldPatterns = {
-        amount: /^(amount|betrag|sum|total|wert|saldo)$/i,
-        partner: /^(partner|empf[aä]nger|sender|name|company|auftraggeber)$/i,
-        date: /^(date|datum|booking|gebucht|valuta|buchungstag)$/i,
-        description: /^(description|verwendung|zweck|memo|reference|beschreibung)$/i,
-        target_iban: /^(target.*iban|empf[aä]nger.*iban|ziel.*iban)$/i,
-        source_iban: /^(source.*iban|sender.*iban|auftraggeber.*iban)$/i,
-        currency: /^(currency|w[aä]hrung|curr)$/i,
-        transaction_id: /^(transaction.*id|trans.*id|id|referenz)$/i,
-    };
-
-    static mapFields(failure: ImportFailure, importData: any): FormValues {
-        const { raw_data, metadata, parsed_data } = failure;
-        const headers = metadata.headers || [];
-
-        const mappings = new Map();
-
-        headers.forEach((header, index) => {
-            const value = raw_data[index];
-            if (!value && value !== 0) return;
-
-            Object.entries(this.fieldPatterns).forEach(([fieldName, pattern]) => {
-                if (pattern.test(header)) {
-                    const confidence = this.calculateConfidence(header, fieldName, value);
-                    if (!mappings.has(fieldName) || mappings.get(fieldName).confidence < confidence) {
-                        mappings.set(fieldName, {
-                            confidence,
-                            suggestedValue: this.transformValue(fieldName, value),
-                            originalValue: value,
-                            fieldName: header,
-                        });
-                    }
-                }
-            });
-        });
-
-        return {
-            transaction_id: parsed_data?.transaction_id || mappings.get('transaction_id')?.suggestedValue || `TRX-${Date.now()}`,
-            amount: Math.abs(parsed_data?.amount || mappings.get('amount')?.suggestedValue || 0),
-            currency: parsed_data?.currency || mappings.get('currency')?.suggestedValue || importData?.currency || 'EUR',
-            booked_date: parsed_data?.booked_date || mappings.get('date')?.suggestedValue || new Date().toISOString().split('T')[0],
-            processed_date: parsed_data?.processed_date || mappings.get('date')?.suggestedValue || new Date().toISOString().split('T')[0],
-            description: parsed_data?.description || mappings.get('description')?.suggestedValue || failure.error_message,
-            target_iban: parsed_data?.target_iban || mappings.get('target_iban')?.suggestedValue || null,
-            source_iban: parsed_data?.source_iban || mappings.get('source_iban')?.suggestedValue || null,
-            partner: parsed_data?.partner || mappings.get('partner')?.suggestedValue || '',
-            type: 'PAYMENT' as const,
-            account_id: parsed_data?.account_id || 1,
-        };
-    }
-
-    private static calculateConfidence(header: string, fieldName: string, value: any): number {
-        let confidence = 0.5;
-
-        if (this.fieldPatterns[fieldName as keyof typeof this.fieldPatterns]?.test(header)) {
-            confidence += 0.3;
-        }
-
-        // Value format validation
-        if (fieldName === 'amount' && !isNaN(parseFloat(value))) confidence += 0.2;
-        if (fieldName === 'date' && this.isValidDate(value)) confidence += 0.2;
-        if (fieldName === 'currency' && /^[A-Z]{3}$/.test(value)) confidence += 0.2;
-
-        return Math.min(confidence, 1.0);
-    }
-
-    private static transformValue(fieldName: string, value: any): any {
-        switch (fieldName) {
-            case 'amount':
-                const numericValue = parseFloat(
-                    value
-                        .toString()
-                        .replace(/[^\d.,-]/g, '')
-                        .replace(',', '.'),
-                );
-                return isNaN(numericValue) ? 0 : Math.abs(numericValue);
-            case 'date':
-                return this.parseDate(value);
-            case 'currency':
-                return value.toString().toUpperCase();
-            default:
-                return value.toString().trim();
-        }
-    }
-
-    private static isValidDate(dateString: any): boolean {
-        const date = new Date(dateString);
-        return date instanceof Date && !isNaN(date.getTime());
-    }
-
-    private static parseDate(dateString: any): string {
-        const date = new Date(dateString);
-        if (this.isValidDate(dateString)) {
-            return date.toISOString().split('T')[0];
-        }
-        return new Date().toISOString().split('T')[0];
-    }
-
-    static getHighlightedFields(failure: ImportFailure): Set<string> {
-        const highlighted = new Set<string>();
-        const headers = failure.metadata.headers || [];
-
-        headers.forEach((header) => {
-            Object.values(this.fieldPatterns).forEach((pattern) => {
-                if (pattern.test(header)) {
-                    highlighted.add(header.toLowerCase());
-                }
-            });
-        });
-
-        return highlighted;
-    }
-}
-
-// Error Details Panel Component
-function ErrorDetailsPanel({ failure }: { failure: ImportFailure }) {
-    const getErrorTypeIcon = (errorType: string) => {
-        switch (errorType) {
-            case 'validation_failed':
-                return <AlertTriangle className="h-4 w-4 text-red-500" />;
-            case 'duplicate':
-                return <Copy className="h-4 w-4 text-yellow-500" />;
-            case 'processing_error':
-                return <XCircle className="h-4 w-4 text-orange-500" />;
-            case 'parsing_error':
-                return <Info className="h-4 w-4 text-purple-500" />;
-            default:
-                return <AlertTriangle className="h-4 w-4 text-gray-500" />;
-        }
-    };
-
-    const getSuggestions = (failure: ImportFailure): string[] => {
-        const suggestions: string[] = [];
-
-        switch (failure.error_type) {
-            case 'validation_failed':
-                suggestions.push('Check required fields are filled');
-                suggestions.push('Verify date and amount formats');
-                suggestions.push('Ensure partner information is complete');
-                break;
-            case 'duplicate':
-                suggestions.push('Review if this is a legitimate duplicate');
-                suggestions.push('Check transaction ID and amount');
-                suggestions.push('Consider marking as ignored if acceptable');
-                break;
-            case 'processing_error':
-                suggestions.push('Check data format consistency');
-                suggestions.push('Verify field mappings are correct');
-                break;
-            case 'parsing_error':
-                suggestions.push('Check CSV delimiter and encoding');
-                suggestions.push('Verify field structure matches headers');
-                break;
-        }
-
-        return suggestions;
-    };
-
-    return (
-        <div className="space-y-4">
-            <div className="mb-3 flex items-center space-x-2">
-                {getErrorTypeIcon(failure.error_type)}
-                <Badge variant="outline" className="capitalize">
-                    {failure.error_type.replace('_', ' ')}
-                </Badge>
-            </div>
-
-            <Alert variant="destructive">
-                <AlertDescription>
-                    <strong>Error:</strong> {failure.error_message}
-                </AlertDescription>
-            </Alert>
-
-            {failure.error_details?.errors && failure.error_details.errors.length > 0 && (
-                <div>
-                    <h4 className="mb-2 text-sm font-medium">Detailed Errors:</h4>
-                    <ul className="space-y-1 text-sm">
-                        {failure.error_details.errors.map((error, index) => (
-                            <li key={index} className="text-red-600">
-                                • {error}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-
-            <div>
-                <h4 className="mb-2 text-sm font-medium">Suggestions:</h4>
-                <ul className="space-y-1 text-sm">
-                    {getSuggestions(failure).map((suggestion, index) => (
-                        <li key={index} className="text-gray-600">
-                            • {suggestion}
-                        </li>
-                    ))}
-                </ul>
-            </div>
-
-            {failure.error_details?.duplicate_fingerprint && (
-                <div>
-                    <h4 className="mb-1 text-sm font-medium">Duplicate Info:</h4>
-                    <p className="font-mono text-xs text-gray-500">{failure.error_details.duplicate_fingerprint}</p>
-                </div>
-            )}
-        </div>
-    );
-}
-
 export default function ImportFailures({ import: importData, failures: initialFailures, stats: initialStats }: Props) {
     const [failures, setFailures] = useState(initialFailures);
     const [stats, setStats] = useState(initialStats);
+
     const [selectedFailures, setSelectedFailures] = useState<number[]>([]);
-    const [expandedFailure, setExpandedFailure] = useState<number | null>(null);
     const [filters, setFilters] = useState({
         error_type: '',
         status: '',
@@ -395,13 +173,8 @@ export default function ImportFailures({ import: importData, failures: initialFa
         setIsSubmitting(true);
 
         try {
-            // Create transaction
-            await axios.post('/api/transactions', values);
-
-            // Mark failure as resolved
-            await axios.patch(`/api/imports/${importData.id}/failures/${currentFailure.id}/resolved`, {
-                notes: 'Transaction created via review interface',
-            });
+            // Create transaction using the new endpoint
+            await axios.post(`/api/imports/${importData.id}/failures/${currentFailure.id}/create-transaction`, values);
 
             toast.success('Transaction created successfully');
             await handleNextFailure();
@@ -482,15 +255,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
                         handleMarkAsReviewed={handleMarkAsReviewed}
                         handleMarkAsIgnored={handleMarkAsIgnored}
                         isSubmitting={isSubmitting}
-                        onExitReviewMode={() => setReviewMode('list')}
                         importData={importData}
-                        transactionSchema={transactionSchema}
-                        transactionTypes={transactionTypes}
-                        currencies={currencies}
-                        FieldMappingService={FieldMappingService}
-                        formatDate={formatDate}
-                        ErrorDetailsPanel={ErrorDetailsPanel}
-                        highlightedFields={FieldMappingService.getHighlightedFields(pendingFailures[currentReviewIndex])}
                     />
                 ) : (
                     <>
@@ -500,10 +265,10 @@ export default function ImportFailures({ import: importData, failures: initialFa
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-muted-foreground text-sm font-semibold">Total Failures</p>
-                                            <p className="text-destructive-foreground text-2xl font-bold">{stats.total}</p>
+                                            <p className="text-muted-foreground text-sm font-semibold">Total</p>
+                                            <p className="text-destructive-foreground text-3xl font-bold">{stats.total}</p>
                                         </div>
-                                        <FileX className="text-destructive-foreground h-8 w-8" />
+                                        <AlertCircle className="text-destructive-foreground h-8 w-8" />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -513,7 +278,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-muted-foreground text-sm font-semibold">Pending Review</p>
-                                            <p className="text-warning text-2xl font-bold">{stats.pending}</p>
+                                            <p className="text-warning text-3xl font-bold">{stats.pending}</p>
                                         </div>
                                         <AlertTriangle className="text-warning h-8 w-8" />
                                     </div>
@@ -525,7 +290,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-muted-foreground text-sm font-semibold">Reviewed</p>
-                                            <p className="text-success text-2xl font-bold">{stats.reviewed}</p>
+                                            <p className="text-success text-3xl font-bold">{stats.reviewed}</p>
                                         </div>
                                         <CheckCircle className="text-success h-8 w-8" />
                                     </div>
@@ -534,12 +299,19 @@ export default function ImportFailures({ import: importData, failures: initialFa
 
                             <Card>
                                 <CardContent className="p-4">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="text-muted-foreground text-sm font-semibold">Validation Errors</p>
-                                            <p className="text-destructive-foreground text-2xl font-bold">{stats.by_type.validation_failed || 0}</p>
+                                    <div>
+                                    <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground text-sm font-semibold">Validation Errors:</span>
+                                            <span className="text-destructive-foreground font-semibold">{stats.by_type.validation_failed || 0}</span>
                                         </div>
-                                        <AlertCircle className="text-destructive-foreground h-8 w-8" />
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground text-sm font-semibold">Processing Errors:</span>
+                                            <span className="text-destructive-foreground font-semibold">{stats.by_type.processing_failed || 0}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground text-sm font-semibold">Skipped duplicates:</span>
+                                            <span className="text-blue-500 font-semibold">{stats.by_type.skipped_duplicates || 0}</span>
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -633,7 +405,12 @@ export default function ImportFailures({ import: importData, failures: initialFa
                             )}
 
                             {failures.data.map((failure) => (
-                                <FailureCollapse failure={failure} selectedFailures={selectedFailures} handleSelectFailure={handleSelectFailure} />
+                                <FailureCollapse
+                                    key={failure.id}
+                                    failure={failure}
+                                    selectedFailures={selectedFailures}
+                                    handleSelectFailure={handleSelectFailure}
+                                />
                             ))}
 
                             {failures.data.length === 0 && (
