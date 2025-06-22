@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { toast } from 'react-toastify';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { SmartForm, InferFormValues } from '@/components/ui/smart-form';
@@ -23,6 +24,14 @@ type FormValues = InferFormValues<typeof formSchema>;
 
 export function CreateRuleGroupModal({ isOpen, onClose, onSuccess }: CreateRuleGroupModalProps) {
     const { createRuleGroup, loading, error, clearError } = useRulesApi();
+
+    // Handle errors with toast
+    useEffect(() => {
+        if (error) {
+            toast.error(error);
+            clearError();
+        }
+    }, [error, clearError]);
 
     const defaultValues: FormValues = {
         name: '',
@@ -92,11 +101,7 @@ export function CreateRuleGroupModal({ isOpen, onClose, onSuccess }: CreateRuleG
                                 />
                             </div>
 
-                            {error && (
-                                <div className="bg-destructive/10 border border-destructive rounded-lg p-3">
-                                    <p className="text-sm text-destructive">{error}</p>
-                                </div>
-                            )}
+
 
                             <DialogFooter>
                                 <Button type="button" variant="outline" onClick={handleClose}>

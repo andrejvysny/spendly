@@ -7,6 +7,7 @@ import { formatDate } from '@/utils/date';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { useState } from 'react';
+import { toast } from 'react-toastify';
 import ImportWizard from './components/ImportWizard';
 interface Props {
     imports: Import[];
@@ -32,25 +33,35 @@ export default function Index({ imports }: Props) {
 
     const handleDeleteImport = (importId: number) => {
         if (confirm('Are you sure you want to delete this import? This action cannot be undone.')) {
-            axios.delete(route('imports.delete', { import: importId })).then((r) => {
-                if (r.status === 200) {
-                    setImportsList(importsList.filter((imp) => imp.id !== importId));
-                } else {
-                    alert('Failed to delete import. Please try again later.');
-                }
-            });
+            axios.delete(route('imports.delete', { import: importId }))
+                .then((r) => {
+                    if (r.status === 200) {
+                        setImportsList(importsList.filter((imp) => imp.id !== importId));
+                        toast.success('Import deleted successfully.');
+                    } else {
+                        toast.error('Failed to delete import. Please try again later.');
+                    }
+                })
+                .catch(() => {
+                    toast.error('Failed to delete import. Please try again later.');
+                });
         }
     };
 
     const handleRevertImport = (importId: number) => {
         if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
-            axios.post(route('imports.revert', { import: importId })).then((r) => {
-                if (r.status === 200) {
-                    setImportsList((prevState) => prevState.map((imp) => (imp.id === importId ? { ...imp, status: 'reverted' } : imp)));
-                } else {
-                    alert('Failed to revert import. Please try again later.');
-                }
-            });
+            axios.post(route('imports.revert', { import: importId }))
+                .then((r) => {
+                    if (r.status === 200) {
+                        setImportsList((prevState) => prevState.map((imp) => (imp.id === importId ? { ...imp, status: 'reverted' } : imp)));
+                        toast.success('Import reverted successfully.');
+                    } else {
+                        toast.error('Failed to revert import. Please try again later.');
+                    }
+                })
+                .catch(() => {
+                    toast.error('Failed to revert import. Please try again later.');
+                });
         }
     };
 
