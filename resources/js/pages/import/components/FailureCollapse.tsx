@@ -1,6 +1,6 @@
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
 import { ErrorTypeBadge, StatusBadge } from '@/pages/import/components/Badges';
 import { formatDate } from '@/utils/date';
 import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
@@ -102,7 +102,9 @@ function FailureCollapse({ failure, selectedFailures, handleSelectFailure, handl
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => handleUnmarkAsPending(failure.id, `Unmarked from ${failure.status} status - detailed review`)}
+                                            onClick={() =>
+                                                handleUnmarkAsPending(failure.id, `Unmarked from ${failure.status} status - detailed review`)
+                                            }
                                             disabled={isMarkingReviewed}
                                             className="w-full"
                                         >

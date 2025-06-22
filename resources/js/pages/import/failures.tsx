@@ -1,5 +1,3 @@
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -11,10 +9,9 @@ import AppLayout from '@/layouts/app-layout';
 import FailureCollapse from '@/pages/import/components/FailureCollapse';
 import ReviewInterface from '@/pages/import/components/ReviewInterface';
 import { BreadcrumbItem, Import, ImportFailure } from '@/types/index';
-import { formatDate } from '@/utils/date';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { AlertCircle, AlertTriangle, CheckCircle, Copy, Eye, FileX, Info, Loader2, Search, XCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, Eye, FileX, Loader2, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { z } from 'zod';
@@ -111,11 +108,11 @@ export default function ImportFailures({ import: importData, failures: initialFa
             params.append('page', (failures.meta.current_page + 1).toString());
 
             const response = await axios.get(`/api/imports/${importData.id}/failures?${params.toString()}`);
-            
+
             // Append new failures to existing ones
-            setFailures(prevFailures => ({
+            setFailures((prevFailures) => ({
                 ...response.data.failures,
-                data: [...prevFailures.data, ...response.data.failures.data]
+                data: [...prevFailures.data, ...response.data.failures.data],
             }));
             setStats(response.data.stats);
         } catch (error) {
@@ -343,7 +340,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
                             <Card>
                                 <CardContent className="p-4">
                                     <div>
-                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2">
                                             <span className="text-muted-foreground text-sm font-semibold">Validation Errors:</span>
                                             <span className="text-destructive-foreground font-semibold">{stats.by_type.validation_failed || 0}</span>
                                         </div>
@@ -353,7 +350,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-muted-foreground text-sm font-semibold">Skipped duplicates:</span>
-                                            <span className="text-blue-500 font-semibold">{stats.by_type.skipped_duplicates || 0}</span>
+                                            <span className="font-semibold text-blue-500">{stats.by_type.skipped_duplicates || 0}</span>
                                         </div>
                                     </div>
                                 </CardContent>
@@ -476,21 +473,14 @@ export default function ImportFailures({ import: importData, failures: initialFa
                             {/* Load More Button */}
                             {failures.meta && failures.meta.current_page < failures.meta.last_page && (
                                 <div className="mt-6 text-center">
-                                    <Button
-                                        variant="outline"
-                                        onClick={loadMoreFailures}
-                                        disabled={isLoadingFilters}
-                                        className="w-full md:w-auto"
-                                    >
+                                    <Button variant="outline" onClick={loadMoreFailures} disabled={isLoadingFilters} className="w-full md:w-auto">
                                         {isLoadingFilters ? (
                                             <>
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                 Loading...
                                             </>
                                         ) : (
-                                            <>
-                                                Load More ({failures.meta.total - failures.data.length} remaining)
-                                            </>
+                                            <>Load More ({failures.meta.total - failures.data.length} remaining)</>
                                         )}
                                     </Button>
                                 </div>

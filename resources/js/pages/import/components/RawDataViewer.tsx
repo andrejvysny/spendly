@@ -26,20 +26,16 @@ function RawDataViewer({ headers, data, highlightedFields }: { headers: string[]
                 return (
                     <div
                         key={index}
-                        className={`border py-2 px-3 rounded-xl transition-all ${
-                            isHighlighted
-                                ? 'border-blue-500 shadow-sm'
-                                : 'border-border bg-card'
+                        className={`rounded-xl border px-3 py-2 transition-all ${
+                            isHighlighted ? 'border-blue-500 shadow-sm' : 'border-border bg-card'
                         }`}
                     >
                         <div className="flex items-start justify-between">
                             <div className="flex-1">
                                 <div className="mb-1 flex items-center gap-2 text-xs font-medium">
-                                    <span className={isHighlighted ? 'text-blue-500' : 'text-muted-foreground'}>
-                                        {header}
-                                    </span>
+                                    <span className={isHighlighted ? 'text-blue-500' : 'text-muted-foreground'}>{header}</span>
                                     {isHighlighted && (
-                                        <span className="inline-flex items-center gap-1 rounded-full px-2  text-xs font-medium text-blue-500 ">
+                                        <span className="inline-flex items-center gap-1 rounded-full px-2 text-xs font-medium text-blue-500">
                                             <span className="h-2 w-2 rounded-full bg-blue-500"></span>
                                             auto-mapped
                                         </span>
@@ -54,7 +50,7 @@ function RawDataViewer({ headers, data, highlightedFields }: { headers: string[]
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => copyToClipboard(value.toString())}
-                                    className="h-6 w-6 p-0 hover:bg-accent"
+                                    className="hover:bg-accent h-6 w-6 p-0"
                                 >
                                     <Copy className="h-3 w-3" />
                                 </Button>

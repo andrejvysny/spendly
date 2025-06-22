@@ -764,10 +764,9 @@ class TransactionController extends Controller
         return response()->json([
             'fields' => $fields,
             'field_order' => [
-                'transaction_id',  'amount', 'currency','description', 'booked_date', 'processed_date','partner','place', 'type',
-
+                'account_id', 'transaction_id', 'amount', 'currency', 'description', 'booked_date', 'processed_date', 'partner', 'place', 'type',
                 'target_iban', 'source_iban', 'balance_after_transaction',
-                'account_id', 'merchant_id', 'category_id',
+                'merchant_id', 'category_id',
                 'note', 'recipient_note',
             ]
         ]);

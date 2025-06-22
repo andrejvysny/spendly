@@ -3,14 +3,20 @@ import { ImportFailure } from '@/types/index';
 class FieldMappingService {
     private static fieldPatterns = {
         amount: /^(amount|betrag|sum|total|wert|saldo|castka|hodnota|suma|kwota|montant|valor|importo|menge|price|cena)$/i,
-        partner: /^(partner|empf[aä]nger|sender|name|company|auftraggeber|merchant|counterparty|recipient|payee|beneficiary|payable|vendor|supplier|klient|cliente|fournisseur|fornitore)$/i,
-        booked_date: /^(booked.*date|date|datum|booking|gebucht|valuta|buchungstag|transaction.*date|posting.*date|value.*date|effective.*date|settlement.*date|execution.*date|fecha|data|datum.*transakce)$/i,
-        processed_date: /^(processed.*date|process.*date|settlement.*date|cleared.*date|datum.*zpracovani|processing.*date|execution.*date|completion.*date)$/i,
-        description: /^(description|verwendung|zweck|memo|reference|beschreibung|details|note|text|popis|poznamka|descripcion|descrizione|concept|libelle|motivo|raison)$/i,
-        target_iban: /^(target.*iban|empf[aä]nger.*iban|ziel.*iban|destination.*iban|recipient.*iban|to.*iban|beneficiary.*iban|payee.*iban|credit.*iban)$/i,
+        partner:
+            /^(partner|empf[aä]nger|sender|name|company|auftraggeber|merchant|counterparty|recipient|payee|beneficiary|payable|vendor|supplier|klient|cliente|fournisseur|fornitore)$/i,
+        booked_date:
+            /^(booked.*date|date|datum|booking|gebucht|valuta|buchungstag|transaction.*date|posting.*date|value.*date|effective.*date|settlement.*date|execution.*date|fecha|data|datum.*transakce)$/i,
+        processed_date:
+            /^(processed.*date|process.*date|settlement.*date|cleared.*date|datum.*zpracovani|processing.*date|execution.*date|completion.*date)$/i,
+        description:
+            /^(description|verwendung|zweck|memo|reference|beschreibung|details|note|text|popis|poznamka|descripcion|descrizione|concept|libelle|motivo|raison)$/i,
+        target_iban:
+            /^(target.*iban|empf[aä]nger.*iban|ziel.*iban|destination.*iban|recipient.*iban|to.*iban|beneficiary.*iban|payee.*iban|credit.*iban)$/i,
         source_iban: /^(source.*iban|sender.*iban|auftraggeber.*iban|from.*iban|origin.*iban|debtor.*iban|payer.*iban|debit.*iban)$/i,
         currency: /^(currency|w[aä]hrung|curr|mena|valuta|devise|moneda|divisa|waluta|ccur|ccy)$/i,
-        transaction_id: /^(transaction.*id|trans.*id|id|referenz|reference|ref|cislo.*transakce|numero|numero.*transaccion|transaction.*ref|trans.*ref|txn.*id|operation.*id)$/i,
+        transaction_id:
+            /^(transaction.*id|trans.*id|id|referenz|reference|ref|cislo.*transakce|numero|numero.*transaccion|transaction.*ref|trans.*ref|txn.*id|operation.*id)$/i,
         type: /^(type|typ|kategorie|druh|transaction.*type|operation.*type|payment.*type|categoria|kategoria|genre|tipo)$/i,
         note: /^(note|notes|poznamka|poznamky|additional.*info|extra.*info|commentary|comment|observacion|osservazione|remarque|bemerkung)$/i,
         recipient_note: /^(recipient.*note|recipient.*memo|for.*recipient|pro.*prijemce|beneficiary.*note|payee.*note|destination.*note)$/i,
@@ -30,7 +36,7 @@ class FieldMappingService {
             headers,
             raw_data,
             parsed_data,
-            fieldDefinitions: fieldDefinitions ? 'Available' : 'Not available'
+            fieldDefinitions: fieldDefinitions ? 'Available' : 'Not available',
         });
 
         const mappings = new Map();
@@ -40,11 +46,12 @@ class FieldMappingService {
             const value = raw_data[index];
 
             // Enhanced empty checking: exclude null, undefined, empty strings, and whitespace-only strings
-            const isValueEmpty = value === null ||
-                                value === undefined ||
-                                value === '' ||
-                                (typeof value === 'string' && value.trim() === '') ||
-                                (typeof value === 'number' && isNaN(value));
+            const isValueEmpty =
+                value === null ||
+                value === undefined ||
+                value === '' ||
+                (typeof value === 'string' && value.trim() === '') ||
+                (typeof value === 'number' && isNaN(value));
 
             if (isValueEmpty && value !== 0) {
                 console.log(`❌ Skipping empty value for header "${header}":`, value);
@@ -64,11 +71,12 @@ class FieldMappingService {
                         const transformedValue = this.transformValue(fieldName, value, fieldDefinitions);
 
                         // Double-check that the transformed value is not empty/invalid
-                        const isTransformedValueEmpty = transformedValue === null ||
-                                                      transformedValue === undefined ||
-                                                      transformedValue === '' ||
-                                                      (typeof transformedValue === 'string' && transformedValue.trim() === '') ||
-                                                      (typeof transformedValue === 'number' && isNaN(transformedValue));
+                        const isTransformedValueEmpty =
+                            transformedValue === null ||
+                            transformedValue === undefined ||
+                            transformedValue === '' ||
+                            (typeof transformedValue === 'string' && transformedValue.trim() === '') ||
+                            (typeof transformedValue === 'number' && isNaN(transformedValue));
 
                         if (isTransformedValueEmpty && transformedValue !== 0) {
                             console.log(`❌ Skipping mapping "${header}" -> ${fieldName} because transformed value is empty:`, transformedValue);
@@ -135,6 +143,16 @@ class FieldMappingService {
                     }
                 }
 
+                // NEVER mark account_id as actually mapped - it should always come from import metadata
+                if (fieldName === 'account_id') {
+                    wasActuallyMapped = false;
+                    // Ensure we use the account from import metadata, not from parsed data
+                    if (importData?.metadata?.account_id) {
+                        value = importData.metadata.account_id.toString();
+                        console.log(`🔒 Forcing account_id to use import metadata:`, value);
+                    }
+                }
+
                 // Additional logging for problematic fields
                 if (fieldName === 'account_id' || fieldName === 'currency') {
                     console.log(`🔍 Final value for ${fieldName}:`, {
@@ -147,17 +165,16 @@ class FieldMappingService {
                         wasActuallyMapped,
                         importData: {
                             currency: importData?.currency,
-                            accountId: importData?.metadata?.account_id
-                        }
+                            accountId: importData?.metadata?.account_id,
+                        },
                     });
                 }
 
                 // Final validation to ensure fields have proper values
                 if (fieldDef?.type === 'select') {
                     // Only apply emergency fixes if value is truly empty
-                    const isEmptyValue = value === null || value === undefined || value === '' || 
-                                       (typeof value === 'string' && value.trim() === '');
-                    
+                    const isEmptyValue = value === null || value === undefined || value === '' || (typeof value === 'string' && value.trim() === '');
+
                     if (isEmptyValue) {
                         // Special handling for specific fields
                         if (fieldName === 'currency') {
@@ -187,22 +204,61 @@ class FieldMappingService {
             console.log('⚠️ No field definitions available, using legacy fallback');
             // Legacy fallback - only mark fields as mapped if they actually came from CSV
             const legacyMappings = {
-                transaction_id: parsed_data?.transaction_id || (mappings.has('transaction_id') && actuallyMappedFields.has('transaction_id') ? mappings.get('transaction_id')?.suggestedValue : null) || `TRX-${Date.now()}`,
-                amount: parsed_data?.amount || (mappings.has('amount') && actuallyMappedFields.has('amount') ? mappings.get('amount')?.suggestedValue : null) || 0,
-                currency: parsed_data?.currency || (mappings.has('currency') && actuallyMappedFields.has('currency') ? mappings.get('currency')?.suggestedValue : null) || importData?.currency || 'EUR',
-                booked_date: parsed_data?.booked_date || (mappings.has('booked_date') && actuallyMappedFields.has('booked_date') ? mappings.get('booked_date')?.suggestedValue : null) || new Date().toISOString().split('T')[0],
-                processed_date: parsed_data?.processed_date || (mappings.has('processed_date') && actuallyMappedFields.has('processed_date') ? mappings.get('processed_date')?.suggestedValue : null) || new Date().toISOString().split('T')[0],
-                description: parsed_data?.description || (mappings.has('description') && actuallyMappedFields.has('description') ? mappings.get('description')?.suggestedValue : null) || failure.error_message,
-                target_iban: parsed_data?.target_iban || (mappings.has('target_iban') && actuallyMappedFields.has('target_iban') ? mappings.get('target_iban')?.suggestedValue : null) || null,
-                source_iban: parsed_data?.source_iban || (mappings.has('source_iban') && actuallyMappedFields.has('source_iban') ? mappings.get('source_iban')?.suggestedValue : null) || null,
-                partner: parsed_data?.partner || (mappings.has('partner') && actuallyMappedFields.has('partner') ? mappings.get('partner')?.suggestedValue : null) || '',
+                transaction_id:
+                    parsed_data?.transaction_id ||
+                    (mappings.has('transaction_id') && actuallyMappedFields.has('transaction_id')
+                        ? mappings.get('transaction_id')?.suggestedValue
+                        : null) ||
+                    `TRX-${Date.now()}`,
+                amount:
+                    parsed_data?.amount ||
+                    (mappings.has('amount') && actuallyMappedFields.has('amount') ? mappings.get('amount')?.suggestedValue : null) ||
+                    0,
+                currency:
+                    parsed_data?.currency ||
+                    (mappings.has('currency') && actuallyMappedFields.has('currency') ? mappings.get('currency')?.suggestedValue : null) ||
+                    importData?.currency ||
+                    'EUR',
+                booked_date:
+                    parsed_data?.booked_date ||
+                    (mappings.has('booked_date') && actuallyMappedFields.has('booked_date') ? mappings.get('booked_date')?.suggestedValue : null) ||
+                    new Date().toISOString().split('T')[0],
+                processed_date:
+                    parsed_data?.processed_date ||
+                    (mappings.has('processed_date') && actuallyMappedFields.has('processed_date')
+                        ? mappings.get('processed_date')?.suggestedValue
+                        : null) ||
+                    new Date().toISOString().split('T')[0],
+                description:
+                    parsed_data?.description ||
+                    (mappings.has('description') && actuallyMappedFields.has('description') ? mappings.get('description')?.suggestedValue : null) ||
+                    failure.error_message,
+                target_iban:
+                    parsed_data?.target_iban ||
+                    (mappings.has('target_iban') && actuallyMappedFields.has('target_iban') ? mappings.get('target_iban')?.suggestedValue : null) ||
+                    null,
+                source_iban:
+                    parsed_data?.source_iban ||
+                    (mappings.has('source_iban') && actuallyMappedFields.has('source_iban') ? mappings.get('source_iban')?.suggestedValue : null) ||
+                    null,
+                partner:
+                    parsed_data?.partner ||
+                    (mappings.has('partner') && actuallyMappedFields.has('partner') ? mappings.get('partner')?.suggestedValue : null) ||
+                    '',
                 type: 'PAYMENT',
-                account_id: parsed_data?.account_id || 1
+                account_id: parsed_data?.account_id || 1,
             };
 
             // Track which fields were actually mapped in legacy mode
             Object.entries(legacyMappings).forEach(([fieldName, value]) => {
-                if (mappings.has(fieldName) && actuallyMappedFields.has(fieldName)) {
+                // NEVER mark account_id as mapped in legacy mode either
+                if (fieldName === 'account_id') {
+                    // Use import metadata for account_id
+                    if (importData?.metadata?.account_id) {
+                        value = importData.metadata.account_id.toString();
+                        console.log(`🔒 Legacy: Using account_id from import metadata:`, value);
+                    }
+                } else if (mappings.has(fieldName) && actuallyMappedFields.has(fieldName)) {
                     const mappedValue = mappings.get(fieldName)?.suggestedValue;
                     if (value === mappedValue) {
                         finalActuallyMappedFields.add(fieldName);
@@ -285,8 +341,9 @@ class FieldMappingService {
                     console.log(`🔧 Special: Set currency to:`, defaultValues[fieldName]);
                 }
                 if (fieldName === 'account_id' && isEmpty) {
-                    const accountId = importData?.metadata?.account_id?.toString() ||
-                                    (fieldDef.options && fieldDef.options.length > 0 ? fieldDef.options[0].value.toString() : '1');
+                    const accountId =
+                        importData?.metadata?.account_id?.toString() ||
+                        (fieldDef.options && fieldDef.options.length > 0 ? fieldDef.options[0].value.toString() : '1');
                     defaultValues[fieldName] = accountId;
                     console.log(`🔧 Special: Set account_id to:`, defaultValues[fieldName]);
                 }
@@ -299,7 +356,7 @@ class FieldMappingService {
         // Return both the values and the tracking of what was actually mapped
         return {
             values: defaultValues,
-            actuallyMappedFields: finalActuallyMappedFields
+            actuallyMappedFields: finalActuallyMappedFields,
         };
     }
 
@@ -422,20 +479,20 @@ class FieldMappingService {
                     value
                         .toString()
                         .replace(/[^\d.,-]/g, '')
-                        .replace(',', '.')
+                        .replace(',', '.'),
                 );
                 return isNaN(balanceValue) ? null : balanceValue;
             case 'type':
                 // Try to map common type values
                 const typeValue = value.toString().toUpperCase();
                 const typeMapping: Record<string, string> = {
-                    'TRANSFER': 'TRANSFER',
-                    'DEPOSIT': 'DEPOSIT',
-                    'WITHDRAWAL': 'WITHDRAWAL',
-                    'PAYMENT': 'PAYMENT',
-                    'CARD': 'CARD_PAYMENT',
-                    'CARD_PAYMENT': 'CARD_PAYMENT',
-                    'EXCHANGE': 'EXCHANGE',
+                    TRANSFER: 'TRANSFER',
+                    DEPOSIT: 'DEPOSIT',
+                    WITHDRAWAL: 'WITHDRAWAL',
+                    PAYMENT: 'PAYMENT',
+                    CARD: 'CARD_PAYMENT',
+                    CARD_PAYMENT: 'CARD_PAYMENT',
+                    EXCHANGE: 'EXCHANGE',
                 };
                 return typeMapping[typeValue] || 'PAYMENT';
             default:
@@ -465,11 +522,12 @@ class FieldMappingService {
             const value = raw_data[index];
 
             // Only highlight fields that have non-empty values
-            const isValueEmpty = value === null ||
-                                value === undefined ||
-                                value === '' ||
-                                (typeof value === 'string' && value.trim() === '') ||
-                                (typeof value === 'number' && isNaN(value));
+            const isValueEmpty =
+                value === null ||
+                value === undefined ||
+                value === '' ||
+                (typeof value === 'string' && value.trim() === '') ||
+                (typeof value === 'number' && isNaN(value));
 
             if (isValueEmpty && value !== 0) {
                 return; // Skip empty values
@@ -485,7 +543,5 @@ class FieldMappingService {
         return highlighted;
     }
 }
-
-
 
 export default FieldMappingService;
