@@ -41,6 +41,35 @@ services:
       - XDEBUG_CONFIG=client_host=host.docker.internal
     command: sh -c "php artisan serve --host=0.0.0.0 --port=80 --verbose"
 
+  queue-worker:
+    container_name: queue-worker
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile
+      target: queue-worker
+    volumes:
+      - .:/var/www/html
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    working_dir: /var/www/html
+    env_file: .env
+    environment:
+      # Queue-specific environment variables
+      - QUEUE_CONNECTION=database
+      - LOG_CHANNEL=stderr
+      # Ensure jobs are dispatched after database transactions
+      - QUEUE_AFTER_COMMIT=true
+    ports:
+      - "9001:9001" # Supervisor web interface (optional)
+    depends_on:
+      - app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "supervisorctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   test:
     container_name: test
     build:
