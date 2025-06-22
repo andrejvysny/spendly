@@ -3,10 +3,95 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import RawDataViewer from '@/pages/import/components/RawDataViewer';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, CheckCircle, Eye, XCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import { z } from 'zod';
+import ErrorDetailsPanel from '@/pages/import/components/ErrorDetailsPanel';
+
+// Define types for field definitions
+interface FieldOption {
+    value: string | number;
+    label: string;
+}
+
+interface FieldDefinition {
+    type: 'text' | 'number' | 'date' | 'select' | 'textarea';
+    label: string;
+    required: boolean;
+    step?: string;
+    options?: FieldOption[];
+    description?: string;
+}
+
+interface FieldDefinitions {
+    fields: Record<string, FieldDefinition>;
+    field_order: string[];
+}
+
+// Create dynamic schema based on field definitions
+const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
+    const schemaObject: Record<string, z.ZodTypeAny> = {};
+
+    fieldDefs.field_order.forEach(fieldName => {
+        const fieldDef = fieldDefs.fields[fieldName];
+        if (!fieldDef) return;
+
+        let schema: z.ZodTypeAny;
+
+        switch (fieldDef.type) {
+            case 'number':
+                if (fieldDef.required) {
+                    schema = z.coerce.number().min(0.01, { message: `${fieldDef.label} must be greater than 0` });
+                } else {
+                    schema = z.coerce.number().optional().nullable();
+                }
+                break;
+            case 'date':
+                if (fieldDef.required) {
+                    schema = z.string().min(1, { message: `${fieldDef.label} is required` });
+                } else {
+                    schema = z.string().optional().nullable();
+                }
+                break;
+            case 'select':
+                if (fieldDef.options && fieldDef.options.length > 0) {
+                    const values = fieldDef.options.map(opt => opt.value.toString());
+                    if (fieldDef.required) {
+                        schema = z.enum(values as [string, ...string[]], {
+                            required_error: `${fieldDef.label} is required`,
+                        });
+                    } else {
+                        schema = z.enum(values as [string, ...string[]]).nullable().optional();
+                    }
+                } else {
+                    schema = fieldDef.required
+                        ? z.string().min(1, { message: `${fieldDef.label} is required` })
+                        : z.string().nullable().optional();
+                }
+                break;
+            default:
+                if (fieldDef.required) {
+                    schema = z.string().min(1, { message: `${fieldDef.label} is required` });
+                } else {
+                    schema = z.string().optional().nullable();
+                }
+        }
+
+        schemaObject[fieldName] = schema;
+    });
+
+    return z.object(schemaObject);
+};
+
+type FormValues = Record<string, any>;
+
+import FieldMappingService from '@/pages/import/FieldMappingService';
+
 function ReviewInterface({
     pendingFailures,
     currentReviewIndex,
@@ -16,11 +101,6 @@ function ReviewInterface({
     handleMarkAsIgnored,
     isSubmitting,
     importData,
-    transactionSchema,
-    currencies,
-    transactionTypes,
-    FieldMappingService,
-    ErrorDetailsPanel,
 }: {
     pendingFailures: any[];
     currentReviewIndex: number;
@@ -30,15 +110,71 @@ function ReviewInterface({
     handleMarkAsIgnored: () => void;
     isSubmitting: boolean;
     importData: any;
-    transactionSchema: any;
-    currencies: { value: string; label: string }[];
-    transactionTypes: { value: string; label: string }[];
-    FieldMappingService: any;
-    formatDate: (date: string) => string;
-    RawDataViewer: any;
-    ErrorDetailsPanel: any;
 }) {
-    if (!pendingFailures[currentReviewIndex]) {
+    // ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL RETURNS
+    const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinitions | null>(null);
+    const [isLoadingFields, setIsLoadingFields] = useState(true);
+
+    // Load field definitions from backend
+    useEffect(() => {
+        const loadFieldDefinitions = async () => {
+            try {
+                const response = await axios.get('/api/transactions/field-definitions');
+                setFieldDefinitions(response.data);
+            } catch (error) {
+                console.error('Failed to load field definitions:', error);
+            } finally {
+                setIsLoadingFields(false);
+            }
+        };
+
+        loadFieldDefinitions();
+    }, []);
+
+    // Get current failure and prepare form data
+    const currentFailure = pendingFailures[currentReviewIndex];
+    const defaultValues = currentFailure && fieldDefinitions
+        ? FieldMappingService.mapFields(currentFailure, importData, fieldDefinitions)
+        : {};
+
+    // Create dynamic schema - use empty schema if fieldDefinitions not ready
+    const dynamicSchema = fieldDefinitions
+        ? createDynamicSchema(fieldDefinitions)
+        : z.object({});
+
+    // useForm hook must always be called - cannot be conditional
+    const form = useForm<FormValues>({
+        resolver: zodResolver(dynamicSchema),
+        defaultValues,
+    });
+
+    // Reset form when fieldDefinitions or currentFailure changes
+    useEffect(() => {
+        if (currentFailure && fieldDefinitions) {
+            const newDefaultValues = FieldMappingService.mapFields(currentFailure, importData, fieldDefinitions);
+            form.reset(newDefaultValues);
+        }
+    }, [currentFailure, fieldDefinitions, form, importData, FieldMappingService]);
+
+    // NOW WE CAN HAVE CONDITIONAL RENDERING
+    if (isLoadingFields) {
+        return (
+            <div className="py-12 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-gray-500">Loading form fields...</p>
+            </div>
+        );
+    }
+
+    if (!fieldDefinitions) {
+        return (
+            <div className="py-12 text-center">
+                <p className="text-red-500">Failed to load form fields. Please refresh the page.</p>
+            </div>
+        );
+    }
+
+    if (!currentFailure) {
         return (
             <div className="py-12 text-center">
                 <CheckCircle className="mx-auto mb-4 h-12 w-12 text-green-500" />
@@ -52,16 +188,73 @@ function ReviewInterface({
         );
     }
 
-    const currentFailure = pendingFailures[currentReviewIndex];
-    const defaultValues = FieldMappingService.mapFields(currentFailure, importData);
-
-    const form = useForm<FormValues>({
-        resolver: zodResolver(transactionSchema),
-        defaultValues,
-    });
-
     const handleSubmit = async (values: FormValues) => {
         await handleReviewTransactionCreate(values);
+    };
+
+    const renderField = (fieldName: string, fieldDef: FieldDefinition) => {
+        const error = form.formState.errors[fieldName];
+        const commonProps = {
+            id: fieldName,
+            className: error ? 'border-red-500' : '',
+        };
+
+        switch (fieldDef.type) {
+            case 'number':
+                return (
+                    <Input
+                        {...commonProps}
+                        type="number"
+                        step={fieldDef.step || '0.01'}
+                        {...form.register(fieldName)}
+                    />
+                );
+            case 'date':
+                return (
+                    <Input
+                        {...commonProps}
+                        type="date"
+                        {...form.register(fieldName)}
+                    />
+                );
+            case 'select':
+                return (
+                    <Select
+                        value={form.watch(fieldName) === null || form.watch(fieldName) === undefined ? '__none__' : form.watch(fieldName)?.toString() || ''}
+                        onValueChange={(value) => form.setValue(fieldName, value === '__none__' ? null : value)}
+                    >
+                        <SelectTrigger className={error ? 'border-red-500' : ''}>
+                            <SelectValue placeholder={`Select ${fieldDef.label}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {!fieldDef.required && (
+                                <SelectItem value="__none__">-- None --</SelectItem>
+                            )}
+                            {fieldDef.options?.map((option) => (
+                                <SelectItem key={option.value} value={option.value.toString()}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                );
+            case 'textarea':
+                return (
+                    <Textarea
+                        {...commonProps}
+                        {...form.register(fieldName)}
+                        rows={3}
+                    />
+                );
+            default:
+                return (
+                    <Input
+                        {...commonProps}
+                        type="text"
+                        {...form.register(fieldName)}
+                    />
+                );
+        }
     };
 
     return (
@@ -103,7 +296,6 @@ function ReviewInterface({
             {/* Two Column Layout - Bottom Row */}
             <div className="grid grid-cols-2 gap-6">
                 {/* Left: Raw Data Panel */}
-
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-base">Raw CSV Data</CardTitle>
@@ -126,131 +318,28 @@ function ReviewInterface({
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="partner">Partner *</Label>
-                                    <Input
-                                        id="partner"
-                                        {...form.register('partner')}
-                                        className={form.formState.errors.partner ? 'border-red-500' : ''}
-                                    />
-                                    {form.formState.errors.partner && (
-                                        <p className="mt-1 text-sm text-red-600">{form.formState.errors.partner.message}</p>
-                                    )}
-                                </div>
-                                <div>
-                                    <Label htmlFor="amount">Amount *</Label>
-                                    <Input
-                                        id="amount"
-                                        type="number"
-                                        step="0.01"
-                                        {...form.register('amount')}
-                                        className={form.formState.errors.amount ? 'border-red-500' : ''}
-                                    />
-                                    {form.formState.errors.amount && (
-                                        <p className="mt-1 text-sm text-red-600">{form.formState.errors.amount.message}</p>
-                                    )}
-                                </div>
-                            </div>
+                            {fieldDefinitions.field_order.map((fieldName) => {
+                                const fieldDef = fieldDefinitions.fields[fieldName];
+                                if (!fieldDef) return null;
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="currency">Currency *</Label>
-                                    <Select value={form.watch('currency')} onValueChange={(value) => form.setValue('currency', value)}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {currencies.map((currency) => (
-                                                <SelectItem key={currency.value} value={currency.value}>
-                                                    {currency.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {form.formState.errors.currency && (
-                                        <p className="mt-1 text-sm text-red-600">{form.formState.errors.currency.message}</p>
-                                    )}
-                                </div>
-                                <div>
-                                    <Label htmlFor="type">Type *</Label>
-                                    <Select value={form.watch('type')} onValueChange={(value) => form.setValue('type', value as any)}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {transactionTypes.map((type) => (
-                                                <SelectItem key={type.value} value={type.value}>
-                                                    {type.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {form.formState.errors.type && <p className="mt-1 text-sm text-red-600">{form.formState.errors.type.message}</p>}
-                                </div>
-                            </div>
-
-                            <div>
-                                <Label htmlFor="description">Description *</Label>
-                                <Input
-                                    id="description"
-                                    {...form.register('description')}
-                                    className={form.formState.errors.description ? 'border-red-500' : ''}
-                                />
-                                {form.formState.errors.description && (
-                                    <p className="mt-1 text-sm text-red-600">{form.formState.errors.description.message}</p>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="target_iban">Target IBAN</Label>
-                                    <Input id="target_iban" {...form.register('target_iban')} />
-                                </div>
-                                <div>
-                                    <Label htmlFor="source_iban">Source IBAN</Label>
-                                    <Input id="source_iban" {...form.register('source_iban')} />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="booked_date">Booked Date *</Label>
-                                    <Input
-                                        id="booked_date"
-                                        type="date"
-                                        {...form.register('booked_date')}
-                                        className={form.formState.errors.booked_date ? 'border-red-500' : ''}
-                                    />
-                                    {form.formState.errors.booked_date && (
-                                        <p className="mt-1 text-sm text-red-600">{form.formState.errors.booked_date.message}</p>
-                                    )}
-                                </div>
-                                <div>
-                                    <Label htmlFor="processed_date">Processed Date *</Label>
-                                    <Input
-                                        id="processed_date"
-                                        type="date"
-                                        {...form.register('processed_date')}
-                                        className={form.formState.errors.processed_date ? 'border-red-500' : ''}
-                                    />
-                                    {form.formState.errors.processed_date && (
-                                        <p className="mt-1 text-sm text-red-600">{form.formState.errors.processed_date.message}</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div>
-                                <Label htmlFor="transaction_id">Transaction ID *</Label>
-                                <Input
-                                    id="transaction_id"
-                                    {...form.register('transaction_id')}
-                                    className={form.formState.errors.transaction_id ? 'border-red-500' : ''}
-                                />
-                                {form.formState.errors.transaction_id && (
-                                    <p className="mt-1 text-sm text-red-600">{form.formState.errors.transaction_id.message}</p>
-                                )}
-                            </div>
+                                return (
+                                    <div key={fieldName}>
+                                        <Label htmlFor={fieldName}>
+                                            {fieldDef.label}
+                                            {fieldDef.required && ' *'}
+                                        </Label>
+                                        {renderField(fieldName, fieldDef)}
+                                        {form.formState.errors[fieldName] && (
+                                            <p className="mt-1 text-sm text-red-600">
+                                                {form.formState.errors[fieldName]?.message as string}
+                                            </p>
+                                        )}
+                                        {fieldDef.description && (
+                                            <p className="mt-1 text-xs text-gray-500">{fieldDef.description}</p>
+                                        )}
+                                    </div>
+                                );
+                            })}
 
                             <div className="flex gap-2 pt-4">
                                 <Button type="submit" className="flex-1 bg-green-600 hover:bg-green-700" disabled={isSubmitting}>
