@@ -73,4 +73,4 @@ class RuleGroup extends Model
     {
         return $query->orderBy('order');
     }
-} 
+}

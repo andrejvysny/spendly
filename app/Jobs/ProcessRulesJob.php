@@ -33,10 +33,15 @@ class ProcessRulesJob implements ShouldQueue
     public int $timeout = 300; // 5 minutes
 
     private User $user;
+
     private array $ruleIds;
+
     private ?Carbon $startDate;
+
     private ?Carbon $endDate;
+
     private array $transactionIds;
+
     private bool $dryRun;
 
     /**
@@ -79,12 +84,12 @@ class ProcessRulesJob implements ShouldQueue
 
         try {
             // Process specific transactions if provided
-            if (!empty($this->transactionIds)) {
+            if (! empty($this->transactionIds)) {
                 $transactions = $this->user->transactions()
                     ->whereIn('id', $this->transactionIds)
                     ->get();
 
-                if (!empty($this->ruleIds)) {
+                if (! empty($this->ruleIds)) {
                     $ruleEngine->processTransactionsForRules($transactions, collect($this->ruleIds));
                 } else {
                     $ruleEngine->processTransactions($transactions, Rule::TRIGGER_MANUAL);
@@ -95,33 +100,33 @@ class ProcessRulesJob implements ShouldQueue
                 $ruleEngine->processDateRange(
                     $this->startDate,
                     $this->endDate,
-                    !empty($this->ruleIds) ? $this->ruleIds : null
+                    ! empty($this->ruleIds) ? $this->ruleIds : null
                 );
             }
             // Process all transactions for specific rules
-            elseif (!empty($this->ruleIds)) {
+            elseif (! empty($this->ruleIds)) {
                 $transactions = $this->user->transactions()->get();
                 $ruleEngine->processTransactionsForRules($transactions, collect($this->ruleIds));
             }
 
             $results = $ruleEngine->getExecutionResults();
-            
+
             Log::info('Rule processing job completed', [
                 'user_id' => $this->user->id,
-                'total_matches' => count(array_filter($results, fn($r) => !empty($r['actions']))),
+                'total_matches' => count(array_filter($results, fn ($r) => ! empty($r['actions']))),
                 'total_processed' => count($results),
             ]);
 
             // Optionally notify user of completion
             // $this->user->notify(new RuleProcessingCompleted($results));
-            
+
         } catch (\Exception $e) {
             Log::error('Rule processing job failed', [
                 'user_id' => $this->user->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             throw $e;
         }
     }
@@ -147,4 +152,4 @@ class ProcessRulesJob implements ShouldQueue
         // Optionally notify user of failure
         // $this->user->notify(new RuleProcessingFailed($exception->getMessage()));
     }
-} 
+}

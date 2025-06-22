@@ -48,4 +48,4 @@ class RuleGroupFactory extends Factory
             'is_active' => false,
         ]);
     }
-} 
+}

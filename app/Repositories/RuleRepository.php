@@ -33,6 +33,7 @@ class RuleRepository
     public function updateRuleGroup(RuleGroup $ruleGroup, array $data): RuleGroup
     {
         $ruleGroup->update($data);
+
         return $ruleGroup->fresh();
     }
 
@@ -179,7 +180,7 @@ class RuleRepository
     {
         $query = $user->ruleGroups()->with(['rules' => function ($query) {
             $query->with(['conditionGroups.conditions', 'actions'])
-                  ->orderBy('order');
+                ->orderBy('order');
         }]);
 
         if ($activeOnly) {
@@ -223,7 +224,7 @@ class RuleRepository
     {
         return DB::transaction(function () use ($rule, $newName) {
             $newRule = $rule->replicate();
-            $newRule->name = $newName ?? $rule->name . ' (Copy)';
+            $newRule->name = $newName ?? $rule->name.' (Copy)';
             $newRule->save();
 
             // Duplicate condition groups and conditions
@@ -266,7 +267,7 @@ class RuleRepository
     public function getRuleStatistics(Rule $rule, ?int $days = 30): array
     {
         $query = $rule->executionLogs();
-        
+
         if ($days !== null) {
             $query->where('created_at', '>=', now()->subDays($days));
         }
@@ -282,4 +283,4 @@ class RuleRepository
             'last_executed' => $query->latest()->value('created_at'),
         ];
     }
-} 
+}

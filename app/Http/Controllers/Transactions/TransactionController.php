@@ -283,7 +283,7 @@ class TransactionController extends Controller
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Transaction created successfully',
-                    'transaction' => $transaction->load(['account', 'merchant', 'category', 'tags'])
+                    'transaction' => $transaction->load(['account', 'merchant', 'category', 'tags']),
                 ], 201);
             }
 
@@ -295,7 +295,7 @@ class TransactionController extends Controller
             if ($request->expectsJson()) {
                 return response()->json([
                     'error' => 'Failed to create transaction',
-                    'message' => $e->getMessage()
+                    'message' => $e->getMessage(),
                 ], 500);
             }
 

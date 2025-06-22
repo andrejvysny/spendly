@@ -65,4 +65,4 @@ class RuleExecutionLog extends Model
     {
         return $query->where('transaction_id', $transactionId);
     }
-} 
+}

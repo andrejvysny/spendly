@@ -127,24 +127,24 @@ class ImportWizardController extends Controller
 
         // Validate the mapping
         $validation = $this->mappingService->validateMapping($columnMapping, $headers);
-        
-        if (!$validation['valid']) {
+
+        if (! $validation['valid']) {
             Log::warning('Invalid column mapping', [
                 'import_id' => $import->id,
-                'errors' => $validation['errors']
+                'errors' => $validation['errors'],
             ]);
-            
+
             return response()->json([
-                'message' => 'Invalid column mapping: ' . implode(', ', $validation['errors']),
-                'errors' => $validation['errors']
+                'message' => 'Invalid column mapping: '.implode(', ', $validation['errors']),
+                'errors' => $validation['errors'],
             ], 422);
         }
 
         // Log warnings if any
-        if (!empty($validation['warnings'])) {
+        if (! empty($validation['warnings'])) {
             Log::info('Mapping warnings', [
                 'import_id' => $import->id,
-                'warnings' => $validation['warnings']
+                'warnings' => $validation['warnings'],
             ]);
         }
 
@@ -160,7 +160,7 @@ class ImportWizardController extends Controller
             'currency' => $request->getCurrency(),
             'metadata' => array_merge($import->metadata ?? [], [
                 'header_mapping' => $headerMapping, // Store header-based for future use
-                'validation_warnings' => $validation['warnings']
+                'validation_warnings' => $validation['warnings'],
             ]),
         ]);
 
@@ -170,7 +170,7 @@ class ImportWizardController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to generate preview', [
                 'import_id' => $import->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             $previewData = [];
         }
@@ -178,7 +178,7 @@ class ImportWizardController extends Controller
         return response()->json([
             'import' => $import,
             'preview_data' => $previewData,
-            'validation_warnings' => $validation['warnings']
+            'validation_warnings' => $validation['warnings'],
         ]);
     }
 

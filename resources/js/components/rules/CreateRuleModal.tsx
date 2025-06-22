@@ -1,28 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { toast } from 'react-toastify';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus } from 'lucide-react';
 import { useRulesApi } from '@/hooks/use-rules-api';
 import {
-    CreateRuleForm,
-    CreateConditionGroupForm,
-    CreateRuleConditionForm,
-    CreateRuleActionForm,
-    RuleGroup,
-    Rule,
+    ActionType,
     ConditionField,
     ConditionOperator,
-    ActionType,
-    TriggerType,
+    CreateConditionGroupForm,
+    CreateRuleActionForm,
+    CreateRuleConditionForm,
+    CreateRuleForm,
     LogicOperator,
+    Rule,
+    RuleGroup,
     RuleOptionsResponse,
-    ActionInputConfig,
+    TriggerType,
 } from '@/types/rules';
+import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 
 interface CreateRuleModalProps {
     isOpen: boolean;
@@ -31,11 +29,14 @@ interface CreateRuleModalProps {
     ruleGroups: RuleGroup[];
     selectedGroupId?: number;
     ruleOptions: RuleOptionsResponse['data'];
-    actionInputConfig: Record<string, {
-        type: 'select' | 'text' | 'none';
-        model?: string;
-        placeholder: string;
-    }>;
+    actionInputConfig: Record<
+        string,
+        {
+            type: 'select' | 'text' | 'none';
+            model?: string;
+            placeholder: string;
+        }
+    >;
     editingRule?: Rule;
 }
 
@@ -105,20 +106,31 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
     transaction_updated: 'When transaction is updated',
 };
 
-export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, selectedGroupId, ruleOptions, actionInputConfig, editingRule }: CreateRuleModalProps) {
+export function CreateRuleModal({
+    isOpen,
+    onClose,
+    onSuccess,
+    ruleGroups,
+    selectedGroupId,
+    ruleOptions,
+    actionInputConfig,
+    editingRule,
+}: CreateRuleModalProps) {
     const isEditMode = !!editingRule;
-    
+
     const [ruleName, setRuleName] = useState('');
     const [selectedGroupId_, setSelectedGroupId_] = useState(selectedGroupId || ruleGroups[0]?.id || 0);
     const [triggerType, setTriggerType] = useState<TriggerType>('manual');
     const [conditionGroups, setConditionGroups] = useState<CreateConditionGroupForm[]>([
         {
             logic_operator: 'AND',
-            conditions: [{
-                field: 'description',
-                operator: 'contains',
-                value: '',
-            }],
+            conditions: [
+                {
+                    field: 'description',
+                    operator: 'contains',
+                    value: '',
+                },
+            ],
         },
     ]);
     const [actions, setActions] = useState<CreateRuleActionForm[]>([
@@ -146,32 +158,34 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
             setRuleName(editingRule.name);
             setSelectedGroupId_(editingRule.rule_group_id);
             setTriggerType(editingRule.trigger_type as TriggerType);
-            
+
             // Transform condition groups
             if (editingRule.condition_groups && editingRule.condition_groups.length > 0) {
-                const transformedConditionGroups = editingRule.condition_groups.map(group => ({
+                const transformedConditionGroups = editingRule.condition_groups.map((group) => ({
                     logic_operator: group.logic_operator as LogicOperator,
-                    conditions: group.conditions ? group.conditions.map(condition => ({
-                        field: condition.field as ConditionField,
-                        operator: condition.operator as ConditionOperator,
-                        value: condition.value,
-                        is_case_sensitive: condition.is_case_sensitive,
-                        is_negated: condition.is_negated,
-                    })) : [],
+                    conditions: group.conditions
+                        ? group.conditions.map((condition) => ({
+                              field: condition.field as ConditionField,
+                              operator: condition.operator as ConditionOperator,
+                              value: condition.value,
+                              is_case_sensitive: condition.is_case_sensitive,
+                              is_negated: condition.is_negated,
+                          }))
+                        : [],
                 }));
                 setConditionGroups(transformedConditionGroups);
             }
-            
+
             // Transform actions
             if (editingRule.actions && editingRule.actions.length > 0) {
-                const transformedActions = editingRule.actions.map(action => ({
+                const transformedActions = editingRule.actions.map((action) => ({
                     action_type: action.action_type as ActionType,
                     action_value: action.action_value,
                     stop_processing: action.stop_processing,
                 }));
                 setActions(transformedActions);
             }
-            
+
             // Reset apply settings for editing (these don't apply to existing rules)
             setApplyToAll(true);
             setStartDate('');
@@ -186,10 +200,12 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                 setRuleName('');
                 setSelectedGroupId_(selectedGroupId || ruleGroups[0]?.id || 0);
                 setTriggerType('manual');
-                setConditionGroups([{
-                    logic_operator: 'AND',
-                    conditions: [{ field: 'description', operator: 'contains', value: '' }],
-                }]);
+                setConditionGroups([
+                    {
+                        logic_operator: 'AND',
+                        conditions: [{ field: 'description', operator: 'contains', value: '' }],
+                    },
+                ]);
                 setActions([{ action_type: 'set_description', action_value: '' }]);
                 setApplyToAll(true);
                 setStartDate('');
@@ -199,13 +215,11 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
 
     const getOperatorsForField = (field: ConditionField): ConditionOperator[] => {
         if (!ruleOptions) return [];
-        
+
         const numericFields: ConditionField[] = ['amount'];
         const isNumeric = numericFields.includes(field);
-        
-        return isNumeric 
-            ? ruleOptions.field_operators.numeric 
-            : ruleOptions.field_operators.string;
+
+        return isNumeric ? ruleOptions.field_operators.numeric : ruleOptions.field_operators.string;
     };
 
     const addConditionGroup = () => {
@@ -223,9 +237,7 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
     };
 
     const updateConditionGroup = (groupIndex: number, updates: Partial<CreateConditionGroupForm>) => {
-        setConditionGroups(conditionGroups.map((group, i) => 
-            i === groupIndex ? { ...group, ...updates } : group
-        ));
+        setConditionGroups(conditionGroups.map((group, i) => (i === groupIndex ? { ...group, ...updates } : group)));
     };
 
     const addCondition = (groupIndex: number) => {
@@ -234,7 +246,7 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
             operator: 'contains',
             value: '',
         };
-        
+
         updateConditionGroup(groupIndex, {
             conditions: [...conditionGroups[groupIndex].conditions, newCondition],
         });
@@ -248,16 +260,13 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
 
     const updateCondition = (groupIndex: number, conditionIndex: number, updates: Partial<CreateRuleConditionForm>) => {
         const updatedConditions = conditionGroups[groupIndex].conditions.map((condition, i) =>
-            i === conditionIndex ? { ...condition, ...updates } : condition
+            i === conditionIndex ? { ...condition, ...updates } : condition,
         );
         updateConditionGroup(groupIndex, { conditions: updatedConditions });
     };
 
     const addAction = () => {
-        setActions([
-            ...actions,
-            { action_type: 'set_description', action_value: '' },
-        ]);
+        setActions([...actions, { action_type: 'set_description', action_value: '' }]);
     };
 
     const removeAction = (actionIndex: number) => {
@@ -265,14 +274,12 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
     };
 
     const updateAction = (actionIndex: number, updates: Partial<CreateRuleActionForm>) => {
-        setActions(actions.map((action, i) => 
-            i === actionIndex ? { ...action, ...updates } : action
-        ));
+        setActions(actions.map((action, i) => (i === actionIndex ? { ...action, ...updates } : action)));
     };
 
     const renderActionInput = (action: CreateRuleActionForm, actionIndex: number) => {
         const config = actionInputConfig[action.action_type];
-        
+
         if (!config) {
             return (
                 <Input
@@ -284,31 +291,24 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
         }
 
         if (config.type === 'none') {
-            return (
-                <div className="text-sm text-muted-foreground flex items-center h-10 px-3 bg-muted rounded-md">
-                    {config.placeholder}
-                </div>
-            );
+            return <div className="text-muted-foreground bg-muted flex h-10 items-center rounded-md px-3 text-sm">{config.placeholder}</div>;
         }
 
         if (config.type === 'select') {
             let options: Array<{ value: string | number; label: string }> = [];
-            
+
             if (config.model === 'categories') {
-                options = ruleOptions.categories.map(cat => ({ value: cat.id, label: cat.name }));
+                options = ruleOptions.categories.map((cat) => ({ value: cat.id, label: cat.name }));
             } else if (config.model === 'merchants') {
-                options = ruleOptions.merchants.map(merchant => ({ value: merchant.id, label: merchant.name }));
+                options = ruleOptions.merchants.map((merchant) => ({ value: merchant.id, label: merchant.name }));
             } else if (config.model === 'tags') {
-                options = ruleOptions.tags.map(tag => ({ value: tag.id, label: tag.name }));
+                options = ruleOptions.tags.map((tag) => ({ value: tag.id, label: tag.name }));
             } else if (config.model === 'transaction_types') {
                 options = Object.entries(ruleOptions.transaction_types).map(([key, value]) => ({ value: key, label: value }));
             }
 
             return (
-                <Select 
-                    value={action.action_value?.toString() || ''} 
-                    onValueChange={(value) => updateAction(actionIndex, { action_value: value })}
-                >
+                <Select value={action.action_value?.toString() || ''} onValueChange={(value) => updateAction(actionIndex, { action_value: value })}>
                     <SelectTrigger>
                         <SelectValue placeholder={config.placeholder} />
                     </SelectTrigger>
@@ -365,14 +365,13 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{isEditMode ? 'Edit transaction rule' : 'New transaction rule'}</DialogTitle>
                     <DialogDescription>
-                        {isEditMode 
+                        {isEditMode
                             ? 'Modify this rule to change how your transactions are automatically processed.'
-                            : 'Create a new rule to automatically process your transactions based on conditions you set.'
-                        }
+                            : 'Create a new rule to automatically process your transactions based on conditions you set.'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -381,22 +380,17 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                     <div className="grid grid-cols-3 gap-4">
                         <div>
                             <Label htmlFor="ruleName">Rule Name</Label>
-                            <Input
-                                id="ruleName"
-                                value={ruleName}
-                                onChange={(e) => setRuleName(e.target.value)}
-                                placeholder="Enter rule name"
-                            />
+                            <Input id="ruleName" value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="Enter rule name" />
                         </div>
                         <div>
                             <Label htmlFor="ruleGroup">Rule Group</Label>
-                            <Select 
-                                value={selectedGroupId_.toString()} 
+                            <Select
+                                value={selectedGroupId_.toString()}
                                 onValueChange={(value) => setSelectedGroupId_(parseInt(value))}
                                 disabled={isEditMode}
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder={ruleGroups?.length === 0 ? "No rule groups available" : "Select a rule group"} />
+                                    <SelectValue placeholder={ruleGroups?.length === 0 ? 'No rule groups available' : 'Select a rule group'} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {ruleGroups?.length === 0 ? (
@@ -413,14 +407,10 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                 </SelectContent>
                             </Select>
                             {ruleGroups?.length === 0 && !isEditMode && (
-                                <p className="text-sm text-muted-foreground mt-1">
-                                    You need to create a rule group first before creating rules.
-                                </p>
+                                <p className="text-muted-foreground mt-1 text-sm">You need to create a rule group first before creating rules.</p>
                             )}
                             {isEditMode && (
-                                <p className="text-sm text-muted-foreground mt-1">
-                                    Rule group cannot be changed when editing an existing rule.
-                                </p>
+                                <p className="text-muted-foreground mt-1 text-sm">Rule group cannot be changed when editing an existing rule.</p>
                             )}
                         </div>
                         <div>
@@ -437,7 +427,7 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p className="text-muted-foreground mt-1 text-sm">
                                 {triggerType === 'manual' && 'Rule will only run when manually triggered'}
                                 {triggerType === 'transaction_created' && 'Rule will automatically run when new transactions are created'}
                                 {triggerType === 'transaction_updated' && 'Rule will automatically run when transactions are modified'}
@@ -447,16 +437,16 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
 
                     {/* Conditions Section */}
                     <div>
-                        <h3 className="text-lg font-semibold mb-4">If transaction</h3>
-                        
+                        <h3 className="mb-4 text-lg font-semibold">If transaction</h3>
+
                         {conditionGroups.map((group, groupIndex) => (
-                            <div key={groupIndex} className="border rounded-lg p-4 mb-4 bg-muted/10">
+                            <div key={groupIndex} className="bg-muted/10 mb-4 rounded-lg border p-4">
                                 {groupIndex > 0 && (
-                                    <div className="flex items-center justify-between mb-4">
+                                    <div className="mb-4 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-medium">OR match</span>
-                                            <Select 
-                                                value={group.logic_operator} 
+                                            <Select
+                                                value={group.logic_operator}
                                                 onValueChange={(value: LogicOperator) => updateConditionGroup(groupIndex, { logic_operator: value })}
                                             >
                                                 <SelectTrigger className="w-24">
@@ -469,21 +459,17 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                             </Select>
                                             <span className="text-sm font-medium">of the following conditions</span>
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeConditionGroup(groupIndex)}
-                                        >
+                                        <Button variant="ghost" size="sm" onClick={() => removeConditionGroup(groupIndex)}>
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
                                 )}
 
                                 {groupIndex === 0 && (
-                                    <div className="flex items-center gap-2 mb-4">
+                                    <div className="mb-4 flex items-center gap-2">
                                         <span className="text-sm font-medium">Match</span>
-                                        <Select 
-                                            value={group.logic_operator} 
+                                        <Select
+                                            value={group.logic_operator}
                                             onValueChange={(value: LogicOperator) => updateConditionGroup(groupIndex, { logic_operator: value })}
                                         >
                                             <SelectTrigger className="w-24">
@@ -499,15 +485,15 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                 )}
 
                                 {group.conditions.map((condition, conditionIndex) => (
-                                    <div key={conditionIndex} className="grid grid-cols-12 gap-2 mb-3">
+                                    <div key={conditionIndex} className="mb-3 grid grid-cols-12 gap-2">
                                         <div className="col-span-3">
-                                            <Select 
-                                                value={condition.field} 
+                                            <Select
+                                                value={condition.field}
                                                 onValueChange={(value: ConditionField) => {
                                                     const operators = getOperatorsForField(value);
-                                                    updateCondition(groupIndex, conditionIndex, { 
-                                                        field: value, 
-                                                        operator: operators[0] || 'contains' 
+                                                    updateCondition(groupIndex, conditionIndex, {
+                                                        field: value,
+                                                        operator: operators[0] || 'contains',
                                                     });
                                                 }}
                                             >
@@ -524,9 +510,11 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                             </Select>
                                         </div>
                                         <div className="col-span-3">
-                                            <Select 
-                                                value={condition.operator} 
-                                                onValueChange={(value: ConditionOperator) => updateCondition(groupIndex, conditionIndex, { operator: value })}
+                                            <Select
+                                                value={condition.operator}
+                                                onValueChange={(value: ConditionOperator) =>
+                                                    updateCondition(groupIndex, conditionIndex, { operator: value })
+                                                }
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue />
@@ -560,37 +548,28 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                     </div>
                                 ))}
 
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => addCondition(groupIndex)}
-                                    className="mt-2"
-                                >
-                                    <Plus className="h-4 w-4 mr-1" />
+                                <Button variant="outline" size="sm" onClick={() => addCondition(groupIndex)} className="mt-2">
+                                    <Plus className="mr-1 h-4 w-4" />
                                     Add condition
                                 </Button>
                             </div>
                         ))}
 
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={addConditionGroup}
-                        >
-                            <Plus className="h-4 w-4 mr-1" />
+                        <Button variant="outline" size="sm" onClick={addConditionGroup}>
+                            <Plus className="mr-1 h-4 w-4" />
                             Add condition group
                         </Button>
                     </div>
 
                     {/* Actions Section */}
                     <div>
-                        <h3 className="text-lg font-semibold mb-4">Then</h3>
-                        
+                        <h3 className="mb-4 text-lg font-semibold">Then</h3>
+
                         {actions.map((action, actionIndex) => (
-                            <div key={actionIndex} className="grid grid-cols-12 gap-2 mb-3">
+                            <div key={actionIndex} className="mb-3 grid grid-cols-12 gap-2">
                                 <div className="col-span-5">
-                                    <Select 
-                                        value={action.action_type} 
+                                    <Select
+                                        value={action.action_type}
                                         onValueChange={(value: ActionType) => updateAction(actionIndex, { action_type: value })}
                                     >
                                         <SelectTrigger>
@@ -606,31 +585,19 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                     </Select>
                                 </div>
                                 <div className="col-span-1 flex items-center justify-center">
-                                    <span className="text-sm text-muted-foreground">to</span>
+                                    <span className="text-muted-foreground text-sm">to</span>
                                 </div>
-                                <div className="col-span-5">
-                                    {renderActionInput(action, actionIndex)}
-                                </div>
+                                <div className="col-span-5">{renderActionInput(action, actionIndex)}</div>
                                 <div className="col-span-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removeAction(actionIndex)}
-                                        disabled={actions.length === 1}
-                                    >
+                                    <Button variant="ghost" size="sm" onClick={() => removeAction(actionIndex)} disabled={actions.length === 1}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </div>
                         ))}
 
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={addAction}
-                            className="mt-2"
-                        >
-                            <Plus className="h-4 w-4 mr-1" />
+                        <Button variant="outline" size="sm" onClick={addAction} className="mt-2">
+                            <Plus className="mr-1 h-4 w-4" />
                             Add action
                         </Button>
                     </div>
@@ -638,8 +605,8 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                     {/* Apply Section - Only show for new rules */}
                     {!isEditMode && (
                         <div>
-                            <h3 className="text-lg font-semibold mb-4">Apply this</h3>
-                            
+                            <h3 className="mb-4 text-lg font-semibold">Apply this</h3>
+
                             <div className="space-y-3">
                                 <div className="flex items-center space-x-2">
                                     <input
@@ -651,7 +618,7 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                     />
                                     <Label htmlFor="applyToAll">To all past and future transactions</Label>
                                 </div>
-                                
+
                                 <div className="flex items-center space-x-2">
                                     <input
                                         type="radio"
@@ -673,31 +640,25 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                         </div>
                     )}
 
-
-
                     {ruleGroups?.length === 0 && !isEditMode && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
                             <p className="text-sm text-yellow-800">
-                                <strong>No rule groups available.</strong> You need to create a rule group first before creating rules. 
-                                Please close this modal and create a rule group.
+                                <strong>No rule groups available.</strong> You need to create a rule group first before creating rules. Please close
+                                this modal and create a rule group.
                             </p>
                         </div>
                     )}
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
-                    <Button 
-                        onClick={handleSubmit} 
-                        disabled={loading || !ruleName.trim() || (!isEditMode && ruleGroups?.length === 0)}
-                    >
-                        {loading 
-                            ? (isEditMode ? 'Updating...' : 'Creating...') 
-                            : (isEditMode ? 'Update Rule' : 'Create Rule')
-                        }
+                    <Button variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleSubmit} disabled={loading || !ruleName.trim() || (!isEditMode && ruleGroups?.length === 0)}>
+                        {loading ? (isEditMode ? 'Updating...' : 'Creating...') : isEditMode ? 'Update Rule' : 'Create Rule'}
                     </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
-} 
+}

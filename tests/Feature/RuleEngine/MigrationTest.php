@@ -310,11 +310,11 @@ class MigrationTest extends TestCase
     {
         $indexes = [];
         $results = \DB::select("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ?", [$table]);
-        
+
         foreach ($results as $result) {
             $indexes[$result->name] = true;
         }
-        
+
         return $indexes;
     }
 
@@ -325,13 +325,14 @@ class MigrationTest extends TestCase
     {
         // In SQLite, we check the table schema for REFERENCES
         $sql = \DB::select("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", [$table]);
-        
-        if (!empty($sql)) {
+
+        if (! empty($sql)) {
             $createSql = $sql[0]->sql;
+
             // Check if the table has any foreign key constraints
             return str_contains($createSql, 'REFERENCES') || str_contains($createSql, 'FOREIGN KEY');
         }
-        
+
         return false;
     }
-} 
+}

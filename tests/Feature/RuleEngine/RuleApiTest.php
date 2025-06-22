@@ -12,8 +12,6 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
-use Illuminate\Testing\Fluent\AssertableJson;
-use Inertia\Testing\Assert;
 
 class RuleApiTest extends TestCase
 {
@@ -24,7 +22,7 @@ class RuleApiTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->user = User::factory()->create();
         $this->actingAs($this->user);
     }
@@ -63,7 +61,7 @@ class RuleApiTest extends TestCase
 
         $response->assertOk()
             ->assertJsonCount(2, 'data');
-        
+
         // Check that both groups are present
         $data = $response->json('data');
         $groupNames = collect($data)->pluck('name')->toArray();
@@ -152,11 +150,11 @@ class RuleApiTest extends TestCase
     public function it_passes_action_input_configuration_to_inertia()
     {
         $user = User::factory()->create();
-        
+
         $response = $this->actingAs($user)->get('/rules');
 
         $response->assertOk();
-        
+
         // Check that the Inertia response contains the action input configuration
         $response->assertInertia(fn ($page) => $page
             ->component('rules/index')
@@ -544,7 +542,7 @@ class RuleApiTest extends TestCase
                     'is_active',
                     'created_at',
                     'updated_at',
-                ]
+                ],
             ]);
 
         $this->assertDatabaseHas('rule_groups', [
@@ -618,7 +616,7 @@ class RuleApiTest extends TestCase
                     'is_active',
                     'created_at',
                     'updated_at',
-                ]
+                ],
             ]);
 
         $this->assertDatabaseHas('rules', [
@@ -775,4 +773,4 @@ class RuleApiTest extends TestCase
             ->assertJsonPath('message', 'Rule dry run completed successfully')
             ->assertJsonPath('data.rule_id', $rule->id);
     }
-} 
+}

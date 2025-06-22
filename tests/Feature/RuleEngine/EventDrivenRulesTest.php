@@ -21,16 +21,18 @@ class EventDrivenRulesTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private Account $account;
+
     private RuleRepository $ruleRepository;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->user = User::factory()->create();
         $this->account = Account::factory()->create(['user_id' => $this->user->id]);
-        $this->ruleRepository = new RuleRepository();
+        $this->ruleRepository = new RuleRepository;
     }
 
     /**
@@ -350,7 +352,7 @@ class EventDrivenRulesTest extends TestCase
         $airlineTransaction->load('account.user');
 
         event(new TransactionCreated($airlineTransaction));
-        
+
         $airlineTransaction->refresh();
         $this->assertEquals($travelCategory->id, $airlineTransaction->category_id);
 
@@ -365,7 +367,7 @@ class EventDrivenRulesTest extends TestCase
         $hotelTransaction->load('account.user');
 
         event(new TransactionCreated($hotelTransaction));
-        
+
         $hotelTransaction->refresh();
         $this->assertEquals($travelCategory->id, $hotelTransaction->category_id);
     }
@@ -488,4 +490,4 @@ class EventDrivenRulesTest extends TestCase
             'actions' => $actions,
         ]);
     }
-} 
+}

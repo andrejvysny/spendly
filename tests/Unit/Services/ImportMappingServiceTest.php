@@ -12,7 +12,7 @@ class ImportMappingServiceTest extends UnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new ImportMappingService();
+        $this->service = new ImportMappingService;
     }
 
     public function test_convert_index_mapping_to_headers()
@@ -273,4 +273,4 @@ class ImportMappingServiceTest extends UnitTestCase
         $validation = $this->service->validateMapping($appliedMapping, $newHeaders);
         $this->assertTrue($validation['valid']);
     }
-} 
+}

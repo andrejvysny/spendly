@@ -12,7 +12,9 @@ class TransactionUpdated
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public Transaction $transaction;
+
     public bool $applyRules;
+
     public array $changedAttributes;
 
     /**
@@ -24,4 +26,4 @@ class TransactionUpdated
         $this->changedAttributes = $changedAttributes;
         $this->applyRules = $applyRules;
     }
-} 
+}

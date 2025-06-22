@@ -6,7 +6,6 @@ use App\Contracts\RuleEngine\ConditionEvaluatorInterface;
 use App\Models\RuleCondition;
 use App\Models\Transaction;
 use Carbon\Carbon;
-use Illuminate\Support\Str;
 
 class ConditionEvaluator implements ConditionEvaluatorInterface
 {
@@ -15,12 +14,12 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         $fieldValue = $this->getFieldValue($transaction, $condition->field);
         $conditionValue = $condition->value;
         $caseSensitive = $condition->is_case_sensitive ?? false;
-        
+
         $result = match ($condition->operator) {
             RuleCondition::OPERATOR_EQUALS => $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_EQUALS => !$this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
+            RuleCondition::OPERATOR_NOT_EQUALS => ! $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
             RuleCondition::OPERATOR_CONTAINS => $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_CONTAINS => !$this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
+            RuleCondition::OPERATOR_NOT_CONTAINS => ! $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
             RuleCondition::OPERATOR_STARTS_WITH => $this->evaluateStartsWith($fieldValue, $conditionValue, $caseSensitive),
             RuleCondition::OPERATOR_ENDS_WITH => $this->evaluateEndsWith($fieldValue, $conditionValue, $caseSensitive),
             RuleCondition::OPERATOR_GREATER_THAN => $this->evaluateGreaterThan($fieldValue, $conditionValue),
@@ -30,15 +29,15 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
             RuleCondition::OPERATOR_REGEX => $this->evaluateRegex($fieldValue, $conditionValue),
             RuleCondition::OPERATOR_WILDCARD => $this->evaluateWildcard($fieldValue, $conditionValue, $caseSensitive),
             RuleCondition::OPERATOR_IS_EMPTY => $this->evaluateIsEmpty($fieldValue),
-            RuleCondition::OPERATOR_IS_NOT_EMPTY => !$this->evaluateIsEmpty($fieldValue),
+            RuleCondition::OPERATOR_IS_NOT_EMPTY => ! $this->evaluateIsEmpty($fieldValue),
             RuleCondition::OPERATOR_IN => $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_IN => !$this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
+            RuleCondition::OPERATOR_NOT_IN => ! $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
             RuleCondition::OPERATOR_BETWEEN => $this->evaluateBetween($fieldValue, $conditionValue),
             default => false,
         };
 
         // Apply negation if specified
-        return $condition->is_negated ? !$result : $result;
+        return $condition->is_negated ? ! $result : $result;
     }
 
     public function supportsOperator(string $operator): bool
@@ -76,7 +75,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         $fieldValue = (string) $fieldValue;
         $conditionValue = (string) $conditionValue;
 
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             return strtolower($fieldValue) === strtolower($conditionValue);
         }
 
@@ -92,7 +91,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         $fieldValue = (string) $fieldValue;
         $conditionValue = (string) $conditionValue;
 
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             return str_contains(strtolower($fieldValue), strtolower($conditionValue));
         }
 
@@ -108,7 +107,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         $fieldValue = (string) $fieldValue;
         $conditionValue = (string) $conditionValue;
 
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             return str_starts_with(strtolower($fieldValue), strtolower($conditionValue));
         }
 
@@ -124,7 +123,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         $fieldValue = (string) $fieldValue;
         $conditionValue = (string) $conditionValue;
 
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             return str_ends_with(strtolower($fieldValue), strtolower($conditionValue));
         }
 
@@ -140,6 +139,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         // Handle date comparisons
         if ($fieldValue instanceof \DateTimeInterface) {
             $conditionDate = Carbon::parse($conditionValue);
+
             return $fieldValue->greaterThan($conditionDate);
         }
 
@@ -155,6 +155,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         // Handle date comparisons
         if ($fieldValue instanceof \DateTimeInterface) {
             $conditionDate = Carbon::parse($conditionValue);
+
             return $fieldValue->greaterThanOrEqualTo($conditionDate);
         }
 
@@ -170,6 +171,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         // Handle date comparisons
         if ($fieldValue instanceof \DateTimeInterface) {
             $conditionDate = Carbon::parse($conditionValue);
+
             return $fieldValue->lessThan($conditionDate);
         }
 
@@ -185,6 +187,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         // Handle date comparisons
         if ($fieldValue instanceof \DateTimeInterface) {
             $conditionDate = Carbon::parse($conditionValue);
+
             return $fieldValue->lessThanOrEqualTo($conditionDate);
         }
 
@@ -198,10 +201,10 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         }
 
         $fieldValue = (string) $fieldValue;
-        
+
         // Ensure the pattern has delimiters
-        if (!preg_match('/^[\/~#%].*[\/~#%][imsuxADJSUX]*$/', $pattern)) {
-            $pattern = '/' . str_replace('/', '\/', $pattern) . '/';
+        if (! preg_match('/^[\/~#%].*[\/~#%][imsuxADJSUX]*$/', $pattern)) {
+            $pattern = '/'.str_replace('/', '\/', $pattern).'/';
         }
 
         try {
@@ -219,17 +222,17 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         }
 
         $fieldValue = (string) $fieldValue;
-        
+
         // Convert wildcard pattern to regex
         $regexPattern = str_replace(
             ['*', '?', '[', ']', '\\'],
             ['.*', '.', '\[', '\]', '\\\\'],
             $pattern
         );
-        
-        $regexPattern = '/^' . $regexPattern . '$/';
-        
-        if (!$caseSensitive) {
+
+        $regexPattern = '/^'.$regexPattern.'$/';
+
+        if (! $caseSensitive) {
             $regexPattern .= 'i';
         }
 
@@ -261,7 +264,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
 
         // Parse the condition value as a comma-separated list
         $values = array_map('trim', explode(',', $conditionValue));
-        
+
         // Handle array field values (like tags)
         if (is_array($fieldValue)) {
             foreach ($fieldValue as $item) {
@@ -269,6 +272,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
                     return true;
                 }
             }
+
             return false;
         }
 
@@ -277,7 +281,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
 
     private function isValueInList(string $value, array $list, bool $caseSensitive): bool
     {
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             $value = strtolower($value);
             $list = array_map('strtolower', $list);
         }
@@ -293,7 +297,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
 
         // Parse the range (format: "min,max")
         $parts = array_map('trim', explode(',', $conditionValue));
-        
+
         if (count($parts) !== 2) {
             return false;
         }
@@ -304,10 +308,12 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         if ($fieldValue instanceof \DateTimeInterface) {
             $minDate = Carbon::parse($min);
             $maxDate = Carbon::parse($max);
+
             return $fieldValue->between($minDate, $maxDate);
         }
 
         $value = (float) $fieldValue;
+
         return $value >= (float) $min && $value <= (float) $max;
     }
-} 
+}

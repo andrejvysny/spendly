@@ -18,10 +18,15 @@ use Illuminate\Support\Facades\Log;
 class RuleEngine implements RuleEngineInterface
 {
     private User $user;
+
     private ConditionEvaluatorInterface $conditionEvaluator;
+
     private ActionExecutorInterface $actionExecutor;
+
     private bool $logging = true;
+
     private bool $dryRun = false;
+
     private array $executionResults = [];
 
     public function __construct(
@@ -35,6 +40,7 @@ class RuleEngine implements RuleEngineInterface
     public function setUser(User $user): self
     {
         $this->user = $user;
+
         return $this;
     }
 
@@ -46,7 +52,7 @@ class RuleEngine implements RuleEngineInterface
     public function processTransactions(Collection $transactions, string $triggerType): void
     {
         $rules = $this->getActiveRulesForTrigger($triggerType);
-        
+
         foreach ($transactions as $transaction) {
             $this->processTransactionThroughRules($transaction, $rules);
         }
@@ -91,12 +97,14 @@ class RuleEngine implements RuleEngineInterface
     public function setLogging(bool $enabled): self
     {
         $this->logging = $enabled;
+
         return $this;
     }
 
     public function setDryRun(bool $dryRun): self
     {
         $this->dryRun = $dryRun;
+
         return $this;
     }
 
@@ -108,6 +116,7 @@ class RuleEngine implements RuleEngineInterface
     public function clearExecutionResults(): self
     {
         $this->executionResults = [];
+
         return $this;
     }
 
@@ -119,14 +128,14 @@ class RuleEngine implements RuleEngineInterface
                     ->where('trigger_type', $triggerType)
                     ->orderBy('order')
                     ->with(['conditionGroups.conditions', 'actions']);
-            }
+            },
         ])
-        ->where('user_id', $this->user->id)
-        ->where('is_active', true)
-        ->orderBy('order')
-        ->get()
-        ->pluck('rules')
-        ->flatten();
+            ->where('user_id', $this->user->id)
+            ->where('is_active', true)
+            ->orderBy('order')
+            ->get()
+            ->pluck('rules')
+            ->flatten();
     }
 
     private function processTransactionThroughRules(Transaction $transaction, Collection $rules): void
@@ -134,7 +143,7 @@ class RuleEngine implements RuleEngineInterface
         foreach ($rules as $rule) {
             if ($this->evaluateRule($rule, $transaction)) {
                 $this->executeRuleActions($rule, $transaction);
-                
+
                 if ($rule->stop_processing) {
                     break;
                 }
@@ -145,7 +154,7 @@ class RuleEngine implements RuleEngineInterface
     private function evaluateRule(Rule $rule, Transaction $transaction): bool
     {
         $conditionGroups = $rule->conditionGroups()->with('conditions')->orderBy('order')->get();
-        
+
         if ($conditionGroups->isEmpty()) {
             return false;
         }
@@ -154,18 +163,20 @@ class RuleEngine implements RuleEngineInterface
         foreach ($conditionGroups as $group) {
             if ($this->evaluateConditionGroup($group, $transaction)) {
                 $this->logExecution($rule, $transaction, true);
+
                 return true;
             }
         }
 
         $this->logExecution($rule, $transaction, false);
+
         return false;
     }
 
     private function evaluateConditionGroup(ConditionGroup $group, Transaction $transaction): bool
     {
         $conditions = $group->orderedConditions;
-        
+
         if ($conditions->isEmpty()) {
             return false;
         }
@@ -173,18 +184,18 @@ class RuleEngine implements RuleEngineInterface
         $results = [];
         foreach ($conditions as $condition) {
             $result = $this->conditionEvaluator->evaluate($condition, $transaction);
-            
+
             // Apply negation if needed
             if ($condition->is_negated) {
-                $result = !$result;
+                $result = ! $result;
             }
-            
+
             $results[] = $result;
         }
 
         // Apply AND/OR logic
         if ($group->isAndLogic()) {
-            return !in_array(false, $results, true);
+            return ! in_array(false, $results, true);
         } else {
             return in_array(true, $results, true);
         }
@@ -198,9 +209,9 @@ class RuleEngine implements RuleEngineInterface
         DB::beginTransaction();
         try {
             foreach ($actions as $action) {
-                if (!$this->dryRun) {
+                if (! $this->dryRun) {
                     $success = $this->actionExecutor->execute($action, $transaction);
-                    
+
                     if ($success) {
                         $executedActions[] = [
                             'type' => $action->action_type,
@@ -208,7 +219,7 @@ class RuleEngine implements RuleEngineInterface
                             'description' => $this->actionExecutor->getActionDescription($action),
                         ];
                     }
-                    
+
                     if ($action->stop_processing && $success) {
                         break;
                     }
@@ -223,7 +234,7 @@ class RuleEngine implements RuleEngineInterface
                 }
             }
 
-            if (!$this->dryRun) {
+            if (! $this->dryRun) {
                 DB::commit();
             } else {
                 DB::rollBack();
@@ -237,14 +248,14 @@ class RuleEngine implements RuleEngineInterface
                 'transaction_id' => $transaction->id,
                 'error' => $e->getMessage(),
             ]);
-            
+
             $this->recordExecutionResult($rule, $transaction, false, [], $e->getMessage());
         }
     }
 
     private function logExecution(Rule $rule, Transaction $transaction, bool $matched): void
     {
-        if (!$this->logging) {
+        if (! $this->logging) {
             return;
         }
 
@@ -276,7 +287,7 @@ class RuleEngine implements RuleEngineInterface
 
         $this->executionResults[] = $result;
 
-        if ($this->logging && !empty($actions)) {
+        if ($this->logging && ! empty($actions)) {
             RuleExecutionLog::where('rule_id', $rule->id)
                 ->where('transaction_id', $transaction->id)
                 ->where('matched', true)
@@ -285,4 +296,4 @@ class RuleEngine implements RuleEngineInterface
                 ?->update(['actions_executed' => $actions]);
         }
     }
-} 
+}

@@ -46,4 +46,4 @@ class ConditionGroupFactory extends Factory
             'logic_operator' => 'OR',
         ]);
     }
-} 
+}

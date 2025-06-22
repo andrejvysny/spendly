@@ -26,4 +26,4 @@ class TagFactory extends Factory
             'color' => $this->faker->optional()->hexColor(),
         ];
     }
-} 
+}

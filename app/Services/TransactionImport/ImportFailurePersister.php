@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 class ImportFailurePersister
 {
     private array $failureBatch = [];
+
     private int $batchSize = 100;
 
     /**
@@ -153,7 +154,7 @@ class ImportFailurePersister
     private function determineSkippedErrorType(CsvProcessResult $result): string
     {
         $metadata = $result->getMetadata() ?? [];
-        
+
         // Check if it's a duplicate
         if (isset($metadata['duplicate']) && $metadata['duplicate'] === true) {
             return ImportFailure::ERROR_TYPE_DUPLICATE;
@@ -218,8 +219,8 @@ class ImportFailurePersister
      */
     public function flush(): void
     {
-        if (!empty($this->failureBatch)) {
+        if (! empty($this->failureBatch)) {
             $this->processBatch();
         }
     }
-} 
+}

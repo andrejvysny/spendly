@@ -39,7 +39,7 @@ class ImportFailureController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('error_message', 'like', "%{$search}%")
-                  ->orWhere('raw_data', 'like', "%{$search}%");
+                    ->orWhere('raw_data', 'like', "%{$search}%");
             });
         }
 
@@ -82,7 +82,7 @@ class ImportFailureController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('error_message', 'like', "%{$search}%")
-                  ->orWhere('raw_data', 'like', "%{$search}%");
+                    ->orWhere('raw_data', 'like', "%{$search}%");
             });
         }
 
@@ -149,7 +149,7 @@ class ImportFailureController extends Controller
         $user = Auth::user();
         $success = $failure->markAsReviewed($user, $request->input('notes'));
 
-        if (!$success) {
+        if (! $success) {
             return response()->json(['error' => 'Failed to update failure status'], 500);
         }
 
@@ -184,7 +184,7 @@ class ImportFailureController extends Controller
         $user = Auth::user();
         $success = $failure->markAsResolved($user, $request->input('notes'));
 
-        if (!$success) {
+        if (! $success) {
             return response()->json(['error' => 'Failed to update failure status'], 500);
         }
 
@@ -219,7 +219,7 @@ class ImportFailureController extends Controller
         $user = Auth::user();
         $success = $failure->markAsIgnored($user, $request->input('notes'));
 
-        if (!$success) {
+        if (! $success) {
             return response()->json(['error' => 'Failed to update failure status'], 500);
         }
 
@@ -323,7 +323,7 @@ class ImportFailureController extends Controller
             $query->where('status', $request->input('status'));
         }
 
-        $filename = "import-{$import->id}-failures-" . now()->format('Y-m-d-H-i-s') . '.csv';
+        $filename = "import-{$import->id}-failures-".now()->format('Y-m-d-H-i-s').'.csv';
 
         return response()->stream(function () use ($query) {
             $file = fopen('php://output', 'w');
@@ -364,4 +364,4 @@ class ImportFailureController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
-} 
+}

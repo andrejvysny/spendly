@@ -85,4 +85,4 @@ class RuleFactory extends Factory
             'trigger_type' => $type,
         ]);
     }
-} 
+}

@@ -21,4 +21,4 @@ interface ConditionEvaluatorInterface
      * Get the value from the transaction for the specified field.
      */
     public function getFieldValue(Transaction $transaction, string $field): mixed;
-} 
+}
