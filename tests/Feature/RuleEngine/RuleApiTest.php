@@ -12,6 +12,8 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Illuminate\Testing\Fluent\AssertableJson;
+use Inertia\Testing\Assert;
 
 class RuleApiTest extends TestCase
 {
@@ -118,44 +120,54 @@ class RuleApiTest extends TestCase
             ->assertJsonStructure([
                 'data' => [
                     'action_input_types' => [
-                        RuleAction::ACTION_SET_CATEGORY => [
+                        'set_category' => [
                             'type',
                             'model',
                             'placeholder',
                         ],
-                        RuleAction::ACTION_SET_MERCHANT => [
+                        'set_merchant' => [
                             'type',
                             'model',
                             'placeholder',
                         ],
-                        RuleAction::ACTION_ADD_TAG => [
+                        'add_tag' => [
                             'type',
                             'model',
-                            'placeholder',
-                        ],
-                        RuleAction::ACTION_REMOVE_ALL_TAGS => [
-                            'type',
-                            'placeholder',
-                        ],
-                        RuleAction::ACTION_SET_DESCRIPTION => [
-                            'type',
                             'placeholder',
                         ],
                     ],
                 ],
-            ]);
+            ])
+            ->assertJsonPath('data.action_input_types.set_category.type', 'select')
+            ->assertJsonPath('data.action_input_types.set_category.model', 'categories')
+            ->assertJsonPath('data.action_input_types.set_merchant.type', 'select')
+            ->assertJsonPath('data.action_input_types.set_merchant.model', 'merchants')
+            ->assertJsonPath('data.action_input_types.add_tag.type', 'select')
+            ->assertJsonPath('data.action_input_types.add_tag.model', 'tags');
+    }
 
-        $data = $response->json('data.action_input_types');
+    /**
+     * @test
+     */
+    public function it_passes_action_input_configuration_to_inertia()
+    {
+        $user = User::factory()->create();
         
-        // Test specific action types
-        $this->assertEquals('select', $data[RuleAction::ACTION_SET_CATEGORY]['type']);
-        $this->assertEquals('categories', $data[RuleAction::ACTION_SET_CATEGORY]['model']);
-        $this->assertEquals('select', $data[RuleAction::ACTION_SET_MERCHANT]['type']);
-        $this->assertEquals('merchants', $data[RuleAction::ACTION_SET_MERCHANT]['model']);
-        $this->assertEquals('select', $data[RuleAction::ACTION_ADD_TAG]['type']);
-        $this->assertEquals('tags', $data[RuleAction::ACTION_ADD_TAG]['model']);
-        $this->assertEquals('none', $data[RuleAction::ACTION_REMOVE_ALL_TAGS]['type']);
-        $this->assertEquals('text', $data[RuleAction::ACTION_SET_DESCRIPTION]['type']);
+        $response = $this->actingAs($user)->get('/rules');
+
+        $response->assertOk();
+        
+        // Check that the Inertia response contains the action input configuration
+        $response->assertInertia(fn ($page) => $page
+            ->component('rules/index')
+            ->has('actionInputConfig')
+            ->where('actionInputConfig.set_category.type', 'select')
+            ->where('actionInputConfig.set_category.model', 'categories')
+            ->where('actionInputConfig.set_merchant.type', 'select')
+            ->where('actionInputConfig.set_merchant.model', 'merchants')
+            ->where('actionInputConfig.add_tag.type', 'select')
+            ->where('actionInputConfig.add_tag.model', 'tags')
+        );
     }
 
     /**

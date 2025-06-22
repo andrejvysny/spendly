@@ -18,9 +18,29 @@ import axios from 'axios';
 
 interface RulesIndexProps {
     initialRuleGroups: RuleGroup[];
+    ruleOptions: {
+        trigger_types: string[];
+        fields: string[];
+        operators: string[];
+        logic_operators: string[];
+        action_types: string[];
+        field_operators: {
+            numeric: string[];
+            string: string[];
+        };
+        categories: Array<{ id: number; name: string }>;
+        merchants: Array<{ id: number; name: string }>;
+        tags: Array<{ id: number; name: string }>;
+        transaction_types: Record<string, string>;
+    };
+    actionInputConfig: Record<string, {
+        type: 'select' | 'text' | 'none';
+        model?: string;
+        placeholder: string;
+    }>;
 }
 
-export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
+export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInputConfig }: RulesIndexProps) {
     const [ruleGroups, setRuleGroups] = useState<RuleGroup[]>(initialRuleGroups || []);
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
     const [selectedRuleForDeletion, setSelectedRuleForDeletion] = useState<Rule | null>(null);
@@ -557,6 +577,8 @@ export default function RulesIndex({ initialRuleGroups }: RulesIndexProps) {
             onSuccess={handleRuleCreated}
             ruleGroups={ruleGroups}
             selectedGroupId={selectedGroupForNewRule}
+            ruleOptions={ruleOptions}
+            actionInputConfig={actionInputConfig}
         />
 
         {/* Create Rule Group Modal */}

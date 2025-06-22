@@ -28,6 +28,12 @@ interface CreateRuleModalProps {
     onSuccess: () => void;
     ruleGroups: RuleGroup[];
     selectedGroupId?: number;
+    ruleOptions: RuleOptionsResponse['data'];
+    actionInputConfig: Record<string, {
+        type: 'select' | 'text' | 'none';
+        model?: string;
+        placeholder: string;
+    }>;
 }
 
 // Field display names
@@ -96,7 +102,7 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
     transaction_updated: 'When transaction is updated',
 };
 
-export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, selectedGroupId }: CreateRuleModalProps) {
+export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, selectedGroupId, ruleOptions, actionInputConfig }: CreateRuleModalProps) {
     const [ruleName, setRuleName] = useState('');
     const [selectedGroupId_, setSelectedGroupId_] = useState(selectedGroupId || ruleGroups[0]?.id || 0);
     const [triggerType, setTriggerType] = useState<TriggerType>('manual');
@@ -118,49 +124,8 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
     ]);
     const [applyToAll, setApplyToAll] = useState(true);
     const [startDate, setStartDate] = useState('');
-    const [ruleOptions, setRuleOptions] = useState<RuleOptionsResponse['data'] | null>(null);
-    const [actionInputConfig, setActionInputConfig] = useState<Record<ActionType, ActionInputConfig> | null>(null);
 
-    const { createRule, fetchRuleOptions, fetchActionInputConfig, loading, error } = useRulesApi();
-
-    // Load rule options when modal opens
-    useEffect(() => {
-        if (isOpen && !ruleOptions) {
-            fetchRuleOptions().then(options => {
-                if (options) {
-                    setRuleOptions(options);
-                } else {
-                    // Fallback with basic options if API fails
-                    setRuleOptions({
-                        trigger_types: ['manual', 'transaction_created', 'transaction_updated'],
-                        fields: ['description', 'amount', 'partner', 'category'],
-                        operators: ['contains', 'equals', 'greater_than', 'less_than'],
-                        logic_operators: ['AND', 'OR'],
-                        action_types: ['set_description', 'set_category', 'add_tag'],
-                        field_operators: {
-                            numeric: ['equals', 'greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal'],
-                            string: ['equals', 'contains', 'starts_with', 'ends_with'],
-                        },
-                        categories: [],
-                        merchants: [],
-                        tags: [],
-                        transaction_types: {},
-                    });
-                }
-            });
-        }
-    }, [isOpen, ruleOptions, fetchRuleOptions]);
-
-    // Load action input configuration when modal opens
-    useEffect(() => {
-        if (isOpen && !actionInputConfig) {
-            fetchActionInputConfig().then(config => {
-                if (config) {
-                    setActionInputConfig(config.action_input_types);
-                }
-            });
-        }
-    }, [isOpen, actionInputConfig, fetchActionInputConfig]);
+    const { createRule, loading, error } = useRulesApi();
 
     // Reset form when modal closes
     useEffect(() => {
@@ -175,8 +140,6 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
             setActions([{ action_type: 'set_description', action_value: '' }]);
             setApplyToAll(true);
             setStartDate('');
-            setRuleOptions(null);
-            setActionInputConfig(null);
         }
     }, [isOpen, selectedGroupId, ruleGroups]);
 
@@ -254,17 +217,8 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
     };
 
     const renderActionInput = (action: CreateRuleActionForm, actionIndex: number) => {
-        if (!actionInputConfig || !ruleOptions) {
-            return (
-                <Input
-                    value={action.action_value || ''}
-                    onChange={(e) => updateAction(actionIndex, { action_value: e.target.value })}
-                    placeholder="Enter a value"
-                />
-            );
-        }
-
         const config = actionInputConfig[action.action_type];
+        
         if (!config) {
             return (
                 <Input
@@ -348,25 +302,6 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
             onClose();
         }
     };
-
-    if (!ruleOptions) {
-        return (
-            <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>Loading Rule Options</DialogTitle>
-                        <DialogDescription>
-                            Please wait while we load the available options for creating rules.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex items-center justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        <span className="ml-2">Loading...</span>
-                    </div>
-                </DialogContent>
-            </Dialog>
-        );
-    }
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
