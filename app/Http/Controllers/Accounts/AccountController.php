@@ -82,7 +82,7 @@ class AccountController extends Controller
         $transactions = $account->transactions()
             ->with(['category', 'merchant', 'tags'])
             ->orderBy('booked_date', 'desc')
-            ->paginate(10); // Use same pagination count as TransactionController
+            ->paginate(100); // Use same pagination count as TransactionController
 
         $total_transactions = $account->transactions()->count();
 

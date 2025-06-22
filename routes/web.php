@@ -5,12 +5,14 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Import\ImportController;
+use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\Import\ImportMappingsController;
 use App\Http\Controllers\Import\ImportWizardController;
 use App\Http\Controllers\MerchantController;
+use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\Transactions\TransactionController;
-use App\Http\Controllers\Transactions\TransactionRuleController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -26,7 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
 
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
-    Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
+    Route::post('/transactions-store', [TransactionController::class, 'store'])->name('transactions.store');
     Route::post('/transactions/bulk-update', [TransactionController::class, 'bulkUpdate'])->name('transactions.bulk-update');
     Route::put('/transactions/{transaction}', [TransactionController::class, 'updateTransaction'])->name('transactions.update');
 
@@ -37,12 +39,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/accounts/{id}', [AccountController::class, 'destroy'])->name('accounts.destroy');
     Route::put('/accounts/{id}/sync-options', [AccountController::class, 'updateSyncOptions'])->name('accounts.sync-options.update');
 
-    // Transaction Rules
-    Route::get('/transaction-rules', [TransactionRuleController::class, 'index'])->name('transaction-rules.index');
-    Route::post('/transaction-rules', [TransactionRuleController::class, 'store'])->name('transaction-rules.store');
-    Route::put('/transaction-rules/{rule}', [TransactionRuleController::class, 'update'])->name('transaction-rules.update');
-    Route::delete('/transaction-rules/{rule}', [TransactionRuleController::class, 'destroy'])->name('transaction-rules.destroy');
-    Route::post('/transaction-rules/reorder', [TransactionRuleController::class, 'reorder'])->name('transaction-rules.reorder');
+    // Rule Engine (New) - Web page route
+    Route::get('/rules', [RuleController::class, 'indexPage'])->name('rules.index');
 
     // Category routes
     Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
@@ -65,24 +63,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Import routes
     Route::group(['prefix' => 'imports', 'as' => 'imports.'], function () {
         Route::get('/', [ImportController::class, 'index'])->name('index');
+        Route::get('/{import}/failures', [ImportFailureController::class, 'failuresPage'])->name('failures');
         Route::post('/revert/{import}', [ImportController::class, 'revertImport'])->name('revert');
         Route::delete('/{import}', [ImportController::class, 'deleteImport'])->name('delete');
 
         Route::group(['prefix' => '/wizard', 'as' => 'wizard.'], function () {
             Route::post('/upload', [ImportWizardController::class, 'upload'])->name('upload');
             Route::post('/{import}/configure', [ImportWizardController::class, 'configure'])->name('configure');
-            Route::post('/{import}/process', [ImportWizardController::class, 'process'])->name('process');
+            Route::post('/{account}/{import}/process', [ImportWizardController::class, 'process'])->name('process');
             Route::get('/categories', [ImportWizardController::class, 'getCategories'])->name('categories');
         });
 
         Route::group(['prefix' => '/mappings', 'as' => 'mappings.'], function () {
             Route::get('/', [ImportMappingsController::class, 'index'])->name('get');
             Route::post('/', [ImportMappingsController::class, 'store'])->name('save');
+            Route::post('/apply', [ImportMappingsController::class, 'applyMapping'])->name('apply');
+            Route::post('/auto-detect', [ImportMappingsController::class, 'autoDetect'])->name('auto-detect');
+            Route::post('/compatible', [ImportMappingsController::class, 'getCompatible'])->name('compatible');
             Route::put('/{mapping}', [ImportMappingsController::class, 'updateLastUsed'])->name('usage');
             Route::delete('/{mapping}', [ImportMappingsController::class, 'delete'])->name('delete');
         });
     });
-
 });
 
 // Health check endpoint for container health monitoring

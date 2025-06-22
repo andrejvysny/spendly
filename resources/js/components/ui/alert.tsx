@@ -8,8 +8,10 @@ const alertVariants = cva(
     {
         variants: {
             variant: {
-                default: 'bg-background text-foreground',
+                default: 'bg-background text-foreground text-muted-foreground border-border',
                 destructive: 'text-destructive-foreground [&>svg]:text-current *:data-[slot=alert-description]:text-destructive-foreground/80',
+                success:
+                    'bg-background text-success border-success border-2 [&>svg]:text-current *:data-[slot=alert-description]:text-success-foreground/80 border-green',
             },
         },
         defaultVariants: {
@@ -22,15 +24,19 @@ function Alert({ className, variant, ...props }: React.ComponentProps<'div'> & V
     return <div data-slot="alert" role="alert" className={cn(alertVariants({ variant }), className)} {...props} />;
 }
 
-function AlertTitle({ className, ...props }: React.ComponentProps<'div'>) {
-    return <div data-slot="alert-title" className={cn('col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight', className)} {...props} />;
+function AlertTitle({ className, title, ...props }: React.ComponentProps<'div'>) {
+    return (
+        <div data-slot="alert-title" className={cn('col-start-2 line-clamp-1 min-h-4 font-bold tracking-tight', className)} {...props}>
+            {title}
+        </div>
+    );
 }
 
 function AlertDescription({ className, ...props }: React.ComponentProps<'div'>) {
     return (
         <div
             data-slot="alert-description"
-            className={cn('text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&_p]:leading-relaxed', className)}
+            className={cn('col-start-2 grid justify-items-start gap-1 text-sm [&_p]:leading-relaxed', className)}
             {...props}
         />
     );

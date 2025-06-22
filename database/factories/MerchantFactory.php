@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Merchant;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -9,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class MerchantFactory extends Factory
 {
+    protected $model = Merchant::class;
+
     /**
      * Define the model's default state.
      *
@@ -17,7 +21,8 @@ class MerchantFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'user_id' => User::factory(),
+            'name' => $this->faker->company(),
         ];
     }
 }

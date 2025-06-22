@@ -78,6 +78,7 @@
         "react-dom": "^19.0.0",
         "react-dropzone": "^14.3.8",
         "react-hook-form": "^7.56.3",
+        "react-toastify": "^11.0.5",
         "sonner": "^2.0.5",
         "tailwind-merge": "^3.3.0",
         "tailwindcss": "^4.0.0",
