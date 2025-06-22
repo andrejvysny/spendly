@@ -11,6 +11,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Import;
 use App\Services\Csv\CsvProcessor;
+use App\Services\ImportMappingService;
 use App\Services\TransactionImport\TransactionImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +23,8 @@ class ImportWizardController extends Controller
 {
     public function __construct(
         private readonly CsvProcessor $csvProcessor,
-        private readonly TransactionImportService $importService
+        private readonly TransactionImportService $importService,
+        private readonly ImportMappingService $mappingService
     ) {}
 
     public function upload(ImportUploadRequest $request): JsonResponse
@@ -120,21 +122,63 @@ class ImportWizardController extends Controller
     {
         Log::debug('Configuring import', ['import_id' => $import->getKey()]);
 
+        $columnMapping = $request->getColumnMapping();
+        $headers = $import->metadata['headers'] ?? [];
+
+        // Validate the mapping
+        $validation = $this->mappingService->validateMapping($columnMapping, $headers);
+        
+        if (!$validation['valid']) {
+            Log::warning('Invalid column mapping', [
+                'import_id' => $import->id,
+                'errors' => $validation['errors']
+            ]);
+            
+            return response()->json([
+                'message' => 'Invalid column mapping: ' . implode(', ', $validation['errors']),
+                'errors' => $validation['errors']
+            ], 422);
+        }
+
+        // Log warnings if any
+        if (!empty($validation['warnings'])) {
+            Log::info('Mapping warnings', [
+                'import_id' => $import->id,
+                'warnings' => $validation['warnings']
+            ]);
+        }
+
+        // Convert index-based mapping to header-based for storage
+        $headerMapping = $this->mappingService->convertIndexMappingToHeaders($columnMapping, $headers);
+
         // Update import configuration
         $import->update([
-            'column_mapping' => $request->getColumnMapping(),
+            'column_mapping' => $columnMapping, // Keep index-based for processing
             'date_format' => $request->getDateFormat(),
             'amount_format' => $request->getAmountFormat(),
             'amount_type_strategy' => $request->getAmountTypeStrategy(),
             'currency' => $request->getCurrency(),
+            'metadata' => array_merge($import->metadata ?? [], [
+                'header_mapping' => $headerMapping, // Store header-based for future use
+                'validation_warnings' => $validation['warnings']
+            ]),
         ]);
 
-        // TODO: Get preview data to clean them befor actual import
-        $previewData = [];
+        // Get preview data
+        try {
+            $previewData = $this->importService->getPreview($import, 5);
+        } catch (\Exception $e) {
+            Log::error('Failed to generate preview', [
+                'import_id' => $import->id,
+                'error' => $e->getMessage()
+            ]);
+            $previewData = [];
+        }
 
         return response()->json([
             'import' => $import,
             'preview_data' => $previewData,
+            'validation_warnings' => $validation['warnings']
         ]);
     }
 
