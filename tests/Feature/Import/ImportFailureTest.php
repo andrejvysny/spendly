@@ -150,6 +150,68 @@ class ImportFailureTest extends TestCase
         $this->assertEquals('Not important', $failure->review_notes);
     }
 
+    public function test_user_can_unmark_failure_to_pending()
+    {
+        // Create a reviewed failure
+        $failure = ImportFailure::factory()->reviewed()->create(['import_id' => $this->import->id]);
+        
+        $this->assertEquals(ImportFailure::STATUS_REVIEWED, $failure->status);
+        $this->assertNotNull($failure->reviewed_at);
+        $this->assertNotNull($failure->reviewed_by);
+
+        $response = $this->actingAs($this->user)
+            ->patchJson("/api/imports/{$this->import->id}/failures/{$failure->id}/pending", [
+                'notes' => 'Reverted for re-review',
+            ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Failure unmarked and reverted to pending',
+            ]);
+
+        $failure->refresh();
+        $this->assertEquals(ImportFailure::STATUS_PENDING, $failure->status);
+        $this->assertEquals('Reverted for re-review', $failure->review_notes);
+        $this->assertNull($failure->reviewed_at);
+        $this->assertNull($failure->reviewed_by);
+    }
+
+    public function test_user_can_bulk_unmark_failures()
+    {
+        $reviewedFailures = ImportFailure::factory()->reviewed()->count(2)->create(['import_id' => $this->import->id]);
+        $ignoredFailures = ImportFailure::factory()->ignored()->count(1)->create(['import_id' => $this->import->id]);
+        
+        $allFailures = $reviewedFailures->merge($ignoredFailures);
+        $failureIds = $allFailures->pluck('id')->toArray();
+
+        // Verify they are not pending
+        foreach ($allFailures as $failure) {
+            $this->assertNotEquals(ImportFailure::STATUS_PENDING, $failure->status);
+        }
+
+        $response = $this->actingAs($this->user)
+            ->patchJson("/api/imports/{$this->import->id}/failures/bulk", [
+                'failure_ids' => $failureIds,
+                'action' => 'pending',
+                'notes' => 'Bulk unmarked for re-review',
+            ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'updated' => 3,
+                'total' => 3,
+            ]);
+
+        // Verify all failures are now pending
+        foreach ($allFailures as $failure) {
+            $failure->refresh();
+            $this->assertEquals(ImportFailure::STATUS_PENDING, $failure->status);
+            $this->assertEquals('Bulk unmarked for re-review', $failure->review_notes);
+            $this->assertNull($failure->reviewed_at);
+            $this->assertNull($failure->reviewed_by);
+        }
+    }
+
     public function test_user_can_bulk_update_failures()
     {
         $failures = ImportFailure::factory()->count(3)->create(['import_id' => $this->import->id]);

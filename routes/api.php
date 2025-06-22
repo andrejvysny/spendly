@@ -90,6 +90,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::patch('/imports/{import}/failures/{failure}/ignored', [ImportFailureController::class, 'markAsIgnored'])
         ->name('api.imports.failures.ignored');
 
+    // Mark failure as pending (unmark/revert)
+    Route::patch('/imports/{import}/failures/{failure}/pending', [ImportFailureController::class, 'markAsPending'])
+        ->name('api.imports.failures.pending');
+
     // Create transaction from failure review
     Route::post('/imports/{import}/failures/{failure}/create-transaction', [ImportFailureController::class, 'createTransactionFromReview'])
         ->name('api.imports.failures.create-transaction');

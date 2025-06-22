@@ -8,24 +8,54 @@ function RawDataViewer({ headers, data, highlightedFields }: { headers: string[]
         toast.success('Copied to clipboard');
     };
 
+    // Debug: Log highlighted fields
+    console.log('🎨 RawDataViewer highlighted fields:', Array.from(highlightedFields));
+    console.log('📊 RawDataViewer headers:', headers);
+
     return (
         <div className="space-y-2">
             {headers.map((header, index) => {
                 const value = data[index];
-                const isHighlighted = highlightedFields.has(header.toLowerCase());
+                const isHighlighted = highlightedFields.has(header.toLowerCase()) || highlightedFields.has(header);
+
+                // Debug: Log each field's highlight status
+                if (isHighlighted) {
+                    console.log(`✅ Field "${header}" is highlighted`);
+                }
 
                 return (
-                    <div key={index} className={`bg-card rounded border p-2 ${isHighlighted ? 'border-blue-600' : 'border-none'}`}>
+                    <div
+                        key={index}
+                        className={`border py-2 px-3 rounded-xl transition-all ${
+                            isHighlighted
+                                ? 'border-blue-500 shadow-sm'
+                                : 'border-border bg-card'
+                        }`}
+                    >
                         <div className="flex items-start justify-between">
                             <div className="flex-1">
-                                <div className="text-foreground mb-1 text-xs font-medium">
-                                    {header}
-                                    {isHighlighted && <span className="ml-1 text-blue-600">●</span>}
+                                <div className="mb-1 flex items-center gap-2 text-xs font-medium">
+                                    <span className={isHighlighted ? 'text-blue-500' : 'text-muted-foreground'}>
+                                        {header}
+                                    </span>
+                                    {isHighlighted && (
+                                        <span className="inline-flex items-center gap-1 rounded-full px-2  text-xs font-medium text-blue-500 ">
+                                            <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+                                            auto-mapped
+                                        </span>
+                                    )}
                                 </div>
-                                <div className="text-muted-foreground text-sm break-all">{value || '-'}</div>
+                                <div className={`text-sm break-all ${isHighlighted ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                                    {value || '-'}
+                                </div>
                             </div>
                             {value && (
-                                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(value.toString())} className="h-6 w-6 p-0">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => copyToClipboard(value.toString())}
+                                    className="h-6 w-6 p-0 hover:bg-accent"
+                                >
                                     <Copy className="h-3 w-3" />
                                 </Button>
                             )}

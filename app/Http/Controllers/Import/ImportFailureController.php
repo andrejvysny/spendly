@@ -46,7 +46,13 @@ class ImportFailureController extends Controller
         // Order by most recent first
         $query->orderBy('created_at', 'desc');
 
-        $failures = $query->paginate($request->input('per_page', 15));
+        // Determine pagination size - use larger size when showing all records
+        $hasFilters = $request->filled('error_type') || $request->filled('status') || $request->filled('search');
+        $perPage = $hasFilters 
+            ? $request->input('per_page', 50)  // Use 50 for filtered results
+            : $request->input('per_page', 1000); // Use 1000 for "all" to show everything
+
+        $failures = $query->paginate($perPage);
 
         // Get statistics
         $stats = $import->getFailureStats();
@@ -89,7 +95,13 @@ class ImportFailureController extends Controller
         // Order by most recent first
         $query->orderBy('created_at', 'desc');
 
-        $failures = $query->paginate($request->input('per_page', 15));
+        // Determine pagination size - use larger size when showing all records
+        $hasFilters = $request->filled('error_type') || $request->filled('status') || $request->filled('search');
+        $perPage = $hasFilters 
+            ? $request->input('per_page', 50)  // Use 50 for filtered results
+            : $request->input('per_page', 1000); // Use 1000 for "all" to show everything
+
+        $failures = $query->paginate($perPage);
 
         // Add statistics
         $stats = [
@@ -236,6 +248,40 @@ class ImportFailureController extends Controller
     }
 
     /**
+     * Mark a failure as pending (unmark/revert status).
+     */
+    public function markAsPending(Import $import, ImportFailure $failure, Request $request): JsonResponse
+    {
+        Gate::authorize('update', $import);
+
+        // Ensure the failure belongs to the import
+        if ($failure->import_id !== $import->id) {
+            return response()->json(['error' => 'Failure not found in this import'], 404);
+        }
+
+        $request->validate([
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $success = $failure->markAsPending($request->input('notes'));
+
+        if (! $success) {
+            return response()->json(['error' => 'Failed to update failure status'], 500);
+        }
+
+        Log::info('Import failure unmarked (reverted to pending)', [
+            'failure_id' => $failure->id,
+            'import_id' => $import->id,
+            'unmarked_by' => Auth::id(),
+        ]);
+
+        return response()->json([
+            'message' => 'Failure unmarked and reverted to pending',
+            'failure' => $failure->fresh()->load('reviewer'),
+        ]);
+    }
+
+    /**
      * Bulk update failure statuses.
      */
     public function bulkUpdate(Import $import, Request $request): JsonResponse
@@ -245,7 +291,7 @@ class ImportFailureController extends Controller
         $request->validate([
             'failure_ids' => 'required|array|min:1',
             'failure_ids.*' => 'integer|exists:import_failures,id',
-            'action' => ['required', Rule::in(['reviewed', 'resolved', 'ignored'])],
+            'action' => ['required', Rule::in(['reviewed', 'resolved', 'ignored', 'pending'])],
             'notes' => 'nullable|string|max:1000',
         ]);
 
@@ -268,6 +314,7 @@ class ImportFailureController extends Controller
                 'reviewed' => $failure->markAsReviewed($user, $notes),
                 'resolved' => $failure->markAsResolved($user, $notes),
                 'ignored' => $failure->markAsIgnored($user, $notes),
+                'pending' => $failure->markAsPending($notes),
             };
 
             if ($success) {
