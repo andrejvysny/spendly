@@ -69,18 +69,22 @@ const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
             case 'select':
                 if (fieldDef.options && fieldDef.options.length > 0) {
                     const values = fieldDef.options.map(opt => opt.value.toString());
-                    // Add '__none__' as a valid option for form compatibility
-                    const validValues = [...values, '__none__'];
+                    
                     if (fieldDef.required) {
-                        schema = z.enum(validValues as [string, ...string[]], {
+                        // For required fields, don't allow __none__
+                        schema = z.enum(values as [string, ...string[]], {
                             required_error: `${fieldDef.label} is required`,
-                        }).refine((val) => val !== '__none__', {
-                            message: `${fieldDef.label} is required`,
+                            invalid_type_error: `Invalid value for ${fieldDef.label}`
                         });
                     } else {
-                        schema = z.enum(validValues as [string, ...string[]]).nullable().optional();
+                        // For optional fields, allow __none__ as well
+                        const validValues = [...values, '__none__'];
+                        schema = z.enum(validValues as [string, ...string[]], {
+                            invalid_type_error: `Invalid value for ${fieldDef.label}`
+                        }).nullable().optional().transform(val => val === '__none__' ? null : val);
                     }
                 } else {
+                    // Fallback for select fields without options
                     schema = fieldDef.required
                         ? z.string().min(1, { message: `${fieldDef.label} is required` })
                         : z.string().nullable().optional();
@@ -157,6 +161,7 @@ function ReviewInterface({
     const form = useForm<FormValues>({
         resolver: zodResolver(dynamicSchema),
         defaultValues: {}, // Start with empty defaults, will be populated in useEffect
+        mode: 'onSubmit', // Only validate on submit to avoid initial validation errors
     });
 
     // Map fields and reset form when currentFailure or fieldDefinitions change
@@ -177,28 +182,66 @@ function ReviewInterface({
             console.log('📊 Mapped values:', newMappedValues);
             console.log('🎯 Actually mapped fields:', Array.from(newActuallyMappedFields));
 
+            // Debug: Check for empty values
+            Object.entries(newMappedValues).forEach(([field, value]) => {
+                if (value === '') {
+                    console.log(`❌ Empty string found for field ${field} in mapped values`);
+                }
+            });
+
             setMappedValues(newMappedValues);
             setActuallyMappedFields(newActuallyMappedFields);
 
-            // Transform values for form compatibility (especially select fields)
+            
+                        // Transform values for form compatibility (especially select fields)
             const formValues: Record<string, any> = {};
 
             fieldDefinitions.field_order.forEach((fieldName) => {
                 const fieldDef = fieldDefinitions.fields[fieldName];
                 let value = newMappedValues[fieldName];
 
-                // Handle select fields - convert null/undefined to __none__ for form compatibility
+                // Handle select fields - convert null/undefined/empty strings properly for form compatibility
                 if (fieldDef?.type === 'select') {
-                    if (value === null || value === undefined) {
-                        value = fieldDef.required ? '' : '__none__';
+                    // Check if value is empty (including empty strings)
+                    const isEmpty = value === null || value === undefined || value === '' || 
+                                  (typeof value === 'string' && value.trim() === '');
+                    
+                    if (isEmpty) {
+                        if (!fieldDef.required) {
+                            // For optional fields, use __none__ to show "-- None --"
+                            value = '__none__';
+                            console.log(`✅ Optional select field ${fieldName} set to __none__ (no selection)`);
+                        } else if (fieldDef.options && fieldDef.options.length > 0) {
+                            // For required fields only, use first option
+                            value = fieldDef.options[0].value.toString();
+                            console.log(`🔧 Set empty required select field ${fieldName} to first option:`, value);
+                        } else {
+                            // This shouldn't happen - required field with no options
+                            console.error(`❌ Required select field ${fieldName} has no options!`);
+                            value = '';
+                        }
                     } else {
+                        // Value exists, ensure it's a string
                         value = value.toString();
+                        console.log(`✅ Select field ${fieldName} has value:`, value);
                     }
                 }
 
                 // Handle number fields - ensure they're numbers
                 if (fieldDef?.type === 'number' && value !== null && value !== undefined) {
                     value = Number(value);
+                }
+
+                // Extra validation for all fields to prevent empty strings where inappropriate
+                if (value === '' && fieldDef?.required) {
+                    // For required text fields, empty string is okay
+                    if (fieldDef.type === 'text' || fieldDef.type === 'textarea') {
+                        // Keep empty string for text fields
+                    } else if (fieldDef.type === 'select' && fieldDef.options && fieldDef.options.length > 0) {
+                        // For required select fields, use first option
+                        value = fieldDef.options[0].value.toString();
+                        console.log(`🚨 Fixed empty required select field ${fieldName} to:`, value);
+                    }
                 }
 
                 formValues[fieldName] = value;
@@ -208,11 +251,8 @@ function ReviewInterface({
 
             // Reset form with transformed values
             form.reset(formValues);
-
-            // Force form to re-render by triggering validation
-            setTimeout(() => {
-                form.trigger();
-            }, 0);
+            
+            // Don't trigger validation immediately - let form settle first
         }
     }, [currentFailure, fieldDefinitions, form, importData]);
 
@@ -255,8 +295,8 @@ function ReviewInterface({
         Object.entries(values).forEach(([fieldName, value]) => {
             const fieldDef = fieldDefinitions.fields[fieldName];
 
-            // Convert __none__ back to null for select fields
-            if (fieldDef?.type === 'select' && value === '__none__') {
+            // Convert __none__ back to null for select fields (only for optional fields)
+            if (fieldDef?.type === 'select' && value === '__none__' && !fieldDef.required) {
                 submitValues[fieldName] = null;
             } else {
                 submitValues[fieldName] = value;
@@ -275,7 +315,7 @@ function ReviewInterface({
 
         const commonProps = {
             id: fieldName,
-            className: `${error ? 'border-destructive' : ''} ${isMapped ? 'border-primary bg-primary/5' : ''}`,
+            className: `${error ? 'border-destructive' : ''} ${isMapped ? 'border-blue-500' : ''}`,
         };
 
         switch (fieldDef.type) {
@@ -297,9 +337,29 @@ function ReviewInterface({
                     />
                 );
             case 'select':
+                // Handle empty string explicitly - treat it as no value
+                let selectValue: string;
+                
+                if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+                    // We have a value, use it
+                    selectValue = currentValue.toString();
+                } else {
+                    // No value - determine what to show
+                    if (!fieldDef.required) {
+                        // Optional field - show "-- None --"
+                        selectValue = '__none__';
+                    } else if (fieldDef.options && fieldDef.options.length > 0) {
+                        // Required field with options - use first option
+                        selectValue = fieldDef.options[0].value.toString();
+                    } else {
+                        // Required field without options - shouldn't happen
+                        selectValue = '__none__';
+                    }
+                }
+                
                 return (
                     <Select
-                        value={currentValue?.toString() || '__none__'}
+                        value={selectValue}
                         onValueChange={(value) => {
                             console.log(`🔄 Select field ${fieldName} changed to:`, value);
                             form.setValue(fieldName, value === '__none__' ? null : value, {
@@ -308,7 +368,7 @@ function ReviewInterface({
                             });
                         }}
                     >
-                        <SelectTrigger className={`${error ? 'border-destructive' : ''} ${isMapped ? 'border-primary bg-primary/5' : ''}`}>
+                        <SelectTrigger className={`${error ? 'border-destructive' : ''} ${isMapped ? 'border-blue-500' : ''}`}>
                             <SelectValue placeholder={`Select ${fieldDef.label}`} />
                         </SelectTrigger>
                         <SelectContent>
@@ -437,7 +497,7 @@ function ReviewInterface({
 
                                 return (
                                     <div key={fieldName} className="relative">
-                                        <Label htmlFor={fieldName} className="flex items-center gap-2">
+                                        <Label htmlFor={fieldName} className="flex items-center text-sm gap-2">
                                             {fieldDef.label}
                                             {fieldDef.required && ' *'}
                                             {isMapped && (
