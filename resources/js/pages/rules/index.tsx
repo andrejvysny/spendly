@@ -47,6 +47,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
     const [selectedGroupForDeletion, setSelectedGroupForDeletion] = useState<RuleGroup | null>(null);
     const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false);
     const [selectedGroupForNewRule, setSelectedGroupForNewRule] = useState<number | undefined>();
+    const [editingRule, setEditingRule] = useState<Rule | undefined>(undefined);
     const [isCreateRuleGroupModalOpen, setIsCreateRuleGroupModalOpen] = useState(false);
 
     const [executingRuleId, setExecutingRuleId] = useState<number | null>(null);
@@ -193,12 +194,20 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
 
     const openCreateRuleModal = (groupId?: number) => {
         setSelectedGroupForNewRule(groupId);
+        setEditingRule(undefined);
+        setIsCreateRuleModalOpen(true);
+    };
+
+    const openEditRuleModal = (rule: Rule) => {
+        setEditingRule(rule);
+        setSelectedGroupForNewRule(undefined);
         setIsCreateRuleModalOpen(true);
     };
 
     const closeCreateRuleModal = () => {
         setIsCreateRuleModalOpen(false);
         setSelectedGroupForNewRule(undefined);
+        setEditingRule(undefined);
     };
 
     const handleRuleCreated = () => {
@@ -426,7 +435,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => openEditRuleModal(rule)}>
                                                             <Edit className="h-4 w-4 mr-2" />
                                                             Edit
                                                         </DropdownMenuItem>
@@ -585,6 +594,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
             selectedGroupId={selectedGroupForNewRule}
             ruleOptions={ruleOptions}
             actionInputConfig={actionInputConfig}
+            editingRule={editingRule}
         />
 
         {/* Create Rule Group Modal */}

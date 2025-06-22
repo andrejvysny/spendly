@@ -14,6 +14,7 @@ import {
     CreateRuleConditionForm,
     CreateRuleActionForm,
     RuleGroup,
+    Rule,
     ConditionField,
     ConditionOperator,
     ActionType,
@@ -35,6 +36,7 @@ interface CreateRuleModalProps {
         model?: string;
         placeholder: string;
     }>;
+    editingRule?: Rule;
 }
 
 // Field display names
@@ -103,7 +105,9 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
     transaction_updated: 'When transaction is updated',
 };
 
-export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, selectedGroupId, ruleOptions, actionInputConfig }: CreateRuleModalProps) {
+export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, selectedGroupId, ruleOptions, actionInputConfig, editingRule }: CreateRuleModalProps) {
+    const isEditMode = !!editingRule;
+    
     const [ruleName, setRuleName] = useState('');
     const [selectedGroupId_, setSelectedGroupId_] = useState(selectedGroupId || ruleGroups[0]?.id || 0);
     const [triggerType, setTriggerType] = useState<TriggerType>('manual');
@@ -126,7 +130,7 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
     const [applyToAll, setApplyToAll] = useState(true);
     const [startDate, setStartDate] = useState('');
 
-    const { createRule, loading, error, clearError } = useRulesApi();
+    const { createRule, updateRule, loading, error, clearError } = useRulesApi();
 
     // Handle errors with toast
     useEffect(() => {
@@ -136,21 +140,62 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
         }
     }, [error, clearError]);
 
-    // Reset form when modal closes
+    // Pre-populate form when editing
     useEffect(() => {
-        if (!isOpen) {
-            setRuleName('');
-            setSelectedGroupId_(selectedGroupId || ruleGroups[0]?.id || 0);
-            setTriggerType('manual');
-            setConditionGroups([{
-                logic_operator: 'AND',
-                conditions: [{ field: 'description', operator: 'contains', value: '' }],
-            }]);
-            setActions([{ action_type: 'set_description', action_value: '' }]);
+        if (isEditMode && editingRule && isOpen) {
+            setRuleName(editingRule.name);
+            setSelectedGroupId_(editingRule.rule_group_id);
+            setTriggerType(editingRule.trigger_type as TriggerType);
+            
+            // Transform condition groups
+            if (editingRule.condition_groups && editingRule.condition_groups.length > 0) {
+                const transformedConditionGroups = editingRule.condition_groups.map(group => ({
+                    logic_operator: group.logic_operator as LogicOperator,
+                    conditions: group.conditions ? group.conditions.map(condition => ({
+                        field: condition.field as ConditionField,
+                        operator: condition.operator as ConditionOperator,
+                        value: condition.value,
+                        is_case_sensitive: condition.is_case_sensitive,
+                        is_negated: condition.is_negated,
+                    })) : [],
+                }));
+                setConditionGroups(transformedConditionGroups);
+            }
+            
+            // Transform actions
+            if (editingRule.actions && editingRule.actions.length > 0) {
+                const transformedActions = editingRule.actions.map(action => ({
+                    action_type: action.action_type as ActionType,
+                    action_value: action.action_value,
+                    stop_processing: action.stop_processing,
+                }));
+                setActions(transformedActions);
+            }
+            
+            // Reset apply settings for editing (these don't apply to existing rules)
             setApplyToAll(true);
             setStartDate('');
         }
-    }, [isOpen, selectedGroupId, ruleGroups]);
+    }, [isEditMode, editingRule, isOpen]);
+
+    // Reset form when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            if (!isEditMode) {
+                // Only reset to defaults if not in edit mode
+                setRuleName('');
+                setSelectedGroupId_(selectedGroupId || ruleGroups[0]?.id || 0);
+                setTriggerType('manual');
+                setConditionGroups([{
+                    logic_operator: 'AND',
+                    conditions: [{ field: 'description', operator: 'contains', value: '' }],
+                }]);
+                setActions([{ action_type: 'set_description', action_value: '' }]);
+                setApplyToAll(true);
+                setStartDate('');
+            }
+        }
+    }, [isOpen, isEditMode, selectedGroupId, ruleGroups]);
 
     const getOperatorsForField = (field: ConditionField): ConditionOperator[] => {
         if (!ruleOptions) return [];
@@ -302,10 +347,16 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
             trigger_type: triggerType,
             condition_groups: conditionGroups,
             actions: actions,
-            is_active: true,
+            is_active: editingRule?.is_active ?? true,
         };
 
-        const success = await createRule(ruleData);
+        let success;
+        if (isEditMode && editingRule) {
+            success = await updateRule(editingRule.id, ruleData);
+        } else {
+            success = await createRule(ruleData);
+        }
+
         if (success) {
             onSuccess();
             onClose();
@@ -316,9 +367,12 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>New transaction rule</DialogTitle>
+                    <DialogTitle>{isEditMode ? 'Edit transaction rule' : 'New transaction rule'}</DialogTitle>
                     <DialogDescription>
-                        Create a new rule to automatically process your transactions based on conditions you set.
+                        {isEditMode 
+                            ? 'Modify this rule to change how your transactions are automatically processed.'
+                            : 'Create a new rule to automatically process your transactions based on conditions you set.'
+                        }
                     </DialogDescription>
                 </DialogHeader>
 
@@ -336,7 +390,11 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                         </div>
                         <div>
                             <Label htmlFor="ruleGroup">Rule Group</Label>
-                            <Select value={selectedGroupId_.toString()} onValueChange={(value) => setSelectedGroupId_(parseInt(value))}>
+                            <Select 
+                                value={selectedGroupId_.toString()} 
+                                onValueChange={(value) => setSelectedGroupId_(parseInt(value))}
+                                disabled={isEditMode}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder={ruleGroups?.length === 0 ? "No rule groups available" : "Select a rule group"} />
                                 </SelectTrigger>
@@ -354,9 +412,14 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                                     )}
                                 </SelectContent>
                             </Select>
-                            {ruleGroups?.length === 0 && (
+                            {ruleGroups?.length === 0 && !isEditMode && (
                                 <p className="text-sm text-muted-foreground mt-1">
                                     You need to create a rule group first before creating rules.
+                                </p>
+                            )}
+                            {isEditMode && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Rule group cannot be changed when editing an existing rule.
                                 </p>
                             )}
                         </div>
@@ -572,45 +635,47 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                         </Button>
                     </div>
 
-                    {/* Apply Section */}
-                    <div>
-                        <h3 className="text-lg font-semibold mb-4">Apply this</h3>
-                        
-                        <div className="space-y-3">
-                            <div className="flex items-center space-x-2">
-                                <input
-                                    type="radio"
-                                    id="applyToAll"
-                                    checked={applyToAll}
-                                    onChange={() => setApplyToAll(true)}
-                                    className="h-4 w-4"
-                                />
-                                <Label htmlFor="applyToAll">To all past and future transactions</Label>
-                            </div>
+                    {/* Apply Section - Only show for new rules */}
+                    {!isEditMode && (
+                        <div>
+                            <h3 className="text-lg font-semibold mb-4">Apply this</h3>
                             
-                            <div className="flex items-center space-x-2">
-                                <input
-                                    type="radio"
-                                    id="applyFromDate"
-                                    checked={!applyToAll}
-                                    onChange={() => setApplyToAll(false)}
-                                    className="h-4 w-4"
-                                />
-                                <Label htmlFor="applyFromDate">Starting from</Label>
-                                <Input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    disabled={applyToAll}
-                                    className="w-auto"
-                                />
+                            <div className="space-y-3">
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="applyToAll"
+                                        checked={applyToAll}
+                                        onChange={() => setApplyToAll(true)}
+                                        className="h-4 w-4"
+                                    />
+                                    <Label htmlFor="applyToAll">To all past and future transactions</Label>
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="applyFromDate"
+                                        checked={!applyToAll}
+                                        onChange={() => setApplyToAll(false)}
+                                        className="h-4 w-4"
+                                    />
+                                    <Label htmlFor="applyFromDate">Starting from</Label>
+                                    <Input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        disabled={applyToAll}
+                                        className="w-auto"
+                                    />
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
 
 
-                    {ruleGroups?.length === 0 && (
+                    {ruleGroups?.length === 0 && !isEditMode && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                             <p className="text-sm text-yellow-800">
                                 <strong>No rule groups available.</strong> You need to create a rule group first before creating rules. 
@@ -624,9 +689,12 @@ export function CreateRuleModal({ isOpen, onClose, onSuccess, ruleGroups, select
                     <Button variant="outline" onClick={onClose}>Cancel</Button>
                     <Button 
                         onClick={handleSubmit} 
-                        disabled={loading || !ruleName.trim() || ruleGroups?.length === 0}
+                        disabled={loading || !ruleName.trim() || (!isEditMode && ruleGroups?.length === 0)}
                     >
-                        {loading ? 'Creating...' : 'Create Rule'}
+                        {loading 
+                            ? (isEditMode ? 'Updating...' : 'Creating...') 
+                            : (isEditMode ? 'Update Rule' : 'Create Rule')
+                        }
                     </Button>
                 </DialogFooter>
             </DialogContent>
