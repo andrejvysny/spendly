@@ -7,6 +7,7 @@ use App\Models\Rule;
 use App\Models\RuleAction;
 use App\Models\RuleCondition;
 use App\Models\RuleGroup;
+use App\Models\Transaction;
 use App\Repositories\RuleRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Models\Transaction;
 
 class RuleController extends Controller
 {
@@ -31,7 +31,7 @@ class RuleController extends Controller
     public function indexPage(Request $request): Response
     {
         $user = $request->user();
-        
+
         $ruleGroups = $this->ruleRepository->getRuleGroups(
             $user,
             $request->boolean('active_only', false)
@@ -41,7 +41,7 @@ class RuleController extends Controller
         $categories = $user->categories()->select('id', 'name')->get();
         $merchants = $user->merchants()->select('id', 'name')->get();
         $tags = $user->tags()->select('id', 'name')->get();
-        
+
         // Action input configuration
         $actionInputConfig = [
             RuleAction::ACTION_SET_CATEGORY => [
@@ -225,7 +225,7 @@ class RuleController extends Controller
         // Check if group has rules
         if ($ruleGroup->rules()->count() > 0) {
             return response()->json([
-                'error' => 'Cannot delete rule group that contains rules. Please delete all rules first.'
+                'error' => 'Cannot delete rule group that contains rules. Please delete all rules first.',
             ], 422);
         }
 
@@ -245,20 +245,20 @@ class RuleController extends Controller
             'rule_group_id' => 'required|exists:rule_groups,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'trigger_type' => 'required|in:' . implode(',', Rule::getTriggerTypes()),
+            'trigger_type' => 'required|in:'.implode(',', Rule::getTriggerTypes()),
             'stop_processing' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
             'condition_groups' => 'required|array|min:1',
             'condition_groups.*.logic_operator' => 'required|in:AND,OR',
             'condition_groups.*.conditions' => 'required|array|min:1',
-            'condition_groups.*.conditions.*.field' => 'required|in:' . implode(',', RuleCondition::getFields()),
-            'condition_groups.*.conditions.*.operator' => 'required|in:' . implode(',', RuleCondition::getOperators()),
+            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', RuleCondition::getFields()),
+            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', RuleCondition::getOperators()),
             'condition_groups.*.conditions.*.value' => 'required|string',
             'condition_groups.*.conditions.*.is_case_sensitive' => 'nullable|boolean',
             'condition_groups.*.conditions.*.is_negated' => 'nullable|boolean',
             'actions' => 'required|array|min:1',
-            'actions.*.action_type' => 'required|in:' . implode(',', RuleAction::getActionTypes()),
+            'actions.*.action_type' => 'required|in:'.implode(',', RuleAction::getActionTypes()),
             'actions.*.action_value' => 'nullable',
             'actions.*.stop_processing' => 'nullable|boolean',
         ]);
@@ -272,14 +272,14 @@ class RuleController extends Controller
         if ($ruleGroup->user_id !== $request->user()->id) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-        
+
         $rule = DB::transaction(function () use ($request, $validator) {
             return $this->ruleRepository->createRule(
                 $request->user(),
                 $validator->validated()
             );
         });
-        
+
         return response()->json([
             'message' => 'Rule created successfully',
             'data' => $rule,
@@ -293,7 +293,7 @@ class RuleController extends Controller
     {
         $rule = $this->ruleRepository->getRule($id, $request->user());
 
-        if (!$rule) {
+        if (! $rule) {
             return response()->json(['error' => 'Rule not found'], 404);
         }
 
@@ -314,20 +314,20 @@ class RuleController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'trigger_type' => 'nullable|in:' . implode(',', Rule::getTriggerTypes()),
+            'trigger_type' => 'nullable|in:'.implode(',', Rule::getTriggerTypes()),
             'stop_processing' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
             'condition_groups' => 'nullable|array',
             'condition_groups.*.logic_operator' => 'required_with:condition_groups|in:AND,OR',
             'condition_groups.*.conditions' => 'required_with:condition_groups|array|min:1',
-            'condition_groups.*.conditions.*.field' => 'required|in:' . implode(',', RuleCondition::getFields()),
-            'condition_groups.*.conditions.*.operator' => 'required|in:' . implode(',', RuleCondition::getOperators()),
+            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', RuleCondition::getFields()),
+            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', RuleCondition::getOperators()),
             'condition_groups.*.conditions.*.value' => 'required|string',
             'condition_groups.*.conditions.*.is_case_sensitive' => 'nullable|boolean',
             'condition_groups.*.conditions.*.is_negated' => 'nullable|boolean',
             'actions' => 'nullable|array',
-            'actions.*.action_type' => 'required|in:' . implode(',', RuleAction::getActionTypes()),
+            'actions.*.action_type' => 'required|in:'.implode(',', RuleAction::getActionTypes()),
             'actions.*.action_value' => 'nullable',
             'actions.*.stop_processing' => 'nullable|boolean',
         ]);
@@ -439,7 +439,7 @@ class RuleController extends Controller
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
 
-        $ruleGroup->update(['is_active' => !$ruleGroup->is_active]);
+        $ruleGroup->update(['is_active' => ! $ruleGroup->is_active]);
 
         return response()->json([
             'message' => 'Rule group activation status updated successfully',
@@ -456,7 +456,7 @@ class RuleController extends Controller
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
 
-        $rule->update(['is_active' => !$rule->is_active]);
+        $rule->update(['is_active' => ! $rule->is_active]);
 
         return response()->json([
             'message' => 'Rule activation status updated successfully',
@@ -470,7 +470,7 @@ class RuleController extends Controller
     public function getOptions(): JsonResponse
     {
         $user = auth()->user();
-        
+
         return response()->json([
             'data' => [
                 'trigger_types' => Rule::getTriggerTypes(),
@@ -579,4 +579,4 @@ class RuleController extends Controller
             ],
         ]);
     }
-} 
+}

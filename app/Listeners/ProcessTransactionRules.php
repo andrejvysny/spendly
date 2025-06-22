@@ -31,7 +31,7 @@ class ProcessTransactionRules implements ShouldQueue
      */
     public function handleTransactionCreated(TransactionCreated $event): void
     {
-        if (!$event->applyRules) {
+        if (! $event->applyRules) {
             return;
         }
 
@@ -48,7 +48,7 @@ class ProcessTransactionRules implements ShouldQueue
      */
     public function handleTransactionUpdated(TransactionUpdated $event): void
     {
-        if (!$event->applyRules) {
+        if (! $event->applyRules) {
             return;
         }
 
@@ -70,4 +70,4 @@ class ProcessTransactionRules implements ShouldQueue
             TransactionUpdated::class => 'handleTransactionUpdated',
         ];
     }
-} 
+}

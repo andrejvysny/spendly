@@ -16,6 +16,7 @@ class ImportMappingsController extends Controller
     public function __construct(
         private readonly ImportMappingService $mappingService
     ) {}
+
     public function index(): JsonResponse
     {
         Log::debug('Fetching saved import mappings for user', ['user_id' => Auth::id()]);
@@ -37,13 +38,13 @@ class ImportMappingsController extends Controller
         // Convert index-based mapping to header-based if needed
         $columnMapping = $request->getColumnMapping();
         $headers = $request->input('headers', []);
-        
+
         // If headers are provided and mapping is index-based, convert to header-based
-        if (!empty($headers) && $this->mappingService->isIndexBasedMapping($columnMapping)) {
+        if (! empty($headers) && $this->mappingService->isIndexBasedMapping($columnMapping)) {
             $columnMapping = $this->mappingService->convertIndexMappingToHeaders($columnMapping, $headers);
             Log::debug('Converted index-based mapping to header-based', [
                 'original' => $request->getColumnMapping(),
-                'converted' => $columnMapping
+                'converted' => $columnMapping,
             ]);
         }
 
@@ -98,7 +99,7 @@ class ImportMappingsController extends Controller
     public function getCompatible(Request $request): JsonResponse
     {
         $headers = $request->input('headers', []);
-        
+
         if (empty($headers)) {
             return $this->index();
         }
@@ -108,37 +109,37 @@ class ImportMappingsController extends Controller
             ->get();
 
         $compatibleMappings = [];
-        
+
         foreach ($mappings as $mapping) {
             // Try to apply the mapping to current headers
             $appliedMapping = $this->mappingService->applySavedMapping(
-                $mapping->column_mapping, 
+                $mapping->column_mapping,
                 $headers
             );
-            
+
             // Validate the applied mapping
             $validation = $this->mappingService->validateMapping($appliedMapping, $headers);
-            
+
             // Add compatibility score
             $compatibility = $this->calculateCompatibility($mapping->column_mapping, $headers);
-            
+
             $mappingArray = $mapping->toArray();
             $mappingArray['compatibility_score'] = $compatibility;
             $mappingArray['is_valid'] = $validation['valid'];
             $mappingArray['warnings'] = $validation['warnings'];
             $mappingArray['applied_mapping'] = $appliedMapping;
-            
+
             $compatibleMappings[] = $mappingArray;
         }
 
         // Sort by compatibility score (descending)
-        usort($compatibleMappings, function($a, $b) {
+        usort($compatibleMappings, function ($a, $b) {
             return $b['compatibility_score'] <=> $a['compatibility_score'];
         });
 
         return response()->json([
             'mappings' => $compatibleMappings,
-            'headers' => $headers
+            'headers' => $headers,
         ]);
     }
 
@@ -152,38 +153,38 @@ class ImportMappingsController extends Controller
 
         if (empty($savedMapping) || empty($currentHeaders)) {
             return response()->json([
-                'message' => 'Missing required parameters'
+                'message' => 'Missing required parameters',
             ], 422);
         }
 
         try {
             // Apply the mapping
             $appliedMapping = $this->mappingService->applySavedMapping($savedMapping, $currentHeaders);
-            
+
             // Validate the result
             $validation = $this->mappingService->validateMapping($appliedMapping, $currentHeaders);
-            
+
             Log::info('Applied saved mapping', [
                 'original_mapping' => $savedMapping,
                 'applied_mapping' => $appliedMapping,
-                'validation' => $validation
+                'validation' => $validation,
             ]);
 
             return response()->json([
                 'applied_mapping' => $appliedMapping,
                 'validation' => $validation,
-                'warnings' => $validation['warnings']
+                'warnings' => $validation['warnings'],
             ]);
 
         } catch (\Exception $e) {
             Log::error('Failed to apply mapping', [
                 'error' => $e->getMessage(),
                 'saved_mapping' => $savedMapping,
-                'current_headers' => $currentHeaders
+                'current_headers' => $currentHeaders,
             ]);
 
             return response()->json([
-                'message' => 'Failed to apply mapping: ' . $e->getMessage()
+                'message' => 'Failed to apply mapping: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -194,34 +195,34 @@ class ImportMappingsController extends Controller
     public function autoDetect(Request $request): JsonResponse
     {
         $headers = $request->input('headers', []);
-        
+
         if (empty($headers)) {
             return response()->json([
-                'message' => 'Headers are required'
+                'message' => 'Headers are required',
             ], 422);
         }
 
         try {
             $mapping = $this->mappingService->autoDetectMapping($headers);
-            
+
             Log::debug('Auto-detected mapping', [
                 'headers' => $headers,
-                'mapping' => $mapping
+                'mapping' => $mapping,
             ]);
 
             return response()->json([
                 'mapping' => $mapping,
-                'headers' => $headers
+                'headers' => $headers,
             ]);
 
         } catch (\Exception $e) {
             Log::error('Auto-detection failed', [
                 'error' => $e->getMessage(),
-                'headers' => $headers
+                'headers' => $headers,
             ]);
 
             return response()->json([
-                'message' => 'Auto-detection failed: ' . $e->getMessage()
+                'message' => 'Auto-detection failed: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -235,13 +236,13 @@ class ImportMappingsController extends Controller
             return 0.0;
         }
 
-        $totalFields = count(array_filter($savedMapping, fn($value) => $value !== null));
+        $totalFields = count(array_filter($savedMapping, fn ($value) => $value !== null));
         if ($totalFields === 0) {
             return 0.0;
         }
 
         $matchedFields = 0;
-        
+
         foreach ($savedMapping as $field => $value) {
             if ($value === null) {
                 continue;

@@ -14,39 +14,68 @@ class RuleCondition extends Model
      * Operator constants.
      */
     const OPERATOR_EQUALS = 'equals';
+
     const OPERATOR_NOT_EQUALS = 'not_equals';
+
     const OPERATOR_CONTAINS = 'contains';
+
     const OPERATOR_NOT_CONTAINS = 'not_contains';
+
     const OPERATOR_STARTS_WITH = 'starts_with';
+
     const OPERATOR_ENDS_WITH = 'ends_with';
+
     const OPERATOR_GREATER_THAN = 'greater_than';
+
     const OPERATOR_GREATER_THAN_OR_EQUAL = 'greater_than_or_equal';
+
     const OPERATOR_LESS_THAN = 'less_than';
+
     const OPERATOR_LESS_THAN_OR_EQUAL = 'less_than_or_equal';
+
     const OPERATOR_REGEX = 'regex';
+
     const OPERATOR_WILDCARD = 'wildcard';
+
     const OPERATOR_IS_EMPTY = 'is_empty';
+
     const OPERATOR_IS_NOT_EMPTY = 'is_not_empty';
+
     const OPERATOR_IN = 'in';
+
     const OPERATOR_NOT_IN = 'not_in';
+
     const OPERATOR_BETWEEN = 'between';
 
     /**
      * Field constants.
      */
     const FIELD_AMOUNT = 'amount';
+
     const FIELD_DESCRIPTION = 'description';
+
     const FIELD_PARTNER = 'partner';
+
     const FIELD_CATEGORY = 'category';
+
     const FIELD_MERCHANT = 'merchant';
+
     const FIELD_ACCOUNT = 'account';
+
     const FIELD_TYPE = 'type';
+
     const FIELD_NOTE = 'note';
+
     const FIELD_RECIPIENT_NOTE = 'recipient_note';
+
     const FIELD_PLACE = 'place';
+
     const FIELD_TARGET_IBAN = 'target_iban';
+
     const FIELD_SOURCE_IBAN = 'source_iban';
+
     const FIELD_DATE = 'date';
+
     const FIELD_TAGS = 'tags';
 
     /**
@@ -168,4 +197,4 @@ class RuleCondition extends Model
             self::OPERATOR_NOT_IN,
         ];
     }
-} 
+}

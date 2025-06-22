@@ -73,7 +73,7 @@ export type TriggerType = 'transaction_created' | 'transaction_updated' | 'manua
 
 export type LogicOperator = 'AND' | 'OR';
 
-export type ConditionField = 
+export type ConditionField =
     | 'amount'
     | 'description'
     | 'partner'
@@ -89,7 +89,7 @@ export type ConditionField =
     | 'date'
     | 'tags';
 
-export type ConditionOperator = 
+export type ConditionOperator =
     | 'equals'
     | 'not_equals'
     | 'contains'
@@ -108,7 +108,7 @@ export type ConditionOperator =
     | 'not_in'
     | 'between';
 
-export type ActionType = 
+export type ActionType =
     | 'set_category'
     | 'set_merchant'
     | 'add_tag'
@@ -246,4 +246,4 @@ export interface RuleStatistics {
 
 export interface RuleStatisticsResponse {
     data: RuleStatistics;
-} 
+}

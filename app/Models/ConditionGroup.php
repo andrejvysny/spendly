@@ -15,6 +15,7 @@ class ConditionGroup extends Model
      * Logic operator constants.
      */
     const LOGIC_AND = 'AND';
+
     const LOGIC_OR = 'OR';
 
     /**
@@ -87,4 +88,4 @@ class ConditionGroup extends Model
             self::LOGIC_OR,
         ];
     }
-} 
+}

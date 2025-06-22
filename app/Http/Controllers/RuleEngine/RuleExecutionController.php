@@ -39,7 +39,7 @@ class RuleExecutionController extends Controller
         }
 
         $user = $request->user();
-        
+
         // Get transactions and verify ownership
         $transactions = Transaction::whereIn('id', $request->input('transaction_ids'))
             ->whereHas('account', function ($query) use ($user) {
@@ -56,7 +56,7 @@ class RuleExecutionController extends Controller
             $ruleCount = Rule::whereIn('id', $request->input('rule_ids'))
                 ->where('user_id', $user->id)
                 ->count();
-                
+
             if ($ruleCount !== count($request->input('rule_ids'))) {
                 return response()->json(['error' => 'Some rules not found or unauthorized'], 403);
             }
@@ -83,12 +83,12 @@ class RuleExecutionController extends Controller
         $results = $this->ruleEngine->getExecutionResults();
 
         return response()->json([
-            'message' => $request->boolean('dry_run') 
-                ? 'Dry run completed successfully' 
+            'message' => $request->boolean('dry_run')
+                ? 'Dry run completed successfully'
                 : 'Rules executed successfully',
             'data' => [
                 'total_transactions' => $transactions->count(),
-                'total_rules_matched' => count(array_filter($results, fn($r) => !empty($r['actions']))),
+                'total_rules_matched' => count(array_filter($results, fn ($r) => ! empty($r['actions']))),
                 'results' => $results,
             ],
         ]);
@@ -112,13 +112,13 @@ class RuleExecutionController extends Controller
         }
 
         $user = $request->user();
-        
+
         // Verify rule ownership if specific rules provided
         if ($request->has('rule_ids')) {
             $ruleCount = Rule::whereIn('id', $request->input('rule_ids'))
                 ->where('user_id', $user->id)
                 ->count();
-                
+
             if ($ruleCount !== count($request->input('rule_ids'))) {
                 return response()->json(['error' => 'Some rules not found or unauthorized'], 403);
             }
@@ -142,15 +142,15 @@ class RuleExecutionController extends Controller
         $results = $this->ruleEngine->getExecutionResults();
 
         return response()->json([
-            'message' => $request->boolean('dry_run') 
-                ? 'Dry run completed successfully' 
+            'message' => $request->boolean('dry_run')
+                ? 'Dry run completed successfully'
                 : 'Rules executed successfully',
             'data' => [
                 'date_range' => [
                     'start' => $startDate->toDateString(),
                     'end' => $endDate->toDateString(),
                 ],
-                'total_rules_matched' => count(array_filter($results, fn($r) => !empty($r['actions']))),
+                'total_rules_matched' => count(array_filter($results, fn ($r) => ! empty($r['actions']))),
                 'results' => $results,
             ],
         ]);
@@ -182,7 +182,7 @@ class RuleExecutionController extends Controller
         }
 
         $user = $request->user();
-        
+
         // Get transactions and verify ownership
         $transactions = Transaction::whereIn('id', $request->input('transaction_ids'))
             ->whereHas('account', function ($query) use ($user) {
@@ -200,21 +200,22 @@ class RuleExecutionController extends Controller
             'name' => 'Test Rule',
             'trigger_type' => Rule::TRIGGER_MANUAL,
         ]);
-        
+
         // Create temporary condition groups and conditions
-        $conditionGroups = collect($request->input('condition_groups'))->map(function ($groupData) use ($tempRule) {
+        $conditionGroups = collect($request->input('condition_groups'))->map(function ($groupData) {
             $group = new \App\Models\ConditionGroup([
                 'logic_operator' => $groupData['logic_operator'],
             ]);
-            
+
             $conditions = collect($groupData['conditions'])->map(function ($conditionData) {
                 return new \App\Models\RuleCondition($conditionData);
             });
-            
+
             $group->setRelation('conditions', $conditions);
+
             return $group;
         });
-        
+
         $tempRule->setRelation('conditionGroups', $conditionGroups);
 
         // Create temporary actions
@@ -223,9 +224,10 @@ class RuleExecutionController extends Controller
                 'action_type' => $actionData['action_type'],
             ]);
             $action->setEncodedValue($actionData['action_value'] ?? null);
+
             return $action;
         });
-        
+
         $tempRule->setRelation('actions', $actions);
 
         // Test the rule against transactions
@@ -244,7 +246,7 @@ class RuleExecutionController extends Controller
             'message' => 'Rule test completed',
             'data' => [
                 'total_tested' => count($results),
-                'total_matched' => count(array_filter($results, fn($r) => $r['matched'])),
+                'total_matched' => count(array_filter($results, fn ($r) => $r['matched'])),
                 'results' => $results,
             ],
         ]);
@@ -256,22 +258,22 @@ class RuleExecutionController extends Controller
     private function testRuleOnTransaction(Rule $rule, Transaction $transaction): bool
     {
         $conditionEvaluator = app(\App\Contracts\RuleEngine\ConditionEvaluatorInterface::class);
-        
+
         foreach ($rule->conditionGroups as $group) {
             $results = [];
             foreach ($group->conditions as $condition) {
                 $result = $conditionEvaluator->evaluate($condition, $transaction);
-                
+
                 if ($condition->is_negated) {
-                    $result = !$result;
+                    $result = ! $result;
                 }
-                
+
                 $results[] = $result;
             }
-            
+
             // Apply AND/OR logic
             if ($group->logic_operator === 'AND') {
-                if (!in_array(false, $results, true)) {
+                if (! in_array(false, $results, true)) {
                     return true; // At least one group matched
                 }
             } else {
@@ -280,7 +282,7 @@ class RuleExecutionController extends Controller
                 }
             }
         }
-        
+
         return false;
     }
 
@@ -290,13 +292,13 @@ class RuleExecutionController extends Controller
     public function executeRule(Request $request, int $ruleId): JsonResponse
     {
         $user = $request->user();
-        
+
         // Get the rule and verify ownership
         $rule = Rule::where('id', $ruleId)
             ->where('user_id', $user->id)
             ->first();
 
-        if (!$rule) {
+        if (! $rule) {
             return response()->json(['error' => 'Rule not found or unauthorized'], 404);
         }
 
@@ -319,14 +321,14 @@ class RuleExecutionController extends Controller
         $results = $this->ruleEngine->getExecutionResults();
 
         return response()->json([
-            'message' => $request->boolean('dry_run') 
-                ? 'Rule dry run completed successfully' 
+            'message' => $request->boolean('dry_run')
+                ? 'Rule dry run completed successfully'
                 : 'Rule executed successfully',
             'data' => [
                 'rule_id' => $ruleId,
                 'rule_name' => $rule->name,
                 'total_transactions' => $transactions->count(),
-                'total_rules_matched' => count(array_filter($results, fn($r) => !empty($r['actions']))),
+                'total_rules_matched' => count(array_filter($results, fn ($r) => ! empty($r['actions']))),
                 'results' => $results,
             ],
         ]);
@@ -338,14 +340,14 @@ class RuleExecutionController extends Controller
     public function executeRuleGroup(Request $request, int $groupId): JsonResponse
     {
         $user = $request->user();
-        
+
         // Get the rule group and verify ownership
         $ruleGroup = RuleGroup::where('id', $groupId)
             ->where('user_id', $user->id)
             ->with('rules')
             ->first();
 
-        if (!$ruleGroup) {
+        if (! $ruleGroup) {
             return response()->json(['error' => 'Rule group not found or unauthorized'], 404);
         }
 
@@ -375,15 +377,15 @@ class RuleExecutionController extends Controller
         $results = $this->ruleEngine->getExecutionResults();
 
         return response()->json([
-            'message' => $request->boolean('dry_run') 
-                ? 'Rule group dry run completed successfully' 
+            'message' => $request->boolean('dry_run')
+                ? 'Rule group dry run completed successfully'
                 : 'Rule group executed successfully',
             'data' => [
                 'rule_group_id' => $groupId,
                 'rule_group_name' => $ruleGroup->name,
                 'total_rules' => count($ruleIds),
                 'total_transactions' => $transactions->count(),
-                'total_rules_matched' => count(array_filter($results, fn($r) => !empty($r['actions']))),
+                'total_rules_matched' => count(array_filter($results, fn ($r) => ! empty($r['actions']))),
                 'results' => $results,
             ],
         ]);
@@ -395,9 +397,9 @@ class RuleExecutionController extends Controller
     private function getActionsDescription($actions): array
     {
         $actionExecutor = app(\App\Contracts\RuleEngine\ActionExecutorInterface::class);
-        
+
         return $actions->map(function ($action) use ($actionExecutor) {
             return $actionExecutor->getActionDescription($action);
         })->toArray();
     }
-} 
+}

@@ -14,13 +14,14 @@ use Tests\TestCase;
 class ConditionEvaluatorTest extends TestCase
 {
     private ConditionEvaluator $evaluator;
+
     private Transaction $transaction;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->evaluator = new ConditionEvaluator();
-        
+        $this->evaluator = new ConditionEvaluator;
+
         // Create a mock transaction with all fields
         $this->transaction = new Transaction([
             'amount' => 100.50,
@@ -38,6 +39,7 @@ class ConditionEvaluatorTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider equalsOperatorProvider
      */
     public function it_evaluates_equals_operator($field, $value, $expected, $caseSensitive = false)
@@ -80,6 +82,7 @@ class ConditionEvaluatorTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider containsOperatorProvider
      */
     public function it_evaluates_contains_operator($field, $value, $expected, $caseSensitive = false)
@@ -138,6 +141,7 @@ class ConditionEvaluatorTest extends TestCase
 
     /**
      * @test
+     *
      * @dataProvider numericOperatorProvider
      */
     public function it_evaluates_numeric_operators($operator, $value, $expected)
@@ -293,7 +297,7 @@ class ConditionEvaluatorTest extends TestCase
         // Create tags and associate with transaction
         $tag1 = new Tag(['name' => 'Shopping']);
         $tag2 = new Tag(['name' => 'Groceries']);
-        
+
         $this->transaction->setRelation('tags', collect([$tag1, $tag2]));
 
         $condition = new RuleCondition([
@@ -312,7 +316,7 @@ class ConditionEvaluatorTest extends TestCase
     {
         $category = new Category(['name' => 'Groceries']);
         $merchant = new Merchant(['name' => 'Walmart']);
-        
+
         $this->transaction->setRelation('category', $category);
         $this->transaction->setRelation('merchant', $merchant);
 
@@ -367,14 +371,14 @@ class ConditionEvaluatorTest extends TestCase
     public function it_supports_all_defined_operators()
     {
         $operators = RuleCondition::getOperators();
-        
+
         foreach ($operators as $operator) {
             $this->assertTrue(
                 $this->evaluator->supportsOperator($operator),
                 "Operator {$operator} should be supported"
             );
         }
-        
+
         $this->assertFalse($this->evaluator->supportsOperator('invalid_operator'));
     }
-} 
+}

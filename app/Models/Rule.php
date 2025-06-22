@@ -15,7 +15,9 @@ class Rule extends Model
      * Trigger type constants.
      */
     const TRIGGER_TRANSACTION_CREATED = 'transaction_created';
+
     const TRIGGER_TRANSACTION_UPDATED = 'transaction_updated';
+
     const TRIGGER_MANUAL = 'manual';
 
     /**
@@ -120,4 +122,4 @@ class Rule extends Model
             self::TRIGGER_MANUAL,
         ];
     }
-} 
+}

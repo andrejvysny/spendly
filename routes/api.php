@@ -1,9 +1,9 @@
 <?php
 
-use App\Http\Controllers\Transactions\TransactionController;
+use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\RuleEngine\RuleExecutionController;
-use App\Http\Controllers\Import\ImportFailureController;
+use App\Http\Controllers\Transactions\TransactionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -64,33 +64,32 @@ Route::middleware(['web', 'auth'])->group(function () {
     // Get failures for a specific import
     Route::get('/imports/{import}/failures', [ImportFailureController::class, 'index'])
         ->name('api.imports.failures.index');
-    
+
     // Get failure statistics
     Route::get('/imports/{import}/failures/stats', [ImportFailureController::class, 'stats'])
         ->name('api.imports.failures.stats');
-    
+
     // Export failures as CSV
     Route::get('/imports/{import}/failures/export', [ImportFailureController::class, 'export'])
         ->name('api.imports.failures.export');
-    
+
     // Get a specific failure
     Route::get('/imports/{import}/failures/{failure}', [ImportFailureController::class, 'show'])
         ->name('api.imports.failures.show');
-    
+
     // Mark failure as reviewed
     Route::patch('/imports/{import}/failures/{failure}/reviewed', [ImportFailureController::class, 'markAsReviewed'])
         ->name('api.imports.failures.reviewed');
-    
+
     // Mark failure as resolved
     Route::patch('/imports/{import}/failures/{failure}/resolved', [ImportFailureController::class, 'markAsResolved'])
         ->name('api.imports.failures.resolved');
-    
+
     // Mark failure as ignored
     Route::patch('/imports/{import}/failures/{failure}/ignored', [ImportFailureController::class, 'markAsIgnored'])
         ->name('api.imports.failures.ignored');
-    
+
     // Bulk update failures
     Route::patch('/imports/{import}/failures/bulk', [ImportFailureController::class, 'bulkUpdate'])
         ->name('api.imports.failures.bulk');
 });
-

@@ -7,7 +7,7 @@ import { BreadcrumbItem, Import } from '@/types/index';
 import { formatDate } from '@/utils/date';
 import { Head, Link } from '@inertiajs/react';
 import axios from 'axios';
-import { AlertTriangle, MoreHorizontal, Eye, FileX, Trash, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Eye, MoreHorizontal, RotateCcw, Trash } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 import ImportWizard from './components/ImportWizard';
@@ -35,7 +35,8 @@ export default function Index({ imports }: Props) {
 
     const handleDeleteImport = (importId: number) => {
         if (confirm('Are you sure you want to delete this import? This action cannot be undone.')) {
-            axios.delete(route('imports.delete', { import: importId }))
+            axios
+                .delete(route('imports.delete', { import: importId }))
                 .then((r) => {
                     if (r.status === 200) {
                         setImportsList(importsList.filter((imp) => imp.id !== importId));
@@ -52,7 +53,8 @@ export default function Index({ imports }: Props) {
 
     const handleRevertImport = (importId: number) => {
         if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
-            axios.post(route('imports.revert', { import: importId }))
+            axios
+                .post(route('imports.revert', { import: importId }))
                 .then((r) => {
                     if (r.status === 200) {
                         setImportsList((prevState) => prevState.map((imp) => (imp.id === importId ? { ...imp, status: 'reverted' } : imp)));
@@ -169,18 +171,16 @@ export default function Index({ imports }: Props) {
                                             View Details
                                         </Link>
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                        onClick={() => handleRevertImport(row.id)}
-                                        className="flex items-center"
-                                    >
-                                        <RotateCcw className="mr-2 h-4 w-4" />
-                                        Revert Import
-                                    </DropdownMenuItem>
+                                    {(row.status === 'completed' ||
+                                        row.status === 'completed_skipped_duplicates' ||
+                                        row.status === 'partially_failed') && (
+                                        <DropdownMenuItem onClick={() => handleRevertImport(row.id)} className="flex items-center">
+                                            <RotateCcw className="mr-2 h-4 w-4" />
+                                            Revert Import
+                                        </DropdownMenuItem>
+                                    )}
                                     {(row.status === 'pending' || row.status === 'failed' || row.status === 'reverted') && (
-                                        <DropdownMenuItem 
-                                            onClick={() => handleDeleteImport(row.id)}
-                                            className="flex items-center text-red-600"
-                                        >
+                                        <DropdownMenuItem onClick={() => handleDeleteImport(row.id)} className="flex items-center text-red-600">
                                             <Trash className="mr-2 h-4 w-4" />
                                             Delete
                                         </DropdownMenuItem>

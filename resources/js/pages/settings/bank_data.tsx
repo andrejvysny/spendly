@@ -85,7 +85,8 @@ export default function BankData({ gocardless_secret_id, gocardless_secret_key }
             return;
         }
 
-        axios.delete(route('bank_data.purgeGoCardlessCredentials'))
+        axios
+            .delete(route('bank_data.purgeGoCardlessCredentials'))
             .then(() => {
                 toast.success('GoCardless credentials cleared successfully.');
                 setRequisitions({ count: 0, next: null, previous: null, results: [] });

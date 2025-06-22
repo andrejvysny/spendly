@@ -20,7 +20,7 @@ return new class extends Migration
             $table->integer('order')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            
+
             $table->index(['user_id', 'is_active']);
         });
 
@@ -36,7 +36,7 @@ return new class extends Migration
             $table->integer('order')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            
+
             $table->index(['user_id', 'is_active', 'trigger_type']);
             $table->index(['rule_group_id', 'order']);
         });
@@ -48,7 +48,7 @@ return new class extends Migration
             $table->enum('logic_operator', ['AND', 'OR'])->default('AND');
             $table->integer('order')->default(0);
             $table->timestamps();
-            
+
             $table->index(['rule_id', 'order']);
         });
 
@@ -63,7 +63,7 @@ return new class extends Migration
             $table->boolean('is_negated')->default(false); // NOT condition
             $table->integer('order')->default(0);
             $table->timestamps();
-            
+
             $table->index(['condition_group_id', 'order']);
         });
 
@@ -76,7 +76,7 @@ return new class extends Migration
             $table->integer('order')->default(0);
             $table->boolean('stop_processing')->default(false); // Stop after this action
             $table->timestamps();
-            
+
             $table->index(['rule_id', 'order']);
         });
 
@@ -89,7 +89,7 @@ return new class extends Migration
             $table->json('actions_executed')->nullable();
             $table->json('execution_context')->nullable();
             $table->timestamps();
-            
+
             $table->index(['rule_id', 'created_at']);
             $table->index('transaction_id');
         });
@@ -107,4 +107,4 @@ return new class extends Migration
         Schema::dropIfExists('rules');
         Schema::dropIfExists('rule_groups');
     }
-}; 
+};

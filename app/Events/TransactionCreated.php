@@ -12,6 +12,7 @@ class TransactionCreated
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public Transaction $transaction;
+
     public bool $applyRules;
 
     /**
@@ -22,4 +23,4 @@ class TransactionCreated
         $this->transaction = $transaction;
         $this->applyRules = $applyRules;
     }
-} 
+}

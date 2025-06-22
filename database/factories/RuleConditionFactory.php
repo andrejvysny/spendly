@@ -92,11 +92,13 @@ class RuleConditionFactory extends Factory
             if ($field === 'amount') {
                 $min = $this->faker->randomFloat(2, 0, 1000);
                 $max = $this->faker->randomFloat(2, $min, 5000);
+
                 return "{$min},{$max}";
             }
             if ($field === 'date') {
                 $min = $this->faker->date();
                 $max = $this->faker->dateTimeBetween($min, '+1 year')->format('Y-m-d');
+
                 return "{$min},{$max}";
             }
         }
@@ -156,4 +158,4 @@ class RuleConditionFactory extends Factory
             'is_negated' => true,
         ]);
     }
-} 
+}

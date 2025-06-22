@@ -41,6 +41,7 @@ class ActionExecutor implements ActionExecutorInterface
                 'transaction_id' => $transaction->id,
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -76,19 +77,19 @@ class ActionExecutor implements ActionExecutorInterface
             RuleAction::ACTION_SET_MERCHANT => "Set merchant to: {$this->getMerchantName($value)}",
             RuleAction::ACTION_ADD_TAG => "Add tag: {$this->getTagName($value)}",
             RuleAction::ACTION_REMOVE_TAG => "Remove tag: {$this->getTagName($value)}",
-            RuleAction::ACTION_REMOVE_ALL_TAGS => "Remove all tags",
+            RuleAction::ACTION_REMOVE_ALL_TAGS => 'Remove all tags',
             RuleAction::ACTION_SET_DESCRIPTION => "Set description to: {$value}",
             RuleAction::ACTION_APPEND_DESCRIPTION => "Append to description: {$value}",
             RuleAction::ACTION_PREPEND_DESCRIPTION => "Prepend to description: {$value}",
             RuleAction::ACTION_SET_NOTE => "Set note to: {$value}",
             RuleAction::ACTION_APPEND_NOTE => "Append to note: {$value}",
             RuleAction::ACTION_SET_TYPE => "Set type to: {$value}",
-            RuleAction::ACTION_MARK_RECONCILED => "Mark as reconciled",
-            RuleAction::ACTION_SEND_NOTIFICATION => "Send notification",
+            RuleAction::ACTION_MARK_RECONCILED => 'Mark as reconciled',
+            RuleAction::ACTION_SEND_NOTIFICATION => 'Send notification',
             RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS => "Create tag if not exists: {$value}",
             RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => "Create category if not exists: {$value}",
             RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => "Create merchant if not exists: {$value}",
-            default => "Unknown action",
+            default => 'Unknown action',
         };
     }
 
@@ -96,13 +97,14 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $categoryId = $action->getDecodedValue();
         $category = Category::find($categoryId);
-        
-        if (!$category || $category->user_id !== $transaction->account->user_id) {
+
+        if (! $category || $category->user_id !== $transaction->account->user_id) {
             return false;
         }
 
         $transaction->category_id = $categoryId;
         $transaction->save();
+
         return true;
     }
 
@@ -110,13 +112,14 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $merchantId = $action->getDecodedValue();
         $merchant = Merchant::find($merchantId);
-        
-        if (!$merchant || $merchant->user_id !== $transaction->account->user_id) {
+
+        if (! $merchant || $merchant->user_id !== $transaction->account->user_id) {
             return false;
         }
 
         $transaction->merchant_id = $merchantId;
         $transaction->save();
+
         return true;
     }
 
@@ -124,15 +127,15 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $tagId = $action->getDecodedValue();
         $tag = Tag::find($tagId);
-        
-        if (!$tag || $tag->user_id !== $transaction->account->user_id) {
+
+        if (! $tag || $tag->user_id !== $transaction->account->user_id) {
             return false;
         }
 
-        if (!$transaction->tags->contains($tagId)) {
+        if (! $transaction->tags->contains($tagId)) {
             $transaction->tags()->attach($tagId);
         }
-        
+
         return true;
     }
 
@@ -140,12 +143,14 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $tagId = $action->getDecodedValue();
         $transaction->tags()->detach($tagId);
+
         return true;
     }
 
     private function removeAllTags(Transaction $transaction): bool
     {
         $transaction->tags()->detach();
+
         return true;
     }
 
@@ -153,20 +158,23 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $transaction->description = $action->getDecodedValue();
         $transaction->save();
+
         return true;
     }
 
     private function appendDescription(RuleAction $action, Transaction $transaction): bool
     {
-        $transaction->description = ($transaction->description ?? '') . $action->getDecodedValue();
+        $transaction->description = ($transaction->description ?? '').$action->getDecodedValue();
         $transaction->save();
+
         return true;
     }
 
     private function prependDescription(RuleAction $action, Transaction $transaction): bool
     {
-        $transaction->description = $action->getDecodedValue() . ($transaction->description ?? '');
+        $transaction->description = $action->getDecodedValue().($transaction->description ?? '');
         $transaction->save();
+
         return true;
     }
 
@@ -174,20 +182,22 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $transaction->note = $action->getDecodedValue();
         $transaction->save();
+
         return true;
     }
 
     private function appendNote(RuleAction $action, Transaction $transaction): bool
     {
-        $transaction->note = ($transaction->note ?? '') . $action->getDecodedValue();
+        $transaction->note = ($transaction->note ?? '').$action->getDecodedValue();
         $transaction->save();
+
         return true;
     }
 
     private function setType(RuleAction $action, Transaction $transaction): bool
     {
         $newType = $action->getDecodedValue();
-        
+
         // Validate type
         $validTypes = [
             Transaction::TYPE_TRANSFER,
@@ -197,13 +207,14 @@ class ActionExecutor implements ActionExecutorInterface
             Transaction::TYPE_WITHDRAWAL,
             Transaction::TYPE_DEPOSIT,
         ];
-        
-        if (!in_array($newType, $validTypes)) {
+
+        if (! in_array($newType, $validTypes)) {
             return false;
         }
 
         $transaction->type = $newType;
         $transaction->save();
+
         return true;
     }
 
@@ -212,6 +223,7 @@ class ActionExecutor implements ActionExecutorInterface
         // Assuming there's a reconciled field - adjust based on actual schema
         $transaction->is_reconciled = true;
         $transaction->save();
+
         return true;
     }
 
@@ -224,10 +236,10 @@ class ActionExecutor implements ActionExecutorInterface
             'transaction_id' => $transaction->id,
             'message' => $action->getDecodedValue() ?? 'Rule matched for transaction',
         ]);
-        
+
         // In a real implementation, you would send actual notifications here
         // event(new RuleNotification($transaction, $action));
-        
+
         return true;
     }
 
@@ -235,16 +247,16 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $tagName = $action->getDecodedValue();
         $userId = $transaction->account->user_id;
-        
+
         $tag = Tag::firstOrCreate(
             ['name' => $tagName, 'user_id' => $userId],
             ['description' => 'Created by rule engine']
         );
 
-        if (!$transaction->tags->contains($tag->id)) {
+        if (! $transaction->tags->contains($tag->id)) {
             $transaction->tags()->attach($tag->id);
         }
-        
+
         return true;
     }
 
@@ -252,15 +264,15 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $categoryName = $action->getDecodedValue();
         $userId = $transaction->account->user_id;
-        
+
         $category = Category::firstOrCreate(
             ['name' => $categoryName, 'user_id' => $userId],
-            ['description' => 'Created by rule engine', 'color' => '#' . dechex(rand(0x000000, 0xFFFFFF))]
+            ['description' => 'Created by rule engine', 'color' => '#'.dechex(rand(0x000000, 0xFFFFFF))]
         );
 
         $transaction->category_id = $category->id;
         $transaction->save();
-        
+
         return true;
     }
 
@@ -268,7 +280,7 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $merchantName = $action->getDecodedValue();
         $userId = $transaction->account->user_id;
-        
+
         $merchant = Merchant::firstOrCreate(
             ['name' => $merchantName, 'user_id' => $userId],
             ['description' => 'Created by rule engine']
@@ -276,37 +288,40 @@ class ActionExecutor implements ActionExecutorInterface
 
         $transaction->merchant_id = $merchant->id;
         $transaction->save();
-        
+
         return true;
     }
 
     private function getCategoryName($categoryId): string
     {
-        if (!is_numeric($categoryId)) {
+        if (! is_numeric($categoryId)) {
             return $categoryId;
         }
-        
+
         $category = Category::find($categoryId);
+
         return $category ? $category->name : "Category #{$categoryId}";
     }
 
     private function getMerchantName($merchantId): string
     {
-        if (!is_numeric($merchantId)) {
+        if (! is_numeric($merchantId)) {
             return $merchantId;
         }
-        
+
         $merchant = Merchant::find($merchantId);
+
         return $merchant ? $merchant->name : "Merchant #{$merchantId}";
     }
 
     private function getTagName($tagId): string
     {
-        if (!is_numeric($tagId)) {
+        if (! is_numeric($tagId)) {
             return $tagId;
         }
-        
+
         $tag = Tag::find($tagId);
+
         return $tag ? $tag->name : "Tag #{$tagId}";
     }
-} 
+}

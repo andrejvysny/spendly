@@ -37,7 +37,7 @@ class ImportFailure extends Model
      */
     protected $casts = [
         'raw_data' => 'json',
-        'error_details' => 'json', 
+        'error_details' => 'json',
         'parsed_data' => 'json',
         'metadata' => 'json',
         'reviewed_at' => 'datetime',
@@ -47,16 +47,22 @@ class ImportFailure extends Model
      * Error type constants
      */
     public const ERROR_TYPE_VALIDATION_FAILED = 'validation_failed';
+
     public const ERROR_TYPE_DUPLICATE = 'duplicate';
+
     public const ERROR_TYPE_PROCESSING_ERROR = 'processing_error';
+
     public const ERROR_TYPE_PARSING_ERROR = 'parsing_error';
 
     /**
      * Status constants
      */
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_REVIEWED = 'reviewed';
+
     public const STATUS_RESOLVED = 'resolved';
+
     public const STATUS_IGNORED = 'ignored';
 
     /**
@@ -137,4 +143,4 @@ class ImportFailure extends Model
             'review_notes' => $notes,
         ]);
     }
-} 
+}

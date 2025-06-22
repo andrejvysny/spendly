@@ -44,8 +44,8 @@ class AnalyticsController extends Controller
         $merchantSpending = $this->getMerchantSpending($accountIds, $startDate, $endDate);
 
         // Check if we have any data in the selected period
-        $hasData = $cashflow->isNotEmpty() || 
-                  collect($categorySpending['categorized'])->isNotEmpty() || 
+        $hasData = $cashflow->isNotEmpty() ||
+                  collect($categorySpending['categorized'])->isNotEmpty() ||
                   collect($merchantSpending['withMerchant'])->isNotEmpty();
 
         return Inertia::render('Analytics/Index', [
@@ -78,7 +78,7 @@ class AnalyticsController extends Controller
         $now = Carbon::now();
 
         // Get data-aware default dates if no period specified or if last_month has no data
-        if ($period === 'last_month' && !$request->has('period')) {
+        if ($period === 'last_month' && ! $request->has('period')) {
             $dataAwareRange = $this->getDataAwareDateRange($request);
             if ($dataAwareRange) {
                 return $dataAwareRange;
@@ -139,10 +139,10 @@ class AnalyticsController extends Controller
     private function getDataAwareDateRange(Request $request)
     {
         // Check if user is authenticated
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return null;
         }
-        
+
         $user_accounts = \App\Models\Account::where('user_id', auth()->user()->id)->get();
         $selectedAccountIds = $request->input('account_ids', []);
 
@@ -168,7 +168,7 @@ class AnalyticsController extends Controller
             ->selectRaw('MIN(processed_date) as min_date, MAX(processed_date) as max_date')
             ->first();
 
-        if (!$transactionDateRange || !$transactionDateRange->min_date) {
+        if (! $transactionDateRange || ! $transactionDateRange->min_date) {
             return null;
         }
 
@@ -186,7 +186,7 @@ class AnalyticsController extends Controller
 
         // Otherwise, use the last complete month of available data
         $lastCompleteMonth = $maxDate->copy()->startOfMonth();
-        
+
         return [
             'start' => $lastCompleteMonth->copy()->startOfMonth(),
             'end' => $lastCompleteMonth->copy()->endOfMonth()->endOfDay(),
@@ -198,7 +198,7 @@ class AnalyticsController extends Controller
      */
     private function getAvailableDataRange($accountIds)
     {
-        if (!$accountIds || $accountIds->isEmpty()) {
+        if (! $accountIds || $accountIds->isEmpty()) {
             return null;
         }
 
@@ -207,7 +207,7 @@ class AnalyticsController extends Controller
             ->selectRaw('MIN(processed_date) as min_date, MAX(processed_date) as max_date')
             ->first();
 
-        if (!$transactionDateRange || !$transactionDateRange->min_date) {
+        if (! $transactionDateRange || ! $transactionDateRange->min_date) {
             return null;
         }
 

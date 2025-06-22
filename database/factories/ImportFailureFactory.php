@@ -127,7 +127,7 @@ class ImportFailureFactory extends Factory
                 'error_details' => [
                     'message' => 'Validation failed',
                     'errors' => [
-                        fake()->randomElement(['Date', 'Amount', 'Partner']) . ' is invalid',
+                        fake()->randomElement(['Date', 'Amount', 'Partner']).' is invalid',
                     ],
                 ],
             ];
@@ -188,10 +188,10 @@ class ImportFailureFactory extends Factory
                 'description' => fake()->sentence(),
                 'currency' => 'EUR',
                 'account_id' => fake()->numberBetween(1, 10),
-                'transaction_id' => 'IMP-' . fake()->uuid(),
+                'transaction_id' => 'IMP-'.fake()->uuid(),
             ];
         }
 
         return null; // Some failures might not have parsed data
     }
-} 
+}

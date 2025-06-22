@@ -117,9 +117,9 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
             try {
                 // Try to use enhanced backend auto-detection
                 const response = await axios.post('/imports/mappings/auto-detect', {
-                    headers: headers
+                    headers: headers,
                 });
-                
+
                 const detectedMapping = response.data.mapping;
                 if (detectedMapping) {
                     setColumnMapping(detectedMapping);
@@ -244,7 +244,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                     } catch (err) {
                         console.error('Failed to apply mapping', err);
                         setError('Failed to apply saved mapping. Please configure manually.');
-                        
+
                         // Fallback to direct application (legacy behavior)
                         setColumnMapping(mapping.column_mapping);
                         setDateFormat(mapping.date_format);
@@ -340,7 +340,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         } finally {
             setIsLoading(false);
         }
-            }, [columnMapping, dateFormat, amountFormat, amountTypeStrategy, currency, importId, onComplete, saveMapping, mappingName, bankName]);
+    }, [columnMapping, dateFormat, amountFormat, amountTypeStrategy, currency, importId, onComplete, saveMapping, mappingName, bankName]);
 
     // Helper function to calculate mapping compatibility
     const calculateMappingCompatibility = useCallback((mapping: ImportMapping, currentHeaders: string[]): number => {
@@ -367,9 +367,8 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 } else {
                     // Check for partial matches
                     const valueStr = String(value);
-                    const hasPartialMatch = currentHeaders.some(header => 
-                        header.toLowerCase().includes(valueStr.toLowerCase()) ||
-                        valueStr.toLowerCase().includes(header.toLowerCase())
+                    const hasPartialMatch = currentHeaders.some(
+                        (header) => header.toLowerCase().includes(valueStr.toLowerCase()) || valueStr.toLowerCase().includes(header.toLowerCase()),
                     );
                     if (hasPartialMatch) {
                         matchCount += 0.7;
@@ -399,24 +398,28 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                                 const compatibilityScore = calculateMappingCompatibility(mapping, headers);
                                 const isHighlyCompatible = compatibilityScore >= 0.8;
                                 const isPartiallyCompatible = compatibilityScore >= 0.5;
-                                
+
                                 return (
                                     <Card
                                         key={mapping.id}
                                         className={`bg-card border-foreground text-foreground cursor-pointer ${selectedMapping === mapping.id.toString() ? 'outline-foreground outline-3' : ''} ${
-                                            isHighlyCompatible ? 'border-green-500 shadow-green-500/20' : 
-                                            isPartiallyCompatible ? 'border-yellow-500 shadow-yellow-500/20' : 
-                                            'border-red-500 shadow-red-500/20'
+                                            isHighlyCompatible
+                                                ? 'border-green-500 shadow-green-500/20'
+                                                : isPartiallyCompatible
+                                                  ? 'border-yellow-500 shadow-yellow-500/20'
+                                                  : 'border-red-500 shadow-red-500/20'
                                         }`}
                                         onClick={() => handleMappingSelect(mapping.id.toString())}
                                     >
                                         <CardHeader className="flex flex-row items-center justify-between p-4">
                                             <div>
-                                                <CardTitle className="text-lg flex items-center gap-2">
+                                                <CardTitle className="flex items-center gap-2 text-lg">
                                                     {mapping.name}
-                                                    {isHighlyCompatible && <span className="text-green-500 text-sm">✓ Fully Compatible</span>}
-                                                    {isPartiallyCompatible && !isHighlyCompatible && <span className="text-yellow-500 text-sm">⚠ Partially Compatible</span>}
-                                                    {!isPartiallyCompatible && <span className="text-red-500 text-sm">⚠ May Need Adjustment</span>}
+                                                    {isHighlyCompatible && <span className="text-sm text-green-500">✓ Fully Compatible</span>}
+                                                    {isPartiallyCompatible && !isHighlyCompatible && (
+                                                        <span className="text-sm text-yellow-500">⚠ Partially Compatible</span>
+                                                    )}
+                                                    {!isPartiallyCompatible && <span className="text-sm text-red-500">⚠ May Need Adjustment</span>}
                                                 </CardTitle>
                                                 {mapping.bank_name && (
                                                     <CardDescription className="text-muted-foreground">{mapping.bank_name}</CardDescription>

@@ -12,11 +12,8 @@ use App\Http\Controllers\MerchantController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\Transactions\TransactionController;
-use App\Http\Controllers\Transactions\TransactionRuleController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', function () {
     if (! Auth::check()) {
@@ -42,7 +39,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/accounts/{id}', [AccountController::class, 'destroy'])->name('accounts.destroy');
     Route::put('/accounts/{id}/sync-options', [AccountController::class, 'updateSyncOptions'])->name('accounts.sync-options.update');
 
-  
     // Rule Engine (New) - Web page route
     Route::get('/rules', [RuleController::class, 'indexPage'])->name('rules.index');
 

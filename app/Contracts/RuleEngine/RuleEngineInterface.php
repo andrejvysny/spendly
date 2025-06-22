@@ -52,4 +52,4 @@ interface RuleEngineInterface
      * Clear execution results.
      */
     public function clearExecutionResults(): self;
-} 
+}

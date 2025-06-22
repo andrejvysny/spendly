@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Events\TransactionCreated;
 use App\Models\Account;
 use App\Models\Category;
-use App\Models\Merchant;
 use App\Models\Rule;
 use App\Models\RuleAction;
 use App\Models\RuleCondition;
@@ -21,16 +20,18 @@ class RuleEngineTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private Account $account;
+
     private RuleRepository $ruleRepository;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->user = User::factory()->create();
         $this->account = Account::factory()->create(['user_id' => $this->user->id]);
-        $this->ruleRepository = new RuleRepository();
+        $this->ruleRepository = new RuleRepository;
     }
 
     public function test_create_rule_with_conditions_and_actions()
@@ -40,7 +41,7 @@ class RuleEngineTest extends TestCase
             'user_id' => $this->user->id,
             'name' => 'Groceries',
         ]);
-        
+
         $shoppingTag = Tag::factory()->create([
             'user_id' => $this->user->id,
             'name' => 'Shopping',
@@ -338,4 +339,4 @@ class RuleEngineTest extends TestCase
             ],
         ]);
     }
-} 
+}

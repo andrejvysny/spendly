@@ -40,4 +40,4 @@ class RuleEngineServiceProvider extends ServiceProvider
         $events = $this->app->make('events');
         $events->subscribe(ProcessTransactionRules::class);
     }
-} 
+}

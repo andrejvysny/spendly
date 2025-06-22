@@ -28,4 +28,4 @@ interface ActionExecutorInterface
      * Get a description of what the action will do.
      */
     public function getActionDescription(RuleAction $action): string;
-} 
+}

@@ -41,7 +41,7 @@ class RuleActionFactory extends Factory
             RuleAction::ACTION_SET_MERCHANT,
             RuleAction::ACTION_ADD_TAG,
             RuleAction::ACTION_REMOVE_TAG => (string) $this->faker->numberBetween(1, 100),
-            
+
             RuleAction::ACTION_SET_DESCRIPTION,
             RuleAction::ACTION_APPEND_DESCRIPTION,
             RuleAction::ACTION_PREPEND_DESCRIPTION,
@@ -51,12 +51,12 @@ class RuleActionFactory extends Factory
             RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS,
             RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS,
             RuleAction::ACTION_SEND_NOTIFICATION => $this->faker->sentence(),
-            
+
             RuleAction::ACTION_SET_TYPE => $this->faker->randomElement(['PAYMENT', 'TRANSFER', 'DEPOSIT', 'EXCHANGE']),
-            
+
             RuleAction::ACTION_REMOVE_ALL_TAGS,
             RuleAction::ACTION_MARK_RECONCILED => '',
-            
+
             default => $this->faker->word(),
         };
     }
@@ -81,4 +81,4 @@ class RuleActionFactory extends Factory
             'stop_processing' => true,
         ]);
     }
-} 
+}

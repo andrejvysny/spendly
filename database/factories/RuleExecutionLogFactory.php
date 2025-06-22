@@ -78,4 +78,4 @@ class RuleExecutionLogFactory extends Factory
             ]),
         ]);
     }
-} 
+}

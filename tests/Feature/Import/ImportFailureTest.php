@@ -13,12 +13,13 @@ class ImportFailureTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Import $import;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->user = User::factory()->create();
         $this->import = Import::factory()->create(['user_id' => $this->user->id]);
     }
@@ -45,7 +46,7 @@ class ImportFailureTest extends TestCase
                             'error_message',
                             'status',
                             'created_at',
-                        ]
+                        ],
                     ],
                     'meta',
                 ],
@@ -84,7 +85,7 @@ class ImportFailureTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(3, count($response->json('failures.data')));
-        
+
         foreach ($response->json('failures.data') as $failure) {
             $this->assertEquals('duplicate', $failure['error_type']);
         }
@@ -269,4 +270,4 @@ class ImportFailureTest extends TestCase
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['failure_ids']);
     }
-} 
+}

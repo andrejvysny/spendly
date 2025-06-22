@@ -1,30 +1,29 @@
-import { useState, useCallback } from 'react';
-import axios from 'axios';
 import {
-    RuleGroup,
-    Rule,
-    RuleGroupsResponse,
-    RuleResponse,
-    RuleOptionsResponse,
     ActionInputConfigResponse,
-    CreateRuleGroupForm,
     CreateRuleForm,
-    ApiError,
+    CreateRuleGroupForm,
+    Rule,
+    RuleGroup,
+    RuleGroupsResponse,
+    RuleOptionsResponse,
+    RuleResponse,
     RuleStatisticsResponse,
 } from '@/types/rules';
+import axios from 'axios';
+import { useCallback, useState } from 'react';
 
 interface UseRulesApiReturn {
     // State
     loading: boolean;
     error: string | null;
-    
+
     // Rule Groups
     fetchRuleGroups: (activeOnly?: boolean) => Promise<RuleGroup[] | null>;
     createRuleGroup: (data: CreateRuleGroupForm) => Promise<RuleGroup | null>;
     updateRuleGroup: (id: number, data: Partial<CreateRuleGroupForm>) => Promise<RuleGroup | null>;
     deleteRuleGroup: (id: number) => Promise<boolean>;
     toggleRuleGroupActivation: (id: number) => Promise<RuleGroup | null>;
-    
+
     // Rules
     fetchRule: (id: number) => Promise<Rule | null>;
     createRule: (data: CreateRuleForm) => Promise<Rule | null>;
@@ -32,21 +31,21 @@ interface UseRulesApiReturn {
     deleteRule: (id: number) => Promise<boolean>;
     duplicateRule: (id: number, newName?: string) => Promise<Rule | null>;
     toggleRuleActivation: (id: number) => Promise<Rule | null>;
-    
+
     // Options
     fetchRuleOptions: () => Promise<RuleOptionsResponse['data'] | null>;
     fetchActionInputConfig: () => Promise<ActionInputConfigResponse['data'] | null>;
-    
+
     // Statistics
     fetchRuleStatistics: (id: number, days?: number) => Promise<RuleStatisticsResponse['data'] | null>;
-    
+
     // Rule Execution
     executeRulesOnTransactions: (transactionIds: number[], ruleIds?: number[], dryRun?: boolean) => Promise<any>;
     executeRulesOnDateRange: (startDate: string, endDate: string, ruleIds?: number[], dryRun?: boolean) => Promise<any>;
     testRule: (transactionIds: number[], ruleData: Omit<CreateRuleForm, 'rule_group_id' | 'name'>) => Promise<any>;
     executeRule: (ruleId: number, dryRun?: boolean) => Promise<any>;
     executeRuleGroup: (groupId: number, dryRun?: boolean) => Promise<any>;
-    
+
     // Utility
     clearError: () => void;
 }
@@ -61,7 +60,7 @@ export function useRulesApi(): UseRulesApiReturn {
             setError('Your session has expired. Please refresh the page and try again.');
             return;
         }
-        
+
         // Handle axios validation errors
         if (err?.response?.data?.errors) {
             const firstError = Object.values(err.response.data.errors)[0] as string[];
@@ -78,7 +77,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.get(`/api/rules${activeOnly ? '?active_only=true' : ''}`);
             const data: RuleGroupsResponse = response.data;
             return data.data;
@@ -94,7 +93,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.post('/api/rules/groups', data);
             return response.data.data;
         } catch (err) {
@@ -109,7 +108,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.put(`/api/rules/groups/${id}`, data);
             return response.data.data;
         } catch (err) {
@@ -124,7 +123,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             await axios.delete(`/api/rules/groups/${id}`);
             return true;
         } catch (err) {
@@ -139,7 +138,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.patch(`/api/rules/groups/${id}/toggle-activation`);
             return response.data.data;
         } catch (err) {
@@ -155,7 +154,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.get(`/api/rules/${id}`);
             const result: RuleResponse = response.data;
             return result.data;
@@ -171,7 +170,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.post('/api/rules', data);
             return response.data.data;
         } catch (err) {
@@ -186,7 +185,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.put(`/api/rules/${id}`, data);
             return response.data.data;
         } catch (err) {
@@ -201,7 +200,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             await axios.delete(`/api/rules/${id}`);
             return true;
         } catch (err) {
@@ -216,7 +215,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.post(`/api/rules/${id}/duplicate`, newName ? { name: newName } : {});
             return response.data.data;
         } catch (err) {
@@ -231,7 +230,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.patch(`/api/rules/${id}/toggle-activation`);
             return response.data.data;
         } catch (err) {
@@ -247,7 +246,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.get('/api/rules/options');
             const result: RuleOptionsResponse = response.data;
             return result.data;
@@ -263,7 +262,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.get('/api/rules/action-input-config');
             const result: ActionInputConfigResponse = response.data;
             return result.data;
@@ -280,7 +279,7 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.get(`/api/rules/${id}/statistics?days=${days}`);
             const result: RuleStatisticsResponse = response.data;
             return result.data;
@@ -293,21 +292,17 @@ export function useRulesApi(): UseRulesApiReturn {
     }, []);
 
     // Rule Execution API
-    const executeRulesOnTransactions = useCallback(async (
-        transactionIds: number[], 
-        ruleIds?: number[], 
-        dryRun = false
-    ): Promise<any> => {
+    const executeRulesOnTransactions = useCallback(async (transactionIds: number[], ruleIds?: number[], dryRun = false): Promise<any> => {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.post('/api/rules/execute/transactions', {
                 transaction_ids: transactionIds,
                 rule_ids: ruleIds,
                 dry_run: dryRun,
             });
-            
+
             return response.data;
         } catch (err) {
             handleError(err);
@@ -317,23 +312,18 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
-    const executeRulesOnDateRange = useCallback(async (
-        startDate: string, 
-        endDate: string, 
-        ruleIds?: number[], 
-        dryRun = false
-    ): Promise<any> => {
+    const executeRulesOnDateRange = useCallback(async (startDate: string, endDate: string, ruleIds?: number[], dryRun = false): Promise<any> => {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.post('/api/rules/execute/date-range', {
                 start_date: startDate,
                 end_date: endDate,
                 rule_ids: ruleIds,
                 dry_run: dryRun,
             });
-            
+
             return response.data;
         } catch (err) {
             handleError(err);
@@ -343,19 +333,16 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
-    const testRule = useCallback(async (
-        transactionIds: number[], 
-        ruleData: Omit<CreateRuleForm, 'rule_group_id' | 'name'>
-    ): Promise<any> => {
+    const testRule = useCallback(async (transactionIds: number[], ruleData: Omit<CreateRuleForm, 'rule_group_id' | 'name'>): Promise<any> => {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.post('/api/rules/test', {
                 transaction_ids: transactionIds,
                 ...ruleData,
             });
-            
+
             return response.data;
         } catch (err) {
             handleError(err);
@@ -369,11 +356,11 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.post(`/api/rules/${ruleId}/execute`, {
                 dry_run: dryRun,
             });
-            
+
             return response.data;
         } catch (err) {
             handleError(err);
@@ -387,11 +374,11 @@ export function useRulesApi(): UseRulesApiReturn {
         try {
             setLoading(true);
             setError(null);
-            
+
             const response = await axios.post(`/api/rules/groups/${groupId}/execute`, {
                 dry_run: dryRun,
             });
-            
+
             return response.data;
         } catch (err) {
             handleError(err);
@@ -429,4 +416,4 @@ export function useRulesApi(): UseRulesApiReturn {
         executeRuleGroup,
         clearError,
     };
-} 
+}
