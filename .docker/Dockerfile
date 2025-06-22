@@ -99,8 +99,6 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 # Start Apache
 CMD ["apache2-foreground"]
 
-
-
 FROM php:8.4-fpm AS development
 
 # Set working directory
@@ -125,8 +123,6 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
 RUN install-php-extensions pdo_pgsql pdo_sqlite pdo_mysql mbstring bcmath zip xdebug openssl
-
-
 
 # Test environment Dockerfile with Xdebug support
 FROM php:8.4-cli
@@ -188,11 +184,92 @@ USER www-data
 # Default command
 CMD ["php", "artisan", "test"]
 
-
-
 FROM node:22-alpine AS node
 RUN  npm install -g npm@11.4
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
+
+# Queue Worker target with Supervisor for production reliability
+FROM php:8.4-cli AS queue-worker
+
+# Install system dependencies including Supervisor
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    libzip-dev \
+    zip \
+    unzip \
+    libpq-dev \
+    sqlite3 \
+    libsqlite3-dev \
+    supervisor \
+    procps \
+    apt-utils && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy PHP extension installer and install extensions
+COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
+RUN install-php-extensions pdo_pgsql pdo_sqlite pdo_mysql mbstring bcmath zip openssl
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Create necessary directories
+RUN mkdir -p /var/www/html/storage/logs && \
+    mkdir -p /var/www/html/storage/framework/{sessions,views,cache} && \
+    mkdir -p /var/www/html/bootstrap/cache && \
+    mkdir -p /var/log/supervisor && \
+    mkdir -p /etc/supervisor/conf.d
+
+# Configure PHP for long-running processes
+RUN echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/docker-php-ext-memory-limit.ini && \
+    echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/docker-php-ext-max-execution-time.ini && \
+    echo "opcache.enable=1" >> /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini && \
+    echo "opcache.memory_consumption=128" >> /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini && \
+    echo "opcache.max_accelerated_files=4000" >> /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
+
+# Configure PHP to log to stderr for Docker
+RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini && \
+    echo "log_errors = On" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini && \
+    echo "error_reporting = E_ALL" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini
+
+# Copy Supervisor configuration
+COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY .docker/supervisor/laravel-queue.conf /etc/supervisor/conf.d/laravel-queue.conf
+
+# Copy composer files and install dependencies
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-plugins --no-progress --no-scripts --optimize-autoloader
+
+# Copy application files
+COPY . .
+
+# Set permissions
+RUN chown -R www-data:www-data /var/www/html && \
+    chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache && \
+    chown -R www-data:www-data /var/log/supervisor
+
+# Copy and set up queue worker entrypoint
+COPY .docker/queue-entrypoint.sh /usr/local/bin/queue-entrypoint.sh
+RUN chmod +x /usr/local/bin/queue-entrypoint.sh
+
+# Switch to www-data user
+USER www-data
+
+# Expose supervisor web interface (optional, for monitoring)
+EXPOSE 9001
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/queue-entrypoint.sh"]
+
+# Start Supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
 

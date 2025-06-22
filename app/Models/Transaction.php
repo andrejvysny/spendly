@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Events\TransactionCreated;
+use App\Events\TransactionUpdated;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -58,6 +60,15 @@ class Transaction extends Model
     ];
 
     /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
+        '_apply_rules',
+    ];
+
+    /**
      * Transaction type constants
      */
     public const TYPE_TRANSFER = 'TRANSFER';
@@ -73,11 +84,46 @@ class Transaction extends Model
     public const TYPE_DEPOSIT = 'DEPOSIT';
 
     /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Transaction $transaction) {
+            // Skip rule processing for bulk imports - handled at service level
+            if ($transaction->wasCreatedViaBulkImport()) {
+                return;
+            }
+
+            // Check if rules should be applied (can be controlled via attributes or context)
+            $applyRules = $transaction->getAttribute('_apply_rules') ?? true;
+            event(new TransactionCreated($transaction, $applyRules));
+        });
+
+        static::updated(function (Transaction $transaction) {
+            // Skip rule processing for bulk imports
+            if ($transaction->wasCreatedViaBulkImport()) {
+                return;
+            }
+
+            // Get changed attributes for rule processing
+            $changedAttributes = $transaction->getChanges();
+            $applyRules = $transaction->getAttribute('_apply_rules') ?? true;
+
+            event(new TransactionUpdated($transaction, $changedAttributes, $applyRules));
+        });
+    }
+
+    /**
      * Get the account that owns the transaction.
      */
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
+    }
+
+    public function disableRules(): void
+    {
+        $this->setAttribute('_apply_rules', false);
     }
 
     /**
@@ -140,5 +186,36 @@ class Transaction extends Model
                     $q->where('name', 'LIKE', "%{$term}%");
                 });
         });
+    }
+
+    /**
+     * Create a transaction without applying rules.
+     */
+    public static function createWithoutRules(array $attributes = []): self
+    {
+        $attributes['_apply_rules'] = false;
+        return static::create($attributes);
+    }
+
+    /**
+     * Update a transaction without applying rules.
+     */
+    public function updateWithoutRules(array $attributes = []): bool
+    {
+        $this->setAttribute('_apply_rules', false);
+        return $this->update($attributes);
+    }
+
+    /**
+     * Check if transaction was created via bulk import.
+     */
+    public function wasCreatedViaBulkImport(): bool
+    {
+        $metadata = $this->metadata ?? [];
+
+        // Check if this transaction has import metadata
+        return isset($metadata['processing_metadata']) ||
+               isset($metadata['import_id']) ||
+               isset($metadata['needs_rule_processing']);
     }
 }

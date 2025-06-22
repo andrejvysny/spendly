@@ -6,6 +6,10 @@ use App\Contracts\Import\BatchResultInterface;
 use App\Models\Import;
 use App\Services\Csv\CsvProcessor;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\ProcessRulesJob;
+use App\Models\Rule;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Orchestrates the transaction import process.
@@ -59,6 +63,7 @@ readonly class TransactionImportService
 
             // Persist successful transactions
             $this->persister->persistBatch($batch);
+            $insertedTransactionIds = $this->persister->getInsertedTransactionIds();
 
             // Persist failures and skipped transactions for manual review
             $failureStats = $this->failurePersister->persistFailures($batch, $import);
@@ -69,6 +74,9 @@ readonly class TransactionImportService
             ]);
 
             $this->updateImportStatus($import, $batch);
+
+            // Process rules for imported transactions if enabled
+            $this->processRulesForImportedTransactions($import, $accountId, $insertedTransactionIds);
 
         } catch (\Exception $e) {
             Log::error('Transaction import failed', [
@@ -193,5 +201,111 @@ readonly class TransactionImportService
             'total_rows' => $result->getTotalProcessed(),
             'success' => $result->isCompleteSuccess(),
         ];
+    }
+
+    /**
+     * Process rules for imported transactions.
+     */
+    private function processRulesForImportedTransactions(Import $import, int $accountId, array $insertedTransactionIds): void
+    {
+        // Check if rule processing is enabled for this import
+        $processRules = $import->metadata['process_rules'] ?? true;
+        $ruleProcessingMode = $import->metadata['rule_processing_mode'] ?? 'async'; // 'async', 'sync', 'manual'
+
+        if (!$processRules || empty($insertedTransactionIds)) {
+            Log::info('Skipping rule processing', [
+                'import_id' => $import->id,
+                'process_rules' => $processRules,
+                'transaction_count' => count($insertedTransactionIds),
+            ]);
+            return;
+        }
+
+        try {
+            // Get the user from the account
+            $account = \App\Models\Account::find($accountId);
+            if (!$account) {
+                Log::warning('Account not found for rule processing', ['account_id' => $accountId]);
+                return;
+            }
+
+            $user = $account->user;
+
+            Log::info('Processing rules for import', [
+                'import_id' => $import->id,
+                'account_id' => $accountId,
+                'transaction_count' => count($insertedTransactionIds),
+                'processing_mode' => $ruleProcessingMode,
+            ]);
+
+            switch ($ruleProcessingMode) {
+                case 'sync':
+                    // Process rules synchronously (blocking)
+                    $this->processSyncRules($user, $insertedTransactionIds);
+                    break;
+
+                case 'manual':
+                    // Don't process rules automatically - user will trigger manually
+                    $this->markTransactionsForManualRuleProcessing($insertedTransactionIds, $import->id);
+                    break;
+
+                case 'async':
+                default:
+                    // Process rules asynchronously via job queue
+                    ProcessRulesJob::dispatch(
+                        $user,
+                        [], // empty rule IDs means process all active rules
+                        null, // start date
+                        null, // end date
+                        $insertedTransactionIds, // specific transaction IDs
+                        false // not a dry run
+                    )->onQueue('high');
+                    break;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Failed to process rules for import', [
+                'import_id' => $import->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            // Don't throw - import was successful, rule processing is secondary
+        }
+    }
+
+    /**
+     * Process rules synchronously (blocking).
+     */
+    private function processSyncRules(User $user, array $transactionIds): void
+    {
+        $ruleEngine = app(\App\Contracts\RuleEngine\RuleEngineInterface::class);
+
+        $transactions = \App\Models\Transaction::whereIn('id', $transactionIds)->get();
+
+        $ruleEngine
+            ->setUser($user)
+            ->processTransactions($transactions, Rule::TRIGGER_TRANSACTION_CREATED);
+
+        Log::info('Synchronous rule processing completed', [
+            'user_id' => $user->id,
+            'transaction_count' => count($transactionIds),
+        ]);
+    }
+
+    /**
+     * Mark transactions for manual rule processing.
+     */
+    private function markTransactionsForManualRuleProcessing(array $transactionIds, int $importId): void
+    {
+        // Add a metadata flag to indicate these transactions need manual rule processing
+        \App\Models\Transaction::whereIn('id', $transactionIds)
+            ->update([
+                'metadata' => DB::raw("JSON_SET(COALESCE(metadata, '{}'), '$.needs_rule_processing', true, '$.import_id', {$importId})")
+            ]);
+
+        Log::info('Transactions marked for manual rule processing', [
+            'import_id' => $importId,
+            'transaction_count' => count($transactionIds),
+        ]);
     }
 }

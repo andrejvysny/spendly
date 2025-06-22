@@ -16,6 +16,8 @@ class TransactionPersister
     private array $batchQueue = [];
 
     private int $batchSize = 500;
+    
+    private array $insertedTransactionIds = [];
 
     public function __construct() {}
 
@@ -105,6 +107,10 @@ class TransactionPersister
 
                     // Bulk insert
                     \DB::table('transactions')->insert($insertData);
+                    
+                    // Track inserted transaction IDs for rule processing
+                    // We need to get the IDs of the just-inserted transactions
+                    $this->trackInsertedTransactionIds($chunk);
                 }
 
                 Log::info('Batch processed successfully', [
@@ -121,9 +127,10 @@ class TransactionPersister
             foreach ($batch as $data) {
                 assert($data instanceof TransactionDto, 'Expected TransactionDto in batch results');
                 try {
-                    Transaction::create(
+                    $transaction = Transaction::create(
                         $this->prepareForInsert($data->toArray())
                     );
+                    $this->insertedTransactionIds[] = $transaction->id;
                 } catch (\Exception $individualError) {
                     Log::error('Individual transaction insert failed', [
                         'error' => $individualError->getMessage(),
@@ -132,6 +139,45 @@ class TransactionPersister
                 }
             }
         }
+    }
+
+    /**
+     * Track transaction IDs for rule processing.
+     * Since we can't get IDs from bulk insert, we'll query by unique transaction_id.
+     */
+    private function trackInsertedTransactionIds(array $chunk): void
+    {
+        $transactionIds = [];
+        foreach ($chunk as $data) {
+            if ($data->has('transaction_id')) {
+                $transactionIds[] = $data->get('transaction_id');
+            }
+        }
+        
+        if (!empty($transactionIds)) {
+            $ids = \DB::table('transactions')
+                ->whereIn('transaction_id', $transactionIds)
+                ->pluck('id')
+                ->toArray();
+                
+            $this->insertedTransactionIds = array_merge($this->insertedTransactionIds, $ids);
+        }
+    }
+
+    /**
+     * Get all transaction IDs that were inserted during this batch process.
+     */
+    public function getInsertedTransactionIds(): array
+    {
+        return $this->insertedTransactionIds;
+    }
+
+    /**
+     * Clear the inserted transaction IDs.
+     */
+    public function clearInsertedTransactionIds(): void
+    {
+        $this->insertedTransactionIds = [];
     }
 
     /**

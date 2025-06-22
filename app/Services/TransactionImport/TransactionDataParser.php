@@ -25,7 +25,7 @@ class TransactionDataParser
         $mapping = $configuration['column_mapping'] ?? [];
         $headers = $configuration['headers'] ?? [];
 
-        // Initialize parsed data
+        // Initialize parsed data with all possible fields to ensure consistent column structure
         $data = [
             'currency' => $configuration['currency'] ?? 'EUR',
             'account_id' => $configuration['account_id'] ?? null,
@@ -36,6 +36,16 @@ class TransactionDataParser
                 'imported_at' => now()->format('Y-m-d H:i:s'),
             ],
             'balance_after_transaction' => 0, // Placeholder
+            // Initialize all possible transaction fields as null to ensure column consistency
+            'transaction_id' => null,
+            'booked_date' => null,
+            'processed_date' => null,
+            'amount' => null,
+            'description' => null,
+            'partner' => null,
+            'source_iban' => null,
+            'target_iban' => null,
+            'import_data' => null,
         ];
 
         // Map fields based on column mapping
