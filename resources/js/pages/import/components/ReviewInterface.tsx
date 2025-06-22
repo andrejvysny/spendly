@@ -4,14 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import ErrorDetailsPanel from '@/pages/import/components/ErrorDetailsPanel';
 import RawDataViewer from '@/pages/import/components/RawDataViewer';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, CheckCircle, Eye, XCircle } from 'lucide-react';
-import { useForm } from 'react-hook-form';
-import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { ArrowLeft, CheckCircle, Eye, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import ErrorDetailsPanel from '@/pages/import/components/ErrorDetailsPanel';
 
 // Define types for field definitions
 interface FieldOption {
@@ -37,9 +37,14 @@ interface FieldDefinitions {
 const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
     const schemaObject: Record<string, z.ZodTypeAny> = {};
 
-    fieldDefs.field_order.forEach(fieldName => {
+    fieldDefs.field_order.forEach((fieldName) => {
         const fieldDef = fieldDefs.fields[fieldName];
         if (!fieldDef) return;
+
+        // Skip account_id from schema validation since it's read-only
+        if (fieldName === 'account_id') {
+            return;
+        }
 
         let schema: z.ZodTypeAny;
 
@@ -50,7 +55,7 @@ const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
                     if (fieldName === 'amount') {
                         schema = z.coerce.number({
                             required_error: `${fieldDef.label} is required`,
-                            invalid_type_error: `${fieldDef.label} must be a number`
+                            invalid_type_error: `${fieldDef.label} must be a number`,
                         });
                     } else {
                         schema = z.coerce.number().min(0.01, { message: `${fieldDef.label} must be greater than 0` });
@@ -68,26 +73,28 @@ const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
                 break;
             case 'select':
                 if (fieldDef.options && fieldDef.options.length > 0) {
-                    const values = fieldDef.options.map(opt => opt.value.toString());
-                    
+                    const values = fieldDef.options.map((opt) => opt.value.toString());
+
                     if (fieldDef.required) {
                         // For required fields, don't allow __none__
                         schema = z.enum(values as [string, ...string[]], {
                             required_error: `${fieldDef.label} is required`,
-                            invalid_type_error: `Invalid value for ${fieldDef.label}`
+                            invalid_type_error: `Invalid value for ${fieldDef.label}`,
                         });
                     } else {
                         // For optional fields, allow __none__ as well
                         const validValues = [...values, '__none__'];
-                        schema = z.enum(validValues as [string, ...string[]], {
-                            invalid_type_error: `Invalid value for ${fieldDef.label}`
-                        }).nullable().optional().transform(val => val === '__none__' ? null : val);
+                        schema = z
+                            .enum(validValues as [string, ...string[]], {
+                                invalid_type_error: `Invalid value for ${fieldDef.label}`,
+                            })
+                            .nullable()
+                            .optional()
+                            .transform((val) => (val === '__none__' ? null : val));
                     }
                 } else {
                     // Fallback for select fields without options
-                    schema = fieldDef.required
-                        ? z.string().min(1, { message: `${fieldDef.label} is required` })
-                        : z.string().nullable().optional();
+                    schema = fieldDef.required ? z.string().min(1, { message: `${fieldDef.label} is required` }) : z.string().nullable().optional();
                 }
                 break;
             default:
@@ -132,6 +139,7 @@ function ReviewInterface({
     const [isLoadingFields, setIsLoadingFields] = useState(true);
     const [mappedValues, setMappedValues] = useState<Record<string, any>>({});
     const [actuallyMappedFields, setActuallyMappedFields] = useState<Set<string>>(new Set());
+    const [accountDetails, setAccountDetails] = useState<{ id: number; name: string; iban: string } | null>(null);
 
     // Load field definitions from backend
     useEffect(() => {
@@ -149,13 +157,55 @@ function ReviewInterface({
         loadFieldDefinitions();
     }, []);
 
+    // Load account details when importData changes
+    useEffect(() => {
+        const loadAccountDetails = async () => {
+            const accountId = importData?.metadata?.account_id;
+            if (accountId && fieldDefinitions) {
+                try {
+                    // Find the account in the field definitions options
+                    const accountField = fieldDefinitions.fields['account_id'];
+                    const accountOption = accountField?.options?.find((opt) => opt.value.toString() === accountId.toString());
+
+                    if (accountOption) {
+                        setAccountDetails({
+                            id: Number(accountId),
+                            name: accountOption.label,
+                            iban: accountOption.label.includes('(') ? accountOption.label.split('(')[1].split(')')[0] : '',
+                        });
+                    } else {
+                        // Fallback: try to fetch account details from API
+                        try {
+                            const response = await axios.get(`/accounts/${accountId}`);
+                            setAccountDetails({
+                                id: response.data.id,
+                                name: response.data.name,
+                                iban: response.data.iban || '',
+                            });
+                        } catch (error) {
+                            console.error('Failed to load account details:', error);
+                            // Set fallback details
+                            setAccountDetails({
+                                id: Number(accountId),
+                                name: `Account ${accountId}`,
+                                iban: '',
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load account details:', error);
+                }
+            }
+        };
+
+        loadAccountDetails();
+    }, [importData, fieldDefinitions]);
+
     // Get current failure and prepare initial default values
     const currentFailure = pendingFailures[currentReviewIndex];
 
     // Create dynamic schema - use empty schema if fieldDefinitions not ready
-    const dynamicSchema = fieldDefinitions
-        ? createDynamicSchema(fieldDefinitions)
-        : z.object({});
+    const dynamicSchema = fieldDefinitions ? createDynamicSchema(fieldDefinitions) : z.object({});
 
     // useForm hook must always be called - cannot be conditional
     const form = useForm<FormValues>({
@@ -170,11 +220,7 @@ function ReviewInterface({
             console.log('🔄 Mapping fields for failure:', currentFailure.id);
 
             // Get mapped values from FieldMappingService
-            const mappingResult = FieldMappingService.mapFields(
-                currentFailure,
-                importData,
-                fieldDefinitions
-            );
+            const mappingResult = FieldMappingService.mapFields(currentFailure, importData, fieldDefinitions);
 
             const newMappedValues = mappingResult.values;
             const newActuallyMappedFields = mappingResult.actuallyMappedFields;
@@ -192,20 +238,23 @@ function ReviewInterface({
             setMappedValues(newMappedValues);
             setActuallyMappedFields(newActuallyMappedFields);
 
-            
-                        // Transform values for form compatibility (especially select fields)
+            // Transform values for form compatibility (especially select fields)
             const formValues: Record<string, any> = {};
 
             fieldDefinitions.field_order.forEach((fieldName) => {
+                // Skip account_id from form values since it's read-only
+                if (fieldName === 'account_id') {
+                    return;
+                }
+
                 const fieldDef = fieldDefinitions.fields[fieldName];
                 let value = newMappedValues[fieldName];
 
                 // Handle select fields - convert null/undefined/empty strings properly for form compatibility
                 if (fieldDef?.type === 'select') {
                     // Check if value is empty (including empty strings)
-                    const isEmpty = value === null || value === undefined || value === '' || 
-                                  (typeof value === 'string' && value.trim() === '');
-                    
+                    const isEmpty = value === null || value === undefined || value === '' || (typeof value === 'string' && value.trim() === '');
+
                     if (isEmpty) {
                         if (!fieldDef.required) {
                             // For optional fields, use __none__ to show "-- None --"
@@ -251,7 +300,7 @@ function ReviewInterface({
 
             // Reset form with transformed values
             form.reset(formValues);
-            
+
             // Don't trigger validation immediately - let form settle first
         }
     }, [currentFailure, fieldDefinitions, form, importData]);
@@ -260,7 +309,7 @@ function ReviewInterface({
     if (isLoadingFields) {
         return (
             <div className="py-12 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
                 <p className="mt-2 text-gray-500">Loading form fields...</p>
             </div>
         );
@@ -303,11 +352,29 @@ function ReviewInterface({
             }
         });
 
+        // Add account_id from import metadata
+        if (importData?.metadata?.account_id) {
+            submitValues['account_id'] = importData.metadata.account_id;
+        }
+
         console.log('🚀 Submitting values:', submitValues);
         await handleReviewTransactionCreate(submitValues);
     };
 
     const renderField = (fieldName: string, fieldDef: FieldDefinition) => {
+        // Special handling for account_id - render as read-only display
+        if (fieldName === 'account_id') {
+            return (
+                <div className="bg-muted/50 border-muted flex items-center space-x-2 rounded-md border p-3">
+                    <div className="flex-1">
+                        <div className="text-sm font-medium">{accountDetails ? accountDetails.name : 'Loading account...'}</div>
+                        {accountDetails?.iban && <div className="text-muted-foreground text-xs">IBAN: {accountDetails.iban}</div>}
+                    </div>
+                    <div className="text-muted-foreground bg-muted rounded px-2 py-1 text-xs">Read-only</div>
+                </div>
+            );
+        }
+
         const error = form.formState.errors[fieldName];
         const currentValue = form.watch(fieldName);
         // Only mark as mapped if it was actually mapped from raw data, not just has a value
@@ -320,26 +387,13 @@ function ReviewInterface({
 
         switch (fieldDef.type) {
             case 'number':
-                return (
-                    <Input
-                        {...commonProps}
-                        type="number"
-                        step={fieldDef.step || '0.01'}
-                        {...form.register(fieldName, { valueAsNumber: true })}
-                    />
-                );
+                return <Input {...commonProps} type="number" step={fieldDef.step || '0.01'} {...form.register(fieldName, { valueAsNumber: true })} />;
             case 'date':
-                return (
-                    <Input
-                        {...commonProps}
-                        type="date"
-                        {...form.register(fieldName)}
-                    />
-                );
+                return <Input {...commonProps} type="date" {...form.register(fieldName)} />;
             case 'select':
                 // Handle empty string explicitly - treat it as no value
                 let selectValue: string;
-                
+
                 if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
                     // We have a value, use it
                     selectValue = currentValue.toString();
@@ -356,7 +410,7 @@ function ReviewInterface({
                         selectValue = '__none__';
                     }
                 }
-                
+
                 return (
                     <Select
                         value={selectValue}
@@ -364,7 +418,7 @@ function ReviewInterface({
                             console.log(`🔄 Select field ${fieldName} changed to:`, value);
                             form.setValue(fieldName, value === '__none__' ? null : value, {
                                 shouldValidate: true,
-                                shouldDirty: true
+                                shouldDirty: true,
                             });
                         }}
                     >
@@ -372,9 +426,7 @@ function ReviewInterface({
                             <SelectValue placeholder={`Select ${fieldDef.label}`} />
                         </SelectTrigger>
                         <SelectContent>
-                            {!fieldDef.required && (
-                                <SelectItem value="__none__">-- None --</SelectItem>
-                            )}
+                            {!fieldDef.required && <SelectItem value="__none__">-- None --</SelectItem>}
                             {fieldDef.options?.map((option) => (
                                 <SelectItem key={option.value} value={option.value.toString()}>
                                     {option.label}
@@ -384,21 +436,9 @@ function ReviewInterface({
                     </Select>
                 );
             case 'textarea':
-                return (
-                    <Textarea
-                        {...commonProps}
-                        {...form.register(fieldName)}
-                        rows={3}
-                    />
-                );
+                return <Textarea {...commonProps} {...form.register(fieldName)} rows={3} />;
             default:
-                return (
-                    <Input
-                        {...commonProps}
-                        type="text"
-                        {...form.register(fieldName)}
-                    />
-                );
+                return <Input {...commonProps} type="text" {...form.register(fieldName)} />;
         }
     };
 
@@ -429,15 +469,8 @@ function ReviewInterface({
             </div>
 
             {/* Error Details - Top Row */}
-            <Card className="mb-6">
-                <CardHeader>
-                    <CardTitle className="text-base">Error Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <ErrorDetailsPanel failure={currentFailure} />
-                </CardContent>
-            </Card>
 
+            <ErrorDetailsPanel failure={currentFailure} />
             {/* Two Column Layout - Bottom Row */}
             <div className="grid grid-cols-2 gap-6">
                 {/* Left: Raw Data Panel */}
@@ -465,26 +498,23 @@ function ReviewInterface({
                         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                             {/* Auto-mapping Summary */}
                             {actuallyMappedFields.size > 0 && (
-                                <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                                    <h4 className="text-sm font-medium text-primary mb-2">
-                                        🤖 Auto-mapped Fields ({actuallyMappedFields.size})
-                                    </h4>
-                                    <div className="text-xs text-primary/80 grid grid-cols-2 gap-1">
-                                        {Array.from(actuallyMappedFields)
-                                            .map((fieldName) => {
-                                                const fieldDef = fieldDefinitions.fields[fieldName];
-                                                const value = mappedValues[fieldName];
-                                                return (
-                                                    <div key={fieldName} className="flex justify-between">
-                                                        <span className="font-medium">{fieldDef?.label || fieldName}:</span>
-                                                        <span className="ml-2 truncate max-w-20" title={value?.toString()}>
-                                                            {value?.toString().length > 15
-                                                                ? `${value.toString().substring(0, 15)}...`
-                                                                : value?.toString()}
-                                                        </span>
-                                                    </div>
-                                                );
-                                            })}
+                                <div className="mb-4 rounded-lg border border-blue-500 bg-blue-900/10 p-3">
+                                    <h4 className="text-primary mb-2 text-sm font-medium">🤖 Auto-mapped Fields ({actuallyMappedFields.size})</h4>
+                                    <div className="text-primary/80 grid grid-cols-2 gap-8 text-xs">
+                                        {Array.from(actuallyMappedFields).map((fieldName) => {
+                                            const fieldDef = fieldDefinitions.fields[fieldName];
+                                            const value = mappedValues[fieldName];
+                                            return (
+                                                <div key={fieldName} className="flex justify-between">
+                                                    <span className="font-medium">{fieldDef?.label || fieldName}:</span>
+                                                    <span className="ml-2 max-w-20 truncate" title={value?.toString()}>
+                                                        {value?.toString().length > 15
+                                                            ? `${value.toString().substring(0, 15)}...`
+                                                            : value?.toString()}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -493,29 +523,32 @@ function ReviewInterface({
                                 const fieldDef = fieldDefinitions.fields[fieldName];
                                 if (!fieldDef) return null;
 
-                                const isMapped = actuallyMappedFields.has(fieldName);
+                                // For account_id, we don't show it as auto-mapped since it's read-only
+                                const isMapped = fieldName === 'account_id' ? false : actuallyMappedFields.has(fieldName);
 
                                 return (
                                     <div key={fieldName} className="relative">
-                                        <Label htmlFor={fieldName} className="flex items-center text-sm gap-2">
+                                        <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm">
                                             {fieldDef.label}
                                             {fieldDef.required && ' *'}
                                             {isMapped && (
-                                                <span className="inline-flex items-center gap-1 rounded-full px-2  text-xs font-medium text-blue-500 ">
+                                                <span className="inline-flex items-center gap-1 rounded-full px-2 text-xs font-medium text-blue-500">
                                                     <span className="h-2 w-2 rounded-full bg-blue-500"></span>
                                                     auto-mapped
+                                                </span>
+                                            )}
+                                            {fieldName === 'account_id' && (
+                                                <span className="text-info bg-card inline-flex items-center gap-1 rounded-full px-2 text-xs font-medium">
+                                                    <span className="bg-info h-2 w-2 rounded-full"></span>
+                                                    from import
                                                 </span>
                                             )}
                                         </Label>
                                         {renderField(fieldName, fieldDef)}
                                         {form.formState.errors[fieldName] && (
-                                            <p className="mt-1 text-sm text-destructive">
-                                                {form.formState.errors[fieldName]?.message as string}
-                                            </p>
+                                            <p className="text-destructive mt-1 text-sm">{form.formState.errors[fieldName]?.message as string}</p>
                                         )}
-                                        {fieldDef.description && (
-                                            <p className="mt-1 text-xs text-muted-foreground">{fieldDef.description}</p>
-                                        )}
+                                        {fieldDef.description && <p className="text-muted-foreground mt-1 text-xs">{fieldDef.description}</p>}
                                     </div>
                                 );
                             })}
