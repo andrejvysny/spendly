@@ -79,6 +79,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::group(['prefix' => '/mappings', 'as' => 'mappings.'], function () {
             Route::get('/', [ImportMappingsController::class, 'index'])->name('get');
             Route::post('/', [ImportMappingsController::class, 'store'])->name('save');
+            Route::post('/apply', [ImportMappingsController::class, 'applyMapping'])->name('apply');
+            Route::post('/auto-detect', [ImportMappingsController::class, 'autoDetect'])->name('auto-detect');
+            Route::post('/compatible', [ImportMappingsController::class, 'getCompatible'])->name('compatible');
             Route::put('/{mapping}', [ImportMappingsController::class, 'updateLastUsed'])->name('usage');
             Route::delete('/{mapping}', [ImportMappingsController::class, 'delete'])->name('delete');
         });

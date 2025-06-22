@@ -90,7 +90,8 @@ readonly class TransactionImportService
             $import->metadata['delimiter'] ?? ';',
             $import->metadata['quote_char'] ?? '"',
             $this->rowProcessor,
-            $configuration
+            true, // skip_header
+            $previewSize + 1 // num_rows (including potential header processing)
         );
 
         $previewData = [];
@@ -106,7 +107,7 @@ readonly class TransactionImportService
     /**
      * Prepare configuration for processing.
      */
-    private function prepareConfiguration(Import $import, int $accountId): array
+    private function prepareConfiguration(Import $import, ?int $accountId): array
     {
         return [
             'account_id' => $accountId,

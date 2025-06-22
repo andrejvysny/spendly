@@ -12,6 +12,7 @@ class ImportMappingRequest extends FormRequest
             'name' => 'required|string|max:255',
             'bank_name' => 'nullable|string|max:255',
             'column_mapping' => 'required|array',
+            'headers' => 'array', // Optional headers for conversion
             'date_format' => 'required|string',
             'amount_format' => 'required|string',
             'amount_type_strategy' => 'required|string',
@@ -52,5 +53,10 @@ class ImportMappingRequest extends FormRequest
     public function getCurrency(): string
     {
         return (string) $this->input('currency');
+    }
+
+    public function getHeaders(): array
+    {
+        return (array) $this->input('headers', []);
     }
 }
