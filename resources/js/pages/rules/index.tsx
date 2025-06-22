@@ -1,8 +1,8 @@
 import { DataTable } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { toast } from 'react-toastify';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import { Head, router } from '@inertiajs/react';
@@ -48,7 +48,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
     const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false);
     const [selectedGroupForNewRule, setSelectedGroupForNewRule] = useState<number | undefined>();
     const [isCreateRuleGroupModalOpen, setIsCreateRuleGroupModalOpen] = useState(false);
-    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
     const [executingRuleId, setExecutingRuleId] = useState<number | null>(null);
     const [executingGroupId, setExecutingGroupId] = useState<number | null>(null);
 
@@ -79,6 +79,14 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
             setRuleGroups(initialRuleGroups);
         }
     }, [initialRuleGroups]);
+
+    // Handle errors using toast
+    useEffect(() => {
+        if (error) {
+            toast.error(error);
+            clearError();
+        }
+    }, [error, clearError]);
 
     const loadRuleGroups = async () => {
         // Use Inertia reload to get fresh server-side data
@@ -114,6 +122,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
 
         const success = await deleteRule(selectedRuleForDeletion.id);
         if (success) {
+            toast.success(`Rule "${selectedRuleForDeletion.name}" deleted successfully.`);
             await loadRuleGroups(); // Refresh data
             setSelectedRuleForDeletion(null);
         }
@@ -124,6 +133,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
 
         const success = await deleteRuleGroup(selectedGroupForDeletion.id);
         if (success) {
+            toast.success(`Rule group "${selectedGroupForDeletion.name}" deleted successfully.`);
             await loadRuleGroups(); // Refresh data
             setSelectedGroupForDeletion(null);
         }
@@ -132,6 +142,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
     const handleDuplicateRule = async (rule: Rule) => {
         const newRule = await duplicateRule(rule.id, `${rule.name} (Copy)`);
         if (newRule) {
+            toast.success(`Rule "${rule.name}" duplicated successfully.`);
             await loadRuleGroups(); // Refresh data
         }
     };
@@ -155,10 +166,10 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
         try {
             const result = await executeRule(rule.id, false);
             if (result) {
-                setSuccessMessage(`Rule "${rule.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
-                // Clear success message after 5 seconds
-                setTimeout(() => setSuccessMessage(null), 5000);
+                toast.success(`Rule "${rule.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
             }
+        } catch (error) {
+            toast.error(`Failed to execute rule "${rule.name}". Please try again.`);
         } finally {
             setExecutingRuleId(null);
         }
@@ -169,18 +180,16 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
         try {
             const result = await executeRuleGroup(group.id, false);
             if (result) {
-                setSuccessMessage(`Rule group "${group.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
-                // Clear success message after 5 seconds
-                setTimeout(() => setSuccessMessage(null), 5000);
+                toast.success(`Rule group "${group.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
             }
+        } catch (error) {
+            toast.error(`Failed to execute rule group "${group.name}". Please try again.`);
         } finally {
             setExecutingGroupId(null);
         }
     };
 
-    const clearSuccessMessage = () => {
-        setSuccessMessage(null);
-    };
+
 
     const openCreateRuleModal = (groupId?: number) => {
         setSelectedGroupForNewRule(groupId);
@@ -193,6 +202,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
     };
 
     const handleRuleCreated = () => {
+        toast.success('Rule created successfully.');
         loadRuleGroups(); // Refresh data
     };
 
@@ -205,6 +215,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
     };
 
     const handleRuleGroupCreated = () => {
+        toast.success('Rule group created successfully.');
         loadRuleGroups(); // Refresh data
     };
 
@@ -247,7 +258,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
         const rules = group.rules || [];
 
         return (
-            <div key={group.id} className="border rounded-lg mb-5 bg-card">
+            <div key={group.id} className={`border rounded-lg mb-5 bg-card transition-opacity ${executingGroupId === group.id ? 'opacity-75' : ''}`}>
                 <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(group.id)}>
                     <div className="p-4 flex items-center justify-between border-b">
                         <div className="flex items-center gap-3">
@@ -257,7 +268,15 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
                                 </Button>
                             </CollapsibleTrigger>
                             <div>
-                                <h3 className="font-semibold text-lg">{group.name}</h3>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="font-semibold text-lg">{group.name}</h3>
+                                    {executingGroupId === group.id && (
+                                        <div className="flex items-center gap-1 text-sm text-blue-600">
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                            <span>Executing...</span>
+                                        </div>
+                                    )}
+                                </div>
                                 {group.description && (
                                     <p className="text-sm text-muted-foreground">{group.description}</p>
                                 )}
@@ -271,13 +290,22 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
                         </div>
 
                                                  <div className="flex items-center gap-2">
-                             <Button variant="outline" size="sm" onClick={() => openCreateRuleModal(group.id)}>
+                             <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openCreateRuleModal(group.id)}
+                                disabled={executingGroupId === group.id || executingRuleId !== null}
+                             >
                                  <Plus className="h-4 w-4 mr-1" />
                                  Add Rule
                              </Button>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={executingGroupId === group.id || executingRuleId !== null}
+                                    >
                                         <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -287,7 +315,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
                                         Edit Group
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem 
+                                    <DropdownMenuItem
                                         onClick={() => handleExecuteRuleGroup(group)}
                                         disabled={executingGroupId === group.id}
                                     >
@@ -335,7 +363,15 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
                                             key: 'name',
                                             render: (rule: Rule) => (
                                                 <div>
-                                                    <div className="font-medium">{rule.name}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium">{rule.name}</span>
+                                                        {executingRuleId === rule.id && (
+                                                            <div className="flex items-center gap-1 text-sm text-blue-600">
+                                                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                                <span>Executing...</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     {rule.description && (
                                                         <div className="text-sm text-muted-foreground">{rule.description}</div>
                                                     )}
@@ -399,7 +435,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
                                                             Duplicate
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem 
+                                                        <DropdownMenuItem
                                                             onClick={() => handleExecuteRule(rule)}
                                                             disabled={executingRuleId === rule.id}
                                                         >
@@ -476,37 +512,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
                      ]}
                  />
 
-                {error && (
-                    <Alert className="mb-6" variant="destructive">
-                        <AlertDescription>
-                            {error}
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="ml-2 h-auto p-0 text-sm underline"
-                                onClick={clearError}
-                            >
-                                Dismiss
-                            </Button>
-                        </AlertDescription>
-                    </Alert>
-                )}
 
-                {successMessage && (
-                    <Alert className="mb-6" variant="default">
-                        <AlertDescription>
-                            {successMessage}
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="ml-2 h-auto p-0 text-sm underline"
-                                onClick={clearSuccessMessage}
-                            >
-                                Dismiss
-                            </Button>
-                        </AlertDescription>
-                    </Alert>
-                )}
 
                 {loading && ruleGroups.length === 0 ? (
                     <div className="text-center py-12">
