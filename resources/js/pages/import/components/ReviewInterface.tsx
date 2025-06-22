@@ -500,7 +500,7 @@ function ReviewInterface({
                             {actuallyMappedFields.size > 0 && (
                                 <div className="mb-4 rounded-lg border border-blue-500 bg-blue-900/10 p-3">
                                     <h4 className="text-primary mb-2 text-sm font-medium">🤖 Auto-mapped Fields ({actuallyMappedFields.size})</h4>
-                                    <div className="text-primary/80 grid grid-cols-2 gap-8 text-xs">
+                                    <div className="text-primary/80 grid grid-cols-2 gap-x-15 gap-y-2 text-xs">
                                         {Array.from(actuallyMappedFields).map((fieldName) => {
                                             const fieldDef = fieldDefinitions.fields[fieldName];
                                             const value = mappedValues[fieldName];

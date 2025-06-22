@@ -6,21 +6,21 @@ class FieldMappingService {
         partner:
             /^(partner|empf[aä]nger|sender|name|company|auftraggeber|merchant|counterparty|recipient|payee|beneficiary|payable|vendor|supplier|klient|cliente|fournisseur|fornitore)$/i,
         booked_date:
-            /^(booked.*date|date|datum|booking|gebucht|valuta|buchungstag|transaction.*date|posting.*date|value.*date|effective.*date|settlement.*date|execution.*date|fecha|data|datum.*transakce)$/i,
+            /^(booked.*date|date|datum|booking|gebucht|valuta|buchungstag|transaction.*date|posting.*date|value.*date|effective.*date|settlement.*date|execution.*date|fecha|data|datum.*transakce|dátum valuty|datum valuty)$/i,
         processed_date:
-            /^(processed.*date|process.*date|settlement.*date|cleared.*date|datum.*zpracovani|processing.*date|execution.*date|completion.*date)$/i,
+            /^(processed.*date|process.*date|settlement.*date|cleared.*date|datum.*zpracovani|processing.*date|execution.*date|completion.*date|datum splatnosti|dátum splatnosti|datum.*splatnosti|splatnost|due.*date|maturity.*date|expiry.*date|datum.*platnosti)$/i,
         description:
-            /^(description|verwendung|zweck|memo|reference|beschreibung|details|note|text|popis|poznamka|descripcion|descrizione|concept|libelle|motivo|raison)$/i,
+            /^(description|verwendung|zweck|memo|reference|beschreibung|details|note|text|popis|poznamka|descripcion|descrizione|concept|libelle|motivo|raison|popis.*transakcie)$/i,
         target_iban:
             /^(target.*iban|empf[aä]nger.*iban|ziel.*iban|destination.*iban|recipient.*iban|to.*iban|beneficiary.*iban|payee.*iban|credit.*iban)$/i,
         source_iban: /^(source.*iban|sender.*iban|auftraggeber.*iban|from.*iban|origin.*iban|debtor.*iban|payer.*iban|debit.*iban)$/i,
         currency: /^(currency|w[aä]hrung|curr|mena|valuta|devise|moneda|divisa|waluta|ccur|ccy)$/i,
         transaction_id:
             /^(transaction.*id|trans.*id|id|referenz|reference|ref|cislo.*transakce|numero|numero.*transaccion|transaction.*ref|trans.*ref|txn.*id|operation.*id)$/i,
-        type: /^(type|typ|kategorie|druh|transaction.*type|operation.*type|payment.*type|categoria|kategoria|genre|tipo)$/i,
+        type: /^(type|typ|kategorie|druh|transaction.*type|operation.*type|payment.*type|categoria|kategoria|genre|tipo|typ.*transakcie)$/i,
         note: /^(note|notes|poznamka|poznamky|additional.*info|extra.*info|commentary|comment|observacion|osservazione|remarque|bemerkung)$/i,
         recipient_note: /^(recipient.*note|recipient.*memo|for.*recipient|pro.*prijemce|beneficiary.*note|payee.*note|destination.*note)$/i,
-        place: /^(place|location|misto|lokalita|where|venue|lieu|lugar|posto|ort|lokalizacja)$/i,
+        place: /^(place|location|misto|lokalita|where|venue|lieu|lugar|posto|ort|lokalizacja|miesto.*pouzitia.*karty)$/i,
         balance_after_transaction: /^(balance.*after|remaining.*balance|new.*balance|balance|zůstatek|zustatek|saldo.*final|balance.*final|solde)$/i,
         merchant_id: /^(merchant|obchodnik|store|shop|vendor|comerciante|commerciante|magasin|negozio|laden|sklep)$/i,
         category_id: /^(category|kategorie|group|skupina|class|trida|categoria|classe|groupe|klasse|categoria)$/i,
@@ -63,6 +63,16 @@ class FieldMappingService {
                 if (fieldName === 'account_id') {
                     console.log(`❌ Skipping auto-mapping for account_id - should come from import metadata`);
                     return;
+                }
+
+                // Debug logging for processed_date pattern matching
+                if (fieldName === 'processed_date') {
+                    console.log(`🔍 Testing processed_date pattern for header "${header}":`, {
+                        header,
+                        pattern: pattern.toString(),
+                        testResult: pattern.test(header),
+                        value
+                    });
                 }
 
                 if (pattern.test(header)) {
@@ -483,18 +493,8 @@ class FieldMappingService {
                 );
                 return isNaN(balanceValue) ? null : balanceValue;
             case 'type':
-                // Try to map common type values
-                const typeValue = value.toString().toUpperCase();
-                const typeMapping: Record<string, string> = {
-                    TRANSFER: 'TRANSFER',
-                    DEPOSIT: 'DEPOSIT',
-                    WITHDRAWAL: 'WITHDRAWAL',
-                    PAYMENT: 'PAYMENT',
-                    CARD: 'CARD_PAYMENT',
-                    CARD_PAYMENT: 'CARD_PAYMENT',
-                    EXCHANGE: 'EXCHANGE',
-                };
-                return typeMapping[typeValue] || 'PAYMENT';
+                // Accept any string value from CSV raw data - no enum mapping
+                return value.toString().trim();
             default:
                 return value.toString().trim();
         }
@@ -502,14 +502,93 @@ class FieldMappingService {
 
     private static isValidDate(dateString: any): boolean {
         const date = new Date(dateString);
-        return date instanceof Date && !isNaN(date.getTime());
+        const isValid = date instanceof Date && !isNaN(date.getTime());
+        console.log(`🔍 isValidDate check: "${dateString}" -> ${isValid} (date: ${date})`);
+        return isValid;
     }
 
     private static parseDate(dateString: any): string {
-        const date = new Date(dateString);
-        if (this.isValidDate(dateString)) {
-            return date.toISOString().split('T')[0];
+        console.log(`📅 parseDate called with: "${dateString}" (type: ${typeof dateString})`);
+        
+        if (!dateString || dateString === '') {
+            console.log(`❌ Empty date string, returning today's date`);
+            return new Date().toISOString().split('T')[0];
         }
+
+        // Try parsing DD.MM.YYYY format (common in European/Slovak files) - FIXED FOR TIMEZONE
+        const ddMmYyyyMatch = dateString.toString().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+        if (ddMmYyyyMatch) {
+            const [, day, month, year] = ddMmYyyyMatch;
+            // Use UTC to avoid timezone issues - create date in local timezone
+            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            if (this.isValidDate(date)) {
+                // Format manually to avoid timezone conversion
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                const formattedDate = `${yyyy}-${mm}-${dd}`;
+                console.log(`✅ Parsed DD.MM.YYYY format: ${formattedDate}`);
+                return formattedDate;
+            }
+        }
+
+        // Try parsing DD/MM/YYYY format - FIXED FOR TIMEZONE
+        const ddSlashMmYyyyMatch = dateString.toString().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (ddSlashMmYyyyMatch) {
+            const [, day, month, year] = ddSlashMmYyyyMatch;
+            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            if (this.isValidDate(date)) {
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                const formattedDate = `${yyyy}-${mm}-${dd}`;
+                console.log(`✅ Parsed DD/MM/YYYY format: ${formattedDate}`);
+                return formattedDate;
+            }
+        }
+
+        // Try parsing DD-MM-YYYY format - FIXED FOR TIMEZONE
+        const ddDashMmYyyyMatch = dateString.toString().match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+        if (ddDashMmYyyyMatch) {
+            const [, day, month, year] = ddDashMmYyyyMatch;
+            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            if (this.isValidDate(date)) {
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                const formattedDate = `${yyyy}-${mm}-${dd}`;
+                console.log(`✅ Parsed DD-MM-YYYY format: ${formattedDate}`);
+                return formattedDate;
+            }
+        }
+
+        // Try parsing YYYY-MM-DD format (already correct format)
+        const yyyyMmDdMatch = dateString.toString().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (yyyyMmDdMatch) {
+            const [, year, month, day] = yyyyMmDdMatch;
+            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            if (this.isValidDate(date)) {
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                const formattedDate = `${yyyy}-${mm}-${dd}`;
+                console.log(`✅ Parsed YYYY-MM-DD format: ${formattedDate}`);
+                return formattedDate;
+            }
+        }
+
+        // Fallback: try direct Date constructor but format manually to avoid timezone issues
+        const date = new Date(dateString);
+        if (this.isValidDate(date)) {
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            const formattedDate = `${yyyy}-${mm}-${dd}`;
+            console.log(`✅ Parsed with Date constructor: ${formattedDate}`);
+            return formattedDate;
+        }
+
+        console.log(`❌ Could not parse date "${dateString}", returning today's date`);
         return new Date().toISOString().split('T')[0];
     }
 
