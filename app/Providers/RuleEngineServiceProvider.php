@@ -6,6 +6,7 @@ use App\Contracts\RuleEngine\ActionExecutorInterface;
 use App\Contracts\RuleEngine\ConditionEvaluatorInterface;
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Listeners\ProcessTransactionRules;
+use App\Listeners\ProcessTransactionRulesSync;
 use App\Services\RuleEngine\ActionExecutor;
 use App\Services\RuleEngine\ConditionEvaluator;
 use App\Services\RuleEngine\RuleEngine;
@@ -36,8 +37,13 @@ class RuleEngineServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Register event listeners
+        // Register event listeners based on processing mode
         $events = $this->app->make('events');
-        $events->subscribe(ProcessTransactionRules::class);
+
+        if (config('ruleengine.processing_mode') === 'sync') {
+            $events->subscribe(ProcessTransactionRulesSync::class);
+        } else {
+            $events->subscribe(ProcessTransactionRules::class);
+        }
     }
 }
