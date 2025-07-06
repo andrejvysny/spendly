@@ -24,7 +24,14 @@ The Rule Engine is a powerful feature that allows automatic processing of transa
 3. **Events & Listeners**
    - `TransactionCreated` - Fired when a transaction is created
    - `TransactionUpdated` - Fired when a transaction is updated
-   - `ProcessTransactionRules` - Listener that processes rules
+   - `ProcessTransactionRules` - Listener that processes rules asynchronously
+   - `ProcessTransactionRulesSync` - Listener used when synchronous processing is enabled
+
+### Processing Modes
+The rule engine can operate in **async** or **sync** mode. Configure this via the
+`RULE_ENGINE_PROCESSING_MODE` environment variable (`async` by default). In sync
+mode rules are executed immediately within the request and do not require a queue
+worker.
 
 ## Features
 

@@ -210,7 +210,8 @@ readonly class TransactionImportService
     {
         // Check if rule processing is enabled for this import
         $processRules = $import->metadata['process_rules'] ?? true;
-        $ruleProcessingMode = $import->metadata['rule_processing_mode'] ?? 'async'; // 'async', 'sync', 'manual'
+        $ruleProcessingMode = $import->metadata['rule_processing_mode']
+            ?? config('ruleengine.processing_mode', 'async'); // 'async', 'sync', 'manual'
 
         if (!$processRules || empty($insertedTransactionIds)) {
             Log::info('Skipping rule processing', [
