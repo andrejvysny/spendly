@@ -142,7 +142,6 @@ function ReviewInterface({
     const [accountDetails, setAccountDetails] = useState<{ id: number; name: string; iban: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-
     const handleReviewTransactionCreate = async (values: FormValues) => {
         if (!pendingFailures[currentReviewIndex]) return;
 
@@ -162,7 +161,6 @@ function ReviewInterface({
             setIsSubmitting(false);
         }
     };
-
 
     // Load field definitions from backend
     useEffect(() => {

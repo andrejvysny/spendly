@@ -71,7 +71,7 @@ class FieldMappingService {
                         header,
                         pattern: pattern.toString(),
                         testResult: pattern.test(header),
-                        value
+                        value,
                     });
                 }
 
@@ -509,7 +509,7 @@ class FieldMappingService {
 
     private static parseDate(dateString: any): string {
         console.log(`📅 parseDate called with: "${dateString}" (type: ${typeof dateString})`);
-        
+
         if (!dateString || dateString === '') {
             console.log(`❌ Empty date string, returning today's date`);
             return new Date().toISOString().split('T')[0];

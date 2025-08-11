@@ -635,14 +635,14 @@ class TransactionController extends Controller
                 'type' => 'text',
                 'label' => 'Transaction ID',
                 'required' => true,
-                'description' => 'Unique identifier for the transaction'
+                'description' => 'Unique identifier for the transaction',
             ],
             'amount' => [
                 'type' => 'number',
                 'label' => 'Amount',
                 'required' => true,
                 'step' => '0.01',
-                'description' => 'Transaction amount'
+                'description' => 'Transaction amount',
             ],
             'currency' => [
                 'type' => 'select',
@@ -654,74 +654,74 @@ class TransactionController extends Controller
                     ['value' => 'GBP', 'label' => 'British Pound (£)'],
                     ['value' => 'CZK', 'label' => 'Czech Koruna (Kč)'],
                 ],
-                'description' => 'Transaction currency'
+                'description' => 'Transaction currency',
             ],
             'booked_date' => [
                 'type' => 'date',
                 'label' => 'Booked Date',
                 'required' => true,
-                'description' => 'Date when transaction was booked'
+                'description' => 'Date when transaction was booked',
             ],
             'processed_date' => [
                 'type' => 'date',
                 'label' => 'Processed Date',
                 'required' => true,
-                'description' => 'Date when transaction was processed'
+                'description' => 'Date when transaction was processed',
             ],
             'description' => [
                 'type' => 'textarea',
                 'label' => 'Description',
                 'required' => true,
-                'description' => 'Transaction description or purpose'
+                'description' => 'Transaction description or purpose',
             ],
             'partner' => [
                 'type' => 'text',
                 'label' => 'Partner',
                 'required' => true,
-                'description' => 'Transaction partner or counterparty'
+                'description' => 'Transaction partner or counterparty',
             ],
             'type' => [
                 'type' => 'text',
                 'label' => 'Type',
                 'required' => true,
-                'description' => 'Type of transaction'
+                'description' => 'Type of transaction',
             ],
             'target_iban' => [
                 'type' => 'text',
                 'label' => 'Target IBAN',
                 'required' => false,
-                'description' => 'Destination account IBAN'
+                'description' => 'Destination account IBAN',
             ],
             'source_iban' => [
                 'type' => 'text',
                 'label' => 'Source IBAN',
                 'required' => false,
-                'description' => 'Source account IBAN'
+                'description' => 'Source account IBAN',
             ],
             'balance_after_transaction' => [
                 'type' => 'number',
                 'label' => 'Balance After',
                 'required' => false,
                 'step' => '0.01',
-                'description' => 'Account balance after this transaction'
+                'description' => 'Account balance after this transaction',
             ],
             'note' => [
                 'type' => 'textarea',
                 'label' => 'Note',
                 'required' => false,
-                'description' => 'Additional notes about the transaction'
+                'description' => 'Additional notes about the transaction',
             ],
             'recipient_note' => [
                 'type' => 'textarea',
                 'label' => 'Recipient Note',
                 'required' => false,
-                'description' => 'Note for the recipient'
+                'description' => 'Note for the recipient',
             ],
             'place' => [
                 'type' => 'text',
                 'label' => 'Place',
                 'required' => false,
-                'description' => 'Location where transaction occurred'
+                'description' => 'Location where transaction occurred',
             ],
             'account_id' => [
                 'type' => 'select',
@@ -730,10 +730,10 @@ class TransactionController extends Controller
                 'options' => Auth::user()->accounts->map(function ($account) {
                     return [
                         'value' => $account->id,
-                        'label' => $account->name . ' (' . $account->iban . ')'
+                        'label' => $account->name.' ('.$account->iban.')',
                     ];
                 })->toArray(),
-                'description' => 'Associated account'
+                'description' => 'Associated account',
             ],
             'merchant_id' => [
                 'type' => 'select',
@@ -742,10 +742,10 @@ class TransactionController extends Controller
                 'options' => Auth::user()->merchants->map(function ($merchant) {
                     return [
                         'value' => $merchant->id,
-                        'label' => $merchant->name
+                        'label' => $merchant->name,
                     ];
                 })->toArray(),
-                'description' => 'Associated merchant'
+                'description' => 'Associated merchant',
             ],
             'category_id' => [
                 'type' => 'select',
@@ -754,10 +754,10 @@ class TransactionController extends Controller
                 'options' => Auth::user()->categories->map(function ($category) {
                     return [
                         'value' => $category->id,
-                        'label' => $category->name
+                        'label' => $category->name,
                     ];
                 })->toArray(),
-                'description' => 'Transaction category'
+                'description' => 'Transaction category',
             ],
         ];
 
@@ -768,7 +768,7 @@ class TransactionController extends Controller
                 'target_iban', 'source_iban', 'balance_after_transaction',
                 'merchant_id', 'category_id',
                 'note', 'recipient_note',
-            ]
+            ],
         ]);
     }
 }
