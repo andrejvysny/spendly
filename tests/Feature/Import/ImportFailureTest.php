@@ -154,7 +154,7 @@ class ImportFailureTest extends TestCase
     {
         // Create a reviewed failure
         $failure = ImportFailure::factory()->reviewed()->create(['import_id' => $this->import->id]);
-        
+
         $this->assertEquals(ImportFailure::STATUS_REVIEWED, $failure->status);
         $this->assertNotNull($failure->reviewed_at);
         $this->assertNotNull($failure->reviewed_by);
@@ -180,7 +180,7 @@ class ImportFailureTest extends TestCase
     {
         $reviewedFailures = ImportFailure::factory()->reviewed()->count(2)->create(['import_id' => $this->import->id]);
         $ignoredFailures = ImportFailure::factory()->ignored()->count(1)->create(['import_id' => $this->import->id]);
-        
+
         $allFailures = $reviewedFailures->merge($ignoredFailures);
         $failureIds = $allFailures->pluck('id')->toArray();
 

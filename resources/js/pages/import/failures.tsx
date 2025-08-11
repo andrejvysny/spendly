@@ -206,7 +206,6 @@ export default function ImportFailures({ import: importData, failures: initialFa
         }
     };
 
-
     const handleMarkAsReviewed = async (notes?: string) => {
         if (!pendingFailures[currentReviewIndex]) return;
 
