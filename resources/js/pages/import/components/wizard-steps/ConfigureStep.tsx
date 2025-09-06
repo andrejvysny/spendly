@@ -245,8 +245,55 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                         console.error('Failed to apply mapping', err);
                         setError('Failed to apply saved mapping. Please configure manually.');
 
-                        // Fallback to direct application (legacy behavior)
-                        setColumnMapping(mapping.column_mapping);
+                        // Fallback to converting saved header-based mapping to indices before applying
+                        const rawMapping = mapping.column_mapping || {} as Record<string, unknown>;
+                        const convertedMapping: Record<string, number | null> = {};
+
+                        // Ensure we handle values safely by narrowing to expected types
+                        Object.entries(rawMapping).forEach(([field, val]) => {
+                            const v = val as string | number | null | undefined;
+
+                            if (v === null || v === undefined) {
+                                convertedMapping[field] = null;
+                                return;
+                            }
+
+                            if (typeof v === 'number') {
+                                convertedMapping[field] = v;
+                                return;
+                            }
+
+                            if (typeof v === 'string') {
+                                const target = v.trim();
+
+                                // Try exact match
+                                let idx = headers.findIndex((h) => h === target);
+                                if (idx !== -1) {
+                                    convertedMapping[field] = idx;
+                                    return;
+                                }
+
+                                // Case-insensitive exact
+                                idx = headers.findIndex((h) => h.toLowerCase() === target.toLowerCase());
+                                if (idx !== -1) {
+                                    convertedMapping[field] = idx;
+                                    return;
+                                }
+
+                                // Partial / fuzzy fallback
+                                idx = headers.findIndex((h) =>
+                                    h.toLowerCase().includes(target.toLowerCase()) || target.toLowerCase().includes(h.toLowerCase()),
+                                );
+
+                                convertedMapping[field] = idx !== -1 ? idx : null;
+                                return;
+                            }
+
+                            // Unknown type -> null
+                            convertedMapping[field] = null;
+                        });
+
+                        setColumnMapping(convertedMapping);
                         setDateFormat(mapping.date_format);
                         setAmountFormat(mapping.amount_format);
                         setAmountTypeStrategy(mapping.amount_type_strategy);
@@ -348,13 +395,13 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
             return 0;
         }
 
-        const mappedFields = Object.entries(mapping.column_mapping).filter(([_, value]) => value !== null);
+        const mappedFields = Object.entries(mapping.column_mapping).filter(([, value]) => value !== null);
         if (mappedFields.length === 0) {
             return 0;
         }
 
         let matchCount = 0;
-        for (const [field, value] of mappedFields) {
+        mappedFields.forEach(([, value]) => {
             if (typeof value === 'number') {
                 // Index-based mapping
                 if (value >= 0 && value < currentHeaders.length) {
@@ -375,7 +422,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                     }
                 }
             }
-        }
+        });
 
         return mappedFields.length > 0 ? matchCount / mappedFields.length : 0;
     }, []);

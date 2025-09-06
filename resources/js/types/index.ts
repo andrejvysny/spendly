@@ -172,7 +172,7 @@ export interface ImportMapping {
     user_id: number;
     name: string;
     bank_name: string | null;
-    column_mapping: Record<string, number | null>;
+    column_mapping: Record<string, number | string | null>;
     date_format: string;
     amount_format: string;
     amount_type_strategy: string;
