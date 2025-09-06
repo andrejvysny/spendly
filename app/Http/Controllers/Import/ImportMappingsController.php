@@ -158,6 +158,21 @@ class ImportMappingsController extends Controller
         }
 
         try {
+            // Normalize mapping values: convert numeric strings to ints, false/empty to null
+            foreach ($savedMapping as $field => $value) {
+                if ($value === false || $value === '') {
+                    $savedMapping[$field] = null;
+                    continue;
+                }
+
+                if (is_string($value) && is_numeric($value)) {
+                    // Only cast whole numbers to int (avoid casting floats)
+                    if ((string) intval($value) === (string) $value) {
+                        $savedMapping[$field] = intval($value);
+                    }
+                }
+            }
+
             // Apply the mapping
             $appliedMapping = $this->mappingService->applySavedMapping($savedMapping, $currentHeaders);
 
