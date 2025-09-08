@@ -4,16 +4,17 @@ namespace App\Services;
 
 use App\Models\Account;
 use App\Repositories\TransactionRepository;
+use App\Services\GoCardless\GocardlessMapper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class TransactionSyncService
 {
-    private const BATCH_SIZE = 100;
+    private const int BATCH_SIZE = 100;
 
     public function __construct(
-        private TransactionRepository $transactionRepository,
-        private GocardlessMapper $mapper
+        private readonly TransactionRepository $transactionRepository,
+        private readonly GocardlessMapper $mapper
     ) {}
 
     /**

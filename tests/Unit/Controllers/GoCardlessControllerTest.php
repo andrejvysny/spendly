@@ -4,7 +4,7 @@ namespace Tests\Unit\Controllers;
 
 use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Models\User;
-use App\Services\GoCardlessService;
+use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;

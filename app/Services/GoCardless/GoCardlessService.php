@@ -1,10 +1,12 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\GoCardless;
 
 use App\Models\Account;
 use App\Models\User;
 use App\Repositories\AccountRepository;
+use App\Services\TokenManager;
+use App\Services\TransactionSyncService;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessService
@@ -206,6 +208,7 @@ class GoCardlessService
 
     /**
      * Get available institutions for a country.
+     * @throws \Exception
      */
     public function getInstitutions(string $countryCode, User $user): array
     {
@@ -226,6 +229,7 @@ class GoCardlessService
 
     /**
      * Get requisition details.
+     * @throws \Exception
      */
     public function getRequisition(string $requisitionId, User $user): array
     {
@@ -239,21 +243,21 @@ class GoCardlessService
      *
      * @throws \Exception
      */
-    public function importAccount(string $gocardlessAccountId, User $user): Account
+    public function importAccount(string $goCardlessAccountId, User $user): Account
     {
         $this->getClient($user);
 
         // Check if account already exists
-        if ($this->accountRepository->gocardlessAccountExists($gocardlessAccountId, $user->id)) {
+        if ($this->accountRepository->gocardlessAccountExists($goCardlessAccountId, $user->id)) {
             throw new \Exception('Account already exists');
         }
 
         // Get account details from GoCardless
-        $accountDetails = $this->client->getAccountDetails($gocardlessAccountId);
+        $accountDetails = $this->client->getAccountDetails($goCardlessAccountId);
         $accountData = $accountDetails['account'] ?? [];
 
         // Get account balances
-        $balances = $this->client->getBalances($gocardlessAccountId);
+        $balances = $this->client->getBalances($goCardlessAccountId);
         $currentBalance = 0;
 
         foreach ($balances['balances'] ?? [] as $balance) {
@@ -265,7 +269,7 @@ class GoCardlessService
 
         // Map and create account
         $mappedData = $this->mapper->mapAccountData(array_merge($accountData, [
-            'id' => $gocardlessAccountId,
+            'id' => $goCardlessAccountId,
             'balance' => $currentBalance,
         ]));
 
