@@ -4,7 +4,7 @@ namespace App\Http\Controllers\BankProviders;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\GoCardlessService;
+use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -34,7 +34,7 @@ class GoCardlessController extends Controller
             }
 
             // Get updateExisting parameter from request, default to true
-            $updateExisting = $request->boolean('update_existing', true);
+            $updateExisting = $request->boolean('update_existing', false);
 
             // Get forceMaxDateRange parameter from request, default to false
             $forceMaxDateRange = $request->boolean('force_max_date_range', false);

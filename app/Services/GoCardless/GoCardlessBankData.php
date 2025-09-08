@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\GoCardless;
 
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 

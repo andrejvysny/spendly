@@ -4,8 +4,8 @@ namespace App\Providers;
 
 use App\Repositories\AccountRepository;
 use App\Repositories\TransactionRepository;
-use App\Services\GocardlessMapper;
-use App\Services\GoCardlessService;
+use App\Services\GoCardless\GocardlessMapper;
+use App\Services\GoCardless\GoCardlessService;
 use App\Services\TokenManager;
 use App\Services\TransactionSyncService;
 use Illuminate\Support\ServiceProvider;
