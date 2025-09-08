@@ -4,7 +4,6 @@ Thank you for your interest in contributing to Spendly! We welcome contributions
 
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
 - [Making Changes](#making-changes)
@@ -13,10 +12,6 @@ Thank you for your interest in contributing to Spendly! We welcome contributions
 - [Testing](#testing)
 - [Documentation](#documentation)
 - [Community](#community)
-
-## Code of Conduct
-
-This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
 
 ## Getting Started
 

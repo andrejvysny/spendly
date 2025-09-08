@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Category;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -9,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class CategoryFactory extends Factory
 {
+    protected $model = Category::class;
+
     /**
      * Define the model's default state.
      *
@@ -17,7 +21,9 @@ class CategoryFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'user_id' => User::factory(),
+            'name' => $this->faker->unique()->words(2, true),
+            'color' => $this->faker->optional()->hexColor(),
         ];
     }
 }

@@ -34,6 +34,7 @@ class Transaction extends Model
         'is_gocardless_synced',
         'gocardless_synced_at',
         'gocardless_account_id',
+        'is_reconciled',
     ];
 
     /**
@@ -53,6 +54,7 @@ class Transaction extends Model
         'is_gocardless_synced' => 'boolean',
         'gocardless_synced_at' => 'datetime',
         'gocardless_account_id' => 'string',
+        'is_reconciled' => 'boolean',
     ];
 
     /**

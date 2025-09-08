@@ -18,6 +18,7 @@ class ImportUploadRequest extends FormRequest
             'account_id' => 'required|exists:accounts,id',
             'delimiter' => 'required|string|size:1',
             'quote_char' => 'required|string|size:1',
+            'sample_rows_count' => 'nullable|integer|min:1|max:1000', // Optional, default to 10
         ];
     }
 
@@ -39,5 +40,10 @@ class ImportUploadRequest extends FormRequest
     public function getQuoteChar(): ?string
     {
         return $this->input('quote_char');
+    }
+
+    public function getSampleRowsCount(): ?int
+    {
+        return $this->input('sample_rows_count', 10); // Default to 10 if not provided
     }
 }

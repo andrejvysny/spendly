@@ -1,258 +1,585 @@
 import { DataTable } from '@/components/DataTable';
+import { CreateRuleGroupModal } from '@/components/rules/CreateRuleGroupModal';
+import { CreateRuleModal } from '@/components/rules/CreateRuleModal';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { SelectInput, TextInput } from '@/components/ui/form-inputs';
-import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
-import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useRulesApi } from '@/hooks/use-rules-api';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
+import { Rule, RuleGroup } from '@/types/rules';
 import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
-import { z } from 'zod';
+import { ChevronDown, ChevronRight, Copy, Edit, MoreHorizontal, Play, Plus, Power, PowerOff, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 
-interface Rule {
-    id: number;
-    name: string;
-    condition_type: string;
-    condition_operator: string;
-    condition_value: string;
-    action_type: string;
-    action_value: string;
-    is_active: boolean;
+interface RulesIndexProps {
+    initialRuleGroups: RuleGroup[];
+    ruleOptions: {
+        trigger_types: string[];
+        fields: string[];
+        operators: string[];
+        logic_operators: string[];
+        action_types: string[];
+        field_operators: {
+            numeric: string[];
+            string: string[];
+        };
+        categories: Array<{ id: number; name: string }>;
+        merchants: Array<{ id: number; name: string }>;
+        tags: Array<{ id: number; name: string }>;
+        transaction_types: Record<string, string>;
+    };
+    actionInputConfig: Record<
+        string,
+        {
+            type: 'select' | 'text' | 'none';
+            model?: string;
+            placeholder: string;
+        }
+    >;
 }
 
-interface Props {
-    rules: Rule[];
-}
+export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInputConfig }: RulesIndexProps) {
+    const [ruleGroups, setRuleGroups] = useState<RuleGroup[]>(initialRuleGroups || []);
+    const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+    const [selectedRuleForDeletion, setSelectedRuleForDeletion] = useState<Rule | null>(null);
+    const [selectedGroupForDeletion, setSelectedGroupForDeletion] = useState<RuleGroup | null>(null);
+    const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false);
+    const [selectedGroupForNewRule, setSelectedGroupForNewRule] = useState<number | undefined>();
+    const [editingRule, setEditingRule] = useState<Rule | undefined>(undefined);
+    const [isCreateRuleGroupModalOpen, setIsCreateRuleGroupModalOpen] = useState(false);
 
-const conditionTypes = [
-    { value: 'amount', label: 'Amount' },
-    { value: 'iban', label: 'IBAN' },
-    { value: 'description', label: 'Description' },
-];
+    const [executingRuleId, setExecutingRuleId] = useState<number | null>(null);
+    const [executingGroupId, setExecutingGroupId] = useState<number | null>(null);
 
-const conditionOperators = {
-    amount: [
-        { value: 'greater_than', label: 'Greater Than' },
-        { value: 'less_than', label: 'Less Than' },
-        { value: 'equals', label: 'Equals' },
-    ],
-    iban: [
-        { value: 'contains', label: 'Contains' },
-        { value: 'equals', label: 'Equals' },
-    ],
-    description: [
-        { value: 'contains', label: 'Contains' },
-        { value: 'equals', label: 'Equals' },
-    ],
-};
+    const {
+        loading,
+        error,
+        fetchRuleGroups,
+        deleteRule,
+        deleteRuleGroup,
+        duplicateRule,
+        toggleRuleGroupActivation,
+        toggleRuleActivation,
+        executeRule,
+        executeRuleGroup,
+        clearError,
+    } = useRulesApi();
 
-const actionTypes = [
-    { value: 'add_tag', label: 'Add Tag' },
-    { value: 'set_category', label: 'Set Category' },
-    { value: 'set_type', label: 'Set Type' },
-];
+    // Set up initial expanded state
+    useEffect(() => {
+        if (ruleGroups.length > 0) {
+            setExpandedGroups(new Set([ruleGroups[0].id]));
+        }
+    }, []);
 
-const formSchema = z.object({
-    name: z.string().min(1, { message: 'Name is required' }),
-    condition_type: z.string(),
-    condition_operator: z.string(),
-    condition_value: z.string(),
-    action_type: z.string(),
-    action_value: z.string(),
-    is_active: z.boolean(),
-});
+    // Update state when initialRuleGroups prop changes (after Inertia reload)
+    useEffect(() => {
+        if (initialRuleGroups) {
+            setRuleGroups(initialRuleGroups);
+        }
+    }, [initialRuleGroups]);
 
-type FormValues = InferFormValues<typeof formSchema>;
+    // Handle errors using toast
+    useEffect(() => {
+        if (error) {
+            toast.error(error);
+            clearError();
+        }
+    }, [error, clearError]);
 
-export default function Rules({ rules }: Props) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [editingRule, setEditingRule] = useState<Rule | null>(null);
-
-    const defaultValues: FormValues = {
-        name: '',
-        condition_type: 'amount',
-        condition_operator: 'greater_than',
-        condition_value: '',
-        action_type: 'add_tag',
-        action_value: '',
-        is_active: true,
+    const loadRuleGroups = async () => {
+        // Use Inertia reload to get fresh server-side data
+        router.reload({
+            only: ['initialRuleGroups'],
+            onSuccess: (page: any) => {
+                if (page.props.initialRuleGroups) {
+                    setRuleGroups(page.props.initialRuleGroups);
+                }
+            },
+            onError: async () => {
+                // Fallback to API if Inertia reload fails
+                const apiGroups = await fetchRuleGroups();
+                if (apiGroups) {
+                    setRuleGroups(apiGroups);
+                }
+            },
+        });
     };
 
-    const openCreateModal = () => {
-        setEditingRule(null);
-        setIsOpen(true);
-    };
-
-    const openEditModal = (rule: Rule) => {
-        setEditingRule(rule);
-        setIsOpen(true);
-    };
-
-    const onSubmit = (values: FormValues) => {
-        if (editingRule) {
-            router.put(`/rules/${editingRule.id}`, values, {
-                onSuccess: () => {
-                    setIsOpen(false);
-                },
-            });
+    const toggleGroup = (groupId: number) => {
+        const newExpanded = new Set(expandedGroups);
+        if (newExpanded.has(groupId)) {
+            newExpanded.delete(groupId);
         } else {
-            router.post('/rules', values, {
-                onSuccess: () => {
-                    setIsOpen(false);
-                },
-            });
+            newExpanded.add(groupId);
+        }
+        setExpandedGroups(newExpanded);
+    };
+
+    const handleDeleteRule = async () => {
+        if (!selectedRuleForDeletion) return;
+
+        const success = await deleteRule(selectedRuleForDeletion.id);
+        if (success) {
+            toast.success(`Rule "${selectedRuleForDeletion.name}" deleted successfully.`);
+            await loadRuleGroups(); // Refresh data
+            setSelectedRuleForDeletion(null);
         }
     };
 
-    const deleteRule = (id: number) => {
-        if (confirm('Are you sure you want to delete this rule?')) {
-            router.delete(`/rules/${id}`);
+    const handleDeleteRuleGroup = async () => {
+        if (!selectedGroupForDeletion) return;
+
+        const success = await deleteRuleGroup(selectedGroupForDeletion.id);
+        if (success) {
+            toast.success(`Rule group "${selectedGroupForDeletion.name}" deleted successfully.`);
+            await loadRuleGroups(); // Refresh data
+            setSelectedGroupForDeletion(null);
         }
+    };
+
+    const handleDuplicateRule = async (rule: Rule) => {
+        const newRule = await duplicateRule(rule.id, `${rule.name} (Copy)`);
+        if (newRule) {
+            toast.success(`Rule "${rule.name}" duplicated successfully.`);
+            await loadRuleGroups(); // Refresh data
+        }
+    };
+
+    const handleToggleRuleGroupActivation = async (group: RuleGroup) => {
+        const updatedGroup = await toggleRuleGroupActivation(group.id);
+        if (updatedGroup) {
+            await loadRuleGroups(); // Refresh data
+        }
+    };
+
+    const handleToggleRuleActivation = async (rule: Rule) => {
+        const updatedRule = await toggleRuleActivation(rule.id);
+        if (updatedRule) {
+            await loadRuleGroups(); // Refresh data
+        }
+    };
+
+    const handleExecuteRule = async (rule: Rule) => {
+        setExecutingRuleId(rule.id);
+        try {
+            const result = await executeRule(rule.id, false);
+            if (result) {
+                toast.success(`Rule "${rule.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
+            }
+        } catch (error) {
+            toast.error(`Failed to execute rule "${rule.name}". Please try again.`);
+        } finally {
+            setExecutingRuleId(null);
+        }
+    };
+
+    const handleExecuteRuleGroup = async (group: RuleGroup) => {
+        setExecutingGroupId(group.id);
+        try {
+            const result = await executeRuleGroup(group.id, false);
+            if (result) {
+                toast.success(`Rule group "${group.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
+            }
+        } catch (error) {
+            toast.error(`Failed to execute rule group "${group.name}". Please try again.`);
+        } finally {
+            setExecutingGroupId(null);
+        }
+    };
+
+    const openCreateRuleModal = (groupId?: number) => {
+        setSelectedGroupForNewRule(groupId);
+        setEditingRule(undefined);
+        setIsCreateRuleModalOpen(true);
+    };
+
+    const openEditRuleModal = (rule: Rule) => {
+        setEditingRule(rule);
+        setSelectedGroupForNewRule(undefined);
+        setIsCreateRuleModalOpen(true);
+    };
+
+    const closeCreateRuleModal = () => {
+        setIsCreateRuleModalOpen(false);
+        setSelectedGroupForNewRule(undefined);
+        setEditingRule(undefined);
+    };
+
+    const handleRuleCreated = () => {
+        toast.success('Rule created successfully.');
+        loadRuleGroups(); // Refresh data
+    };
+
+    const openCreateRuleGroupModal = () => {
+        setIsCreateRuleGroupModalOpen(true);
+    };
+
+    const closeCreateRuleGroupModal = () => {
+        setIsCreateRuleGroupModalOpen(false);
+    };
+
+    const handleRuleGroupCreated = () => {
+        toast.success('Rule group created successfully.');
+        loadRuleGroups(); // Refresh data
+    };
+
+    const formatConditionSummary = (rule: Rule): string => {
+        if (!rule.condition_groups || rule.condition_groups.length === 0) {
+            return 'No conditions';
+        }
+
+        const summaries = rule.condition_groups.map((group) => {
+            if (!group.conditions || group.conditions.length === 0) {
+                return '';
+            }
+
+            const conditionTexts = group.conditions.map((condition) => {
+                const operator = condition.operator.replace(/_/g, ' ');
+                return `${condition.field} ${operator} "${condition.value}"`;
+            });
+
+            return conditionTexts.join(` ${group.logic_operator} `);
+        });
+
+        return summaries.filter((s) => s).join(' OR ');
+    };
+
+    const formatActionSummary = (rule: Rule): string => {
+        if (!rule.actions || rule.actions.length === 0) {
+            return 'No actions';
+        }
+
+        return rule.actions
+            .map((action) => {
+                const actionType = action.action_type.replace(/_/g, ' ');
+                const value = action.action_value || '';
+                return `${actionType}${value ? ` "${value}"` : ''}`;
+            })
+            .join(', ');
+    };
+
+    // Render individual rule group with collapsible rules
+    const renderRuleGroup = (group: RuleGroup) => {
+        const isExpanded = expandedGroups.has(group.id);
+        const rules = group.rules || [];
+
+        return (
+            <div key={group.id} className={`bg-card mb-5 rounded-lg border transition-opacity ${executingGroupId === group.id ? 'opacity-75' : ''}`}>
+                <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(group.id)}>
+                    <div className="flex items-center justify-between border-b p-4">
+                        <div className="flex items-center gap-3">
+                            <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                </Button>
+                            </CollapsibleTrigger>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-lg font-semibold">{group.name}</h3>
+                                    {executingGroupId === group.id && (
+                                        <div className="flex items-center gap-1 text-sm text-blue-600">
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                            <span>Executing...</span>
+                                        </div>
+                                    )}
+                                </div>
+                                {group.description && <p className="text-muted-foreground text-sm">{group.description}</p>}
+                            </div>
+                            <Badge variant={group.is_active ? 'default' : 'secondary'}>{group.is_active ? 'Active' : 'Inactive'}</Badge>
+                            <Badge variant="outline">
+                                {rules.length} rule{rules.length !== 1 ? 's' : ''}
+                            </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openCreateRuleModal(group.id)}
+                                disabled={executingGroupId === group.id || executingRuleId !== null}
+                            >
+                                <Plus className="mr-1 h-4 w-4" />
+                                Add Rule
+                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" disabled={executingGroupId === group.id || executingRuleId !== null}>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuItem>
+                                        <Edit className="mr-2 h-4 w-4" />
+                                        Edit Group
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleExecuteRuleGroup(group)} disabled={executingGroupId === group.id}>
+                                        {executingGroupId === group.id ? (
+                                            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                        ) : (
+                                            <Play className="mr-2 h-4 w-4" />
+                                        )}
+                                        {executingGroupId === group.id ? 'Executing...' : 'Execute Group'}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleToggleRuleGroupActivation(group)}>
+                                        {group.is_active ? (
+                                            <>
+                                                <PowerOff className="mr-2 h-4 w-4" />
+                                                Deactivate
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Power className="mr-2 h-4 w-4" />
+                                                Activate
+                                            </>
+                                        )}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-destructive" onClick={() => setSelectedGroupForDeletion(group)}>
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete Group
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    </div>
+
+                    <CollapsibleContent>
+                        {rules.length > 0 ? (
+                            <DataTable
+                                embedded={true}
+                                columns={[
+                                    {
+                                        header: 'Rule Name',
+                                        key: 'name',
+                                        render: (rule: Rule) => (
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium">{rule.name}</span>
+                                                    {executingRuleId === rule.id && (
+                                                        <div className="flex items-center gap-1 text-sm text-blue-600">
+                                                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                            <span>Executing...</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {rule.description && <div className="text-muted-foreground text-sm">{rule.description}</div>}
+                                            </div>
+                                        ),
+                                    },
+                                    {
+                                        header: 'Conditions',
+                                        key: 'conditions',
+                                        render: (rule: Rule) => (
+                                            <div className="max-w-md truncate text-sm" title={formatConditionSummary(rule)}>
+                                                {formatConditionSummary(rule)}
+                                            </div>
+                                        ),
+                                    },
+                                    {
+                                        header: 'Actions',
+                                        key: 'rule_actions',
+                                        render: (rule: Rule) => (
+                                            <div className="max-w-md truncate text-sm" title={formatActionSummary(rule)}>
+                                                {formatActionSummary(rule)}
+                                            </div>
+                                        ),
+                                    },
+                                    {
+                                        header: 'Trigger',
+                                        key: 'trigger_type',
+                                        render: (rule: Rule) => <Badge variant="outline">{rule.trigger_type.replace(/_/g, ' ')}</Badge>,
+                                    },
+                                    {
+                                        header: 'Status',
+                                        key: 'status',
+                                        render: (rule: Rule) => (
+                                            <Badge variant={rule.is_active ? 'default' : 'secondary'}>{rule.is_active ? 'Active' : 'Inactive'}</Badge>
+                                        ),
+                                    },
+                                    {
+                                        header: '',
+                                        key: 'actions',
+                                        className: 'text-right w-32',
+                                        render: (rule: Rule) => (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="sm">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => openEditRuleModal(rule)}>
+                                                        <Edit className="mr-2 h-4 w-4" />
+                                                        Edit
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleDuplicateRule(rule)}>
+                                                        <Copy className="mr-2 h-4 w-4" />
+                                                        Duplicate
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => handleExecuteRule(rule)} disabled={executingRuleId === rule.id}>
+                                                        {executingRuleId === rule.id ? (
+                                                            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                        ) : (
+                                                            <Play className="mr-2 h-4 w-4" />
+                                                        )}
+                                                        {executingRuleId === rule.id ? 'Executing...' : 'Execute Rule'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => handleToggleRuleActivation(rule)}>
+                                                        {rule.is_active ? (
+                                                            <>
+                                                                <PowerOff className="mr-2 h-4 w-4" />
+                                                                Deactivate
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Power className="mr-2 h-4 w-4" />
+                                                                Activate
+                                                            </>
+                                                        )}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem className="text-destructive" onClick={() => setSelectedRuleForDeletion(rule)}>
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        ),
+                                    },
+                                ]}
+                                data={rules}
+                                rowKey={(rule) => rule.id}
+                                emptyMessage="No rules in this group"
+                            />
+                        ) : (
+                            <div className="text-muted-foreground p-8 text-center">
+                                <p>No rules in this group yet.</p>
+                                <Button variant="outline" className="mt-2" onClick={() => openCreateRuleModal(group.id)}>
+                                    <Plus className="mr-1 h-4 w-4" />
+                                    Add First Rule
+                                </Button>
+                            </div>
+                        )}
+                    </CollapsibleContent>
+                </Collapsible>
+            </div>
+        );
     };
 
     return (
         <AppLayout>
-            <Head title="Rules" />
+            <Head title="Transaction Rules" />
+
             <div className="mx-auto w-full max-w-7xl p-4">
                 <div className="mx-auto w-full max-w-7xl">
                     <PageHeader
-                        title="Rules"
+                        title="Transaction Rules"
                         buttons={[
                             {
-                                onClick: () => openCreateModal(),
+                                onClick: openCreateRuleGroupModal,
+                                label: 'New Rule Group',
+                            },
+                            {
+                                onClick: () => openCreateRuleModal(),
                                 label: 'New Rule',
                             },
                         ]}
                     />
+
+                    {loading && ruleGroups.length === 0 ? (
+                        <div className="py-12 text-center">
+                            <div className="border-primary mx-auto h-8 w-8 animate-spin rounded-full border-b-2"></div>
+                            <p className="text-muted-foreground mt-4">Loading rules...</p>
+                        </div>
+                    ) : ruleGroups.length === 0 ? (
+                        <div className="py-12 text-center">
+                            <h3 className="mb-2 text-lg font-semibold">No rule groups yet</h3>
+                            <p className="text-muted-foreground mb-4">
+                                Get started by creating your first rule group to organize your transaction rules.
+                            </p>
+                            <Button onClick={openCreateRuleGroupModal}>
+                                <Plus className="mr-1 h-4 w-4" />
+                                Create Rule Group
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="mt-5 space-y-4">{ruleGroups.map(renderRuleGroup)}</div>
+                    )}
                 </div>
             </div>
 
-            <DataTable
-                columns={[
-                    { header: 'Name', key: 'name' },
-                    {
-                        header: 'Condition',
-                        key: 'condition',
-                        render: (row) => (
-                            <span>
-                                If {row.condition_type} {row.condition_operator} {row.condition_value}
-                            </span>
-                        ),
-                    },
-                    {
-                        header: 'Action',
-                        key: 'action',
-                        render: (row) => (
-                            <span>
-                                Then {row.action_type} {row.action_value}
-                            </span>
-                        ),
-                    },
-                    {
-                        header: 'Status',
-                        key: 'status',
-                        render: (row) => (
-                            <span
-                                className={`rounded-full px-2 py-1 text-xs ${row.is_active ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'}`}
-                            >
-                                {row.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                        ),
-                    },
-                    {
-                        header: 'Actions',
-                        key: 'actions',
-                        className: 'text-right',
-                        render: (row) => (
-                            <div className="flex justify-end">
-                                <Button variant="outline" size="sm" className="mr-2" onClick={() => openEditModal(row)}>
-                                    Edit
-                                </Button>
-                                <Button variant="destructive" size="sm" onClick={() => deleteRule(row.id)}>
-                                    Delete
-                                </Button>
-                            </div>
-                        ),
-                    },
-                ]}
-                data={rules}
-                rowKey={(record) => record.id}
+            {/* Delete Rule Confirmation Dialog */}
+            <AlertDialog open={!!selectedRuleForDeletion} onOpenChange={() => setSelectedRuleForDeletion(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Rule</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete the rule "{selectedRuleForDeletion?.name}"? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteRule} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete Rule
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Delete Rule Group Confirmation Dialog */}
+            <AlertDialog open={!!selectedGroupForDeletion} onOpenChange={() => setSelectedGroupForDeletion(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Rule Group</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete the rule group "{selectedGroupForDeletion?.name}" and all its rules? This action cannot be
+                            undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteRuleGroup}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete Group
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Create Rule Modal */}
+            <CreateRuleModal
+                isOpen={isCreateRuleModalOpen}
+                onClose={closeCreateRuleModal}
+                onSuccess={handleRuleCreated}
+                ruleGroups={ruleGroups}
+                selectedGroupId={selectedGroupForNewRule}
+                ruleOptions={ruleOptions}
+                actionInputConfig={actionInputConfig}
+                editingRule={editingRule}
             />
 
-            <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>{editingRule ? 'Edit Rule' : 'Add Rule'}</DialogTitle>
-                        <DialogDescription>
-                            {editingRule ? 'Update the rule details below.' : 'Fill in the details to create a new rule.'}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <SmartForm
-                        schema={formSchema}
-                        defaultValues={
-                            editingRule
-                                ? {
-                                      name: editingRule.name,
-                                      condition_type: editingRule.condition_type,
-                                      condition_operator: editingRule.condition_operator,
-                                      condition_value: editingRule.condition_value,
-                                      action_type: editingRule.action_type,
-                                      action_value: editingRule.action_value,
-                                      is_active: editingRule.is_active,
-                                  }
-                                : defaultValues
-                        }
-                        onSubmit={onSubmit}
-                        formProps={{ className: 'space-y-4' }}
-                    >
-                        {({ watch, setValue }) => {
-                            const conditionType = watch('condition_type');
-                            return (
-                                <>
-                                    <TextInput<FormValues> name="name" label="Name" required />
-
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                        <SelectInput<FormValues> name="condition_type" label="Condition Type" options={conditionTypes} />
-
-                                        <SelectInput<FormValues>
-                                            name="condition_operator"
-                                            label="Operator"
-                                            options={conditionOperators[conditionType as keyof typeof conditionOperators]}
-                                        />
-
-                                        <TextInput<FormValues> name="condition_value" label="Value" required />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                        <SelectInput<FormValues> name="action_type" label="Action Type" options={actionTypes} />
-
-                                        <TextInput<FormValues> name="action_value" label="Action Value" required />
-                                    </div>
-
-                                    <div className="flex items-center space-x-2">
-                                        <Switch
-                                            id="is_active"
-                                            checked={watch('is_active')}
-                                            onCheckedChange={(checked) => setValue('is_active', checked)}
-                                        />
-                                        <label
-                                            htmlFor="is_active"
-                                            className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                        >
-                                            Active
-                                        </label>
-                                    </div>
-
-                                    <DialogFooter>
-                                        <Button type="submit">{editingRule ? 'Update' : 'Create'}</Button>
-                                    </DialogFooter>
-                                </>
-                            );
-                        }}
-                    </SmartForm>
-                </DialogContent>
-            </Dialog>
+            {/* Create Rule Group Modal */}
+            <CreateRuleGroupModal isOpen={isCreateRuleGroupModalOpen} onClose={closeCreateRuleGroupModal} onSuccess={handleRuleGroupCreated} />
         </AppLayout>
     );
 }
