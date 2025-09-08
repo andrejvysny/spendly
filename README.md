@@ -97,7 +97,6 @@ docker compose up -d
 - **[Development Setup](docs/DEVELOPMENT.md)** - Local development environment
 - **[API Documentation](docs/API.md)** - RESTful API reference
 - **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute
-- **[Security Policy](SECURITY.md)** - Security and vulnerability reporting
 
 ## 🔧 Development
 
@@ -117,7 +116,6 @@ Spendly takes security seriously, especially when handling financial data:
 - **Input validation** and SQL injection prevention
 - **Security headers** and CSRF protection
 
-Report security vulnerabilities to **vysnyandrej@gmail.com**. See [SECURITY.md](SECURITY.md) for details.
 
 ## 🤝 Contributing
 
@@ -132,13 +130,6 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 ## 📄 License
 
 This project is licensed under the GNU General Public License v3.0 (GPLv3). See LICENSE for details.
-
-## 🏛️ Governance
-
-- **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- **Security Policy**: [SECURITY.md](SECURITY.md)
-- **Contributing Guidelines**: [CONTRIBUTING.md](CONTRIBUTING.md)
-- **Changelog**: [CHANGELOG.md](CHANGELOG.md)
 
 ## 🙏 Acknowledgments
 

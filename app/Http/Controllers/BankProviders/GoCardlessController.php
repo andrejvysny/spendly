@@ -34,7 +34,7 @@ class GoCardlessController extends Controller
             }
 
             // Get updateExisting parameter from request, default to true
-            $updateExisting = $request->boolean('update_existing', false);
+            $updateExisting = $request->boolean('update_existing', true);
 
             // Get forceMaxDateRange parameter from request, default to false
             $forceMaxDateRange = $request->boolean('force_max_date_range', false);
