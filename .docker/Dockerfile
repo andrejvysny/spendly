@@ -129,7 +129,7 @@ RUN install-php-extensions pdo_pgsql pdo_sqlite pdo_mysql mbstring bcmath zip xd
 
 
 # Test environment Dockerfile with Xdebug support
-FROM php:8.4-cli
+FROM php:8.4-cli AS testing
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
