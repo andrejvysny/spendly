@@ -17,7 +17,7 @@ Spendly is an open-source personal finance tracker built with Laravel (backend) 
 ## Project Structure & Scope
 
 ### Modifiable Directories
-AI assistants **CAN** modify files in thes e directories:
+AI assistants **CAN** modify files in these directories:
 - `/app` - Laravel application code (Models, Controllers, Services)
 - `/resources/js` - React components, pages, hooks, utilities
 - `/resources/css` - Stylesheets
