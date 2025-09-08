@@ -18,6 +18,13 @@ import debounce from 'lodash/debounce';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import '../../bootstrap';
+import {
+    DropdownMenu,
+    DropdownMenuContent, DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { Settings } from 'lucide-react';
 
 interface Props {
     transactions: {
@@ -199,6 +206,7 @@ export default function Index({
     const [totalSummary, setTotalSummary] = useState(initialTotalSummary);
     const [isFiltered, setIsFiltered] = useState(initialIsFiltered);
     const [showMonthlySummary, setShowMonthlySummary] = useState(true);
+    const [compactView, setCompactView] = useState(false);
     const [filterValues, setFilterValues] = useState<FilterValues>({
         search: filters.search || '',
         account_id: filters.account_id || 'all',
@@ -563,13 +571,6 @@ export default function Index({
                     {/* Left: Sticky Account Details, Settings, Analytics */}
                     <div className="w-full max-w-xs flex-shrink-0">
                         <div className="sticky top-8">
-                            {/* Display Options - Moved above filters */}
-                            <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-sm font-medium">Show Monthly Summary</label>
-                                    <Switch checked={showMonthlySummary} onCheckedChange={setShowMonthlySummary} />
-                                </div>
-                            </div>
 
                             <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
                                 <h3 className="mb-4 text-lg font-semibold">Filters</h3>
@@ -764,7 +765,58 @@ export default function Index({
                                         </Select>
                                     </div>
 
-                                    <div className="mt-6 flex justify-end">
+                                    <div className="mt-6 flex justify-between">
+
+
+
+
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                    >
+                                                        <Settings className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="start" >
+                                                    <DropdownMenuItem
+                                                        className="flex cursor-pointer items-center justify-between"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setShowMonthlySummary(  prev => !prev);
+                                                        }}
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm">Show monthly summary</span>
+                                                        </div>
+                                                        <Switch
+                                                            checked={showMonthlySummary}
+                                                            onCheckedChange={() => setShowMonthlySummary(prev => !prev)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                    </DropdownMenuItem>
+
+                                                    <DropdownMenuItem
+                                                        className="flex cursor-pointer items-center justify-between"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setCompactView(  prev => !prev);
+                                                        }}
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm">Compact view</span>
+                                                        </div>
+                                                        <Switch
+                                                            checked={compactView}
+                                                            onCheckedChange={() => setCompactView(prev => !prev)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+
                                         <Button
                                             variant="outline"
                                             onClick={() => {
@@ -793,14 +845,6 @@ export default function Index({
                                 </div>
                             </div>
 
-                            {/* Analytics/Graphs Placeholder */}
-                            <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
-                                <h3 className="mb-4 text-lg font-semibold">Category spending</h3>
-                                <div className="flex h-32 items-center justify-center text-current">
-                                    {/* Replace with real chart component */}
-                                    <span>coming soon…</span>
-                                </div>
-                            </div>
                         </div>
                     </div>
 

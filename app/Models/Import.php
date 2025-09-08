@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class Import extends Model
 {
@@ -66,5 +68,43 @@ class Import extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the failures for this import.
+     */
+    public function failures(): HasMany
+    {
+        return $this->hasMany(ImportFailure::class);
+    }
+
+    /**
+     * Get pending failures for this import.
+     */
+    public function pendingFailures(): HasMany
+    {
+        return $this->failures()->pending();
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
+
+    /**
+     * Get failure statistics for this import.
+     */
+    public function getFailureStats(): array
+    {
+        return [
+            'total' => $this->failures()->count(),
+            'pending' => $this->failures()->pending()->count(),
+            'reviewed' => $this->failures()->reviewed()->count(),
+            'by_type' => $this->failures()
+                ->select('error_type', DB::raw('count(*) as count'))
+                ->groupBy('error_type')
+                ->pluck('count', 'error_type')
+                ->toArray(),
+        ];
     }
 }

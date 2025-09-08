@@ -1,0 +1,664 @@
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useRulesApi } from '@/hooks/use-rules-api';
+import {
+    ActionType,
+    ConditionField,
+    ConditionOperator,
+    CreateConditionGroupForm,
+    CreateRuleActionForm,
+    CreateRuleConditionForm,
+    CreateRuleForm,
+    LogicOperator,
+    Rule,
+    RuleGroup,
+    RuleOptionsResponse,
+    TriggerType,
+} from '@/types/rules';
+import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
+
+interface CreateRuleModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSuccess: () => void;
+    ruleGroups: RuleGroup[];
+    selectedGroupId?: number;
+    ruleOptions: RuleOptionsResponse['data'];
+    actionInputConfig: Record<
+        string,
+        {
+            type: 'select' | 'text' | 'none';
+            model?: string;
+            placeholder: string;
+        }
+    >;
+    editingRule?: Rule;
+}
+
+// Field display names
+const FIELD_LABELS: Record<ConditionField, string> = {
+    amount: 'Amount',
+    description: 'Transaction name',
+    partner: 'Partner',
+    category: 'Category',
+    merchant: 'Merchant',
+    account: 'Account',
+    type: 'Type',
+    note: 'Note',
+    recipient_note: 'Recipient note',
+    place: 'Place',
+    target_iban: 'Target IBAN',
+    source_iban: 'Source IBAN',
+    date: 'Date',
+    tags: 'Tags',
+};
+
+// Operator display names
+const OPERATOR_LABELS: Record<ConditionOperator, string> = {
+    equals: 'Equals',
+    not_equals: 'Not equals',
+    contains: 'Contains',
+    not_contains: 'Does not contain',
+    starts_with: 'Starts with',
+    ends_with: 'Ends with',
+    greater_than: 'Greater than',
+    greater_than_or_equal: 'Greater than or equal',
+    less_than: 'Less than',
+    less_than_or_equal: 'Less than or equal',
+    regex: 'Regex',
+    wildcard: 'Wildcard',
+    is_empty: 'Is empty',
+    is_not_empty: 'Is not empty',
+    in: 'Is one of',
+    not_in: 'Is not one of',
+    between: 'Between',
+};
+
+// Action display names
+const ACTION_LABELS: Record<ActionType, string> = {
+    set_category: 'Set category',
+    set_merchant: 'Set merchant',
+    add_tag: 'Add tag',
+    remove_tag: 'Remove tag',
+    remove_all_tags: 'Remove all tags',
+    set_description: 'Set transaction name',
+    append_description: 'Append to transaction name',
+    prepend_description: 'Prepend to transaction name',
+    set_note: 'Set note',
+    append_note: 'Append to note',
+    set_type: 'Set type',
+    mark_reconciled: 'Mark as reconciled',
+    send_notification: 'Send notification',
+    create_tag_if_not_exists: 'Create tag if not exists',
+    create_category_if_not_exists: 'Create category if not exists',
+    create_merchant_if_not_exists: 'Create merchant if not exists',
+};
+
+// Trigger type display names
+const TRIGGER_LABELS: Record<TriggerType, string> = {
+    manual: 'Manual',
+    transaction_created: 'When transaction is created',
+    transaction_updated: 'When transaction is updated',
+};
+
+export function CreateRuleModal({
+    isOpen,
+    onClose,
+    onSuccess,
+    ruleGroups,
+    selectedGroupId,
+    ruleOptions,
+    actionInputConfig,
+    editingRule,
+}: CreateRuleModalProps) {
+    const isEditMode = !!editingRule;
+
+    const [ruleName, setRuleName] = useState('');
+    const [selectedGroupId_, setSelectedGroupId_] = useState(selectedGroupId || ruleGroups[0]?.id || 0);
+    const [triggerType, setTriggerType] = useState<TriggerType>('manual');
+    const [conditionGroups, setConditionGroups] = useState<CreateConditionGroupForm[]>([
+        {
+            logic_operator: 'AND',
+            conditions: [
+                {
+                    field: 'description',
+                    operator: 'contains',
+                    value: '',
+                },
+            ],
+        },
+    ]);
+    const [actions, setActions] = useState<CreateRuleActionForm[]>([
+        {
+            action_type: 'set_description',
+            action_value: '',
+        },
+    ]);
+    const [applyToAll, setApplyToAll] = useState(true);
+    const [startDate, setStartDate] = useState('');
+
+    const { createRule, updateRule, loading, error, clearError } = useRulesApi();
+
+    // Handle errors with toast
+    useEffect(() => {
+        if (error) {
+            toast.error(error);
+            clearError();
+        }
+    }, [error, clearError]);
+
+    // Pre-populate form when editing
+    useEffect(() => {
+        if (isEditMode && editingRule && isOpen) {
+            setRuleName(editingRule.name);
+            setSelectedGroupId_(editingRule.rule_group_id);
+            setTriggerType(editingRule.trigger_type as TriggerType);
+
+            // Transform condition groups
+            if (editingRule.condition_groups && editingRule.condition_groups.length > 0) {
+                const transformedConditionGroups = editingRule.condition_groups.map((group) => ({
+                    logic_operator: group.logic_operator as LogicOperator,
+                    conditions: group.conditions
+                        ? group.conditions.map((condition) => ({
+                              field: condition.field as ConditionField,
+                              operator: condition.operator as ConditionOperator,
+                              value: condition.value,
+                              is_case_sensitive: condition.is_case_sensitive,
+                              is_negated: condition.is_negated,
+                          }))
+                        : [],
+                }));
+                setConditionGroups(transformedConditionGroups);
+            }
+
+            // Transform actions
+            if (editingRule.actions && editingRule.actions.length > 0) {
+                const transformedActions = editingRule.actions.map((action) => ({
+                    action_type: action.action_type as ActionType,
+                    action_value: action.action_value,
+                    stop_processing: action.stop_processing,
+                }));
+                setActions(transformedActions);
+            }
+
+            // Reset apply settings for editing (these don't apply to existing rules)
+            setApplyToAll(true);
+            setStartDate('');
+        }
+    }, [isEditMode, editingRule, isOpen]);
+
+    // Reset form when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            if (!isEditMode) {
+                // Only reset to defaults if not in edit mode
+                setRuleName('');
+                setSelectedGroupId_(selectedGroupId || ruleGroups[0]?.id || 0);
+                setTriggerType('manual');
+                setConditionGroups([
+                    {
+                        logic_operator: 'AND',
+                        conditions: [{ field: 'description', operator: 'contains', value: '' }],
+                    },
+                ]);
+                setActions([{ action_type: 'set_description', action_value: '' }]);
+                setApplyToAll(true);
+                setStartDate('');
+            }
+        }
+    }, [isOpen, isEditMode, selectedGroupId, ruleGroups]);
+
+    const getOperatorsForField = (field: ConditionField): ConditionOperator[] => {
+        if (!ruleOptions) return [];
+
+        const numericFields: ConditionField[] = ['amount'];
+        const isNumeric = numericFields.includes(field);
+
+        return isNumeric ? ruleOptions.field_operators.numeric : ruleOptions.field_operators.string;
+    };
+
+    const addConditionGroup = () => {
+        setConditionGroups([
+            ...conditionGroups,
+            {
+                logic_operator: 'AND',
+                conditions: [{ field: 'description', operator: 'contains', value: '' }],
+            },
+        ]);
+    };
+
+    const removeConditionGroup = (groupIndex: number) => {
+        setConditionGroups(conditionGroups.filter((_, i) => i !== groupIndex));
+    };
+
+    const updateConditionGroup = (groupIndex: number, updates: Partial<CreateConditionGroupForm>) => {
+        setConditionGroups(conditionGroups.map((group, i) => (i === groupIndex ? { ...group, ...updates } : group)));
+    };
+
+    const addCondition = (groupIndex: number) => {
+        const newCondition: CreateRuleConditionForm = {
+            field: 'description',
+            operator: 'contains',
+            value: '',
+        };
+
+        updateConditionGroup(groupIndex, {
+            conditions: [...conditionGroups[groupIndex].conditions, newCondition],
+        });
+    };
+
+    const removeCondition = (groupIndex: number, conditionIndex: number) => {
+        updateConditionGroup(groupIndex, {
+            conditions: conditionGroups[groupIndex].conditions.filter((_, i) => i !== conditionIndex),
+        });
+    };
+
+    const updateCondition = (groupIndex: number, conditionIndex: number, updates: Partial<CreateRuleConditionForm>) => {
+        const updatedConditions = conditionGroups[groupIndex].conditions.map((condition, i) =>
+            i === conditionIndex ? { ...condition, ...updates } : condition,
+        );
+        updateConditionGroup(groupIndex, { conditions: updatedConditions });
+    };
+
+    const addAction = () => {
+        setActions([...actions, { action_type: 'set_description', action_value: '' }]);
+    };
+
+    const removeAction = (actionIndex: number) => {
+        setActions(actions.filter((_, i) => i !== actionIndex));
+    };
+
+    const updateAction = (actionIndex: number, updates: Partial<CreateRuleActionForm>) => {
+        setActions(actions.map((action, i) => (i === actionIndex ? { ...action, ...updates } : action)));
+    };
+
+    const renderActionInput = (action: CreateRuleActionForm, actionIndex: number) => {
+        const config = actionInputConfig[action.action_type];
+
+        if (!config) {
+            return (
+                <Input
+                    value={action.action_value || ''}
+                    onChange={(e) => updateAction(actionIndex, { action_value: e.target.value })}
+                    placeholder="Enter a value"
+                />
+            );
+        }
+
+        if (config.type === 'none') {
+            return <div className="text-muted-foreground bg-muted flex h-10 items-center rounded-md px-3 text-sm">{config.placeholder}</div>;
+        }
+
+        if (config.type === 'select') {
+            let options: Array<{ value: string | number; label: string }> = [];
+
+            if (config.model === 'categories') {
+                options = ruleOptions.categories.map((cat) => ({ value: cat.id, label: cat.name }));
+            } else if (config.model === 'merchants') {
+                options = ruleOptions.merchants.map((merchant) => ({ value: merchant.id, label: merchant.name }));
+            } else if (config.model === 'tags') {
+                options = ruleOptions.tags.map((tag) => ({ value: tag.id, label: tag.name }));
+            } else if (config.model === 'transaction_types') {
+                options = Object.entries(ruleOptions.transaction_types).map(([key, value]) => ({ value: key, label: value }));
+            }
+
+            return (
+                <Select value={action.action_value?.toString() || ''} onValueChange={(value) => updateAction(actionIndex, { action_value: value })}>
+                    <SelectTrigger>
+                        <SelectValue placeholder={config.placeholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {options.map((option) => (
+                            <SelectItem key={option.value} value={option.value.toString()}>
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            );
+        }
+
+        // Default to text input
+        return (
+            <Input
+                value={action.action_value || ''}
+                onChange={(e) => updateAction(actionIndex, { action_value: e.target.value })}
+                placeholder={config.placeholder}
+            />
+        );
+    };
+
+    const handleSubmit = async () => {
+        if (!ruleName.trim()) return;
+        if (conditionGroups.length === 0) return;
+        if (actions.length === 0) return;
+        if (!selectedGroupId_ || selectedGroupId_ === 0) {
+            return;
+        }
+
+        const ruleData: CreateRuleForm = {
+            rule_group_id: selectedGroupId_,
+            name: ruleName.trim(),
+            trigger_type: triggerType,
+            condition_groups: conditionGroups,
+            actions: actions,
+            is_active: editingRule?.is_active ?? true,
+        };
+
+        let success;
+        if (isEditMode && editingRule) {
+            success = await updateRule(editingRule.id, ruleData);
+        } else {
+            success = await createRule(ruleData);
+        }
+
+        if (success) {
+            onSuccess();
+            onClose();
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>{isEditMode ? 'Edit transaction rule' : 'New transaction rule'}</DialogTitle>
+                    <DialogDescription>
+                        {isEditMode
+                            ? 'Modify this rule to change how your transactions are automatically processed.'
+                            : 'Create a new rule to automatically process your transactions based on conditions you set.'}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-6">
+                    {/* Rule Basic Info */}
+                    <div className="grid grid-cols-3 gap-4">
+                        <div>
+                            <Label htmlFor="ruleName">Rule Name</Label>
+                            <Input id="ruleName" value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="Enter rule name" />
+                        </div>
+                        <div>
+                            <Label htmlFor="ruleGroup">Rule Group</Label>
+                            <Select
+                                value={selectedGroupId_.toString()}
+                                onValueChange={(value) => setSelectedGroupId_(parseInt(value))}
+                                disabled={isEditMode}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder={ruleGroups?.length === 0 ? 'No rule groups available' : 'Select a rule group'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ruleGroups?.length === 0 ? (
+                                        <SelectItem value="0" disabled>
+                                            No rule groups found - create one first
+                                        </SelectItem>
+                                    ) : (
+                                        ruleGroups.map((group) => (
+                                            <SelectItem key={group.id} value={group.id.toString()}>
+                                                {group.name}
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                </SelectContent>
+                            </Select>
+                            {ruleGroups?.length === 0 && !isEditMode && (
+                                <p className="text-muted-foreground mt-1 text-sm">You need to create a rule group first before creating rules.</p>
+                            )}
+                            {isEditMode && (
+                                <p className="text-muted-foreground mt-1 text-sm">Rule group cannot be changed when editing an existing rule.</p>
+                            )}
+                        </div>
+                        <div>
+                            <Label htmlFor="triggerType">Trigger Type</Label>
+                            <Select value={triggerType} onValueChange={(value: TriggerType) => setTriggerType(value)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select trigger type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ruleOptions.trigger_types.map((triggerType) => (
+                                        <SelectItem key={triggerType} value={triggerType}>
+                                            {TRIGGER_LABELS[triggerType]}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                {triggerType === 'manual' && 'Rule will only run when manually triggered'}
+                                {triggerType === 'transaction_created' && 'Rule will automatically run when new transactions are created'}
+                                {triggerType === 'transaction_updated' && 'Rule will automatically run when transactions are modified'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Conditions Section */}
+                    <div>
+                        <h3 className="mb-4 text-lg font-semibold">If transaction</h3>
+
+                        {conditionGroups.map((group, groupIndex) => (
+                            <div key={groupIndex} className="bg-muted/10 mb-4 rounded-lg border p-4">
+                                {groupIndex > 0 && (
+                                    <div className="mb-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">OR match</span>
+                                            <Select
+                                                value={group.logic_operator}
+                                                onValueChange={(value: LogicOperator) => updateConditionGroup(groupIndex, { logic_operator: value })}
+                                            >
+                                                <SelectTrigger className="w-24">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="AND">all</SelectItem>
+                                                    <SelectItem value="OR">any</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <span className="text-sm font-medium">of the following conditions</span>
+                                        </div>
+                                        <Button variant="ghost" size="sm" onClick={() => removeConditionGroup(groupIndex)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {groupIndex === 0 && (
+                                    <div className="mb-4 flex items-center gap-2">
+                                        <span className="text-sm font-medium">Match</span>
+                                        <Select
+                                            value={group.logic_operator}
+                                            onValueChange={(value: LogicOperator) => updateConditionGroup(groupIndex, { logic_operator: value })}
+                                        >
+                                            <SelectTrigger className="w-24">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="AND">all</SelectItem>
+                                                <SelectItem value="OR">any</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <span className="text-sm font-medium">of the following conditions</span>
+                                    </div>
+                                )}
+
+                                {group.conditions.map((condition, conditionIndex) => (
+                                    <div key={conditionIndex} className="mb-3 grid grid-cols-12 gap-2">
+                                        <div className="col-span-3">
+                                            <Select
+                                                value={condition.field}
+                                                onValueChange={(value: ConditionField) => {
+                                                    const operators = getOperatorsForField(value);
+                                                    updateCondition(groupIndex, conditionIndex, {
+                                                        field: value,
+                                                        operator: operators[0] || 'contains',
+                                                    });
+                                                }}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {ruleOptions.fields.map((field) => (
+                                                        <SelectItem key={field} value={field}>
+                                                            {FIELD_LABELS[field]}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-3">
+                                            <Select
+                                                value={condition.operator}
+                                                onValueChange={(value: ConditionOperator) =>
+                                                    updateCondition(groupIndex, conditionIndex, { operator: value })
+                                                }
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {getOperatorsForField(condition.field).map((operator) => (
+                                                        <SelectItem key={operator} value={operator}>
+                                                            {OPERATOR_LABELS[operator]}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-5">
+                                            <Input
+                                                value={condition.value}
+                                                onChange={(e) => updateCondition(groupIndex, conditionIndex, { value: e.target.value })}
+                                                placeholder="Enter a value"
+                                            />
+                                        </div>
+                                        <div className="col-span-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => removeCondition(groupIndex, conditionIndex)}
+                                                disabled={group.conditions.length === 1 && conditionGroups.length === 1}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                <Button variant="outline" size="sm" onClick={() => addCondition(groupIndex)} className="mt-2">
+                                    <Plus className="mr-1 h-4 w-4" />
+                                    Add condition
+                                </Button>
+                            </div>
+                        ))}
+
+                        <Button variant="outline" size="sm" onClick={addConditionGroup}>
+                            <Plus className="mr-1 h-4 w-4" />
+                            Add condition group
+                        </Button>
+                    </div>
+
+                    {/* Actions Section */}
+                    <div>
+                        <h3 className="mb-4 text-lg font-semibold">Then</h3>
+
+                        {actions.map((action, actionIndex) => (
+                            <div key={actionIndex} className="mb-3 grid grid-cols-12 gap-2">
+                                <div className="col-span-5">
+                                    <Select
+                                        value={action.action_type}
+                                        onValueChange={(value: ActionType) => updateAction(actionIndex, { action_type: value })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {ruleOptions.action_types.map((actionType) => (
+                                                <SelectItem key={actionType} value={actionType}>
+                                                    {ACTION_LABELS[actionType]}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="col-span-1 flex items-center justify-center">
+                                    <span className="text-muted-foreground text-sm">to</span>
+                                </div>
+                                <div className="col-span-5">{renderActionInput(action, actionIndex)}</div>
+                                <div className="col-span-1">
+                                    <Button variant="ghost" size="sm" onClick={() => removeAction(actionIndex)} disabled={actions.length === 1}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+
+                        <Button variant="outline" size="sm" onClick={addAction} className="mt-2">
+                            <Plus className="mr-1 h-4 w-4" />
+                            Add action
+                        </Button>
+                    </div>
+
+                    {/* Apply Section - Only show for new rules */}
+                    {!isEditMode && (
+                        <div>
+                            <h3 className="mb-4 text-lg font-semibold">Apply this</h3>
+
+                            <div className="space-y-3">
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="applyToAll"
+                                        checked={applyToAll}
+                                        onChange={() => setApplyToAll(true)}
+                                        className="h-4 w-4"
+                                    />
+                                    <Label htmlFor="applyToAll">To all past and future transactions</Label>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="applyFromDate"
+                                        checked={!applyToAll}
+                                        onChange={() => setApplyToAll(false)}
+                                        className="h-4 w-4"
+                                    />
+                                    <Label htmlFor="applyFromDate">Starting from</Label>
+                                    <Input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        disabled={applyToAll}
+                                        className="w-auto"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {ruleGroups?.length === 0 && !isEditMode && (
+                        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                            <p className="text-sm text-yellow-800">
+                                <strong>No rule groups available.</strong> You need to create a rule group first before creating rules. Please close
+                                this modal and create a rule group.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleSubmit} disabled={loading || !ruleName.trim() || (!isEditMode && ruleGroups?.length === 0)}>
+                        {loading ? (isEditMode ? 'Updating...' : 'Creating...') : isEditMode ? 'Update Rule' : 'Create Rule'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}

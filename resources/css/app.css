@@ -102,6 +102,10 @@
     --chart-3: oklch(0.398 0.07 227.392);
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
+    --warning-foreground: #f59e0b;
+    --warning-background: #f59e0b;
+    --info-foreground: #5e32ed;
+    --info-background: #9a7cf1;
     --radius: 0.625rem;
     --sidebar: #f7f7f7;
     --sidebar-foreground: oklch(0.145 0 0);
@@ -138,6 +142,10 @@
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);
+    --warning-foreground: #f59e0b;
+    --warning-background: #f59e0b;
+    --info-foreground: #8964fa;
+    --info-background: #603bcd;
     --sidebar: oklch(0.145 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.985 0 0);
@@ -168,4 +176,32 @@
 
 .bg-gray-700 {
     background-color: #404040;
+}
+
+.border-success {
+    border-color: #22c55e !important;
+}
+
+.text-success {
+    color: #22c55e !important;
+}
+
+.bg-success {
+    background-color: #22c55e !important;
+}
+
+.text-success-foreground {
+    color: #f0fdf4 !important;
+}
+
+.text-warning {
+    color: var(--warning-foreground) !important;
+}
+
+.text-info {
+    color: var(--info-foreground) !important;
+}
+
+.bg-info {
+    background-color: var(--info-background) !important;
 }

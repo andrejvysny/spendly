@@ -90,4 +90,31 @@ class User extends Authenticatable
     {
         return $this->hasMany(\App\Models\Tag::class);
     }
+
+    /**
+     * Get the rule groups for the user.
+     */
+    public function ruleGroups()
+    {
+        return $this->hasMany(\App\Models\RuleGroup::class);
+    }
+
+    /**
+     * Get the rules for the user.
+     */
+    public function rules()
+    {
+        return $this->hasMany(\App\Models\Rule::class);
+    }
+
+    /**
+     * Get all transactions for the user through their accounts.
+     */
+    public function transactions()
+    {
+        return $this->hasManyThrough(
+            \App\Models\Transaction::class,
+            \App\Models\Account::class
+        );
+    }
 }

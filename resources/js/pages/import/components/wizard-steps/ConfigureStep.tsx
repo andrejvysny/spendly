@@ -111,69 +111,91 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         fetchSavedMappings();
     }, []);
 
-    // Auto-detect column mappings on initial render
+    // Auto-detect column mappings on initial render with enhanced backend logic
     useEffect(() => {
-        const initialMapping: Record<string, number | null> = {};
+        const autoDetectMapping = async () => {
+            try {
+                // Try to use enhanced backend auto-detection
+                const response = await axios.post('/imports/mappings/auto-detect', {
+                    headers: headers,
+                });
 
-        // Initialize all fields as null (not mapped)
-        transactionFields.forEach((field) => {
-            initialMapping[field.key] = null;
-        });
-
-        // Try to automatically map columns based on headers
-        headers.forEach((header, index) => {
-            const headerLower = header.toLowerCase();
-
-            // Match date fields
-            if (headerLower.includes('date') || headerLower.includes('time')) {
-                initialMapping['booked_date'] = index;
-            }
-            // Match amount fields
-            else if (headerLower.includes('amount') || headerLower.includes('sum') || headerLower === 'value' || headerLower.includes('suma')) {
-                initialMapping['amount'] = index;
-            }
-            // Match description fields
-            else if (
-                headerLower.includes('description') ||
-                headerLower.includes('details') ||
-                headerLower.includes('note') ||
-                headerLower.includes('text') ||
-                headerLower.includes('popis')
-            ) {
-                initialMapping['description'] = index;
-            }
-            // Match category fields
-            else if (headerLower.includes('category') || headerLower.includes('type')) {
-                initialMapping['category'] = index;
-            }
-            // Match partner/payee fields
-            else if (
-                headerLower.includes('partner') ||
-                headerLower.includes('payee') ||
-                headerLower.includes('recipient') ||
-                headerLower.includes('merchant')
-            ) {
-                initialMapping['partner'] = index;
-            }
-            // Match IBAN fields
-            else if (headerLower.includes('iban') || headerLower.includes('account')) {
-                if (headerLower.includes('source') || headerLower.includes('from')) {
-                    initialMapping['source_iban'] = index;
-                } else if (headerLower.includes('target') || headerLower.includes('to') || headerLower.includes('destination')) {
-                    initialMapping['target_iban'] = index;
+                const detectedMapping = response.data.mapping;
+                if (detectedMapping) {
+                    setColumnMapping(detectedMapping);
+                    return;
                 }
+            } catch (error) {
+                console.warn('Enhanced auto-detection failed, using fallback:', error);
             }
-            // Match transaction ID fields
-            else if (headerLower.includes('id') || headerLower.includes('reference')) {
-                initialMapping['transaction_id'] = index;
-            }
-            // Match tag fields
-            else if (headerLower.includes('tag') || headerLower.includes('label')) {
-                initialMapping['tags'] = index;
-            }
-        });
 
-        setColumnMapping(initialMapping);
+            // Fallback to local auto-detection logic
+            const initialMapping: Record<string, number | null> = {};
+
+            // Initialize all fields as null (not mapped)
+            transactionFields.forEach((field) => {
+                initialMapping[field.key] = null;
+            });
+
+            // Try to automatically map columns based on headers
+            headers.forEach((header, index) => {
+                const headerLower = header.toLowerCase();
+
+                // Match date fields
+                if (headerLower.includes('date') || headerLower.includes('time')) {
+                    initialMapping['booked_date'] = index;
+                }
+                // Match amount fields
+                else if (headerLower.includes('amount') || headerLower.includes('sum') || headerLower === 'value' || headerLower.includes('suma')) {
+                    initialMapping['amount'] = index;
+                }
+                // Match description fields
+                else if (
+                    headerLower.includes('description') ||
+                    headerLower.includes('details') ||
+                    headerLower.includes('note') ||
+                    headerLower.includes('text') ||
+                    headerLower.includes('popis')
+                ) {
+                    initialMapping['description'] = index;
+                }
+                // Match category fields
+                else if (headerLower.includes('category') || headerLower.includes('type')) {
+                    initialMapping['category'] = index;
+                }
+                // Match partner/payee fields
+                else if (
+                    headerLower.includes('partner') ||
+                    headerLower.includes('payee') ||
+                    headerLower.includes('recipient') ||
+                    headerLower.includes('merchant')
+                ) {
+                    initialMapping['partner'] = index;
+                }
+                // Match IBAN fields
+                else if (headerLower.includes('iban') || headerLower.includes('account')) {
+                    if (headerLower.includes('source') || headerLower.includes('from')) {
+                        initialMapping['source_iban'] = index;
+                    } else if (headerLower.includes('target') || headerLower.includes('to') || headerLower.includes('destination')) {
+                        initialMapping['target_iban'] = index;
+                    }
+                }
+                // Match transaction ID fields
+                else if (headerLower.includes('id') || headerLower.includes('reference')) {
+                    initialMapping['transaction_id'] = index;
+                }
+                // Match tag fields
+                else if (headerLower.includes('tag') || headerLower.includes('label')) {
+                    initialMapping['tags'] = index;
+                }
+            });
+
+            setColumnMapping(initialMapping);
+        };
+
+        if (headers.length > 0) {
+            autoDetectMapping();
+        }
     }, [headers]);
 
     // Handle column selection change
@@ -186,26 +208,101 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
 
     // Handle saved mapping selection
     const handleMappingSelect = useCallback(
-        (mappingId: string) => {
+        async (mappingId: string) => {
             setSelectedMapping(mappingId);
+            setError(null);
 
             if (mappingId !== 'none') {
                 const mapping = savedMappings.find((m) => m.id.toString() === mappingId);
                 if (mapping) {
-                    setColumnMapping(mapping.column_mapping);
-                    setDateFormat(mapping.date_format);
-                    setAmountFormat(mapping.amount_format);
-                    setAmountTypeStrategy(mapping.amount_type_strategy);
-                    setCurrency(mapping.currency);
+                    try {
+                        // Apply the mapping intelligently using the backend service
+                        const response = await axios.post('/imports/mappings/apply', {
+                            saved_mapping: mapping.column_mapping,
+                            current_headers: headers,
+                        });
 
-                    // Update the usage timestamp
-                    axios.put(`/imports/mappings/${mapping.id}`).catch((err) => {
-                        console.error('Failed to update mapping usage', err);
-                    });
+                        const appliedMapping = response.data.applied_mapping;
+                        const warnings = response.data.warnings || [];
+
+                        // Set the applied mapping
+                        setColumnMapping(appliedMapping);
+                        setDateFormat(mapping.date_format);
+                        setAmountFormat(mapping.amount_format);
+                        setAmountTypeStrategy(mapping.amount_type_strategy);
+                        setCurrency(mapping.currency);
+
+                        // Show warnings if any
+                        if (warnings.length > 0) {
+                            setError(`Mapping applied with warnings: ${warnings.join(', ')}`);
+                        }
+
+                        // Update the usage timestamp
+                        axios.put(`/imports/mappings/${mapping.id}`).catch((err) => {
+                            console.error('Failed to update mapping usage', err);
+                        });
+                    } catch (err) {
+                        console.error('Failed to apply mapping', err);
+                        setError('Failed to apply saved mapping. Please configure manually.');
+
+                        // Fallback to converting saved header-based mapping to indices before applying
+                        const rawMapping = mapping.column_mapping || {} as Record<string, unknown>;
+                        const convertedMapping: Record<string, number | null> = {};
+
+                        // Ensure we handle values safely by narrowing to expected types
+                        Object.entries(rawMapping).forEach(([field, val]) => {
+                            const v = val as string | number | null | undefined;
+
+                            if (v === null || v === undefined) {
+                                convertedMapping[field] = null;
+                                return;
+                            }
+
+                            if (typeof v === 'number') {
+                                convertedMapping[field] = v;
+                                return;
+                            }
+
+                            if (typeof v === 'string') {
+                                const target = v.trim();
+
+                                // Try exact match
+                                let idx = headers.findIndex((h) => h === target);
+                                if (idx !== -1) {
+                                    convertedMapping[field] = idx;
+                                    return;
+                                }
+
+                                // Case-insensitive exact
+                                idx = headers.findIndex((h) => h.toLowerCase() === target.toLowerCase());
+                                if (idx !== -1) {
+                                    convertedMapping[field] = idx;
+                                    return;
+                                }
+
+                                // Partial / fuzzy fallback
+                                idx = headers.findIndex((h) =>
+                                    h.toLowerCase().includes(target.toLowerCase()) || target.toLowerCase().includes(h.toLowerCase()),
+                                );
+
+                                convertedMapping[field] = idx !== -1 ? idx : null;
+                                return;
+                            }
+
+                            // Unknown type -> null
+                            convertedMapping[field] = null;
+                        });
+
+                        setColumnMapping(convertedMapping);
+                        setDateFormat(mapping.date_format);
+                        setAmountFormat(mapping.amount_format);
+                        setAmountTypeStrategy(mapping.amount_type_strategy);
+                        setCurrency(mapping.currency);
+                    }
                 }
             }
         },
-        [savedMappings],
+        [savedMappings, headers],
     );
 
     // Handle mapping deletion
@@ -258,6 +355,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                         name: mappingName,
                         bank_name: bankName,
                         column_mapping: columnMapping,
+                        headers: headers, // Include headers for intelligent conversion
                         date_format: dateFormat,
                         amount_format: amountFormat,
                         amount_type_strategy: amountTypeStrategy,
@@ -291,6 +389,44 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         }
     }, [columnMapping, dateFormat, amountFormat, amountTypeStrategy, currency, importId, onComplete, saveMapping, mappingName, bankName]);
 
+    // Helper function to calculate mapping compatibility
+    const calculateMappingCompatibility = useCallback((mapping: ImportMapping, currentHeaders: string[]): number => {
+        if (!mapping.column_mapping || Object.keys(mapping.column_mapping).length === 0) {
+            return 0;
+        }
+
+        const mappedFields = Object.entries(mapping.column_mapping).filter(([, value]) => value !== null);
+        if (mappedFields.length === 0) {
+            return 0;
+        }
+
+        let matchCount = 0;
+        mappedFields.forEach(([, value]) => {
+            if (typeof value === 'number') {
+                // Index-based mapping
+                if (value >= 0 && value < currentHeaders.length) {
+                    matchCount++;
+                }
+            } else if (typeof value === 'string') {
+                // Header-based mapping
+                if (currentHeaders.includes(value)) {
+                    matchCount++;
+                } else {
+                    // Check for partial matches
+                    const valueStr = String(value);
+                    const hasPartialMatch = currentHeaders.some(
+                        (header) => header.toLowerCase().includes(valueStr.toLowerCase()) || valueStr.toLowerCase().includes(header.toLowerCase()),
+                    );
+                    if (hasPartialMatch) {
+                        matchCount += 0.7;
+                    }
+                }
+            }
+        });
+
+        return mappedFields.length > 0 ? matchCount / mappedFields.length : 0;
+    }, []);
+
     return (
         <div className="mx-auto max-w-4xl">
             <h3 className="text-foreground mb-4 text-xl font-semibold">Configure your import</h3>
@@ -304,35 +440,56 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 <TabsContent value="saved">
                     {savedMappings.length > 0 ? (
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            {savedMappings.map((mapping) => (
-                                <Card
-                                    key={mapping.id}
-                                    className={`bg-card border-foreground text-foreground cursor-pointer ${selectedMapping === mapping.id.toString() ? 'outline-foreground outline-3' : ''}`}
-                                    onClick={() => handleMappingSelect(mapping.id.toString())}
-                                >
-                                    <CardHeader className="flex flex-row items-center justify-between p-4">
-                                        <div>
-                                            <CardTitle className="text-lg">{mapping.name}</CardTitle>
-                                            {mapping.bank_name && (
-                                                <CardDescription className="text-muted-foreground">{mapping.bank_name}</CardDescription>
-                                            )}
-                                        </div>
-                                        <button
-                                            onClick={(e) => handleDeleteMapping(mapping.id, e)}
-                                            className="text-muted-foreground hover:text-destructive-foreground transition"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </CardHeader>
-                                    <CardContent className="text-muted-foreground px-4 py-2 text-xs">
-                                        <div>
-                                            Format: {mapping.date_format}, {mapping.amount_format}
-                                        </div>
-                                        <div>Currency: {mapping.currency}</div>
-                                        <div>Last used: {new Date(mapping.last_used_at || '').toLocaleDateString()}</div>
-                                    </CardContent>
-                                </Card>
-                            ))}
+                            {savedMappings.map((mapping) => {
+                                // Calculate basic compatibility score
+                                const compatibilityScore = calculateMappingCompatibility(mapping, headers);
+                                const isHighlyCompatible = compatibilityScore >= 0.8;
+                                const isPartiallyCompatible = compatibilityScore >= 0.5;
+
+                                return (
+                                    <Card
+                                        key={mapping.id}
+                                        className={`bg-card border-foreground text-foreground cursor-pointer ${selectedMapping === mapping.id.toString() ? 'outline-foreground outline-3' : ''} ${
+                                            isHighlyCompatible
+                                                ? 'border-green-500 shadow-green-500/20'
+                                                : isPartiallyCompatible
+                                                  ? 'border-yellow-500 shadow-yellow-500/20'
+                                                  : 'border-red-500 shadow-red-500/20'
+                                        }`}
+                                        onClick={() => handleMappingSelect(mapping.id.toString())}
+                                    >
+                                        <CardHeader className="flex flex-row items-center justify-between p-4">
+                                            <div>
+                                                <CardTitle className="flex items-center gap-2 text-lg">
+                                                    {mapping.name}
+                                                    {isHighlyCompatible && <span className="text-sm text-green-500">✓ Fully Compatible</span>}
+                                                    {isPartiallyCompatible && !isHighlyCompatible && (
+                                                        <span className="text-sm text-yellow-500">⚠ Partially Compatible</span>
+                                                    )}
+                                                    {!isPartiallyCompatible && <span className="text-sm text-red-500">⚠ May Need Adjustment</span>}
+                                                </CardTitle>
+                                                {mapping.bank_name && (
+                                                    <CardDescription className="text-muted-foreground">{mapping.bank_name}</CardDescription>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={(e) => handleDeleteMapping(mapping.id, e)}
+                                                className="text-muted-foreground hover:text-destructive-foreground transition"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </CardHeader>
+                                        <CardContent className="text-muted-foreground px-4 py-2 text-xs">
+                                            <div>
+                                                Format: {mapping.date_format}, {mapping.amount_format}
+                                            </div>
+                                            <div>Currency: {mapping.currency}</div>
+                                            <div>Compatibility: {Math.round(compatibilityScore * 100)}%</div>
+                                            <div>Last used: {new Date(mapping.last_used_at || '').toLocaleDateString()}</div>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="rounded-md border border-dashed border-gray-700 p-8 text-center">
@@ -506,7 +663,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                             </tr>
                         </thead>
                         <tbody>
-                            {sampleRows.slice(0, 5).map((row, rowIndex) => (
+                            {sampleRows.map((row, rowIndex) => (
                                 <tr key={rowIndex} className="border-muted-foreground border-b">
                                     {row.map((cell, cellIndex) => (
                                         <td

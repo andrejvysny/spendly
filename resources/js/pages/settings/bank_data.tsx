@@ -12,6 +12,7 @@ import { Transition } from '@headlessui/react';
 import { Head, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import { FormEventHandler, useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -84,16 +85,18 @@ export default function BankData({ gocardless_secret_id, gocardless_secret_key }
             return;
         }
 
-        try {
-            axios.delete(route('bank_data.purgeGoCardlessCredentials')).then(() => {
-                alert('GoCardless credentials cleared successfully.');
+        axios
+            .delete(route('bank_data.purgeGoCardlessCredentials'))
+            .then(() => {
+                toast.success('GoCardless credentials cleared successfully.');
                 setRequisitions({ count: 0, next: null, previous: null, results: [] });
                 setData({ gocardless_secret_id: '', gocardless_secret_key: '' });
                 window.location.reload(); // TODO proper reload of content
+            })
+            .catch((error) => {
+                console.error('Error purging credentials:', error);
+                toast.error('Failed to clear credentials. Please try again.');
             });
-        } catch (error) {
-            console.error('Error purging credentials:', error);
-        }
     };
 
     return (

@@ -1,12 +1,15 @@
 import { DataTable } from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import { BreadcrumbItem, Import } from '@/types/index';
 import { formatDate } from '@/utils/date';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import axios from 'axios';
+import { AlertTriangle, Eye, MoreHorizontal, RotateCcw, Trash } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'react-toastify';
 import ImportWizard from './components/ImportWizard';
 interface Props {
     imports: Import[];
@@ -32,25 +35,37 @@ export default function Index({ imports }: Props) {
 
     const handleDeleteImport = (importId: number) => {
         if (confirm('Are you sure you want to delete this import? This action cannot be undone.')) {
-            axios.delete(route('imports.delete', { import: importId })).then((r) => {
-                if (r.status === 200) {
-                    setImportsList(importsList.filter((imp) => imp.id !== importId));
-                } else {
-                    alert('Failed to delete import. Please try again later.');
-                }
-            });
+            axios
+                .delete(route('imports.delete', { import: importId }))
+                .then((r) => {
+                    if (r.status === 200) {
+                        setImportsList(importsList.filter((imp) => imp.id !== importId));
+                        toast.success('Import deleted successfully.');
+                    } else {
+                        toast.error('Failed to delete import. Please try again later.');
+                    }
+                })
+                .catch(() => {
+                    toast.error('Failed to delete import. Please try again later.');
+                });
         }
     };
 
     const handleRevertImport = (importId: number) => {
         if (confirm('Are you sure you want to revert this import? This action cannot be undone.')) {
-            axios.post(route('imports.revert', { import: importId })).then((r) => {
-                if (r.status === 200) {
-                    setImportsList((prevState) => prevState.map((imp) => (imp.id === importId ? { ...imp, status: 'reverted' } : imp)));
-                } else {
-                    alert('Failed to revert import. Please try again later.');
-                }
-            });
+            axios
+                .post(route('imports.revert', { import: importId }))
+                .then((r) => {
+                    if (r.status === 200) {
+                        setImportsList((prevState) => prevState.map((imp) => (imp.id === importId ? { ...imp, status: 'reverted' } : imp)));
+                        toast.success('Import reverted successfully.');
+                    } else {
+                        toast.error('Failed to revert import. Please try again later.');
+                    }
+                })
+                .catch(() => {
+                    toast.error('Failed to revert import. Please try again later.');
+                });
         }
     };
 
@@ -134,17 +149,44 @@ export default function Index({ imports }: Props) {
                         key: 'actions',
                         className: 'text-right',
                         render: (row) => (
-                            <>
-                                <Button variant="outline_destructive" size="sm" onClick={() => handleRevertImport(row.id)}>
-                                    Revert
-                                </Button>
-
-                                {row.status == 'pending' || row.status == 'failed' || row.status == 'reverted' ? (
-                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteImport(row.id)}>
-                                        Delete
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Open menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
                                     </Button>
-                                ) : null}
-                            </>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    {(row.status === 'failed' || row.status === 'partially_failed') && (
+                                        <DropdownMenuItem asChild>
+                                            <Link href={`/imports/${row.id}/failures`} className="flex items-center">
+                                                <AlertTriangle className="mr-2 h-4 w-4 text-orange-500" />
+                                                Review Failures
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem asChild>
+                                        <Link href={`/imports/${row.id}`} className="flex items-center">
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            View Details
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    {(row.status === 'completed' ||
+                                        row.status === 'completed_skipped_duplicates' ||
+                                        row.status === 'partially_failed') && (
+                                        <DropdownMenuItem onClick={() => handleRevertImport(row.id)} className="flex items-center">
+                                            <RotateCcw className="mr-2 h-4 w-4" />
+                                            Revert Import
+                                        </DropdownMenuItem>
+                                    )}
+                                    {(row.status === 'pending' || row.status === 'failed' || row.status === 'reverted') && (
+                                        <DropdownMenuItem onClick={() => handleDeleteImport(row.id)} className="flex items-center text-red-600">
+                                            <Trash className="mr-2 h-4 w-4" />
+                                            Delete
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         ),
                     }, // Custom render for actions column,
                 ]}
