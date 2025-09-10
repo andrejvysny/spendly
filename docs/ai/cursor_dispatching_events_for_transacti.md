@@ -1464,7 +1464,7 @@ COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --no-plugins --no-progress --no-scripts --optimize-autoloader
 
 # Copy application files
-COPY . .
+COPY .. .
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html && \
