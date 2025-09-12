@@ -72,9 +72,9 @@ export function AppSidebar() {
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
-                <div className="flex flex-row items-center justify-start rounded-md">
-                    <AppLogoIcon className="size-20 fill-current text-[var(--foreground)] dark:text-white" />
-                    <span className="text-3xl font-bold">Spendly</span>
+                <div className="flex min-w-0 flex-row items-center justify-start gap-2 rounded-md">
+                    <AppLogoIcon className="size-20 shrink-0 fill-current text-[var(--foreground)] dark:text-white" />
+                    <span className="truncate text-3xl font-bold group-data-[collapsible=icon]:hidden">Spendly</span>
                 </div>
             </SidebarHeader>
 
