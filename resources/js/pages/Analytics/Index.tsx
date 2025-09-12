@@ -546,7 +546,7 @@ export default function Index({
     // Calculate totals for summary
     const totalIncome = cashflow.reduce((sum, item) => sum + item.total_income, 0);
     const totalExpenses = cashflow.reduce((sum, item) => sum + item.total_expenses, 0);
-    const netBalance = cashflow.reduce((sum, item) => sum + item.month_balance, 0);
+    const netBalance = totalIncome - totalExpenses;
     const totalTransactions = cashflow.reduce((sum, item) => sum + item.transaction_count, 0);
 
     // Format the cashflow chart title based on period
