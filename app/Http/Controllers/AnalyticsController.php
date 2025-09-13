@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\AnalyticsRequest;
+use App\Repositories\AccountRepository;
+use App\Repositories\CategoryRepository;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -9,13 +12,22 @@ use Inertia\Inertia;
 
 class AnalyticsController extends Controller
 {
-    public function index(Request $request)
-    {
-        $user_accounts = \App\Models\Account::where('user_id', auth()->user()->id)->get();
-        $user_categories = \App\Models\Category::where('user_id', auth()->user()->id)->get();
 
-        // Handle account selection
-        $selectedAccountIds = $request->input('account_ids', []);
+    public function __construct(
+        private readonly AccountRepository  $accountRepository,
+        private readonly CategoryRepository $categoryRepository,
+
+    )
+    {
+    }
+
+    public function index(AnalyticsRequest $request): \Inertia\Response
+    {
+
+        $selectedAccountIds = $request->getAccountIds();
+
+        $user_accounts = $this->accountRepository->findByUserId($this->getAuthUserId());
+        $user_categories = $this->categoryRepository->findByUserId($this->getAuthUserId());
 
         // If no accounts selected or invalid input, use all user accounts
         if (empty($selectedAccountIds)) {
@@ -36,7 +48,7 @@ class AnalyticsController extends Controller
         $endDate = $dateRange['end'];
 
         // Get data for analytics
-        $cashflow = $this->getCashflowData($accountIds, $startDate, $endDate);
+        $cashFlow = $this->getCashFlowData($accountIds, $startDate, $endDate);
         $categorySpending = $this->getCategorySpending($accountIds, $startDate, $endDate);
         $merchantSpending = $this->getMerchantSpending($accountIds, $startDate, $endDate);
 
@@ -44,7 +56,7 @@ class AnalyticsController extends Controller
             'accounts' => $user_accounts,
             'categories' => $user_categories,  // Add categories to the response
             'selectedAccountIds' => $accountIds->toArray(),
-            'cashflow' => $cashflow,
+            'cashflow' => $cashFlow,
             'categorySpending' => $categorySpending,
             'merchantSpending' => $merchantSpending,
             'dateRange' => [
@@ -58,12 +70,12 @@ class AnalyticsController extends Controller
     /**
      * Parse date range from request
      */
-    private function parseDateRange(Request $request)
+    private function parseDateRange(AnalyticsRequest $request): array
     {
-        $period = $request->input('period', 'last_month');
-        $customStart = $request->input('start_date');
-        $customEnd = $request->input('end_date');
-        $specificMonth = $request->input('specific_month'); // Format: YYYY-MM
+        $period = $request->getPeriod();
+        $customStart = $request->getStartDate();
+        $customEnd = $request->getEndDate();
+        $specificMonth = $request->getSpecificMonth();
 
         $now = Carbon::now();
 
@@ -116,9 +128,9 @@ class AnalyticsController extends Controller
     }
 
     /**
-     * Get cashflow data for the specified accounts and date range
+     * Get cashFlow data for the specified accounts and date range
      */
-    public function getCashflowData($accountIds, $startDate = null, $endDate = null, $months = 12)
+    public function getCashFlowData($accountIds, $startDate = null, $endDate = null, $months = 12): \Illuminate\Support\Collection
     {
         if (! $startDate) {
             $startDate = now()->subMonths($months)->startOfMonth();

@@ -7,12 +7,12 @@ Spendly is a Laravel-React personal finance tracker with GoCardless bank integra
 
 ### Service Layer Architecture
 - **Controllers** are thin - delegate complex logic to services (`app/Services/`)
-- **Services** contain business logic (`GoCardlessService`, `TransactionRulePipeline`) 
+- **Services** contain business logic (`GoCardlessService`, `RuleEngine`) 
 - **Repositories** handle data access (`app/Repositories/`)
 - **Models** use Eloquent relationships and scopes effectively
 
 ### Transaction Rule Engine
-- Rules processed via Laravel Pipeline pattern (`TransactionRulePipeline`)
+- Rules processed via Laravel Pipeline pattern (`RuleEngine`)
 - Event-driven execution on transaction create/update (`ProcessRulesJob`)
 - Rules have conditions (amount/IBAN/description) and actions (set category/add tag)
 - Pipeline processes rules by priority order, respecting stop conditions
@@ -32,17 +32,33 @@ Spendly is a Laravel-React personal finance tracker with GoCardless bank integra
 
 ## Development Workflows
 
+### Docker Development Environment
+**IMPORTANT**: Always run PHP and Composer commands through Docker Compose using the `cli` service:
+```bash
+# PHP commands
+docker compose run cli php [command]
+
+# Composer commands  
+docker compose run cli composer [command]
+
+# Artisan commands
+docker compose run cli php artisan [command]
+
+# Vendor binaries
+docker compose run cli ./vendor/bin/[binary]
+```
+
 ### Backend Commands
 ```bash
 # Tests with coverage
-php artisan test --coverage
+docker compose run cli php artisan test --coverage
 
 # Code quality
-./vendor/bin/phpstan analyse
-./vendor/bin/pint
+docker compose run cli ./vendor/bin/phpstan analyse
+docker compose run cli ./vendor/bin/pint
 
 # Database operations  
-php artisan migrate:fresh --seed
+docker compose run cli php artisan migrate:fresh --seed
 ```
 
 ### Frontend Commands

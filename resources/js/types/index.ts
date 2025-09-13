@@ -61,21 +61,6 @@ export interface Transaction {
     tags?: Tag[];
 }
 
-export interface TransactionRule {
-    id: number;
-    user_id: number;
-    name: string;
-    condition_type: 'amount' | 'iban' | 'description';
-    condition_operator: 'equals' | 'contains' | 'greater_than' | 'less_than';
-    condition_value: string;
-    action_type: 'add_tag' | 'set_category' | 'set_type';
-    action_value: string;
-    is_active: boolean;
-    order: number;
-    created_at: string;
-    updated_at: string;
-}
-
 export interface NavItem {
     title: string;
     href: string;

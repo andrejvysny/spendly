@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\RuleGroup;
+use App\Models\RuleEngine\RuleGroup;
 use App\Contracts\Repositories\RuleGroupRepositoryInterface;
 use Illuminate\Support\Collection;
 

@@ -2,7 +2,7 @@
 
 namespace App\Contracts\Repositories;
 
-use App\Models\ConditionGroup;
+use App\Models\RuleEngine\ConditionGroup;
 use Illuminate\Support\Collection;
 
 interface ConditionGroupRepositoryInterface extends BaseRepositoryContract

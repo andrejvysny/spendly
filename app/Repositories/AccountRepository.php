@@ -23,6 +23,11 @@ class AccountRepository extends BaseRepository implements AccountRepositoryInter
             ->first();
     }
 
+    public function findByUserId(int $userId): Collection
+    {
+        return Account::where('user_id', $userId)->get();
+    }
+
     /**
      * Find an account by GoCardless account ID.
      */

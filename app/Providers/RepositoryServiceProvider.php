@@ -16,7 +16,6 @@ use App\Contracts\Repositories\RuleRepositoryInterface;
 use App\Contracts\Repositories\TagRepositoryInterface;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Contracts\Repositories\ImportFailureRepositoryInterface;
-use App\Contracts\Repositories\TransactionRuleRepositoryInterface;
 use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Repositories\AccountRepository;
 use App\Repositories\CategoryRepository;
@@ -32,7 +31,6 @@ use App\Repositories\RuleRepository;
 use App\Repositories\TagRepository;
 use App\Repositories\TransactionRepository;
 use App\Repositories\ImportFailureRepository;
-use App\Repositories\TransactionRuleRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Support\ServiceProvider;
 
@@ -62,6 +60,5 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(RuleGroupRepositoryInterface::class, RuleGroupRepository::class);
         $this->app->bind(ConditionGroupRepositoryInterface::class, ConditionGroupRepository::class);
         $this->app->bind(RuleExecutionLogRepositoryInterface::class, RuleExecutionLogRepository::class);
-        $this->app->bind(TransactionRuleRepositoryInterface::class, TransactionRuleRepository::class);
     }
 }

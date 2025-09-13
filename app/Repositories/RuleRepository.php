@@ -3,11 +3,11 @@
 namespace App\Repositories;
 
 use App\Contracts\Repositories\RuleRepositoryInterface;
-use App\Models\ConditionGroup;
-use App\Models\Rule;
-use App\Models\RuleAction;
-use App\Models\RuleCondition;
-use App\Models\RuleGroup;
+use App\Models\RuleEngine\ConditionGroup;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleAction;
+use App\Models\RuleEngine\RuleCondition;
+use App\Models\RuleEngine\RuleGroup;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -18,10 +18,7 @@ class RuleRepository extends BaseRepository implements RuleRepositoryInterface
     {
         parent::__construct($model);
     }
-{
-    /**
-     * Create a new rule group.
-     */
+
     public function createRuleGroup(User $user, array $data): RuleGroup
     {
         return RuleGroup::create([

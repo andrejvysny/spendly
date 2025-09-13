@@ -15,6 +15,9 @@ class MerchantRepository extends BaseRepository implements MerchantRepositoryInt
 
     public function create(array $data): Merchant
     {
+        if (!isset($data['user_id'])) {
+            $data['user_id'] = auth()->id();
+        }
         return $this->model->create($data);
     }
 
@@ -29,7 +32,7 @@ class MerchantRepository extends BaseRepository implements MerchantRepositoryInt
         return $merchant->fresh();
     }
 
-    public function findByUser(int $userId): Collection
+    public function findByUserId(int $userId): Collection
     {
         return $this->model->where('user_id', $userId)->get();
     }

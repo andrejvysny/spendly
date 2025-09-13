@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\RuleExecutionLog;
+use App\Models\RuleEngine\RuleExecutionLog;
 use App\Contracts\Repositories\RuleExecutionLogRepositoryInterface;
 use Illuminate\Support\Collection;
 

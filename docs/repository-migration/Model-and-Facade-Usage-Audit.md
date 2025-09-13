@@ -24,7 +24,6 @@ RuleExecutionLog | belongsTo(Rule) | HasFactory | No | Yes | Default
 RuleGroup | belongsTo(User), hasMany(Rule) | HasFactory | No | Yes | Default
 Tag | belongsTo(User), belongsToMany(Transaction) | HasFactory | No | Yes | Default
 Transaction | belongsTo(Account, Merchant, Category), belongsToMany(Tag) | HasFactory | No | Yes | Default
-TransactionRule | belongsTo(User) | (none) | No | Yes | Default
 User | hasMany(Account, Category, Merchant, Tag, RuleGroup, Rule), hasManyThrough(Transaction via Account) | HasFactory, Notifiable | No | Yes | Default
 
 Notes:

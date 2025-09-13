@@ -29,7 +29,7 @@ class TagRepository extends BaseRepository implements TagRepositoryInterface
         return $tag->fresh();
     }
 
-    public function findByUser(int $userId): Collection
+    public function findByUserId(int $userId): Collection
     {
         return $this->model->where('user_id', $userId)->get();
     }

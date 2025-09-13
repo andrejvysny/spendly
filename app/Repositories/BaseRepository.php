@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Contracts\Repositories\BaseRepositoryContract;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -27,8 +28,11 @@ abstract class BaseRepository implements BaseRepositoryContract
         return DB::transaction($callback);
     }
 
-    public function delete(int $id): bool
+    public function delete(int|Model $id): bool
     {
+        if ($id instanceof Model) {
+            return $id->delete();
+        }
         return $this->model->destroy($id) > 0;
     }
 

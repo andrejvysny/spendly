@@ -7,10 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Merchant extends Model
+class Merchant extends BaseModel
 {
     /** @use HasFactory<\Database\Factories\MerchantFactory> */
-    use HasFactory;
+    use HasFactory, BelongsToUser;
 
     protected $fillable = [
         'name',

@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Account;
+use App\Models\Transaction;
 use App\Repositories\AccountRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\GoCardless\GocardlessMapper;
@@ -18,11 +20,11 @@ class GoCardlessServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AccountRepository::class, function ($app) {
-            return new AccountRepository;
+            return new AccountRepository(new Account);
         });
 
         $this->app->singleton(TransactionRepository::class, function ($app) {
-            return new TransactionRepository;
+            return new TransactionRepository(new Transaction);
         });
 
         $this->app->singleton(GocardlessMapper::class, function ($app) {

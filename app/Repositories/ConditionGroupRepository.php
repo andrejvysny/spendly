@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\ConditionGroup;
+use App\Models\RuleEngine\ConditionGroup;
 use App\Contracts\Repositories\ConditionGroupRepositoryInterface;
 use Illuminate\Support\Collection;
 

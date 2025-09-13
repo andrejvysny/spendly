@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Import;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\ImportConfigureRequest;
-use App\Http\Requests\ImportUploadRequest;
+use App\Http\Requests\Import\ImportConfigureRequest;
+use App\Http\Requests\Import\ImportUploadRequest;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Import\Import;

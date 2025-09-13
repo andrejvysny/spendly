@@ -2,7 +2,7 @@
 
 namespace App\Contracts\Repositories;
 
-use App\Models\RuleExecutionLog;
+use App\Models\RuleEngine\RuleExecutionLog;
 use Illuminate\Support\Collection;
 
 interface RuleExecutionLogRepositoryInterface extends BaseRepositoryContract
