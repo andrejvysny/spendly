@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Contracts\Repositories\RuleRepositoryInterface;
 use App\Models\ConditionGroup;
 use App\Models\Rule;
 use App\Models\RuleAction;
@@ -11,7 +12,12 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
-class RuleRepository
+class RuleRepository extends BaseRepository implements RuleRepositoryInterface
+{
+    public function __construct(Rule $model)
+    {
+        parent::__construct($model);
+    }
 {
     /**
      * Create a new rule group.

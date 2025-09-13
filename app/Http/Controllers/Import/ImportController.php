@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Import;
 
 use App\Http\Controllers\Controller;
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Models\Transaction;
 use App\Models\TransactionFingerprint;
 use Illuminate\Http\JsonResponse;

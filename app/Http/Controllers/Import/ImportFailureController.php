@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Import;
 
 use App\Http\Controllers\Controller;
-use App\Models\Import;
-use App\Models\ImportFailure;
+use App\Models\Import\Import;
+use App\Models\Import\ImportFailure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

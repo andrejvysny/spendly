@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Contracts\RuleEngine\RuleEngineInterface;
-use App\Models\Rule;
+use App\Models\RuleEngine\Rule;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;

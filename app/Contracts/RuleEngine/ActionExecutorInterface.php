@@ -2,7 +2,7 @@
 
 namespace App\Contracts\RuleEngine;
 
-use App\Models\RuleAction;
+use App\Models\RuleEngine\RuleAction;
 use App\Models\Transaction;
 
 interface ActionExecutorInterface

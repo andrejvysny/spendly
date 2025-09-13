@@ -4,8 +4,8 @@ namespace App\Http\Controllers\RuleEngine;
 
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Http\Controllers\Controller;
-use App\Models\Rule;
-use App\Models\RuleGroup;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleGroup;
 use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -203,12 +203,12 @@ class RuleExecutionController extends Controller
 
         // Create temporary condition groups and conditions
         $conditionGroups = collect($request->input('condition_groups'))->map(function ($groupData) {
-            $group = new \App\Models\ConditionGroup([
+            $group = new \App\Models\RuleEngine\ConditionGroup([
                 'logic_operator' => $groupData['logic_operator'],
             ]);
 
             $conditions = collect($groupData['conditions'])->map(function ($conditionData) {
-                return new \App\Models\RuleCondition($conditionData);
+                return new \App\Models\RuleEngine\RuleCondition($conditionData);
             });
 
             $group->setRelation('conditions', $conditions);
@@ -220,7 +220,7 @@ class RuleExecutionController extends Controller
 
         // Create temporary actions
         $actions = collect($request->input('actions'))->map(function ($actionData) {
-            $action = new \App\Models\RuleAction([
+            $action = new \App\Models\RuleEngine\RuleAction([
                 'action_type' => $actionData['action_type'],
             ]);
             $action->setEncodedValue($actionData['action_value'] ?? null);

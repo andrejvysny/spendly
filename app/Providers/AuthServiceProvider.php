@@ -3,7 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Category;
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Models\Merchant;
 use App\Models\Tag;
 use App\Policies\CategoryPolicy;

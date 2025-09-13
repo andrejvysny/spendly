@@ -2,12 +2,12 @@
 
 namespace Database\Factories;
 
-use App\Models\Rule;
-use App\Models\RuleAction;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleAction;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RuleAction>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RuleEngine\RuleAction>
  */
 class RuleActionFactory extends Factory
 {

@@ -3,16 +3,22 @@
 namespace App\Repositories;
 
 use App\Models\Account;
+use App\Contracts\Repositories\AccountRepositoryInterface;
 use Illuminate\Support\Collection;
 
-class AccountRepository
+class AccountRepository extends BaseRepository implements AccountRepositoryInterface
 {
+    public function __construct(Account $model)
+    {
+        parent::__construct($model);
+    }
+
     /**
      * Find an account by ID for a specific user.
      */
     public function findByIdForUser(int $accountId, int $userId): ?Account
     {
-        return Account::where('id', $accountId)
+    return Account::where('id', $accountId)
             ->where('user_id', $userId)
             ->first();
     }
@@ -52,7 +58,15 @@ class AccountRepository
      */
     public function create(array $data): Account
     {
-        return Account::create($data);
+        return $this->model->create($data);
+    }
+
+    /**
+     * Find all accounts for a user.
+     */
+    public function findByUser(int $userId): Collection
+    {
+        return $this->model->where('user_id', $userId)->get();
     }
 
     /**
@@ -60,7 +74,7 @@ class AccountRepository
      */
     public function gocardlessAccountExists(string $gocardlessAccountId, int $userId): bool
     {
-        return Account::where('gocardless_account_id', $gocardlessAccountId)
+        return $this->model->where('gocardless_account_id', $gocardlessAccountId)
             ->where('user_id', $userId)
             ->exists();
     }

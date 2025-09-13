@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Import;
 
-use App\Models\Import;
-use App\Models\ImportFailure;
+use App\Models\Import\Import;
+use App\Models\Import\ImportFailure;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

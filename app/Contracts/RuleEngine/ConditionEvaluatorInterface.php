@@ -2,7 +2,7 @@
 
 namespace App\Contracts\RuleEngine;
 
-use App\Models\RuleCondition;
+use App\Models\RuleEngine\RuleCondition;
 use App\Models\Transaction;
 
 interface ConditionEvaluatorInterface

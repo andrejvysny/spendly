@@ -2,7 +2,7 @@
 
 namespace App\Policies;
 
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 

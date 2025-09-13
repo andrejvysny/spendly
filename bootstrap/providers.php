@@ -16,4 +16,5 @@ return ServiceProvider::defaultProviders()->merge([
     App\Providers\RouteServiceProvider::class,
     App\Providers\GoCardlessServiceProvider::class,
     App\Providers\RuleEngineServiceProvider::class,
+    App\Providers\RepositoryServiceProvider::class,
 ])->toArray();

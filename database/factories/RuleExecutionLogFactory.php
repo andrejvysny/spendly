@@ -2,12 +2,12 @@
 
 namespace Database\Factories;
 
-use App\Models\Rule;
-use App\Models\RuleExecutionLog;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleExecutionLog;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RuleExecutionLog>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RuleEngine\RuleExecutionLog>
  */
 class RuleExecutionLogFactory extends Factory
 {

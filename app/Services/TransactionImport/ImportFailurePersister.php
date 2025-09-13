@@ -3,10 +3,10 @@
 namespace App\Services\TransactionImport;
 
 use App\Contracts\Import\BatchResultInterface;
-use App\Models\Import;
-use App\Models\ImportFailure;
+use App\Contracts\Repositories\ImportFailureRepositoryInterface;
+use App\Models\Import\Import;
+use App\Models\Import\ImportFailure;
 use App\Services\Csv\CsvProcessResult;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -18,6 +18,8 @@ class ImportFailurePersister
     private array $failureBatch = [];
 
     private int $batchSize = 100;
+
+    public function __construct(private readonly ImportFailureRepositoryInterface $failures) {}
 
     /**
      * Persist all failed and skipped results from a batch.
@@ -100,31 +102,11 @@ class ImportFailurePersister
         $this->failureBatch = []; // Clear the queue
 
         try {
-            DB::transaction(function () use ($batch) {
-                // Prepare data for bulk insert
-                $insertData = array_map(function ($failure) {
-                    // Ensure JSON fields are properly encoded
-                    if (isset($failure['raw_data']) && is_array($failure['raw_data'])) {
-                        $failure['raw_data'] = json_encode($failure['raw_data']);
-                    }
-                    if (isset($failure['error_details']) && is_array($failure['error_details'])) {
-                        $failure['error_details'] = json_encode($failure['error_details']);
-                    }
-                    if (isset($failure['parsed_data']) && is_array($failure['parsed_data'])) {
-                        $failure['parsed_data'] = json_encode($failure['parsed_data']);
-                    }
-                    if (isset($failure['metadata']) && is_array($failure['metadata'])) {
-                        $failure['metadata'] = json_encode($failure['metadata']);
-                    }
-
-                    return $failure;
-                }, $batch);
-
-                // Bulk insert
-                DB::table('import_failures')->insert($insertData);
+            $this->failures->transaction(function () use ($batch) {
+                $inserted = $this->failures->createBatch($batch);
 
                 Log::debug('Failure batch processed successfully', [
-                    'batch_size' => count($batch),
+                    'batch_size' => $inserted,
                 ]);
             });
         } catch (\Exception $e) {
@@ -136,7 +118,7 @@ class ImportFailurePersister
             // Fall back to individual inserts
             foreach ($batch as $failureData) {
                 try {
-                    ImportFailure::create($failureData);
+                    $this->failures->createOne($failureData);
                 } catch (\Exception $individualError) {
                     Log::error('Individual failure insert failed', [
                         'error' => $individualError->getMessage(),

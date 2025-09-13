@@ -4,7 +4,7 @@ namespace Tests\Unit\RuleEngine;
 
 use App\Models\Category;
 use App\Models\Merchant;
-use App\Models\RuleCondition;
+use App\Models\RuleEngine\RuleCondition;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Services\RuleEngine\ConditionEvaluator;

@@ -6,8 +6,8 @@ use App\Repositories\AccountRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\GoCardless\GocardlessMapper;
 use App\Services\GoCardless\GoCardlessService;
-use App\Services\TokenManager;
-use App\Services\TransactionSyncService;
+use App\Services\GoCardless\TokenManager;
+use App\Services\GoCardless\TransactionSyncService;
 use Illuminate\Support\ServiceProvider;
 
 class GoCardlessServiceProvider extends ServiceProvider

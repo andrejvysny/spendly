@@ -2,12 +2,12 @@
 
 namespace Database\Factories;
 
-use App\Models\ConditionGroup;
-use App\Models\RuleCondition;
+use App\Models\RuleEngine\ConditionGroup;
+use App\Models\RuleEngine\RuleCondition;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RuleCondition>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RuleEngine\RuleCondition>
  */
 class RuleConditionFactory extends Factory
 {
