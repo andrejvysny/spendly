@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\User;
-use App\Services\GoCardless\GoCardlessBankData;
+use App\Services\GoCardless\GoCardlessBankDataClient;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,7 +17,7 @@ use Inertia\Response;
 
 class BankDataController extends Controller
 {
-    private GoCardlessBankData $client;
+    private GoCardlessBankDataClient $client;
 
     private User $user;
 
@@ -72,7 +72,7 @@ class BankDataController extends Controller
             $accessTokenExpires = new \DateTime($accessTokenExpires);
         }
 
-        $this->client = new GoCardlessBankData(
+        $this->client = new GoCardlessBankDataClient(
             $this->user->gocardless_secret_id ?? getenv('GOCARDLESS_SECRET_ID'),
             $this->user->gocardless_secret_key ?? getenv('GOCARDLESS_SECRET_KEY'),
             $this->user->gocardless_access_token ?? null,
@@ -88,7 +88,7 @@ class BankDataController extends Controller
      */
     private function isGoCardlessClientAvailable(): bool
     {
-        return isset($this->client) && $this->client instanceof GoCardlessBankData;
+        return isset($this->client) && $this->client instanceof GoCardlessBankDataClient;
     }
 
     /**
@@ -96,7 +96,7 @@ class BankDataController extends Controller
      *
      * @throws \RuntimeException When GoCardless client is not available
      */
-    private function getGoCardlessClient(): GoCardlessBankData
+    private function getGoCardlessClient(): GoCardlessBankDataClient
     {
         if (! $this->isGoCardlessClientAvailable()) {
             throw new \RuntimeException('GoCardless client is not available. Please configure your GoCardless credentials first.');

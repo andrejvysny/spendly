@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\RuleEngine;
 
 use App\Http\Controllers\Controller;
-use App\Models\Rule;
-use App\Models\RuleAction;
-use App\Models\RuleCondition;
-use App\Models\RuleGroup;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleAction;
+use App\Models\RuleEngine\RuleCondition;
+use App\Models\RuleEngine\RuleGroup;
 use App\Models\Transaction;
 use App\Repositories\RuleRepository;
 use Illuminate\Http\JsonResponse;

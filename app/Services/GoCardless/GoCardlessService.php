@@ -5,13 +5,11 @@ namespace App\Services\GoCardless;
 use App\Models\Account;
 use App\Models\User;
 use App\Repositories\AccountRepository;
-use App\Services\TokenManager;
-use App\Services\TransactionSyncService;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessService
 {
-    private GoCardlessBankData $client;
+    private GoCardlessBankDataClient $client;
 
     private TokenManager $tokenManager;
 
@@ -26,7 +24,7 @@ class GoCardlessService
      */
     private function isClientInitialized(): bool
     {
-        return isset($this->client) && $this->client instanceof GoCardlessBankData;
+        return isset($this->client) && $this->client instanceof GoCardlessBankDataClient;
     }
 
     /**
@@ -64,7 +62,7 @@ class GoCardlessService
                 $accessTokenExpires = new \DateTime($accessTokenExpires);
             }
 
-            $this->client = new GoCardlessBankData(
+            $this->client = new GoCardlessBankDataClient(
                 $user->gocardless_secret_id,
                 $user->gocardless_secret_key,
                 $accessToken,
@@ -90,7 +88,7 @@ class GoCardlessService
      *
      * @throws \RuntimeException When client cannot be initialized
      */
-    private function getClient(User $user): GoCardlessBankData
+    private function getClient(User $user): GoCardlessBankDataClient
     {
         if (! $this->isClientInitialized()) {
             $this->initializeClient($user);

@@ -5,11 +5,11 @@ namespace Tests\Unit\Services;
 use App\Models\Account;
 use App\Models\User;
 use App\Repositories\AccountRepository;
-use App\Services\GoCardless\GoCardlessBankData;
+use App\Services\GoCardless\GoCardlessBankDataClient;
 use App\Services\GoCardless\GocardlessMapper;
 use App\Services\GoCardless\GoCardlessService;
-use App\Services\TokenManager;
-use App\Services\TransactionSyncService;
+use App\Services\GoCardless\TokenManager;
+use App\Services\GoCardless\TransactionSyncService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -26,7 +26,7 @@ class GoCardlessServiceTest extends UnitTestCase
 
     private GocardlessMapper $mapper;
 
-    private GoCardlessBankData $bankDataMock;
+    private GoCardlessBankDataClient $bankDataMock;
 
     private TokenManager $tokenManagerMock;
 
@@ -52,7 +52,7 @@ class GoCardlessServiceTest extends UnitTestCase
         $this->accountRepository = Mockery::mock(AccountRepository::class);
         $this->transactionSyncService = Mockery::mock(TransactionSyncService::class);
         $this->mapper = Mockery::mock(GocardlessMapper::class);
-        $this->bankDataMock = Mockery::mock(GoCardlessBankData::class);
+        $this->bankDataMock = Mockery::mock(GoCardlessBankDataClient::class);
         $this->tokenManagerMock = Mockery::mock(TokenManager::class);
 
         // Create test user mock

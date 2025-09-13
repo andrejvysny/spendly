@@ -5,9 +5,10 @@ namespace App\Listeners;
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Events\TransactionCreated;
 use App\Events\TransactionUpdated;
-use App\Models\Rule;
+use App\Models\RuleEngine\Rule;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\Log;
 
 class ProcessTransactionRules implements ShouldQueue
 {
@@ -31,16 +32,20 @@ class ProcessTransactionRules implements ShouldQueue
      */
     public function handleTransactionCreated(TransactionCreated $event): void
     {
-        if (! $event->applyRules) {
+        if (! $event->shouldApplyRules()) {
             return;
         }
 
-        $transaction = $event->transaction;
+        Log::debug("TransactionCreatedEVENT - Processing rules for created transaction ID: {$event->getTransaction()->id}", ['event' => $event]);
+
+        $transaction = $event->getTransaction();
         $user = $transaction->account->user;
 
         $this->ruleEngine
             ->setUser($user)
             ->processTransaction($transaction, Rule::TRIGGER_TRANSACTION_CREATED);
+
+        Log::debug("TransactionCreatedEVENT - Finished processing rules for created transaction ID: {$event->getTransaction()->id}", ['event' => $event]);
     }
 
     /**

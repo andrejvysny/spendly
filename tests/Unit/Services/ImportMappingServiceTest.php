@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\ImportMappingService;
+use App\Services\TransactionImport\ImportMappingService;
 use Tests\Unit\UnitTestCase;
 
 class ImportMappingServiceTest extends UnitTestCase

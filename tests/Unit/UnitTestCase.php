@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class UnitTestCase extends BaseTestCase
@@ -11,6 +12,6 @@ abstract class UnitTestCase extends BaseTestCase
         parent::setUp();
 
         // Disable CSRF protection for tests
-        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class);
+        $this->withoutMiddleware(ValidateCsrfToken::class);
     }
 }

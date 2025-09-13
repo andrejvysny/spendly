@@ -3,7 +3,7 @@
 namespace Tests\Feature\Imports;
 
 use App\Models\Account;
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;

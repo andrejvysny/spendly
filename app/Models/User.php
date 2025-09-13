@@ -96,7 +96,7 @@ class User extends Authenticatable
      */
     public function ruleGroups()
     {
-        return $this->hasMany(\App\Models\RuleGroup::class);
+        return $this->hasMany(RuleEngine\RuleGroup::class);
     }
 
     /**
@@ -104,7 +104,7 @@ class User extends Authenticatable
      */
     public function rules()
     {
-        return $this->hasMany(\App\Models\Rule::class);
+        return $this->hasMany(RuleEngine\Rule::class);
     }
 
     /**

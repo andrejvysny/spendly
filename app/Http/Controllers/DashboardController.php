@@ -2,21 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Account;
-use App\Models\Transaction;
+use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Contracts\Repositories\TransactionRepositoryInterface;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        private AccountRepositoryInterface $accountRepository,
+        private TransactionRepositoryInterface $transactionRepository
+    ) {}
+
     public function index()
     {
         $user = auth()->user();
-        $accounts = Account::where('user_id', $user->id)->get();
+        $accounts = $this->accountRepository->findByUser($user->id);
 
-        $recentTransactions = Transaction::whereIn('account_id', $accounts->pluck('id'))
-            ->orderBy('booked_date', 'desc')
-            ->limit(10)
-            ->get();
+        $recentTransactions = $this->transactionRepository->getRecentByAccounts(
+            $accounts->pluck('id')->toArray(),
+            10
+        );
 
         // Calculate monthly balances for each account
         $monthlyBalances = [];

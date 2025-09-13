@@ -38,7 +38,7 @@ This system provides comprehensive tracking and management of failed/skipped tra
 ### `ImportFailure` Model
 
 ```php
-use App\Models\ImportFailure;
+use App\Models\Import\ImportFailure;
 
 // Constants
 ImportFailure::ERROR_TYPE_VALIDATION_FAILED
@@ -69,7 +69,7 @@ $failure->markAsIgnored($user, $notes)
 ### `Import` Model Updates
 
 ```php
-use App\Models\Import;
+
 
 // New relationships
 $import->failures()        // HasMany ImportFailure

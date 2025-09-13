@@ -233,7 +233,6 @@ Modify the `TransactionImportService` to trigger rule processing after the bulk 
 
 ```php
 use App\Jobs\ProcessRulesJob;
-use App\Models\Rule;
 // ... existing code ...
 
     /**

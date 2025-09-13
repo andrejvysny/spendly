@@ -219,15 +219,15 @@ class MigrationTest extends TestCase
     {
         // Test cascade deletes
         $user = \App\Models\User::factory()->create();
-        $ruleGroup = \App\Models\RuleGroup::factory()->create(['user_id' => $user->id]);
-        $rule = \App\Models\Rule::factory()->create([
+        $ruleGroup = \App\Models\RuleEngine\RuleGroup::factory()->create(['user_id' => $user->id]);
+        $rule = \App\Models\RuleEngine\Rule::factory()->create([
             'user_id' => $user->id,
             'rule_group_id' => $ruleGroup->id,
         ]);
-        $conditionGroup = \App\Models\ConditionGroup::factory()->create(['rule_id' => $rule->id]);
-        $condition = \App\Models\RuleCondition::factory()->create(['condition_group_id' => $conditionGroup->id]);
-        $action = \App\Models\RuleAction::factory()->create(['rule_id' => $rule->id]);
-        $log = \App\Models\RuleExecutionLog::factory()->create(['rule_id' => $rule->id]);
+        $conditionGroup = \App\Models\RuleEngine\ConditionGroup::factory()->create(['rule_id' => $rule->id]);
+        $condition = \App\Models\RuleEngine\RuleCondition::factory()->create(['condition_group_id' => $conditionGroup->id]);
+        $action = \App\Models\RuleEngine\RuleAction::factory()->create(['rule_id' => $rule->id]);
+        $log = \App\Models\RuleEngine\RuleExecutionLog::factory()->create(['rule_id' => $rule->id]);
 
         // Delete user should cascade
         $user->delete();
@@ -247,7 +247,7 @@ class MigrationTest extends TestCase
     {
         // Create test data to verify data types
         $user = \App\Models\User::factory()->create();
-        $ruleGroup = \App\Models\RuleGroup::factory()->create([
+        $ruleGroup = \App\Models\RuleEngine\RuleGroup::factory()->create([
             'user_id' => $user->id,
             'name' => 'Test Group',
             'description' => 'Long description text that should be stored as TEXT type',
@@ -255,31 +255,31 @@ class MigrationTest extends TestCase
             'is_active' => true,
         ]);
 
-        $rule = \App\Models\Rule::factory()->create([
+        $rule = \App\Models\RuleEngine\Rule::factory()->create([
             'user_id' => $user->id,
             'rule_group_id' => $ruleGroup->id,
             'stop_processing' => false,
         ]);
 
-        $conditionGroup = \App\Models\ConditionGroup::factory()->create([
+        $conditionGroup = \App\Models\RuleEngine\ConditionGroup::factory()->create([
             'rule_id' => $rule->id,
             'logic_operator' => 'AND',
         ]);
 
-        $condition = \App\Models\RuleCondition::factory()->create([
+        $condition = \App\Models\RuleEngine\RuleCondition::factory()->create([
             'condition_group_id' => $conditionGroup->id,
             'value' => str_repeat('Long text value ', 100), // Test TEXT field
             'is_case_sensitive' => true,
             'is_negated' => false,
         ]);
 
-        $action = \App\Models\RuleAction::factory()->create([
+        $action = \App\Models\RuleEngine\RuleAction::factory()->create([
             'rule_id' => $rule->id,
             'action_value' => json_encode(['complex' => 'data']), // Test TEXT field with JSON
             'stop_processing' => true,
         ]);
 
-        $log = \App\Models\RuleExecutionLog::factory()->create([
+        $log = \App\Models\RuleEngine\RuleExecutionLog::factory()->create([
             'rule_id' => $rule->id,
             'matched' => true,
             'actions_executed' => ['action1', 'action2'], // Test JSON field
@@ -298,7 +298,7 @@ class MigrationTest extends TestCase
             'is_negated' => false,
         ]);
 
-        $freshLog = \App\Models\RuleExecutionLog::find($log->id);
+        $freshLog = \App\Models\RuleEngine\RuleExecutionLog::find($log->id);
         $this->assertIsArray($freshLog->actions_executed);
         $this->assertIsArray($freshLog->execution_context);
     }

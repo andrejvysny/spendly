@@ -4,8 +4,8 @@ namespace App\Providers;
 
 use App\Services\Csv\CsvProcessor;
 use App\Services\DuplicateTransactionService;
-use App\Services\ImportMappingService;
 use App\Services\TransactionImport\ImportFailurePersister;
+use App\Services\TransactionImport\ImportMappingService;
 use App\Services\TransactionImport\TransactionDataParser;
 use App\Services\TransactionImport\TransactionImportService;
 use App\Services\TransactionImport\TransactionPersister;

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Import\ImportFailureController;
+use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\RuleEngine\RuleExecutionController;
 use App\Http\Controllers\Transactions\TransactionController;
@@ -26,6 +27,14 @@ Route::middleware('auth')->get('/user', function (Request $request) {
 Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/transactions', [TransactionController::class, 'store'])->name('api.transactions.store');
     Route::get('/transactions/field-definitions', [TransactionController::class, 'getFieldDefinitions'])->name('api.transactions.field-definitions');
+});
+
+// GoCardless sync endpoints
+Route::middleware(['web', 'auth'])->prefix('gocardless')->name('gocardless.')->group(function () {
+    Route::post('/accounts/{accountId}/sync', [GoCardlessController::class, 'syncTransactions'])
+        ->name('accounts.sync');
+    Route::post('/accounts/sync-all', [GoCardlessController::class, 'syncAllAccounts'])
+        ->name('accounts.sync-all');
 });
 
 // Rule Engine API Routes - JSON responses for CRUD operations

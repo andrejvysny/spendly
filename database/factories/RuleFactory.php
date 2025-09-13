@@ -2,13 +2,13 @@
 
 namespace Database\Factories;
 
-use App\Models\Rule;
-use App\Models\RuleGroup;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleGroup;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Rule>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RuleEngine\Rule>
  */
 class RuleFactory extends Factory
 {

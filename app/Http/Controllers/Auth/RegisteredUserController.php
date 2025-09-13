@@ -2,19 +2,23 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
+    public function __construct(
+        private UserRepositoryInterface $userRepository
+    ) {}
+
     /**
      * Show the registration page.
      */
@@ -36,10 +40,10 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $user = User::create([
+        $user = $this->userRepository->create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => $request->password, // Repository will hash it
         ]);
 
         event(new Registered($user));

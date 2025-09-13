@@ -3,7 +3,7 @@
 namespace App\Services\TransactionImport;
 
 use App\Contracts\Import\BatchResultInterface;
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Services\Csv\CsvProcessor;
 use Illuminate\Support\Facades\Log;
 

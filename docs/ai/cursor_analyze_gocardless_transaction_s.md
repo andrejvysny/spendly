@@ -1337,14 +1337,7 @@ class TransactionSyncService
 
 namespace App\Services;
 
-use App\Models\Account;
-use App\Models\User;
-use App\Repositories\AccountRepository;
-use App\Services\GoCardlessBankData;
-use App\Services\GocardlessMapper;
-use App\Services\TokenManager;
-use App\Services\TransactionSyncService;
-use Illuminate\Support\Facades\Log;
+use App\Models\Account;use App\Models\User;use App\Repositories\AccountRepository;use App\Services\GoCardless\TokenManager;use App\Services\GoCardless\TransactionSyncService;use Illuminate\Support\Facades\Log;
 
 class GoCardlessService
 {
@@ -1566,15 +1559,7 @@ class GoCardlessService
 
 namespace App\Http\Controllers\BankProviders;
 
-use App\Http\Controllers\Controller;
-use App\Repositories\AccountRepository;
-use App\Repositories\TransactionRepository;
-use App\Services\GoCardlessService;
-use App\Services\GocardlessMapper;
-use App\Services\TransactionSyncService;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Controller;use App\Repositories\AccountRepository;use App\Repositories\TransactionRepository;use App\Services\GoCardless\TransactionSyncService;use App\Services\GocardlessMapper;use App\Services\GoCardlessService;use Illuminate\Http\JsonResponse;use Illuminate\Http\Request;use Illuminate\Support\Facades\Log;
 
 class GoCardlessController extends Controller
 {
@@ -1686,7 +1671,7 @@ Now we need to update the BankDataController to use our new service architecture
             // Create service with dependencies
             $service = new \App\Services\GoCardlessService(
                 new \App\Repositories\AccountRepository(),
-                new \App\Services\TransactionSyncService(
+                new \App\Services\GoCardless\TransactionSyncService(
                     new \App\Repositories\TransactionRepository(),
                     new \App\Services\GocardlessMapper()
                 ),
@@ -1758,19 +1743,12 @@ Route::prefix('/api/bank-data/gocardless')->group(function () {
 
 ### Step 9: Create Service Provider
 
-
 ```php
 <?php
 
 namespace App\Providers;
 
-use App\Repositories\AccountRepository;
-use App\Repositories\TransactionRepository;
-use App\Services\GocardlessMapper;
-use App\Services\GoCardlessService;
-use App\Services\TokenManager;
-use App\Services\TransactionSyncService;
-use Illuminate\Support\ServiceProvider;
+use App\Repositories\AccountRepository;use App\Repositories\TransactionRepository;use App\Services\GoCardless\TransactionSyncService;use App\Services\GocardlessMapper;use App\Services\GoCardlessService;use Illuminate\Support\ServiceProvider;
 
 class GoCardlessServiceProvider extends ServiceProvider
 {

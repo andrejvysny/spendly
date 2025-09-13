@@ -5,9 +5,9 @@ namespace Tests\Feature;
 use App\Events\TransactionCreated;
 use App\Models\Account;
 use App\Models\Category;
-use App\Models\Rule;
-use App\Models\RuleAction;
-use App\Models\RuleCondition;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleAction;
+use App\Models\RuleEngine\RuleCondition;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
@@ -305,7 +305,7 @@ class RuleEngineTest extends TestCase
             ->assertJsonPath('data.total_matched', 1);
     }
 
-    private function createRuleGroup(): \App\Models\RuleGroup
+    private function createRuleGroup(): \App\Models\RuleEngine\RuleGroup
     {
         return $this->ruleRepository->createRuleGroup($this->user, [
             'name' => 'Test Rule Group',

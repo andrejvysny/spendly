@@ -3,7 +3,7 @@
 namespace App\Services\RuleEngine;
 
 use App\Contracts\RuleEngine\ConditionEvaluatorInterface;
-use App\Models\RuleCondition;
+use App\Models\RuleEngine\RuleCondition;
 use App\Models\Transaction;
 use Carbon\Carbon;
 

@@ -4,10 +4,10 @@ namespace Tests\Feature\RuleEngine;
 
 use App\Models\Account;
 use App\Models\Category;
-use App\Models\Rule;
-use App\Models\RuleAction;
-use App\Models\RuleCondition;
-use App\Models\RuleGroup;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleAction;
+use App\Models\RuleEngine\RuleCondition;
+use App\Models\RuleEngine\RuleGroup;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;

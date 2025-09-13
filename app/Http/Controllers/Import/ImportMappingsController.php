@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Import;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ImportMappingRequest;
-use App\Models\ImportMapping;
-use App\Services\ImportMappingService;
+use App\Models\Import\ImportMapping;
+use App\Services\TransactionImport\ImportMappingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

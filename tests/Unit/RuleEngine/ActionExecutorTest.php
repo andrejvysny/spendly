@@ -5,7 +5,7 @@ namespace Tests\Unit\RuleEngine;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Merchant;
-use App\Models\RuleAction;
+use App\Models\RuleEngine\RuleAction;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;

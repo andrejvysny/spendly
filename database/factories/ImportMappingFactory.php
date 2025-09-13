@@ -2,12 +2,12 @@
 
 namespace Database\Factories;
 
-use App\Models\ImportMapping;
+use App\Models\Import\ImportMapping;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\ImportMapping>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Import\ImportMapping>
  */
 class ImportMappingFactory extends Factory
 {

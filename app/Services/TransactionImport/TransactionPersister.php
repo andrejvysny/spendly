@@ -3,9 +3,12 @@
 namespace App\Services\TransactionImport;
 
 use App\Contracts\Import\BatchResultInterface;
+use App\Contracts\Repositories\TransactionRepositoryInterface;
+use App\Contracts\RuleEngine\RuleEngineInterface;
+use App\Events\TransactionCreated;
+use App\Models\RuleEngine\Rule;
 use App\Models\Transaction;
 use App\Services\Csv\CsvProcessResult;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -17,7 +20,10 @@ class TransactionPersister
 
     private int $batchSize = 500;
 
-    public function __construct() {}
+    public function __construct(
+        private readonly RuleEngineInterface $ruleEngine,
+        private readonly TransactionRepositoryInterface $transactions
+    ) {}
 
     public function persistBatch(BatchResultInterface $transactions): void
     {
@@ -78,12 +84,13 @@ class TransactionPersister
         $this->batchQueue = []; // Clear the queue
 
         try {
-            DB::transaction(function () use ($batch) {
+            $this->transactions->transaction(function () use ($batch) {
                 // Use insert for better performance with large batches
                 $chunks = array_chunk($batch, 100); // Process in smaller chunks to avoid memory issues
 
                 foreach ($chunks as $chunk) {
                     $insertData = [];
+                    $idPairs = [];
                     $firstRowColumns = null;
                     foreach ($chunk as $data) {
                         assert($data instanceof TransactionDto);
@@ -100,11 +107,34 @@ class TransactionPersister
                             throw new \RuntimeException('Inconsistent columns in batch data');
                         }
 
+                        // Track identifiers for fetching models after insert (composite)
+                        if (isset($prepared['transaction_id']) && isset($prepared['account_id'])) {
+                            $idPairs[] = [$prepared['account_id'], $prepared['transaction_id']];
+                        }
+
                         $insertData[] = $prepared;
                     }
 
-                    // Bulk insert
-                    \DB::table('transactions')->insert($insertData);
+                    // Bulk insert via repository
+                    $this->transactions->createBatch($insertData);
+
+                    // Load inserted transactions and apply rules synchronously before commit
+                    if (! empty($idPairs)) {
+                        $insertedTransactions = $this->transactions->findByAccountAndTransactionIdPairs($idPairs);
+
+                        if ($insertedTransactions->isNotEmpty()) {
+                            // Use the user from the first transaction's account; all are same account in an import
+                            $user = $insertedTransactions->first()->account->user;
+                            $this->ruleEngine
+                                ->setUser($user)
+                                ->processTransactions($insertedTransactions, Rule::TRIGGER_TRANSACTION_CREATED);
+
+                            // Fire created events for other subscribers without re-running rules
+                            foreach ($insertedTransactions as $t) {
+                                event(new TransactionCreated($t, false));
+                            }
+                        }
+                    }
                 }
 
                 Log::info('Batch processed successfully', [
@@ -117,20 +147,37 @@ class TransactionPersister
                 'batch_size' => count($batch),
             ]);
 
-            // Fall back to individual inserts
-            foreach ($batch as $data) {
-                assert($data instanceof TransactionDto, 'Expected TransactionDto in batch results');
-                try {
-                    Transaction::create(
-                        $this->prepareForInsert($data->toArray())
-                    );
-                } catch (\Exception $individualError) {
-                    Log::error('Individual transaction insert failed', [
-                        'error' => $individualError->getMessage(),
-                        'transaction_id' => $data->get('transaction_id', 'unknown'),
-                    ]);
+            // Fall back to individual inserts but still apply rules synchronously, all within a transaction
+            $this->transactions->transaction(function () use ($batch) {
+                $created = collect();
+                foreach ($batch as $data) {
+                    assert($data instanceof TransactionDto, 'Expected TransactionDto in batch results');
+                    try {
+                        $transaction = $this->transactions->createOne(
+                            $this->prepareForInsert($data->toArray())
+                        );
+                        // Eager load needed relations for rule processing
+                        $transaction->load(['account.user', 'tags', 'category', 'merchant']);
+                        $created->push($transaction);
+                    } catch (\Exception $individualError) {
+                        Log::error('Individual transaction insert failed', [
+                            'error' => $individualError->getMessage(),
+                            'transaction_id' => $data->get('transaction_id', 'unknown'),
+                        ]);
+                    }
                 }
-            }
+
+                if ($created->isNotEmpty()) {
+                    $user = $created->first()->account->user;
+                    $this->ruleEngine
+                        ->setUser($user)
+                        ->processTransactions($created, Rule::TRIGGER_TRANSACTION_CREATED);
+
+                    foreach ($created as $t) {
+                        event(new TransactionCreated($t, false));
+                    }
+                }
+            });
         }
     }
 

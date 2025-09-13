@@ -2,16 +2,22 @@
 
 namespace App\Services\RuleEngine;
 
+use App\Contracts\Repositories\CategoryRepositoryInterface;
+use App\Contracts\Repositories\MerchantRepositoryInterface;
+use App\Contracts\Repositories\TagRepositoryInterface;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
-use App\Models\Category;
-use App\Models\Merchant;
 use App\Models\RuleAction;
-use App\Models\Tag;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Log;
 
 class ActionExecutor implements ActionExecutorInterface
 {
+    public function __construct(
+        private CategoryRepositoryInterface $categoryRepository,
+        private MerchantRepositoryInterface $merchantRepository,
+        private TagRepositoryInterface $tagRepository
+    ) {}
+
     public function execute(RuleAction $action, Transaction $transaction): bool
     {
         try {
@@ -96,7 +102,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function setCategory(RuleAction $action, Transaction $transaction): bool
     {
         $categoryId = $action->getDecodedValue();
-        $category = Category::find($categoryId);
+        $category = $this->categoryRepository->find($categoryId);
 
         if (! $category || $category->user_id !== $transaction->account->user_id) {
             return false;
@@ -111,7 +117,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function setMerchant(RuleAction $action, Transaction $transaction): bool
     {
         $merchantId = $action->getDecodedValue();
-        $merchant = Merchant::find($merchantId);
+        $merchant = $this->merchantRepository->find($merchantId);
 
         if (! $merchant || $merchant->user_id !== $transaction->account->user_id) {
             return false;
@@ -126,7 +132,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function addTag(RuleAction $action, Transaction $transaction): bool
     {
         $tagId = $action->getDecodedValue();
-        $tag = Tag::find($tagId);
+        $tag = $this->tagRepository->find($tagId);
 
         if (! $tag || $tag->user_id !== $transaction->account->user_id) {
             return false;
