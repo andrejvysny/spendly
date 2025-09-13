@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Import;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\ImportMappingRequest;
+use App\Http\Requests\Import\ImportMappingRequest;
 use App\Models\Import\ImportMapping;
 use App\Services\TransactionImport\ImportMappingService;
 use Illuminate\Http\JsonResponse;

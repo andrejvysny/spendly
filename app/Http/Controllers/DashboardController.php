@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
+use App\Models\Transaction;
 use Inertia\Inertia;
 
 class DashboardController extends Controller

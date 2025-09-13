@@ -3,22 +3,30 @@
 namespace App\Http\Controllers\Accounts;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AccountRequest;
 use App\Models\Account;
+use App\Repositories\AccountRepository;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class AccountController extends Controller
 {
-    /**
-     * Retrieves all accounts belonging to the authenticated user.
-     *
-     * Returns the accounts as a JSON response if requested, or renders the accounts index view with the accounts data.
-     */
-    public function index()
+    public function __construct(
+        private AccountRepository $accountRepository
+    )
     {
-        $accounts = Account::where('user_id', auth()->id())->get();
+        if (!auth()->id()) {
+            throw new \Exception('User not authenticated');
+        }
+    }
+
+    public function index(): JsonResponse|Response
+    {
+        $accounts = $this->accountRepository->findByUserId(auth()->id());
 
         if (request()->wantsJson()) {
             return response()->json([
@@ -31,35 +39,24 @@ class AccountController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(AccountRequest $request): RedirectResponse
     {
         try {
-            if (! auth()->id()) {
-                throw new \Exception('User not authenticated');
-            }
+            $validated = $request->validated();
 
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'bank_name' => 'nullable|string|max:255',
-                'iban' => 'nullable|string|max:255',
-                'type' => 'required|string|max:255',
-                'currency' => 'required|string|max:3',
-                'balance' => 'required|numeric',
-                'is_gocardless_synced' => 'boolean',
-                'gocardless_account_id' => 'nullable|string|max:255',
-            ]);
-
-            $account = Account::create([
-                'name' => $validated['name'],
-                'bank_name' => $validated['bank_name'] ?? null,
-                'iban' => $validated['iban'] ?? null,
-                'type' => $validated['type'],
-                'currency' => $validated['currency'],
-                'balance' => $validated['balance'],
-                'is_gocardless_synced' => $validated['is_gocardless_synced'] ?? false,
-                'gocardless_account_id' => $validated['gocardless_account_id'] ?? null,
-                'user_id' => auth()->id(),
-            ]);
+            $this->accountRepository->create(
+                [
+                    'name' => $validated['name'],
+                    'bank_name' => $validated['bank_name'] ?? null,
+                    'iban' => $validated['iban'] ?? null,
+                    'type' => $validated['type'],
+                    'currency' => $validated['currency'],
+                    'balance' => $validated['balance'],
+                    'is_gocardless_synced' => $validated['is_gocardless_synced'] ?? false,
+                    'gocardless_account_id' => $validated['gocardless_account_id'] ?? null,
+                    'user_id' => auth()->id(),
+                ]
+            );
 
             return redirect()->back()->with('success', 'Account created successfully');
 
@@ -70,14 +67,8 @@ class AccountController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Account $account): Response|RedirectResponse
     {
-        $account = Account::all()->find($id);
-
-        if (! $account) {
-            return redirect()->route('accounts.index')->with('error', 'Account not found');
-        }
-
         // Get initial paginated transactions for this account (first page only)
         $transactions = $account->transactions()
             ->with(['category', 'merchant', 'tags'])
@@ -140,6 +131,8 @@ class AccountController extends Controller
 
         // Delete the account
         $account->delete();
+
+        $this->accountRepository->delete($account);
 
         return redirect()->route('accounts.index')
             ->with('success', 'Account and all associated transactions have been deleted successfully');

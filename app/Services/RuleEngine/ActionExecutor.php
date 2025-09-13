@@ -6,7 +6,7 @@ use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Contracts\Repositories\MerchantRepositoryInterface;
 use App\Contracts\Repositories\TagRepositoryInterface;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
-use App\Models\RuleAction;
+use App\Models\RuleEngine\RuleAction;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Log;
 

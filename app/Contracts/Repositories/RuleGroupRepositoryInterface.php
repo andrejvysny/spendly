@@ -2,7 +2,7 @@
 
 namespace App\Contracts\Repositories;
 
-use App\Models\RuleGroup;
+use App\Models\RuleEngine\RuleGroup;
 use Illuminate\Support\Collection;
 
 interface RuleGroupRepositoryInterface extends BaseRepositoryContract

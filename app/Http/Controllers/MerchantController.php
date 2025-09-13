@@ -1,40 +1,56 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Http\Requests\MerchantRequest;
 use App\Models\Merchant;
+use App\Policies\Ability;
+use App\Repositories\MerchantRepository;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class MerchantController extends Controller
 {
     use AuthorizesRequests;
 
-    public function index(): \Inertia\Response
+    public function __construct(
+        private readonly MerchantRepository $merchantRepository,
+    )
     {
-        $merchants = Auth::user()->merchants()->get();
+    }
+
+    public function index(): Response
+    {
+        $merchants = $this->merchantRepository->findByUserId($this->getAuthUserId());
 
         return Inertia::render('merchants/index', [
             'merchants' => $merchants,
         ]);
     }
 
-    public function store(MerchantRequest $request): \Illuminate\Http\RedirectResponse
+    public function store(MerchantRequest $request): RedirectResponse
     {
         $validated = $request->validated();
 
-        $merchant = Auth::user()->merchants()->create($validated);
+        // Create the merchant associated with the authenticated user
+        $this->merchantRepository->create($validated);
 
         return redirect()->back()->with('success', 'Merchant created successfully');
     }
 
-    public function update(MerchantRequest $request, Merchant $merchant): \Illuminate\Http\RedirectResponse
+    /**
+     * @throws AuthorizationException
+     */
+    public function update(MerchantRequest $request, Merchant $merchant): RedirectResponse
     {
-        $this->authorize('update', $merchant);
+        $this->authorize(Ability::update, $merchant);
 
         $validated = $request->validated();
 
@@ -46,7 +62,7 @@ class MerchantController extends Controller
     /**
      * @throws AuthorizationException
      */
-    public function destroy(Request $request, Merchant $merchant): \Illuminate\Http\RedirectResponse
+    public function destroy(Request $request, Merchant $merchant): RedirectResponse
     {
         $this->authorize('delete', $merchant);
 

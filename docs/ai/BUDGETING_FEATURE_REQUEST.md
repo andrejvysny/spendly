@@ -16,7 +16,7 @@ Many users need to set spending limits and monitor their expenses against budget
 1. **Budget Model & Migration**: Create a `Budget` Eloquent model with fields: `id`, `user_id`, `name`, `amount`, `start_date`, `end_date`, `category_id` (nullable), `account_id` (nullable), and soft deletes.  
 2. **Repository & Service**: Implement `BudgetRepository` for data access and `BudgetService` to encapsulate business logic (creation, update, calculation of spent amount, alerts).  
 3. **Controllers & API**: Add `BudgetController` endpoints (index, show, store, update, destroy) under `app/Http/Controllers/`.  
-4. **Rule Engine Integration**: Extend `TransactionRulePipeline` or a new pipeline stage to update associated budgets when transactions are created or updated.  
+4. **Rule Engine Integration**: Extend `RuleEngine` or a new pipeline stage to update associated budgets when transactions are created or updated.  
 5. **Frontend Pages & Components**:  
    - Inertia page `resources/js/pages/BudgetsIndex.tsx` listing budgets with progress bars.  
    - Form component `resources/js/components/BudgetForm.tsx` for create/update.  

@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Category;
 use App\Contracts\Repositories\CategoryRepositoryInterface;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 class CategoryRepository extends BaseRepository implements CategoryRepositoryInterface
@@ -29,7 +30,7 @@ class CategoryRepository extends BaseRepository implements CategoryRepositoryInt
         return $category->fresh();
     }
 
-    public function findByUser(int $userId): Collection
+    public function findByUserId(int $userId): Collection
     {
         return $this->model->where('user_id', $userId)->get();
     }
