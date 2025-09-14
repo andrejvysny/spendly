@@ -311,6 +311,56 @@ class TransactionController extends Controller
     }
 
     /**
+     * Updates notes for multiple transactions in bulk.
+     *
+     * Validates the request for transaction IDs, note content, and method (replace or append).
+     * Updates the note field for each transaction according to the specified method.
+     *
+     * @return JsonResponse JSON response with a success message or error details.
+     */
+    public function bulkNoteUpdate(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_ids' => 'required|array',
+                'transaction_ids.*' => 'exists:transactions,id',
+                'note' => 'required|string',
+                'method' => 'required|string|in:replace,append',
+            ]);
+
+            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])->get();
+            $updatedTransactions = [];
+
+            foreach ($transactions as $transaction) {
+                if ($validated['method'] === 'replace') {
+                    $transaction->update(['note' => $validated['note']]);
+                } elseif ($validated['method'] === 'append') {
+                    $existingNote = $transaction->note ?? '';
+                    $newNote = $existingNote ? $existingNote . "\n" . $validated['note'] : $validated['note'];
+                    $transaction->update(['note' => $newNote]);
+                }
+                
+                // Refresh the transaction to get the updated note
+                $transaction->refresh();
+                $updatedTransactions[] = [
+                    'id' => $transaction->id,
+                    'note' => $transaction->note,
+                ];
+            }
+
+            return response()->json([
+                'message' => 'Transaction notes updated successfully',
+                'updated_count' => $transactions->count(),
+                'updated_transactions' => $updatedTransactions,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Bulk transaction note update failed: '.$e->getMessage());
+
+            return response()->json(['error' => 'Failed to update transaction notes'], 500);
+        }
+    }
+
+    /**
      * Updates specific fields of a transaction and returns a JSON response.
      *
      * Validates and updates the transaction's description, note, partner, and place fields if provided.

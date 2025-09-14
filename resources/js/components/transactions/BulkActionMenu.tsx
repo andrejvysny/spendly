@@ -1,4 +1,4 @@
-import { TextInput } from '@/components/ui/form-inputs';
+import { TextareaInput, TextInput } from '@/components/ui/form-inputs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SmartForm } from '@/components/ui/smart-form';
 import { Category, Merchant } from '@/types/index';
@@ -10,7 +10,7 @@ interface Props {
     selectedTransactions: string[];
     categories?: Category[];
     merchants?: Merchant[];
-    onUpdate: (data?: { ids: string[]; category_id?: string | null; merchant_id?: string | null }) => void;
+    onUpdate: (data?: { ids: string[]; category_id?: string | null; merchant_id?: string | null; updated_transactions?: Array<{id: number; note: string}> }) => void;
 }
 
 const categorySchema = z.object({
@@ -26,8 +26,15 @@ const merchantSchema = z.object({
     logo: z.string().optional(),
 });
 
+
+const noteSchema = z.object({
+    note: z.string().min(1, 'Note is required'),
+});
+
+
 type CategoryFormValues = z.infer<typeof categorySchema>;
 type MerchantFormValues = z.infer<typeof merchantSchema>;
+type NoteFormValues = z.infer<typeof noteSchema>;
 
 /**
  * Displays a menu for bulk assigning categories or merchants to selected transactions, with options to create new categories or merchants inline.
@@ -42,7 +49,7 @@ type MerchantFormValues = z.infer<typeof merchantSchema>;
  * @returns The bulk action menu UI, or `null` if no transactions are selected.
  */
 export default function BulkActionMenu({ selectedTransactions, categories = [], merchants = [], onUpdate }: Props) {
-    const [activeMenu, setActiveMenu] = useState<'category' | 'merchant' | null>(null);
+    const [activeMenu, setActiveMenu] = useState<'category' | 'merchant' | 'note' | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [selectedMerchant, setSelectedMerchant] = useState<string>('');
     const [isCreatingCategory, setIsCreatingCategory] = useState(false);
@@ -132,6 +139,34 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
         }
     };
 
+    const handleNote = async (values: NoteFormValues, event) => {
+        const submitter = event?.nativeEvent?.submitter;
+        if (submitter?.name === 'replace') {
+            handleAddNote(values, 'replace');
+        } else if (submitter?.name === 'append') {
+            handleAddNote(values, 'append');
+        }
+    };
+
+    const handleAddNote = async (values: NoteFormValues, method: 'replace' | 'append') => {
+        try {
+            const response = await axios.post('/transactions/bulk-note-update', {
+                transaction_ids: selectedTransactions,
+                note: values.note,
+                method: method,
+            });
+            
+            onUpdate({
+                ids: selectedTransactions,
+                updated_transactions: response.data.updated_transactions,
+            });
+            setActiveMenu(null);
+        } catch (error) {
+            console.error('Failed to update notes:', error);
+        }
+    };
+
+
     if (selectedTransactions.length === 0) return null;
 
     return (
@@ -185,6 +220,17 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
                             }`}
                         >
                             Assign Merchant
+                        </button>
+
+                        <button
+                            onClick={()=> setActiveMenu(activeMenu === 'note' ? null : 'note')}
+                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
+                                activeMenu === 'note'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                            }`}
+                        >
+                            Add Note
                         </button>
                     </div>
                 </div>
@@ -325,6 +371,40 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
                         )}
                     </div>
                 )}
+                {/* Note Addition Panel */}
+                {activeMenu === 'note' && (
+                    <div className="border-border border-t p-3">
+                        <div className="space-y-2">
+
+                            <SmartForm schema={noteSchema} onSubmit={handleNote} formProps={{ className: 'space-y-3' }}>
+                                {() => (
+                                    <>
+                                        <TextareaInput<NoteFormValues> name="note" label="" placeholder="Note" />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="submit"
+                                                name="replace"
+                                                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium"
+                                            >
+                                                Replace note
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                name="append"
+                                                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium"
+                                            >
+                                                Append note
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </SmartForm>
+
+                        </div>
+                    </div>
+                )}
+
+
             </div>
         </div>
     );
