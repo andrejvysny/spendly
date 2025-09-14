@@ -60,7 +60,7 @@ function TransactionList({
         }
     };
 
-    const handleResetSelection = (updatedData?: { ids: string[]; category_id?: string | null; merchant_id?: string | null }) => {
+    const handleResetSelection = (updatedData?: { ids: string[]; category_id?: string | null; merchant_id?: string | null; updated_transactions?: Array<{id: number; note: string}> }) => {
         // If we have updated data, update the local transactions
         if (updatedData) {
             const updatedTransactions = [...transactions];
@@ -82,10 +82,27 @@ function TransactionList({
                 const index = updatedTransactions.findIndex((t) => String(t.id) === id);
                 if (index !== -1) {
                     // Create a new object to trigger re-render
+                    const updates: Partial<Transaction> = {};
+                    
+                    if (updatedData.category_id !== undefined) {
+                        updates.category = updatedData.category_id === null ? undefined : selectedCategory || undefined;
+                    }
+                    
+                    if (updatedData.merchant_id !== undefined) {
+                        updates.merchant = updatedData.merchant_id === null ? undefined : selectedMerchant || undefined;
+                    }
+                    
+                    // Handle note updates
+                    if (updatedData.updated_transactions) {
+                        const updatedTransaction = updatedData.updated_transactions.find(t => String(t.id) === id);
+                        if (updatedTransaction) {
+                            updates.note = updatedTransaction.note;
+                        }
+                    }
+                    
                     updatedTransactions[index] = {
                         ...updatedTransactions[index],
-                        category: updatedData.category_id === null ? undefined : selectedCategory || undefined,
-                        merchant: updatedData.merchant_id === null ? undefined : selectedMerchant || undefined,
+                        ...updates,
                     };
                 }
             });

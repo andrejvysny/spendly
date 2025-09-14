@@ -30,6 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
     Route::post('/transactions-store', [TransactionController::class, 'store'])->name('transactions.store');
     Route::post('/transactions/bulk-update', [TransactionController::class, 'bulkUpdate'])->name('transactions.bulk-update');
+    Route::post('/transactions/bulk-note-update', [TransactionController::class, 'bulkNoteUpdate'])->name('transactions.bulk-note-update');
     Route::put('/transactions/{transaction}', [TransactionController::class, 'updateTransaction'])->name('transactions.update');
 
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');

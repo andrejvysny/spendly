@@ -32,7 +32,7 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                 </div>
 
                 {/* Transaction Card */}
-                <div className="bg-card rounded-xl border-1 p-2 shadow-xs transition-colors hover:border-current">
+                <div className={"bg-card rounded-xl border-1 p-2 shadow-xs transition-colors " + (isSelected ? 'border-current' : 'hover:border-current')}>
                     <div className="flex w-full cursor-pointer items-center gap-4" onClick={() => setIsExpanded(!isExpanded)}>
                         <div
                             className="flex h-14 w-14 items-center justify-center rounded-full p-3"
