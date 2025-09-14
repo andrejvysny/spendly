@@ -18,7 +18,8 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
 
     public function evaluate(RuleCondition $condition, Transaction $transaction): bool
     {
-        $fieldValue = $this->getFieldValue($transaction, $condition->field);
+        $fieldEnum = ConditionField::from($condition->field);
+        $fieldValue = $this->getFieldValue($transaction, $fieldEnum);
         return $this->evaluateWithValue($condition, $fieldValue);
     }
 

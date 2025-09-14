@@ -5,9 +5,13 @@ namespace Tests\Feature;
 use App\Events\TransactionCreated;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\RuleEngine\ActionType;
+use App\Models\RuleEngine\ConditionField;
+use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\RuleAction;
 use App\Models\RuleEngine\RuleCondition;
+use App\Models\RuleEngine\Trigger;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
@@ -31,7 +35,7 @@ class RuleEngineTest extends TestCase
 
         $this->user = User::factory()->create();
         $this->account = Account::factory()->create(['user_id' => $this->user->id]);
-        $this->ruleRepository = new RuleRepository;
+        $this->ruleRepository = app(\App\Contracts\Repositories\RuleRepositoryInterface::class);
     }
 
     public function test_create_rule_with_conditions_and_actions()
@@ -58,7 +62,7 @@ class RuleEngineTest extends TestCase
             'rule_group_id' => $ruleGroup->id,
             'name' => 'Grocery Store Rule',
             'description' => 'Categorize grocery store transactions',
-            'trigger_type' => Rule::TRIGGER_TRANSACTION_CREATED,
+            'trigger_type' => Trigger::TRANSACTION_CREATED->value,
             'stop_processing' => false,
             'is_active' => true,
             'condition_groups' => [
@@ -66,14 +70,14 @@ class RuleEngineTest extends TestCase
                     'logic_operator' => 'AND',
                     'conditions' => [
                         [
-                            'field' => RuleCondition::FIELD_DESCRIPTION,
-                            'operator' => RuleCondition::OPERATOR_CONTAINS,
+                            'field' => ConditionField::FIELD_DESCRIPTION->value,
+                            'operator' => ConditionOperator::OPERATOR_CONTAINS->value,
                             'value' => 'WALMART',
                             'is_case_sensitive' => false,
                         ],
                         [
-                            'field' => RuleCondition::FIELD_AMOUNT,
-                            'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+                            'field' => ConditionField::FIELD_AMOUNT->value,
+                            'operator' => ConditionOperator::OPERATOR_GREATER_THAN->value,
                             'value' => '10',
                         ],
                     ],
@@ -82,13 +86,13 @@ class RuleEngineTest extends TestCase
                     'logic_operator' => 'OR',
                     'conditions' => [
                         [
-                            'field' => RuleCondition::FIELD_DESCRIPTION,
-                            'operator' => RuleCondition::OPERATOR_REGEX,
+                            'field' => ConditionField::FIELD_DESCRIPTION->value,
+                            'operator' => ConditionOperator::OPERATOR_REGEX->value,
                             'value' => '/GROCERY|SUPERMARKET/i',
                         ],
                         [
-                            'field' => RuleCondition::FIELD_PARTNER,
-                            'operator' => RuleCondition::OPERATOR_WILDCARD,
+                            'field' => ConditionField::FIELD_PARTNER->value,
+                            'operator' => ConditionOperator::OPERATOR_WILDCARD->value,
                             'value' => '*MARKET*',
                             'is_case_sensitive' => false,
                         ],
@@ -97,15 +101,15 @@ class RuleEngineTest extends TestCase
             ],
             'actions' => [
                 [
-                    'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                    'action_type' => ActionType::ACTION_SET_CATEGORY->value,
                     'action_value' => $groceryCategory->id,
                 ],
                 [
-                    'action_type' => RuleAction::ACTION_ADD_TAG,
+                    'action_type' => ActionType::ACTION_ADD_TAG->value,
                     'action_value' => $shoppingTag->id,
                 ],
                 [
-                    'action_type' => RuleAction::ACTION_APPEND_NOTE,
+                    'action_type' => ActionType::ACTION_APPEND_NOTE->value,
                     'action_value' => ' [Auto-categorized as grocery]',
                 ],
             ],
@@ -129,14 +133,14 @@ class RuleEngineTest extends TestCase
         $rule = $this->ruleRepository->createRule($this->user, [
             'rule_group_id' => $this->createRuleGroup()->id,
             'name' => 'Restaurant Rule',
-            'trigger_type' => Rule::TRIGGER_TRANSACTION_CREATED,
+            'trigger_type' => Trigger::TRANSACTION_CREATED->value,
             'condition_groups' => [
                 [
                     'logic_operator' => 'AND',
                     'conditions' => [
                         [
-                            'field' => RuleCondition::FIELD_DESCRIPTION,
-                            'operator' => RuleCondition::OPERATOR_CONTAINS,
+                            'field' => ConditionField::FIELD_DESCRIPTION->value,
+                            'operator' => ConditionOperator::OPERATOR_CONTAINS->value,
                             'value' => 'RESTAURANT',
                             'is_case_sensitive' => false,
                         ],
@@ -145,7 +149,7 @@ class RuleEngineTest extends TestCase
             ],
             'actions' => [
                 [
-                    'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                    'action_type' => ActionType::ACTION_SET_CATEGORY->value,
                     'action_value' => $category->id,
                 ],
             ],
@@ -174,19 +178,19 @@ class RuleEngineTest extends TestCase
         $rule = $this->ruleRepository->createRule($this->user, [
             'rule_group_id' => $this->createRuleGroup()->id,
             'name' => 'Pattern Matching Rule',
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL->value,
             'condition_groups' => [
                 [
                     'logic_operator' => 'OR',
                     'conditions' => [
                         [
-                            'field' => RuleCondition::FIELD_DESCRIPTION,
-                            'operator' => RuleCondition::OPERATOR_REGEX,
+                            'field' => ConditionField::FIELD_DESCRIPTION->value,
+                            'operator' => ConditionOperator::OPERATOR_REGEX->value,
                             'value' => '/^ATM\s+\d{4}/',
                         ],
                         [
-                            'field' => RuleCondition::FIELD_DESCRIPTION,
-                            'operator' => RuleCondition::OPERATOR_WILDCARD,
+                            'field' => ConditionField::FIELD_DESCRIPTION->value,
+                            'operator' => ConditionOperator::OPERATOR_WILDCARD->value,
                             'value' => 'CASH*WITHDRAWAL',
                         ],
                     ],
@@ -194,7 +198,7 @@ class RuleEngineTest extends TestCase
             ],
             'actions' => [
                 [
-                    'action_type' => RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS,
+                    'action_type' => ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS->value,
                     'action_value' => 'Cash',
                 ],
             ],
@@ -213,14 +217,14 @@ class RuleEngineTest extends TestCase
         $response = $this->postJson('/api/rules', [
             'rule_group_id' => $ruleGroup->id,
             'name' => 'API Test Rule',
-            'trigger_type' => Rule::TRIGGER_TRANSACTION_CREATED,
+            'trigger_type' => Trigger::TRANSACTION_CREATED->value,
             'condition_groups' => [
                 [
                     'logic_operator' => 'AND',
                     'conditions' => [
                         [
-                            'field' => RuleCondition::FIELD_AMOUNT,
-                            'operator' => RuleCondition::OPERATOR_BETWEEN,
+                            'field' => ConditionField::FIELD_AMOUNT->value,
+                            'operator' => ConditionOperator::OPERATOR_BETWEEN->value,
                             'value' => '100,500',
                         ],
                     ],
@@ -228,7 +232,7 @@ class RuleEngineTest extends TestCase
             ],
             'actions' => [
                 [
-                    'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                    'action_type' => ActionType::ACTION_SET_CATEGORY->value,
                     'action_value' => $category->id,
                 ],
             ],
@@ -286,8 +290,8 @@ class RuleEngineTest extends TestCase
                     'logic_operator' => 'AND',
                     'conditions' => [
                         [
-                            'field' => RuleCondition::FIELD_DESCRIPTION,
-                            'operator' => RuleCondition::OPERATOR_CONTAINS,
+                            'field' => ConditionField::FIELD_DESCRIPTION->value,
+                            'operator' => ConditionOperator::OPERATOR_CONTAINS->value,
                             'value' => 'UBER',
                         ],
                     ],
@@ -295,7 +299,7 @@ class RuleEngineTest extends TestCase
             ],
             'actions' => [
                 [
-                    'action_type' => RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS,
+                    'action_type' => ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS->value,
                     'action_value' => 'Transportation',
                 ],
             ],
@@ -318,14 +322,14 @@ class RuleEngineTest extends TestCase
         return $this->ruleRepository->createRule($this->user, [
             'rule_group_id' => $this->createRuleGroup()->id,
             'name' => 'Sample Rule',
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL->value,
             'condition_groups' => [
                 [
                     'logic_operator' => 'AND',
                     'conditions' => [
                         [
-                            'field' => RuleCondition::FIELD_AMOUNT,
-                            'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+                            'field' => ConditionField::FIELD_AMOUNT->value,
+                            'operator' => ConditionOperator::OPERATOR_GREATER_THAN->value,
                             'value' => '0',
                         ],
                     ],
@@ -333,7 +337,7 @@ class RuleEngineTest extends TestCase
             ],
             'actions' => [
                 [
-                    'action_type' => RuleAction::ACTION_SET_NOTE,
+                    'action_type' => ActionType::ACTION_SET_NOTE->value,
                     'action_value' => 'Processed by rule',
                 ],
             ],
