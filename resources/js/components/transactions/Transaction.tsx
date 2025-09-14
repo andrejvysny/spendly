@@ -8,6 +8,7 @@ import { icons } from '../ui/icon-picker';
 import TransactionDetails from './TransactionDetails';
 
 interface Props extends TransactionType {
+    compact: boolean;
     isSelected?: boolean;
     onSelect?: (id: string, selected: boolean) => void;
 }
@@ -17,10 +18,12 @@ interface Props extends TransactionType {
  *
  * Displays transaction information including partner, merchant, account, type, date, and amount. Allows selection via a checkbox and toggling of detailed view.
  *
+ * @param compact
  * @param isSelected - Whether the transaction is currently selected.
  * @param onSelect - Callback invoked when the selection state changes, receiving the transaction ID and new checked state.
+ * @param transaction
  */
-export default function Transaction({ isSelected = false, onSelect, ...transaction }: Props) {
+export default function Transaction({ compact = false, isSelected = false, onSelect, ...transaction }: Props) {
     const [isExpanded, setIsExpanded] = useState(false);
 
     return (
@@ -32,10 +35,13 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                 </div>
 
                 {/* Transaction Card */}
-                <div className={"bg-card rounded-xl border-1 p-2 shadow-xs transition-colors " + (isSelected ? 'border-current' : 'hover:border-current')}>
+                <div className={"bg-card rounded-xl border-1 shadow-xs transition-colors " + (isSelected ? 'border-current' : 'hover:border-current') + (compact ? 'py-1 px-2' : ' p-2')}>
                     <div className="flex w-full cursor-pointer items-center gap-4" onClick={() => setIsExpanded(!isExpanded)}>
+
+
+
                         <div
-                            className="flex h-14 w-14 items-center justify-center rounded-full p-3"
+                            className={"flex items-center justify-center rounded-full " + (compact ? ' h-8 w-8 p-1' : 'h-12 w-12 p-2')}
                             style={{ backgroundColor: transaction.category?.color || '#333333' }}
                             title={transaction.category?.name || 'Uncategorized'}
                         >
@@ -58,24 +64,30 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                                 </svg>
                             )}
                         </div>
+
+
                         <div className="flex-1">
-                            <div className="font-medium">{transaction.partner || transaction.merchant?.name || transaction.type}</div>
+                            <div className={!compact ? "font-medium" : "font-medium text-sm"}>{transaction.partner || transaction.merchant?.name || transaction.type}</div>
                             <small className="text-gray-500">{formatDate(transaction.processed_date)}</small>
-                            <div className="mt-1 flex gap-2">
-                                {transaction.account && (
-                                    <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
+                        {
+                            !compact && (
+
+
+                                    <div className="mt-1 flex gap-2">
+                                        {transaction.account && (
+                                            <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
                                         {transaction.account?.name}
                                     </span>
-                                )}
+                                        )}
 
-                                <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
+                                        <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
                                     {transaction.type}
                                 </span>
 
-                                {transaction.merchant?.name && (
-                                    <span
-                                        className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.merchant.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
-                                    >
+                                        {transaction.merchant?.name && (
+                                            <span
+                                                className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.merchant.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
+                                            >
                                         {transaction.merchant.logo ? (
                                             <img
                                                 src={transaction.merchant.logo}
@@ -86,15 +98,20 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                                             <span className="text-xs font-bold">{transaction.merchant.name}</span>
                                         )}
                                     </span>
-                                )}
-                            </div>
-                        </div>
+                                        )}
+                                    </div>
+
+
+                            )
+                        }
+                    </div>
+
                         {transaction.amount < 0 ? (
-                            <div className="text-destructive-foreground text-lg font-semibold">
+                            <div className={"text-destructive-foreground  font-semibold" + (compact ? ' text-md' : ' text-lg')}>
                                 ▼ {formatAmount(transaction.amount, transaction.currency)}
                             </div>
                         ) : (
-                            <div className="text-lg font-semibold text-green-500">▲ {formatAmount(transaction.amount, transaction.currency)}</div>
+                            <div className={"font-semibold text-green-500"+ (compact ? ' text-md' : ' text-lg')}>▲ {formatAmount(transaction.amount, transaction.currency)}</div>
                         )}
                     </div>
 

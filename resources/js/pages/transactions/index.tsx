@@ -955,6 +955,7 @@ export default function Index({
                                         onLoadMore={handleLoadMore}
                                         isLoadingMore={isLoadingMore}
                                         totalCount={totalCount}
+                                        compact={compactView}
                                     />
                                 </>
                             )}
