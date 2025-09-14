@@ -197,6 +197,65 @@ class ImportFailurePersister
     }
 
     /**
+     * Persist SQL failures from the transaction persistence layer.
+     */
+    public function persistSqlFailures(TransactionPersistenceResult $persistenceResult, Import $import): array
+    {
+        $stats = [
+            'sql_failures_stored' => 0,
+        ];
+
+        if (!$persistenceResult->hasSqlFailures()) {
+            return $stats;
+        }
+
+        foreach ($persistenceResult->getSqlFailures() as $failure) {
+            $transactionDto = $failure['transaction_dto'];
+            $exception = $failure['exception'];
+            $metadata = $failure['metadata'];
+
+            $metadata['headers'] = array_keys($this->extractRawDataFromDto($transactionDto));
+            // Determine error type based on exception
+            $errorType = TransactionPersistenceResult::isFingerprintConstraintViolation($exception)
+                ? ImportFailure::ERROR_TYPE_DUPLICATE
+                : ImportFailure::ERROR_TYPE_PROCESSING_ERROR;
+
+            // Create failure data
+            $failureData = [
+                'import_id' => $import->id,
+                'row_number' => $metadata['row_number'] ?? null,
+                'raw_data' => array_values($this->extractRawDataFromDto($transactionDto)),
+                'error_type' => $errorType,
+                'error_message' => $this->formatSqlErrorMessage($exception, $errorType),
+                'error_details' => $this->formatSqlErrorDetails($exception, $metadata),
+                'parsed_data' => $transactionDto->toArray(),
+                'metadata' => $this->formatSqlFailureMetadata($metadata, $exception),
+                'status' => ImportFailure::STATUS_PENDING,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+
+            $this->failureBatch[] = $failureData;
+            $stats['sql_failures_stored']++;
+
+            // Process batch if it's full
+            if (count($this->failureBatch) >= $this->batchSize) {
+                $this->processBatch();
+            }
+        }
+
+        // Process any remaining failures in the batch
+        $this->processBatch();
+
+        Log::info('SQL failures persisted', [
+            'import_id' => $import->id,
+            'stats' => $stats,
+        ]);
+
+        return $stats;
+    }
+
+    /**
      * Force process any remaining failures in the batch.
      */
     public function flush(): void
@@ -204,5 +263,74 @@ class ImportFailurePersister
         if (! empty($this->failureBatch)) {
             $this->processBatch();
         }
+    }
+
+    /**
+     * Extract raw data from TransactionDto for storage.
+     */
+    private function extractRawDataFromDto(TransactionDto $dto): array
+    {
+        // Try to get original import data if available
+        $importData = $dto->get('import_data', []);
+        if (is_array($importData) && !empty($importData)) {
+
+            if (is_string($importData)) {
+                // Attempt to decode JSON string if necessary
+                $decoded = json_decode($importData, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $decoded;
+                }
+            }
+
+            return $importData;
+        }
+
+        // Fallback to DTO array representation
+        return $dto->toArray();
+    }
+
+    /**
+     * Format SQL error message for user-friendly display.
+     */
+    private function formatSqlErrorMessage(\Exception $exception, string $errorType): string
+    {
+        if ($errorType === ImportFailure::ERROR_TYPE_DUPLICATE) {
+            return 'Duplicate transaction detected - transaction with same fingerprint already exists';
+        }
+
+        return 'Database error occurred while saving transaction: ' . $exception->getMessage();
+    }
+
+    /**
+     * Format SQL error details for storage.
+     */
+    private function formatSqlErrorDetails(\Exception $exception, array $metadata): array
+    {
+        $details = [
+            'message' => $exception->getMessage(),
+            'exception_type' => get_class($exception),
+            'sql_error' => true,
+        ];
+
+        // Add specific details for fingerprint violations
+        if (TransactionPersistenceResult::isFingerprintConstraintViolation($exception)) {
+            $details['constraint_violation'] = 'fingerprint';
+            $details['duplicate_detection'] = 'Fingerprint collision detected';
+            $details['fingerprint'] = $metadata['fingerprint'] ?? 'unknown';
+        }
+
+        return $details;
+    }
+
+    /**
+     * Format metadata for SQL failures.
+     */
+    private function formatSqlFailureMetadata(array $metadata, \Exception $exception): array
+    {
+        return array_merge($metadata, [
+            'sql_failure' => true,
+            'error_type' => TransactionPersistenceResult::determineErrorType($exception),
+            'failure_timestamp' => now()->toISOString(),
+        ]);
     }
 }

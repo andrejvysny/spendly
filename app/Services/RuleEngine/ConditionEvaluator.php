@@ -9,6 +9,11 @@ use Carbon\Carbon;
 
 class ConditionEvaluator implements ConditionEvaluatorInterface
 {
+    // Field value cache for performance optimization
+    private array $fieldValueCache = [];
+    private int $cacheHits = 0;
+    private int $cacheMisses = 0;
+
     public function evaluate(RuleCondition $condition, Transaction $transaction): bool
     {
         $fieldValue = $this->getFieldValue($transaction, $condition->field);
@@ -47,7 +52,17 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
 
     public function getFieldValue(Transaction $transaction, string $field): mixed
     {
-        return match ($field) {
+        // Use cache to avoid repeated calculations
+        $cacheKey = $transaction->id . '.' . $field;
+        
+        if (isset($this->fieldValueCache[$cacheKey])) {
+            $this->cacheHits++;
+            return $this->fieldValueCache[$cacheKey];
+        }
+        
+        $this->cacheMisses++;
+        
+        $value = match ($field) {
             RuleCondition::FIELD_AMOUNT => $transaction->amount,
             RuleCondition::FIELD_DESCRIPTION => $transaction->description,
             RuleCondition::FIELD_PARTNER => $transaction->partner,
@@ -64,6 +79,34 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
             RuleCondition::FIELD_TAGS => $transaction->tags->pluck('name')->toArray(),
             default => null,
         };
+        
+        // Cache the value
+        $this->fieldValueCache[$cacheKey] = $value;
+        
+        return $value;
+    }
+
+    /**
+     * Clear the field value cache to free memory.
+     */
+    public function clearCache(): self
+    {
+        $this->fieldValueCache = [];
+        
+        return $this;
+    }
+
+    /**
+     * Get cache statistics.
+     */
+    public function getCacheStats(): array
+    {
+        return [
+            'hits' => $this->cacheHits,
+            'misses' => $this->cacheMisses,
+            'hit_ratio' => $this->cacheMisses > 0 ? $this->cacheHits / ($this->cacheHits + $this->cacheMisses) : 1.0,
+            'cached_values' => count($this->fieldValueCache),
+        ];
     }
 
     private function evaluateEquals($fieldValue, $conditionValue, bool $caseSensitive): bool

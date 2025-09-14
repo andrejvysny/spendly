@@ -88,6 +88,9 @@ function FailureCollapse({ failure, selectedFailures, handleSelectFailure, handl
                                     <p className="mb-2 font-medium text-red-800">{failure.error_details.message}</p>
                                     {failure.error_details.errors && failure.error_details.errors.length > 0 && (
                                         <ul className="list-inside list-disc space-y-1 text-red-700">
+
+                                            {failure.error_details.fingerprint}
+
                                             {failure.error_details.errors.map((error: string, index: number) => (
                                                 <li key={index}>{error}</li>
                                             ))}

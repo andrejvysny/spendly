@@ -6,7 +6,7 @@ use App\Contracts\OwnedByUserContract;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
-class ImportPolicy extends
+class ImportPolicy
 {
     use HandlesAuthorization;
 

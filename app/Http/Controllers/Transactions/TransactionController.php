@@ -239,76 +239,13 @@ class TransactionController extends Controller
         }
     }
 
-    /**
-     * Creates a new transaction with validated data and optional tags.
-     *
-     * Validates the request data, creates a transaction record, attaches tags if provided, and redirects back with a success or error message.
-     */
-    public function store(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'transaction_id' => 'required|string|max:255',
-                'amount' => 'required|numeric',
-                'currency' => 'required|string|max:3',
-                'booked_date' => 'required|date',
-                'processed_date' => 'required|date',
-                'description' => 'required|string|max:255',
-                'target_iban' => 'nullable|string|max:255',
-                'source_iban' => 'nullable|string|max:255',
-                'partner' => 'nullable|string|max:255',
-                'type' => 'required|string|max:255',
-                'metadata' => 'nullable|array',
-                'balance_after_transaction' => 'required|numeric',
-                'account_id' => 'required|exists:accounts,id',
-                'merchant_id' => 'nullable|exists:merchants,id',
-                'category_id' => 'nullable|exists:categories,id',
-                'tags' => 'nullable|array',
-                'tags.*' => 'exists:tags,id',
-                'note' => 'nullable|string',
-                'recipient_note' => 'nullable|string',
-                'place' => 'nullable|string|max:255',
-            ]);
-
-            $tagIds = $validated['tags'] ?? [];
-            unset($validated['tags']);
-
-            $transaction = Transaction::create($validated);
-
-            if (! empty($tagIds)) {
-                $transaction->tags()->attach($tagIds);
-            }
-
-            // Check if this is an API request
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Transaction created successfully',
-                    'transaction' => $transaction->load(['account', 'merchant', 'category', 'tags']),
-                ], 201);
-            }
-
-            return redirect()->back()->with('success', 'Transaction created successfully');
-        } catch (\Exception $e) {
-            Log::error('Transaction creation failed: '.$e->getMessage());
-
-            // Check if this is an API request
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'error' => 'Failed to create transaction',
-                    'message' => $e->getMessage(),
-                ], 500);
-            }
-
-            return redirect()->back()->with('error', 'Failed to create transaction: '.$e->getMessage());
-        }
-    }
 
     /**
      * Updates the merchant, category, and tags of a transaction.
      *
      * Validates and applies updates to the specified transaction, including synchronizing associated tags. Redirects back with a success or error message based on the outcome.
      */
-    public function update(Request $request, Transaction $transaction)
+    public function update(Request $request, Transaction $transaction): \Illuminate\Http\RedirectResponse
     {
         try {
             $validated = $request->validate([
@@ -342,7 +279,7 @@ class TransactionController extends Controller
      *
      * @return JsonResponse JSON response with a success message or error details.
      */
-    public function bulkUpdate(Request $request)
+    public function bulkUpdate(Request $request): JsonResponse
     {
         try {
             $validated = $request->validate([
@@ -380,7 +317,7 @@ class TransactionController extends Controller
      *
      * @return JsonResponse JSON response indicating success or failure.
      */
-    public function updateTransaction(Request $request, Transaction $transaction)
+    public function updateTransaction(Request $request, Transaction $transaction): JsonResponse
     {
 
         $validated = $request->validate([

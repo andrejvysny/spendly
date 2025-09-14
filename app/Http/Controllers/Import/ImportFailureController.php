@@ -22,7 +22,7 @@ class ImportFailureController extends Controller
      */
     public function failuresPage(Import $import, Request $request): Response
     {
-        Gate::authorize('view', $import);
+        //Gate::authorize('view', $import);
 
         $query = $import->failures();
 
@@ -69,7 +69,7 @@ class ImportFailureController extends Controller
      */
     public function index(Import $import, Request $request): JsonResponse
     {
-        Gate::authorize('view', $import);
+       // Gate::authorize('view', $import);
 
         $query = $import->failures();
 
@@ -127,7 +127,7 @@ class ImportFailureController extends Controller
      */
     public function show(Import $import, ImportFailure $failure): JsonResponse
     {
-        Gate::authorize('view', $import);
+       // Gate::authorize('view', $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -147,7 +147,7 @@ class ImportFailureController extends Controller
      */
     public function markAsReviewed(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+      //  Gate::authorize('update', $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -182,7 +182,7 @@ class ImportFailureController extends Controller
      */
     public function markAsResolved(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+    //    Gate::authorize('update', $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -217,7 +217,7 @@ class ImportFailureController extends Controller
      */
     public function markAsIgnored(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+     //   Gate::authorize('update', $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -252,7 +252,7 @@ class ImportFailureController extends Controller
      */
     public function markAsPending(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+       // Gate::authorize('update', $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -286,7 +286,7 @@ class ImportFailureController extends Controller
      */
     public function bulkUpdate(Import $import, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+        //Gate::authorize('update', $import);
 
         $request->validate([
             'failure_ids' => 'required|array|min:1',
@@ -342,7 +342,7 @@ class ImportFailureController extends Controller
      */
     public function stats(Import $import): JsonResponse
     {
-        Gate::authorize('view', $import);
+        //Gate::authorize('view', $import);
 
         $stats = $import->getFailureStats();
 
@@ -357,7 +357,7 @@ class ImportFailureController extends Controller
      */
     public function export(Import $import, Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        Gate::authorize('view', $import);
+      //  Gate::authorize('view', $import);
 
         $query = $import->failures();
 
@@ -417,7 +417,7 @@ class ImportFailureController extends Controller
      */
     public function createTransactionFromReview(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+       // Gate::authorize('update', $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {

@@ -20,13 +20,20 @@ class TransactionPersister
 
     private int $batchSize = 500;
 
+    private TransactionPersistenceResult $persistenceResult;
+
     public function __construct(
         private readonly RuleEngineInterface $ruleEngine,
         private readonly TransactionRepositoryInterface $transactions
-    ) {}
+    ) {
+        $this->persistenceResult = new TransactionPersistenceResult();
+    }
 
-    public function persistBatch(BatchResultInterface $transactions): void
+    public function persistBatch(BatchResultInterface $transactions): TransactionPersistenceResult
     {
+        // Reset persistence result for this batch
+        $this->persistenceResult = new TransactionPersistenceResult();
+
         foreach ($transactions->getSuccessResults() as $transaction) {
             assert($transaction instanceof CsvProcessResult, 'Expected CsvProcessResult in batch results');
 
@@ -61,6 +68,7 @@ class TransactionPersister
             $this->processBatch();
         }
 
+        return $this->persistenceResult;
     }
 
     /**
@@ -140,6 +148,11 @@ class TransactionPersister
                 Log::info('Batch processed successfully', [
                     'batch_size' => count($batch),
                 ]);
+
+                // Update success count for successful batch
+                $this->persistenceResult->setSuccessCount(
+                    $this->persistenceResult->getSuccessCount() + count($batch)
+                );
             });
         } catch (\Exception $e) {
             Log::error('Batch processing failed', [
@@ -164,8 +177,20 @@ class TransactionPersister
                             'error' => $individualError->getMessage(),
                             'transaction_id' => $data->get('transaction_id', 'unknown'),
                         ]);
+
+                        // Collect SQL failure for later processing
+                        $this->persistenceResult->addSqlFailure($data, $individualError, [
+                            'transaction_id' => $data->get('transaction_id', 'unknown'),
+                            'account_id' => $data->get('account_id', 'unknown'),
+                            'fingerprint' => $data->get('fingerprint', 'unknown'),
+                        ]);
                     }
                 }
+
+                // Update success count
+                $this->persistenceResult->setSuccessCount(
+                    $this->persistenceResult->getSuccessCount() + $created->count()
+                );
 
                 if ($created->isNotEmpty()) {
                     $user = $created->first()->account->user;

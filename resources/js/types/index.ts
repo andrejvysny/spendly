@@ -112,6 +112,7 @@ export interface ImportFailure {
         field?: string;
         validation_errors?: string[];
         duplicate_fingerprint?: string;
+        fingerprint?: string;
         exception?: string;
     };
     parsed_data: {
