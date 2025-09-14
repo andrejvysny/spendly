@@ -22,7 +22,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         Category::class => OwnedByUserPolicy::class,
-       // Import::class => OwnedByUserPolicy::class,
+        Import::class => OwnedByUserPolicy::class,
         Merchant::class => OwnedByUserPolicy::class,
         Tag::class => OwnedByUserPolicy::class,
     ];

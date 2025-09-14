@@ -230,9 +230,7 @@ class GoCardlessControllerTest extends TestCase
 		];
 	}
 
-	/**
-	 * @dataProvider booleanParameterProvider
-	 */
+    #[\PHPUnit\Framework\Attributes\DataProvider('booleanParameterProvider')]
 	public function test_sync_transactions_parameter_combinations(bool $updateExisting, bool $forceMaxDateRange): void
 	{
 		$user = $this->createUser();

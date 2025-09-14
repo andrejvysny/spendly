@@ -42,9 +42,7 @@ class ActionExecutorTest extends TestCase
         ]);
     }
 
-    /**
-     * @test
-     */
+
     public function it_sets_category()
     {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
@@ -60,9 +58,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals($category->id, $this->transaction->fresh()->category_id);
     }
 
-    /**
-     * @test
-     */
+
     public function it_fails_to_set_category_from_different_user()
     {
         $otherCategory = Category::factory()->create(['user_id' => User::factory()->create()->id]);
@@ -78,9 +74,7 @@ class ActionExecutorTest extends TestCase
         $this->assertNull($this->transaction->fresh()->category_id);
     }
 
-    /**
-     * @test
-     */
+
     public function it_sets_merchant()
     {
         $merchant = Merchant::factory()->create(['user_id' => $this->user->id]);
@@ -96,9 +90,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals($merchant->id, $this->transaction->fresh()->merchant_id);
     }
 
-    /**
-     * @test
-     */
+
     public function it_adds_tag()
     {
         $tag = Tag::factory()->create(['user_id' => $this->user->id]);
@@ -115,9 +107,7 @@ class ActionExecutorTest extends TestCase
         $this->assertTrue($this->transaction->tags->contains($tag));
     }
 
-    /**
-     * @test
-     */
+
     public function it_does_not_duplicate_tags()
     {
         $tag = Tag::factory()->create(['user_id' => $this->user->id]);
@@ -134,9 +124,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals(1, $this->transaction->tags()->count());
     }
 
-    /**
-     * @test
-     */
+
     public function it_removes_tag()
     {
         $tag = Tag::factory()->create(['user_id' => $this->user->id]);
@@ -153,9 +141,7 @@ class ActionExecutorTest extends TestCase
         $this->assertFalse($this->transaction->fresh()->tags->contains($tag));
     }
 
-    /**
-     * @test
-     */
+
     public function it_removes_all_tags()
     {
         $tags = Tag::factory()->count(3)->create(['user_id' => $this->user->id]);
@@ -171,9 +157,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals(0, $this->transaction->fresh()->tags()->count());
     }
 
-    /**
-     * @test
-     */
+
     public function it_sets_description()
     {
         $action = new RuleAction([
@@ -187,9 +171,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals('New Description', $this->transaction->fresh()->description);
     }
 
-    /**
-     * @test
-     */
+
     public function it_appends_to_description()
     {
         $action = new RuleAction([
@@ -203,9 +185,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals('Original Description - Appended', $this->transaction->fresh()->description);
     }
 
-    /**
-     * @test
-     */
+
     public function it_prepends_to_description()
     {
         $action = new RuleAction([
@@ -219,9 +199,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals('Prepended - Original Description', $this->transaction->fresh()->description);
     }
 
-    /**
-     * @test
-     */
+
     public function it_sets_note()
     {
         $action = new RuleAction([
@@ -235,9 +213,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals('New Note', $this->transaction->fresh()->note);
     }
 
-    /**
-     * @test
-     */
+
     public function it_appends_to_note()
     {
         $action = new RuleAction([
@@ -251,9 +227,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals('Original Note - Additional info', $this->transaction->fresh()->note);
     }
 
-    /**
-     * @test
-     */
+
     public function it_sets_type()
     {
         $action = new RuleAction([
@@ -267,9 +241,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals(Transaction::TYPE_TRANSFER, $this->transaction->fresh()->type);
     }
 
-    /**
-     * @test
-     */
+
     public function it_fails_to_set_invalid_type()
     {
         $action = new RuleAction([
@@ -282,9 +254,7 @@ class ActionExecutorTest extends TestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
+
     public function it_marks_as_reconciled()
     {
         $action = new RuleAction([
@@ -297,9 +267,7 @@ class ActionExecutorTest extends TestCase
         $this->assertTrue($this->transaction->fresh()->is_reconciled);
     }
 
-    /**
-     * @test
-     */
+
     public function it_sends_notification()
     {
         Log::shouldReceive('info')
@@ -317,9 +285,7 @@ class ActionExecutorTest extends TestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
+
     public function it_creates_tag_if_not_exists()
     {
         $action = new RuleAction([
@@ -336,9 +302,7 @@ class ActionExecutorTest extends TestCase
         $this->assertTrue($this->transaction->fresh()->tags->contains($tag));
     }
 
-    /**
-     * @test
-     */
+
     public function it_uses_existing_tag_when_creating_if_not_exists()
     {
         $existingTag = Tag::factory()->create([
@@ -358,9 +322,7 @@ class ActionExecutorTest extends TestCase
         $this->assertTrue($this->transaction->fresh()->tags->contains($existingTag));
     }
 
-    /**
-     * @test
-     */
+
     public function it_creates_category_if_not_exists()
     {
         $action = new RuleAction([
@@ -377,9 +339,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals($category->id, $this->transaction->fresh()->category_id);
     }
 
-    /**
-     * @test
-     */
+
     public function it_creates_merchant_if_not_exists()
     {
         $action = new RuleAction([
@@ -396,9 +356,7 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals($merchant->id, $this->transaction->fresh()->merchant_id);
     }
 
-    /**
-     * @test
-     */
+
     public function it_handles_action_execution_errors_gracefully()
     {
         // Create action with invalid data
@@ -412,9 +370,7 @@ class ActionExecutorTest extends TestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
+
     public function it_validates_action_values()
     {
         // ID-based action
@@ -430,9 +386,7 @@ class ActionExecutorTest extends TestCase
         $this->assertTrue($this->executor->validateActionValue(ActionType::ACTION_REMOVE_ALL_TAGS, 'any value'));
     }
 
-    /**
-     * @test
-     */
+
     public function it_generates_action_descriptions()
     {
         $category = Category::factory()->create(['name' => 'Test Category']);
@@ -447,9 +401,7 @@ class ActionExecutorTest extends TestCase
         $this->assertStringContainsString('Test Category', $description);
     }
 
-    /**
-     * @test
-     */
+
     public function it_supports_all_defined_action_types()
     {
         $actionTypes = RuleAction::getActionTypes();

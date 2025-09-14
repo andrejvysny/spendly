@@ -2,6 +2,7 @@
 
 namespace App\Models\Import;
 
+use App\Contracts\OwnedByUserContract;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
-class Import extends Model
+class Import extends Model implements OwnedByUserContract
 {
     /** @use HasFactory<\Database\Factories\ImportFactory> */
     use HasFactory;
@@ -107,5 +108,10 @@ class Import extends Model
                 ->pluck('count', 'error_type')
                 ->toArray(),
         ];
+    }
+
+    public function getUserId(): int
+    {
+        return $this->user_id;
     }
 }
