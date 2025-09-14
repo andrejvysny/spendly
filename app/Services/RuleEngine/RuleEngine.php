@@ -6,11 +6,13 @@ use App\Contracts\RuleEngine\ActionExecutorInterface;
 use App\Contracts\RuleEngine\ConditionEvaluatorInterface;
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Models\RuleEngine\ConditionGroup;
+use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\RuleAction;
 use App\Models\RuleEngine\RuleCondition;
 use App\Models\RuleEngine\RuleExecutionLog;
 use App\Models\RuleEngine\RuleGroup;
+use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -20,10 +22,6 @@ use Illuminate\Support\Facades\Log;
 class RuleEngine implements RuleEngineInterface
 {
     private User $user;
-
-    private ConditionEvaluatorInterface $conditionEvaluator;
-
-    private ActionExecutorInterface $actionExecutor;
 
     private bool $logging = true;
 
@@ -42,11 +40,9 @@ class RuleEngine implements RuleEngineInterface
     private int $cacheMisses = 0;
 
     public function __construct(
-        ConditionEvaluatorInterface $conditionEvaluator,
-        ActionExecutorInterface $actionExecutor
+        private readonly ConditionEvaluatorInterface $conditionEvaluator,
+        private readonly ActionExecutorInterface $actionExecutor
     ) {
-        $this->conditionEvaluator = $conditionEvaluator;
-        $this->actionExecutor = $actionExecutor;
     }
 
     public function setUser(User $user): self
@@ -56,12 +52,12 @@ class RuleEngine implements RuleEngineInterface
         return $this;
     }
 
-    public function processTransaction(Transaction $transaction, string $triggerType): void
+    public function processTransaction(Transaction $transaction, Trigger $triggerType): void
     {
         $this->processTransactions(collect([$transaction]), $triggerType);
     }
 
-    public function processTransactions(Collection $transactions, string $triggerType): void
+    public function processTransactions(Collection $transactions, Trigger $triggerType): void
     {
         $rules = $this->getActiveRulesForTrigger($triggerType);
 
@@ -106,7 +102,7 @@ class RuleEngine implements RuleEngineInterface
                 ->orderBy('order')
                 ->get();
         } else {
-            $rules = $this->getActiveRulesForTrigger(Rule::TRIGGER_MANUAL);
+            $rules = $this->getActiveRulesForTrigger(Trigger::MANUAL);
         }
 
         // Pre-cache the rule relationships for better performance
@@ -120,17 +116,17 @@ class RuleEngine implements RuleEngineInterface
             foreach ($transactions as $transaction) {
                 $this->processTransactionThroughRules($transaction, $rules);
             }
-            
+
             $processed += $transactions->count();
-            
+
             // Flush logs periodically during chunked processing
             $this->flushPendingLogs();
-            
+
             // Clear transaction field cache periodically to manage memory
             if (count($this->transactionFieldCache) > 1000) {
                 $this->transactionFieldCache = [];
             }
-            
+
             // Log progress for large operations
             if ($processed % ($chunkSize * 10) === 0) {
                 Log::info("RuleEngine: Processed {$processed} transactions");
@@ -139,7 +135,7 @@ class RuleEngine implements RuleEngineInterface
 
         // Final flush of any remaining logs
         $this->flushPendingLogs();
-        
+
         Log::info("RuleEngine: Date range processing completed", [
             'total_processed' => $processed,
             'start_date' => $startDate->format('Y-m-d'),
@@ -185,12 +181,12 @@ class RuleEngine implements RuleEngineInterface
         $this->transactionFieldCache = [];
         $this->pendingLogs = [];
         $this->currentTriggerType = '';
-        
+
         // Also clear ActionExecutor caches if it supports clearing
         if (method_exists($this->actionExecutor, 'clearCaches')) {
             $this->actionExecutor->clearCaches();
         }
-        
+
         // Also clear ConditionEvaluator caches if it supports clearing
         if (method_exists($this->conditionEvaluator, 'clearCache')) {
             $this->conditionEvaluator->clearCache();
@@ -202,18 +198,18 @@ class RuleEngine implements RuleEngineInterface
     /**
      * Process a large number of transactions efficiently with batch optimization.
      */
-    public function processBatch(Collection $transactionIds, string $triggerType, int $batchSize = 50): void
+    public function processBatch(Collection $transactionIds, Trigger $triggerType, int $batchSize = 50): void
     {
         $rules = $this->getActiveRulesForTrigger($triggerType);
-        
+
         if ($rules->isEmpty()) {
-            Log::info('No active rules found for trigger type: ' . $triggerType);
+            Log::info('No active rules found for trigger type: ' . $triggerType->value);
             return;
         }
 
         $processed = 0;
         $total = $transactionIds->count();
-        
+
         Log::info("Starting batch processing", [
             'total_transactions' => $total,
             'batch_size' => $batchSize,
@@ -222,7 +218,7 @@ class RuleEngine implements RuleEngineInterface
         ]);
 
         // Process in batches
-        $transactionIds->chunk($batchSize)->each(function ($chunk) use ($rules, &$processed, $total) {
+        $transactionIds->chunk($batchSize)->each(function ($chunk) use ($batchSize, $rules, &$processed, $total) {
             // Load transactions with relationships for this chunk
             $transactions = Transaction::with(['account', 'tags', 'category', 'merchant'])
                 ->whereIn('id', $chunk->toArray())
@@ -236,7 +232,7 @@ class RuleEngine implements RuleEngineInterface
 
             // Periodic cleanup and logging
             $this->flushPendingLogs();
-            
+
             if (count($this->transactionFieldCache) > 500) {
                 $this->transactionFieldCache = [];
             }
@@ -247,7 +243,7 @@ class RuleEngine implements RuleEngineInterface
         });
 
         $this->flushPendingLogs();
-        
+
         Log::info("Batch processing completed", [
             'total_processed' => $processed,
             'cache_stats' => $this->getCacheStats(),
@@ -271,17 +267,17 @@ class RuleEngine implements RuleEngineInterface
                 'pending_logs' => count($this->pendingLogs),
             ],
         ];
-        
+
         // Get ActionExecutor cache stats if available
         if (method_exists($this->actionExecutor, 'getCacheStats')) {
             $stats['action_executor'] = $this->actionExecutor->getCacheStats();
         }
-        
+
         // Get ConditionEvaluator cache stats if available
         if (method_exists($this->conditionEvaluator, 'getCacheStats')) {
             $stats['condition_evaluator'] = $this->conditionEvaluator->getCacheStats();
         }
-        
+
         return $stats;
     }
 
@@ -305,22 +301,22 @@ class RuleEngine implements RuleEngineInterface
         }
     }
 
-    private function getActiveRulesForTrigger(string $triggerType): Collection
+    private function getActiveRulesForTrigger(Trigger $triggerType): Collection
     {
         // Check if we have cached rules for this trigger type
-        if ($this->cachedRules !== null && $this->currentTriggerType === $triggerType) {
+        if ($this->cachedRules !== null && $this->currentTriggerType === $triggerType->value) {
             $this->cacheHits++;
             return $this->cachedRules;
         }
 
         $this->cacheMisses++;
-        $this->currentTriggerType = $triggerType;
+        $this->currentTriggerType = $triggerType->value;
 
         // Load all rules with their relationships in a single optimized query
         $rules = RuleGroup::with([
             'rules' => function ($query) use ($triggerType) {
                 $query->where('is_active', true)
-                    ->where('trigger_type', $triggerType)
+                    ->where('trigger_type', $triggerType->value)
                     ->orderBy('order')
                     ->with(['conditionGroups.conditions', 'actions']);
             },
@@ -402,16 +398,16 @@ class RuleEngine implements RuleEngineInterface
         }
 
         $this->cacheMisses++;
-        
+
         // Fallback to database query if not cached (shouldn't happen in normal flow)
         $conditionGroups = ConditionGroup::with('conditions')
             ->where('rule_id', $ruleId)
             ->orderBy('order')
             ->get()
             ->keyBy('id');
-            
+
         $this->cachedConditionGroups[$ruleId] = $conditionGroups;
-        
+
         return $conditionGroups;
     }
 
@@ -426,14 +422,14 @@ class RuleEngine implements RuleEngineInterface
         }
 
         $this->cacheMisses++;
-        
+
         // Fallback to database query if not cached
         $actions = RuleAction::where('rule_id', $ruleId)
             ->orderBy('order')
             ->get();
-            
+
         $this->cachedActions[$ruleId] = $actions;
-        
+
         return $actions;
     }
 
@@ -471,7 +467,7 @@ class RuleEngine implements RuleEngineInterface
     private function evaluateConditionWithCache(RuleCondition $condition, Transaction $transaction): bool
     {
         $cacheKey = $transaction->id . '.' . $condition->field;
-        
+
         // Check if field value is cached
         if (!isset($this->transactionFieldCache[$cacheKey])) {
             $this->transactionFieldCache[$cacheKey] = $this->conditionEvaluator->getFieldValue($transaction, $condition->field);
@@ -481,41 +477,9 @@ class RuleEngine implements RuleEngineInterface
         }
 
         $fieldValue = $this->transactionFieldCache[$cacheKey];
-        
-        // Temporarily override the condition evaluator's getFieldValue method result
-        return $this->evaluateConditionWithFieldValue($condition, $fieldValue);
-    }
 
-    /**
-     * Evaluate condition with pre-extracted field value.
-     */
-    private function evaluateConditionWithFieldValue(RuleCondition $condition, $fieldValue): bool
-    {
-        $conditionValue = $condition->value;
-        $caseSensitive = $condition->is_case_sensitive ?? false;
-
-        $result = match ($condition->operator) {
-            RuleCondition::OPERATOR_EQUALS => $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_EQUALS => ! $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_CONTAINS => $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_CONTAINS => ! $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_STARTS_WITH => $this->evaluateStartsWith($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_ENDS_WITH => $this->evaluateEndsWith($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_GREATER_THAN => $this->evaluateGreaterThan($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_GREATER_THAN_OR_EQUAL => $this->evaluateGreaterThanOrEqual($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_LESS_THAN => $this->evaluateLessThan($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_LESS_THAN_OR_EQUAL => $this->evaluateLessThanOrEqual($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_REGEX => $this->evaluateRegex($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_WILDCARD => $this->evaluateWildcard($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_IS_EMPTY => $this->evaluateIsEmpty($fieldValue),
-            RuleCondition::OPERATOR_IS_NOT_EMPTY => ! $this->evaluateIsEmpty($fieldValue),
-            RuleCondition::OPERATOR_IN => $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_IN => ! $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_BETWEEN => $this->evaluateBetween($fieldValue, $conditionValue),
-            default => false,
-        };
-
-        return $condition->is_negated ? ! $result : $result;
+        // Use ConditionEvaluator to perform the actual evaluation
+        return $this->conditionEvaluator->evaluateWithValue($condition, $fieldValue);
     }
 
     private function executeRuleActions(Rule $rule, Transaction $transaction): void
@@ -629,244 +593,13 @@ class RuleEngine implements RuleEngineInterface
             // Find the most recent pending log for this rule and transaction
             for ($i = count($this->pendingLogs) - 1; $i >= 0; $i--) {
                 $log = &$this->pendingLogs[$i];
-                if ($log['rule_id'] === $rule->id && 
-                    $log['transaction_id'] === $transaction->id && 
+                if ($log['rule_id'] === $rule->id &&
+                    $log['transaction_id'] === $transaction->id &&
                     !isset($log['actions_executed'])) {
                     $log['actions_executed'] = json_encode($actions);
                     break;
                 }
             }
         }
-    }
-
-    // Evaluation methods for cached field values
-    private function evaluateEquals($fieldValue, $conditionValue, bool $caseSensitive): bool
-    {
-        if ($fieldValue === null) {
-            return $conditionValue === '' || $conditionValue === null;
-        }
-
-        $fieldValue = (string) $fieldValue;
-        $conditionValue = (string) $conditionValue;
-
-        if (! $caseSensitive) {
-            return strtolower($fieldValue) === strtolower($conditionValue);
-        }
-
-        return $fieldValue === $conditionValue;
-    }
-
-    private function evaluateContains($fieldValue, $conditionValue, bool $caseSensitive): bool
-    {
-        if ($fieldValue === null || $conditionValue === '') {
-            return false;
-        }
-
-        $fieldValue = (string) $fieldValue;
-        $conditionValue = (string) $conditionValue;
-
-        if (! $caseSensitive) {
-            return str_contains(strtolower($fieldValue), strtolower($conditionValue));
-        }
-
-        return str_contains($fieldValue, $conditionValue);
-    }
-
-    private function evaluateStartsWith($fieldValue, $conditionValue, bool $caseSensitive): bool
-    {
-        if ($fieldValue === null || $conditionValue === '') {
-            return false;
-        }
-
-        $fieldValue = (string) $fieldValue;
-        $conditionValue = (string) $conditionValue;
-
-        if (! $caseSensitive) {
-            return str_starts_with(strtolower($fieldValue), strtolower($conditionValue));
-        }
-
-        return str_starts_with($fieldValue, $conditionValue);
-    }
-
-    private function evaluateEndsWith($fieldValue, $conditionValue, bool $caseSensitive): bool
-    {
-        if ($fieldValue === null || $conditionValue === '') {
-            return false;
-        }
-
-        $fieldValue = (string) $fieldValue;
-        $conditionValue = (string) $conditionValue;
-
-        if (! $caseSensitive) {
-            return str_ends_with(strtolower($fieldValue), strtolower($conditionValue));
-        }
-
-        return str_ends_with($fieldValue, $conditionValue);
-    }
-
-    private function evaluateGreaterThan($fieldValue, $conditionValue): bool
-    {
-        if ($fieldValue === null) {
-            return false;
-        }
-
-        if ($fieldValue instanceof \DateTimeInterface) {
-            $conditionDate = \Carbon\Carbon::parse($conditionValue);
-            return $fieldValue->greaterThan($conditionDate);
-        }
-
-        return (float) $fieldValue > (float) $conditionValue;
-    }
-
-    private function evaluateGreaterThanOrEqual($fieldValue, $conditionValue): bool
-    {
-        if ($fieldValue === null) {
-            return false;
-        }
-
-        if ($fieldValue instanceof \DateTimeInterface) {
-            $conditionDate = \Carbon\Carbon::parse($conditionValue);
-            return $fieldValue->greaterThanOrEqualTo($conditionDate);
-        }
-
-        return (float) $fieldValue >= (float) $conditionValue;
-    }
-
-    private function evaluateLessThan($fieldValue, $conditionValue): bool
-    {
-        if ($fieldValue === null) {
-            return false;
-        }
-
-        if ($fieldValue instanceof \DateTimeInterface) {
-            $conditionDate = \Carbon\Carbon::parse($conditionValue);
-            return $fieldValue->lessThan($conditionDate);
-        }
-
-        return (float) $fieldValue < (float) $conditionValue;
-    }
-
-    private function evaluateLessThanOrEqual($fieldValue, $conditionValue): bool
-    {
-        if ($fieldValue === null) {
-            return false;
-        }
-
-        if ($fieldValue instanceof \DateTimeInterface) {
-            $conditionDate = \Carbon\Carbon::parse($conditionValue);
-            return $fieldValue->lessThanOrEqualTo($conditionDate);
-        }
-
-        return (float) $fieldValue <= (float) $conditionValue;
-    }
-
-    private function evaluateRegex($fieldValue, $pattern): bool
-    {
-        if ($fieldValue === null || $pattern === '') {
-            return false;
-        }
-
-        $fieldValue = (string) $fieldValue;
-
-        if (! preg_match('/^[\/~#%].*[\/~#%][imsuxADJSUX]*$/', $pattern)) {
-            $pattern = '/'.str_replace('/', '\/', $pattern).'/';
-        }
-
-        try {
-            return preg_match($pattern, $fieldValue) === 1;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    private function evaluateWildcard($fieldValue, $pattern, bool $caseSensitive): bool
-    {
-        if ($fieldValue === null || $pattern === '') {
-            return false;
-        }
-
-        $fieldValue = (string) $fieldValue;
-        $regexPattern = str_replace(
-            ['*', '?', '[', ']', '\\'],
-            ['.*', '.', '\[', '\]', '\\\\'],
-            $pattern
-        );
-
-        $regexPattern = '/^'.$regexPattern.'$/';
-        if (! $caseSensitive) {
-            $regexPattern .= 'i';
-        }
-
-        try {
-            return preg_match($regexPattern, $fieldValue) === 1;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    private function evaluateIsEmpty($fieldValue): bool
-    {
-        if ($fieldValue === null) {
-            return true;
-        }
-
-        if (is_array($fieldValue)) {
-            return empty($fieldValue);
-        }
-
-        return trim((string) $fieldValue) === '';
-    }
-
-    private function evaluateIn($fieldValue, $conditionValue, bool $caseSensitive): bool
-    {
-        if ($fieldValue === null) {
-            return false;
-        }
-
-        $values = array_map('trim', explode(',', $conditionValue));
-
-        if (is_array($fieldValue)) {
-            foreach ($fieldValue as $item) {
-                if ($this->isValueInList((string) $item, $values, $caseSensitive)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        return $this->isValueInList((string) $fieldValue, $values, $caseSensitive);
-    }
-
-    private function isValueInList(string $value, array $list, bool $caseSensitive): bool
-    {
-        if (! $caseSensitive) {
-            $value = strtolower($value);
-            $list = array_map('strtolower', $list);
-        }
-
-        return in_array($value, $list, true);
-    }
-
-    private function evaluateBetween($fieldValue, $conditionValue): bool
-    {
-        if ($fieldValue === null) {
-            return false;
-        }
-
-        $parts = array_map('trim', explode(',', $conditionValue));
-        if (count($parts) !== 2) {
-            return false;
-        }
-
-        [$min, $max] = $parts;
-
-        if ($fieldValue instanceof \DateTimeInterface) {
-            $minDate = \Carbon\Carbon::parse($min);
-            $maxDate = \Carbon\Carbon::parse($max);
-            return $fieldValue->between($minDate, $maxDate);
-        }
-
-        $value = (float) $fieldValue;
-        return $value >= (float) $min && $value <= (float) $max;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Contracts\RuleEngine;
 
+use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -16,12 +17,12 @@ interface RuleEngineInterface
     /**
      * Process a single transaction through all applicable rules.
      */
-    public function processTransaction(Transaction $transaction, string $triggerType): void;
+    public function processTransaction(Transaction $transaction, Trigger $triggerType): void;
 
     /**
      * Process multiple transactions through all applicable rules.
      */
-    public function processTransactions(Collection $transactions, string $triggerType): void;
+    public function processTransactions(Collection $transactions, Trigger $triggerType): void;
 
     /**
      * Process transactions for specific rules only.

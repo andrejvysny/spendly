@@ -8,6 +8,7 @@ use App\Contracts\Repositories\TagRepositoryInterface;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
 use App\Models\Category;
 use App\Models\Merchant;
+use App\Models\RuleEngine\ActionType;
 use App\Models\RuleEngine\RuleAction;
 use App\Models\Tag;
 use App\Models\Transaction;
@@ -22,35 +23,33 @@ class ActionExecutor implements ActionExecutorInterface
     private array $transactionUpdateBatch = [];
 
     public function __construct(
-        private CategoryRepositoryInterface $categoryRepository,
-        private MerchantRepositoryInterface $merchantRepository,
-        private TagRepositoryInterface $tagRepository
+        private readonly CategoryRepositoryInterface $categoryRepository,
+        private readonly MerchantRepositoryInterface $merchantRepository,
+        private readonly TagRepositoryInterface $tagRepository
     ) {}
 
     public function execute(RuleAction $action, Transaction $transaction): bool
     {
         try {
-            $result = match ($action->action_type) {
-                RuleAction::ACTION_SET_CATEGORY => $this->setCategory($action, $transaction),
-                RuleAction::ACTION_SET_MERCHANT => $this->setMerchant($action, $transaction),
-                RuleAction::ACTION_ADD_TAG => $this->addTag($action, $transaction),
-                RuleAction::ACTION_REMOVE_TAG => $this->removeTag($action, $transaction),
-                RuleAction::ACTION_REMOVE_ALL_TAGS => $this->removeAllTags($transaction),
-                RuleAction::ACTION_SET_DESCRIPTION => $this->setDescription($action, $transaction),
-                RuleAction::ACTION_APPEND_DESCRIPTION => $this->appendDescription($action, $transaction),
-                RuleAction::ACTION_PREPEND_DESCRIPTION => $this->prependDescription($action, $transaction),
-                RuleAction::ACTION_SET_NOTE => $this->setNote($action, $transaction),
-                RuleAction::ACTION_APPEND_NOTE => $this->appendNote($action, $transaction),
-                RuleAction::ACTION_SET_TYPE => $this->setType($action, $transaction),
-                RuleAction::ACTION_MARK_RECONCILED => $this->markReconciled($transaction),
-                RuleAction::ACTION_SEND_NOTIFICATION => $this->sendNotification($action, $transaction),
-                RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS => $this->createTagIfNotExists($action, $transaction),
-                RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => $this->createCategoryIfNotExists($action, $transaction),
-                RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => $this->createMerchantIfNotExists($action, $transaction),
+            return match (ActionType::from($action->action_type)) {
+                ActionType::ACTION_SET_CATEGORY => $this->setCategory($action, $transaction),
+                ActionType::ACTION_SET_MERCHANT => $this->setMerchant($action, $transaction),
+                ActionType::ACTION_ADD_TAG => $this->addTag($action, $transaction),
+                ActionType::ACTION_REMOVE_TAG => $this->removeTag($action, $transaction),
+                ActionType::ACTION_REMOVE_ALL_TAGS => $this->removeAllTags($transaction),
+                ActionType::ACTION_SET_DESCRIPTION => $this->setDescription($action, $transaction),
+                ActionType::ACTION_APPEND_DESCRIPTION => $this->appendDescription($action, $transaction),
+                ActionType::ACTION_PREPEND_DESCRIPTION => $this->prependDescription($action, $transaction),
+                ActionType::ACTION_SET_NOTE => $this->setNote($action, $transaction),
+                ActionType::ACTION_APPEND_NOTE => $this->appendNote($action, $transaction),
+                ActionType::ACTION_SET_TYPE => $this->setType($action, $transaction),
+                ActionType::ACTION_MARK_RECONCILED => $this->markReconciled($transaction),
+                ActionType::ACTION_SEND_NOTIFICATION => $this->sendNotification($action, $transaction),
+                ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS => $this->createTagIfNotExists($action, $transaction),
+                ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => $this->createCategoryIfNotExists($action, $transaction),
+                ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => $this->createMerchantIfNotExists($action, $transaction),
                 default => false,
             };
-            
-            return $result;
         } catch (\Exception $e) {
             Log::error('Rule action execution failed', [
                 'action_type' => $action->action_type,
@@ -64,22 +63,22 @@ class ActionExecutor implements ActionExecutorInterface
         }
     }
 
-    public function supportsAction(string $actionType): bool
+    public function supportsAction(ActionType $actionType): bool
     {
-        return in_array($actionType, RuleAction::getActionTypes());
+        return in_array($actionType, ActionType::cases());
     }
 
-    public function validateActionValue(string $actionType, mixed $value): bool
+    public function validateActionValue(ActionType $actionType, mixed $value): bool
     {
-        if (in_array($actionType, RuleAction::getValuelessActions())) {
+        if (in_array($actionType, ActionType::valuelessActions())) {
             return true;
         }
 
-        if (in_array($actionType, RuleAction::getIdBasedActions())) {
+        if (in_array($actionType, ActionType::idBasedActions())) {
             return is_numeric($value) && $value > 0;
         }
 
-        if (in_array($actionType, RuleAction::getStringBasedActions())) {
+        if (in_array($actionType, ActionType::stringBasedActions())) {
             return is_string($value) && $value !== '';
         }
 
@@ -90,23 +89,23 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $value = $action->getDecodedValue();
 
-        return match ($action->action_type) {
-            RuleAction::ACTION_SET_CATEGORY => "Set category to: {$this->getCategoryName($value)}",
-            RuleAction::ACTION_SET_MERCHANT => "Set merchant to: {$this->getMerchantName($value)}",
-            RuleAction::ACTION_ADD_TAG => "Add tag: {$this->getTagName($value)}",
-            RuleAction::ACTION_REMOVE_TAG => "Remove tag: {$this->getTagName($value)}",
-            RuleAction::ACTION_REMOVE_ALL_TAGS => 'Remove all tags',
-            RuleAction::ACTION_SET_DESCRIPTION => "Set description to: {$value}",
-            RuleAction::ACTION_APPEND_DESCRIPTION => "Append to description: {$value}",
-            RuleAction::ACTION_PREPEND_DESCRIPTION => "Prepend to description: {$value}",
-            RuleAction::ACTION_SET_NOTE => "Set note to: {$value}",
-            RuleAction::ACTION_APPEND_NOTE => "Append to note: {$value}",
-            RuleAction::ACTION_SET_TYPE => "Set type to: {$value}",
-            RuleAction::ACTION_MARK_RECONCILED => 'Mark as reconciled',
-            RuleAction::ACTION_SEND_NOTIFICATION => 'Send notification',
-            RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS => "Create tag if not exists: {$value}",
-            RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => "Create category if not exists: {$value}",
-            RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => "Create merchant if not exists: {$value}",
+        return match (ActionType::from($action->action_type)) {
+            ActionType::ACTION_SET_CATEGORY => "Set category to: {$this->getCategoryName($value)}",
+            ActionType::ACTION_SET_MERCHANT => "Set merchant to: {$this->getMerchantName($value)}",
+            ActionType::ACTION_ADD_TAG => "Add tag: {$this->getTagName($value)}",
+            ActionType::ACTION_REMOVE_TAG => "Remove tag: {$this->getTagName($value)}",
+            ActionType::ACTION_REMOVE_ALL_TAGS => 'Remove all tags',
+            ActionType::ACTION_SET_DESCRIPTION => "Set description to: {$value}",
+            ActionType::ACTION_APPEND_DESCRIPTION => "Append to description: {$value}",
+            ActionType::ACTION_PREPEND_DESCRIPTION => "Prepend to description: {$value}",
+            ActionType::ACTION_SET_NOTE => "Set note to: {$value}",
+            ActionType::ACTION_APPEND_NOTE => "Append to note: {$value}",
+            ActionType::ACTION_SET_TYPE => "Set type to: {$value}",
+            ActionType::ACTION_MARK_RECONCILED => 'Mark as reconciled',
+            ActionType::ACTION_SEND_NOTIFICATION => 'Send notification',
+            ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS => "Create tag if not exists: {$value}",
+            ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => "Create category if not exists: {$value}",
+            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => "Create merchant if not exists: {$value}",
             default => 'Unknown action',
         };
     }
@@ -114,7 +113,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function setCategory(RuleAction $action, Transaction $transaction): bool
     {
         $categoryId = $action->getDecodedValue();
-        
+
         // Use cache to avoid repeated database queries
         if (!isset($this->categoryCache[$categoryId])) {
             $category = $this->categoryRepository->find($categoryId);
@@ -123,7 +122,7 @@ class ActionExecutor implements ActionExecutorInterface
             $category = $this->categoryCache[$categoryId];
         }
 
-        if (! $category || $category->user_id !== $transaction->account->user_id) {
+        if (!$category || $category->user_id !== $transaction->account->user_id) {
             return false;
         }
 
@@ -136,7 +135,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function setMerchant(RuleAction $action, Transaction $transaction): bool
     {
         $merchantId = $action->getDecodedValue();
-        
+
         // Use cache to avoid repeated database queries
         if (!isset($this->merchantCache[$merchantId])) {
             $merchant = $this->merchantRepository->find($merchantId);
@@ -158,7 +157,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function addTag(RuleAction $action, Transaction $transaction): bool
     {
         $tagId = $action->getDecodedValue();
-        
+
         // Use cache to avoid repeated database queries
         if (!isset($this->tagCache[$tagId])) {
             $tag = $this->tagRepository->find($tagId);
@@ -237,20 +236,6 @@ class ActionExecutor implements ActionExecutorInterface
     {
         $newType = $action->getDecodedValue();
 
-        // Validate type
-        $validTypes = [
-            Transaction::TYPE_TRANSFER,
-            Transaction::TYPE_CARD_PAYMENT,
-            Transaction::TYPE_EXCHANGE,
-            Transaction::TYPE_PAYMENT,
-            Transaction::TYPE_WITHDRAWAL,
-            Transaction::TYPE_DEPOSIT,
-        ];
-
-        if (! in_array($newType, $validTypes)) {
-            return false;
-        }
-
         $transaction->type = $newType;
         $transaction->save();
 
@@ -260,7 +245,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function markReconciled(Transaction $transaction): bool
     {
         // Assuming there's a reconciled field - adjust based on actual schema
-        $transaction->is_reconciled = true;
+        $transaction->markReconciled("Marked reconciled by rule engine");
         $transaction->save();
 
         return true;
@@ -309,7 +294,7 @@ class ActionExecutor implements ActionExecutorInterface
             ['description' => 'Created by rule engine', 'color' => '#'.dechex(rand(0x000000, 0xFFFFFF))]
         );
 
-        $transaction->category_id = $category->id;
+        $transaction->setCategory($category);
         $transaction->save();
 
         return true;
@@ -325,7 +310,7 @@ class ActionExecutor implements ActionExecutorInterface
             ['description' => 'Created by rule engine']
         );
 
-        $transaction->merchant_id = $merchant->id;
+        $transaction->setMerchant($merchant);
         $transaction->save();
 
         return true;
@@ -348,12 +333,8 @@ class ActionExecutor implements ActionExecutorInterface
         return $category ? $category->name : "Category #{$categoryId}";
     }
 
-    private function getMerchantName($merchantId): string
+    private function getMerchantName(int $merchantId): string
     {
-        if (! is_numeric($merchantId)) {
-            return $merchantId;
-        }
-
         // Use cache to avoid repeated database queries
         if (!isset($this->merchantCache[$merchantId])) {
             $merchant = Merchant::find($merchantId);

@@ -214,7 +214,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertEquals(2, $result); // Should match 'Merchant Name'
 
         // Test no match
-        $result = $this->service->findBestHeaderMatch('Unknown Field', $availableHeaders);
+        $result = $this->service->findBestHeaderMatch('Unknown ConditionField', $availableHeaders);
         $this->assertNull($result);
     }
 

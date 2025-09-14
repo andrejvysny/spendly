@@ -8,6 +8,7 @@ use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\RuleAction;
 use App\Models\RuleEngine\RuleCondition;
 use App\Models\RuleEngine\RuleGroup;
+use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -270,7 +271,7 @@ class RuleApiTest extends TestCase
         $response = $this->postJson('/api/rules', [
             'rule_group_id' => $otherUserGroup->id,
             'name' => 'Test Rule',
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL,
             'condition_groups' => [
                 [
                     'logic_operator' => 'AND',
@@ -487,7 +488,7 @@ class RuleApiTest extends TestCase
         $response = $this->postJson('/api/rules', [
             'rule_group_id' => $ruleGroup->id,
             'name' => 'Test Rule',
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL,
             'condition_groups' => [
                 [
                     'logic_operator' => 'AND',
@@ -659,7 +660,7 @@ class RuleApiTest extends TestCase
         $rule = Rule::factory()->create([
             'user_id' => $this->user->id,
             'rule_group_id' => $ruleGroup->id,
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL,
         ]);
 
         // Create some transactions
@@ -686,12 +687,12 @@ class RuleApiTest extends TestCase
         $rule1 = Rule::factory()->create([
             'user_id' => $this->user->id,
             'rule_group_id' => $ruleGroup->id,
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL,
         ]);
         $rule2 = Rule::factory()->create([
             'user_id' => $this->user->id,
             'rule_group_id' => $ruleGroup->id,
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL,
         ]);
 
         // Create some transactions
@@ -757,7 +758,7 @@ class RuleApiTest extends TestCase
         $rule = Rule::factory()->create([
             'user_id' => $this->user->id,
             'rule_group_id' => $ruleGroup->id,
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL,
         ]);
 
         $account = Account::factory()->create(['user_id' => $this->user->id]);

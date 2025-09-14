@@ -3,13 +3,15 @@
 namespace App\Services\RuleEngine;
 
 use App\Contracts\RuleEngine\ConditionEvaluatorInterface;
+use App\Models\RuleEngine\ConditionField;
+use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\RuleCondition;
 use App\Models\Transaction;
 use Carbon\Carbon;
 
 class ConditionEvaluator implements ConditionEvaluatorInterface
 {
-    // Field value cache for performance optimization
+    // ConditionField value cache for performance optimization
     private array $fieldValueCache = [];
     private int $cacheHits = 0;
     private int $cacheMisses = 0;
@@ -17,27 +19,32 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
     public function evaluate(RuleCondition $condition, Transaction $transaction): bool
     {
         $fieldValue = $this->getFieldValue($transaction, $condition->field);
+        return $this->evaluateWithValue($condition, $fieldValue);
+    }
+
+    public function evaluateWithValue(RuleCondition $condition, $fieldValue): bool
+    {
         $conditionValue = $condition->value;
         $caseSensitive = $condition->is_case_sensitive ?? false;
 
-        $result = match ($condition->operator) {
-            RuleCondition::OPERATOR_EQUALS => $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_EQUALS => ! $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_CONTAINS => $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_CONTAINS => ! $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_STARTS_WITH => $this->evaluateStartsWith($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_ENDS_WITH => $this->evaluateEndsWith($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_GREATER_THAN => $this->evaluateGreaterThan($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_GREATER_THAN_OR_EQUAL => $this->evaluateGreaterThanOrEqual($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_LESS_THAN => $this->evaluateLessThan($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_LESS_THAN_OR_EQUAL => $this->evaluateLessThanOrEqual($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_REGEX => $this->evaluateRegex($fieldValue, $conditionValue),
-            RuleCondition::OPERATOR_WILDCARD => $this->evaluateWildcard($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_IS_EMPTY => $this->evaluateIsEmpty($fieldValue),
-            RuleCondition::OPERATOR_IS_NOT_EMPTY => ! $this->evaluateIsEmpty($fieldValue),
-            RuleCondition::OPERATOR_IN => $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_NOT_IN => ! $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
-            RuleCondition::OPERATOR_BETWEEN => $this->evaluateBetween($fieldValue, $conditionValue),
+        $result = match (ConditionOperator::from($condition->operator)) {
+            ConditionOperator::OPERATOR_EQUALS => $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_NOT_EQUALS => ! $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_CONTAINS => $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_NOT_CONTAINS => ! $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_STARTS_WITH => $this->evaluateStartsWith($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_ENDS_WITH => $this->evaluateEndsWith($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_GREATER_THAN => $this->evaluateGreaterThan($fieldValue, $conditionValue),
+            ConditionOperator::OPERATOR_GREATER_THAN_OR_EQUAL => $this->evaluateGreaterThanOrEqual($fieldValue, $conditionValue),
+            ConditionOperator::OPERATOR_LESS_THAN => $this->evaluateLessThan($fieldValue, $conditionValue),
+            ConditionOperator::OPERATOR_LESS_THAN_OR_EQUAL => $this->evaluateLessThanOrEqual($fieldValue, $conditionValue),
+            ConditionOperator::OPERATOR_REGEX => $this->evaluateRegex($fieldValue, $conditionValue),
+            ConditionOperator::OPERATOR_WILDCARD => $this->evaluateWildcard($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_IS_EMPTY => $this->evaluateIsEmpty($fieldValue),
+            ConditionOperator::OPERATOR_IS_NOT_EMPTY => ! $this->evaluateIsEmpty($fieldValue),
+            ConditionOperator::OPERATOR_IN => $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_NOT_IN => ! $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
+            ConditionOperator::OPERATOR_BETWEEN => $this->evaluateBetween($fieldValue, $conditionValue),
             default => false,
         };
 
@@ -45,44 +52,44 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         return $condition->is_negated ? ! $result : $result;
     }
 
-    public function supportsOperator(string $operator): bool
+    public function supportsOperator(ConditionOperator $operator): bool
     {
-        return in_array($operator, RuleCondition::getOperators());
+        return in_array($operator, ConditionOperator::cases());
     }
 
-    public function getFieldValue(Transaction $transaction, string $field): mixed
+    public function getFieldValue(Transaction $transaction, ConditionField $field): mixed
     {
         // Use cache to avoid repeated calculations
-        $cacheKey = $transaction->id . '.' . $field;
-        
+        $cacheKey = $transaction->id . '.' . $field->value;
+
         if (isset($this->fieldValueCache[$cacheKey])) {
             $this->cacheHits++;
             return $this->fieldValueCache[$cacheKey];
         }
-        
+
         $this->cacheMisses++;
-        
+
         $value = match ($field) {
-            RuleCondition::FIELD_AMOUNT => $transaction->amount,
-            RuleCondition::FIELD_DESCRIPTION => $transaction->description,
-            RuleCondition::FIELD_PARTNER => $transaction->partner,
-            RuleCondition::FIELD_CATEGORY => $transaction->category?->name,
-            RuleCondition::FIELD_MERCHANT => $transaction->merchant?->name,
-            RuleCondition::FIELD_ACCOUNT => $transaction->account?->name,
-            RuleCondition::FIELD_TYPE => $transaction->type,
-            RuleCondition::FIELD_NOTE => $transaction->note,
-            RuleCondition::FIELD_RECIPIENT_NOTE => $transaction->recipient_note,
-            RuleCondition::FIELD_PLACE => $transaction->place,
-            RuleCondition::FIELD_TARGET_IBAN => $transaction->target_iban,
-            RuleCondition::FIELD_SOURCE_IBAN => $transaction->source_iban,
-            RuleCondition::FIELD_DATE => $transaction->booked_date,
-            RuleCondition::FIELD_TAGS => $transaction->tags->pluck('name')->toArray(),
+            ConditionField::FIELD_AMOUNT => $transaction->amount,
+            ConditionField::FIELD_DESCRIPTION => $transaction->description,
+            ConditionField::FIELD_PARTNER => $transaction->partner,
+            ConditionField::FIELD_CATEGORY => $transaction->category?->name,
+            ConditionField::FIELD_MERCHANT => $transaction->merchant?->name,
+            ConditionField::FIELD_ACCOUNT => $transaction->account?->name,
+            ConditionField::FIELD_TYPE => $transaction->type,
+            ConditionField::FIELD_NOTE => $transaction->note,
+            ConditionField::FIELD_RECIPIENT_NOTE => $transaction->recipient_note,
+            ConditionField::FIELD_PLACE => $transaction->place,
+            ConditionField::FIELD_TARGET_IBAN => $transaction->target_iban,
+            ConditionField::FIELD_SOURCE_IBAN => $transaction->source_iban,
+            ConditionField::FIELD_DATE => $transaction->booked_date,
+            ConditionField::FIELD_TAGS => $transaction->tags->pluck('name')->toArray(),
             default => null,
         };
-        
+
         // Cache the value
         $this->fieldValueCache[$cacheKey] = $value;
-        
+
         return $value;
     }
 
@@ -92,7 +99,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
     public function clearCache(): self
     {
         $this->fieldValueCache = [];
-        
+
         return $this;
     }
 

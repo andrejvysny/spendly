@@ -181,4 +181,26 @@ class Transaction extends BaseModel
                 });
         });
     }
+
+    public function setCategory(Category $category): void
+    {
+        $this->category_id = $category->id;
+        $this->save();
+    }
+
+    public function setMerchant(Merchant $merchant): void
+    {
+        $this->merchant_id = $merchant->id;
+        $this->save();
+    }
+
+    public function markReconciled(string $note = null): void
+    {
+        $this->is_reconciled = true;
+        $this->reconciled_at = now();
+        if ($note) {
+            $this->reconciled_note = $note;
+        }
+        $this->save();
+    }
 }

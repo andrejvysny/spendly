@@ -13,15 +13,6 @@ class Rule extends Model
     use HasFactory;
 
     /**
-     * Trigger type constants.
-     */
-    const TRIGGER_TRANSACTION_CREATED = 'transaction_created';
-
-    const TRIGGER_TRANSACTION_UPDATED = 'transaction_updated';
-
-    const TRIGGER_MANUAL = 'manual';
-
-    /**
      * The attributes that are mass assignable.
      *
      * @var array<string>
@@ -117,10 +108,6 @@ class Rule extends Model
      */
     public static function getTriggerTypes(): array
     {
-        return [
-            self::TRIGGER_TRANSACTION_CREATED,
-            self::TRIGGER_TRANSACTION_UPDATED,
-            self::TRIGGER_MANUAL,
-        ];
+        return array_map(fn($case) => $case->value, Trigger::cases());
     }
 }

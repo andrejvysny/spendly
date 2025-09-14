@@ -6,6 +6,7 @@ use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Http\Controllers\Controller;
 use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\RuleGroup;
+use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -76,7 +77,7 @@ class RuleExecutionController extends Controller
         } else {
             $this->ruleEngine->processTransactions(
                 $transactions,
-                Rule::TRIGGER_MANUAL
+                Trigger::MANUAL
             );
         }
 
@@ -198,7 +199,7 @@ class RuleExecutionController extends Controller
         $tempRule = new Rule([
             'user_id' => $user->id,
             'name' => 'Test Rule',
-            'trigger_type' => Rule::TRIGGER_MANUAL,
+            'trigger_type' => Trigger::MANUAL,
         ]);
 
         // Create temporary condition groups and conditions

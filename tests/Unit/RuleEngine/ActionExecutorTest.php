@@ -5,6 +5,7 @@ namespace Tests\Unit\RuleEngine;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Merchant;
+use App\Models\RuleEngine\ActionType;
 use App\Models\RuleEngine\RuleAction;
 use App\Models\Tag;
 use App\Models\Transaction;
@@ -417,16 +418,16 @@ class ActionExecutorTest extends TestCase
     public function it_validates_action_values()
     {
         // ID-based action
-        $this->assertTrue($this->executor->validateActionValue(RuleAction::ACTION_SET_CATEGORY, 123));
-        $this->assertFalse($this->executor->validateActionValue(RuleAction::ACTION_SET_CATEGORY, 'not_a_number'));
+        $this->assertTrue($this->executor->validateActionValue(ActionType::ACTION_SET_CATEGORY, 123));
+        $this->assertFalse($this->executor->validateActionValue(ActionType::ACTION_SET_CATEGORY, 'not_a_number'));
 
         // String-based action
-        $this->assertTrue($this->executor->validateActionValue(RuleAction::ACTION_SET_DESCRIPTION, 'Valid string'));
-        $this->assertFalse($this->executor->validateActionValue(RuleAction::ACTION_SET_DESCRIPTION, ''));
+        $this->assertTrue($this->executor->validateActionValue(ActionType::ACTION_SET_DESCRIPTION, 'Valid string'));
+        $this->assertFalse($this->executor->validateActionValue(ActionType::ACTION_SET_DESCRIPTION, ''));
 
         // Valueless action
-        $this->assertTrue($this->executor->validateActionValue(RuleAction::ACTION_REMOVE_ALL_TAGS, null));
-        $this->assertTrue($this->executor->validateActionValue(RuleAction::ACTION_REMOVE_ALL_TAGS, 'any value'));
+        $this->assertTrue($this->executor->validateActionValue(ActionType::ACTION_REMOVE_ALL_TAGS, null));
+        $this->assertTrue($this->executor->validateActionValue(ActionType::ACTION_REMOVE_ALL_TAGS, 'any value'));
     }
 
     /**
@@ -437,7 +438,7 @@ class ActionExecutorTest extends TestCase
         $category = Category::factory()->create(['name' => 'Test Category']);
 
         $action = new RuleAction([
-            'action_type' => RuleAction::ACTION_SET_CATEGORY,
+            'action_type' => ActionType::ACTION_SET_CATEGORY,
         ]);
         $action->setEncodedValue($category->id);
 
@@ -456,7 +457,7 @@ class ActionExecutorTest extends TestCase
         foreach ($actionTypes as $actionType) {
             $this->assertTrue(
                 $this->executor->supportsAction($actionType),
-                "Action type {$actionType} should be supported"
+                "ActionType type {$actionType} should be supported"
             );
         }
 
