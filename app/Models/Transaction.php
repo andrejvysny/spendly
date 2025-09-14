@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Arr;
@@ -66,6 +65,7 @@ class Transaction extends BaseModel
             if ($attribute === 'processed_date' && isset($model[$attribute])) {
                 // Normalize date to Y-m-d format for fingerprinting
                 $data[$attribute] = date('Y-m-d', strtotime($model[$attribute]));
+
                 continue;
             }
 
@@ -194,7 +194,7 @@ class Transaction extends BaseModel
         $this->save();
     }
 
-    public function markReconciled(string $note = null): void
+    public function markReconciled(?string $note = null): void
     {
         $this->is_reconciled = true;
         $this->reconciled_at = now();

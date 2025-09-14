@@ -7,7 +7,6 @@ use App\Contracts\RuleEngine\ConditionEvaluatorInterface;
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Models\RuleEngine\ConditionField;
 use App\Models\RuleEngine\ConditionGroup;
-use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\RuleAction;
 use App\Models\RuleEngine\RuleCondition;
@@ -32,19 +31,25 @@ class RuleEngine implements RuleEngineInterface
 
     // Caching infrastructure for performance optimization
     private ?Collection $cachedRules = null;
+
     private array $cachedConditionGroups = [];
+
     private array $cachedActions = [];
+
     private array $transactionFieldCache = [];
+
     private array $pendingLogs = [];
+
     private string $currentTriggerType = '';
+
     private int $cacheHits = 0;
+
     private int $cacheMisses = 0;
 
     public function __construct(
         private readonly ConditionEvaluatorInterface $conditionEvaluator,
         private readonly ActionExecutorInterface $actionExecutor
-    ) {
-    }
+    ) {}
 
     public function setUser(User $user): self
     {
@@ -137,7 +142,7 @@ class RuleEngine implements RuleEngineInterface
         // Final flush of any remaining logs
         $this->flushPendingLogs();
 
-        Log::info("RuleEngine: Date range processing completed", [
+        Log::info('RuleEngine: Date range processing completed', [
             'total_processed' => $processed,
             'start_date' => $startDate->format('Y-m-d'),
             'end_date' => $endDate->format('Y-m-d'),
@@ -204,14 +209,15 @@ class RuleEngine implements RuleEngineInterface
         $rules = $this->getActiveRulesForTrigger($triggerType);
 
         if ($rules->isEmpty()) {
-            Log::info('No active rules found for trigger type: ' . $triggerType->value);
+            Log::info('No active rules found for trigger type: '.$triggerType->value);
+
             return;
         }
 
         $processed = 0;
         $total = $transactionIds->count();
 
-        Log::info("Starting batch processing", [
+        Log::info('Starting batch processing', [
             'total_transactions' => $total,
             'batch_size' => $batchSize,
             'trigger_type' => $triggerType,
@@ -245,7 +251,7 @@ class RuleEngine implements RuleEngineInterface
 
         $this->flushPendingLogs();
 
-        Log::info("Batch processing completed", [
+        Log::info('Batch processing completed', [
             'total_processed' => $processed,
             'cache_stats' => $this->getCacheStats(),
         ]);
@@ -307,6 +313,7 @@ class RuleEngine implements RuleEngineInterface
         // Check if we have cached rules for this trigger type
         if ($this->cachedRules !== null && $this->currentTriggerType === $triggerType->value) {
             $this->cacheHits++;
+
             return $this->cachedRules;
         }
 
@@ -380,11 +387,13 @@ class RuleEngine implements RuleEngineInterface
         foreach ($conditionGroups as $group) {
             if ($this->evaluateConditionGroup($group, $transaction)) {
                 $this->queueExecutionLog($rule, $transaction, true);
+
                 return true;
             }
         }
 
         $this->queueExecutionLog($rule, $transaction, false);
+
         return false;
     }
 
@@ -395,6 +404,7 @@ class RuleEngine implements RuleEngineInterface
     {
         if (isset($this->cachedConditionGroups[$ruleId])) {
             $this->cacheHits++;
+
             return $this->cachedConditionGroups[$ruleId];
         }
 
@@ -419,6 +429,7 @@ class RuleEngine implements RuleEngineInterface
     {
         if (isset($this->cachedActions[$ruleId])) {
             $this->cacheHits++;
+
             return $this->cachedActions[$ruleId];
         }
 
@@ -467,10 +478,10 @@ class RuleEngine implements RuleEngineInterface
      */
     private function evaluateConditionWithCache(RuleCondition $condition, Transaction $transaction): bool
     {
-        $cacheKey = $transaction->id . '.' . $condition->field;
+        $cacheKey = $transaction->id.'.'.$condition->field;
 
         // Check if field value is cached
-        if (!isset($this->transactionFieldCache[$cacheKey])) {
+        if (! isset($this->transactionFieldCache[$cacheKey])) {
             // Convert string field to ConditionField enum
             $fieldEnum = ConditionField::from($condition->field);
             $this->transactionFieldCache[$cacheKey] = $this->conditionEvaluator->getFieldValue($transaction, $fieldEnum);
@@ -598,7 +609,7 @@ class RuleEngine implements RuleEngineInterface
                 $log = &$this->pendingLogs[$i];
                 if ($log['rule_id'] === $rule->id &&
                     $log['transaction_id'] === $transaction->id &&
-                    !isset($log['actions_executed'])) {
+                    ! isset($log['actions_executed'])) {
                     $log['actions_executed'] = json_encode($actions);
                     break;
                 }

@@ -108,6 +108,6 @@ class Rule extends Model
      */
     public static function getTriggerTypes(): array
     {
-        return array_map(fn($case) => $case->value, Trigger::cases());
+        return array_map(fn ($case) => $case->value, Trigger::cases());
     }
 }

@@ -3,7 +3,6 @@
 namespace App\Repositories;
 
 use App\Contracts\Repositories\BaseRepositoryContract;
-use App\Models\Account;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +19,8 @@ abstract class BaseRepository implements BaseRepositoryContract
      * Run a set of operations in a database transaction.
      *
      * @template TReturn
-     * @param callable():TReturn $callback
+     *
+     * @param  callable():TReturn  $callback
      * @return TReturn
      */
     public function transaction(callable $callback)
@@ -33,6 +33,7 @@ abstract class BaseRepository implements BaseRepositoryContract
         if ($id instanceof Model) {
             return $id->delete();
         }
+
         return $this->model->destroy($id) > 0;
     }
 
@@ -62,6 +63,7 @@ abstract class BaseRepository implements BaseRepositoryContract
         if ($model) {
             return $model->forceDelete();
         }
+
         return false;
     }
 }

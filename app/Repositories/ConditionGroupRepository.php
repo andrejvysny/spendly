@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\RuleEngine\ConditionGroup;
 use App\Contracts\Repositories\ConditionGroupRepositoryInterface;
+use App\Models\RuleEngine\ConditionGroup;
 use Illuminate\Support\Collection;
 
 class ConditionGroupRepository extends BaseRepository implements ConditionGroupRepositoryInterface
@@ -21,11 +21,12 @@ class ConditionGroupRepository extends BaseRepository implements ConditionGroupR
     public function update(int $id, array $data): ?ConditionGroup
     {
         $group = $this->model->find($id);
-        if (!$group) {
+        if (! $group) {
             return null;
         }
 
         $group->update($data);
+
         return $group->fresh();
     }
 

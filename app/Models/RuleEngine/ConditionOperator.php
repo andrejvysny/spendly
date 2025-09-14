@@ -6,7 +6,6 @@ use League\Uri\UriTemplate\Operator;
 
 enum ConditionOperator: string
 {
-
     case OPERATOR_EQUALS = 'equals';
 
     case OPERATOR_NOT_EQUALS = 'not_equals';
@@ -41,23 +40,22 @@ enum ConditionOperator: string
 
     case OPERATOR_BETWEEN = 'between';
 
-
     public static function string(): array
     {
-     return [
-         self::OPERATOR_EQUALS,
-         self::OPERATOR_NOT_EQUALS,
-         self::OPERATOR_CONTAINS,
-         self::OPERATOR_NOT_CONTAINS,
-         self::OPERATOR_STARTS_WITH,
-         self::OPERATOR_ENDS_WITH,
-         self::OPERATOR_REGEX,
-         self::OPERATOR_WILDCARD,
-         self::OPERATOR_IS_EMPTY,
-         self::OPERATOR_IS_NOT_EMPTY,
-         self::OPERATOR_IN,
-         self::OPERATOR_NOT_IN,
-     ];
+        return [
+            self::OPERATOR_EQUALS,
+            self::OPERATOR_NOT_EQUALS,
+            self::OPERATOR_CONTAINS,
+            self::OPERATOR_NOT_CONTAINS,
+            self::OPERATOR_STARTS_WITH,
+            self::OPERATOR_ENDS_WITH,
+            self::OPERATOR_REGEX,
+            self::OPERATOR_WILDCARD,
+            self::OPERATOR_IS_EMPTY,
+            self::OPERATOR_IS_NOT_EMPTY,
+            self::OPERATOR_IN,
+            self::OPERATOR_NOT_IN,
+        ];
     }
 
     public static function numeric(): array
@@ -77,6 +75,4 @@ enum ConditionOperator: string
     {
         return in_array($operator, array_column(self::cases(), 'value'));
     }
-
-
 }

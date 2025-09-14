@@ -13,13 +13,16 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
 {
     // ConditionField value cache for performance optimization
     private array $fieldValueCache = [];
+
     private int $cacheHits = 0;
+
     private int $cacheMisses = 0;
 
     public function evaluate(RuleCondition $condition, Transaction $transaction): bool
     {
         $fieldEnum = ConditionField::from($condition->field);
         $fieldValue = $this->getFieldValue($transaction, $fieldEnum);
+
         return $this->evaluateWithValue($condition, $fieldValue);
     }
 
@@ -61,10 +64,11 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
     public function getFieldValue(Transaction $transaction, ConditionField $field): mixed
     {
         // Use cache to avoid repeated calculations
-        $cacheKey = $transaction->id . '.' . $field->value;
+        $cacheKey = $transaction->id.'.'.$field->value;
 
         if (isset($this->fieldValueCache[$cacheKey])) {
             $this->cacheHits++;
+
             return $this->fieldValueCache[$cacheKey];
         }
 

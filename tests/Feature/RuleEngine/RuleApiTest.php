@@ -31,7 +31,6 @@ class RuleApiTest extends TestCase
         $this->actingAs($this->user);
     }
 
-
     public function it_lists_rule_groups_with_rules()
     {
         // Create rule groups and rules
@@ -78,7 +77,6 @@ class RuleApiTest extends TestCase
             ->assertJsonPath('data.0.name', 'Active Group');
     }
 
-
     public function it_gets_rule_options()
     {
         $response = $this->getJson('/api/rules/options');
@@ -106,7 +104,6 @@ class RuleApiTest extends TestCase
             ->assertJsonPath('data.operators', RuleCondition::getOperators())
             ->assertJsonPath('data.action_types', RuleAction::getActionTypes());
     }
-
 
     public function it_gets_action_input_configuration()
     {
@@ -142,7 +139,6 @@ class RuleApiTest extends TestCase
             ->assertJsonPath('data.action_input_types.add_tag.model', 'tags');
     }
 
-
     public function it_passes_action_input_configuration_to_inertia()
     {
         $user = User::factory()->create();
@@ -164,7 +160,6 @@ class RuleApiTest extends TestCase
         );
     }
 
-
     public function it_creates_rule_group()
     {
         $response = $this->postJson('/api/rules/groups', [
@@ -184,7 +179,6 @@ class RuleApiTest extends TestCase
         ]);
     }
 
-
     public function it_validates_rule_group_creation()
     {
         $response = $this->postJson('/api/rules/groups', []);
@@ -192,7 +186,6 @@ class RuleApiTest extends TestCase
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['name']);
     }
-
 
     public function it_creates_rule_with_conditions_and_actions()
     {
@@ -248,7 +241,6 @@ class RuleApiTest extends TestCase
         ]);
     }
 
-
     public function it_prevents_creating_rule_for_other_users_group()
     {
         $otherUserGroup = RuleGroup::factory()->create([
@@ -282,7 +274,6 @@ class RuleApiTest extends TestCase
         $response->assertForbidden();
     }
 
-
     public function it_shows_rule_details()
     {
         $ruleGroup = RuleGroup::factory()->create(['user_id' => $this->user->id]);
@@ -307,7 +298,6 @@ class RuleApiTest extends TestCase
             ]);
     }
 
-
     public function it_prevents_showing_other_users_rule()
     {
         $otherRule = Rule::factory()->create([
@@ -318,7 +308,6 @@ class RuleApiTest extends TestCase
 
         $response->assertNotFound();
     }
-
 
     public function it_updates_rule()
     {
@@ -347,7 +336,6 @@ class RuleApiTest extends TestCase
         ]);
     }
 
-
     public function it_deletes_rule()
     {
         $ruleGroup = RuleGroup::factory()->create(['user_id' => $this->user->id]);
@@ -363,7 +351,6 @@ class RuleApiTest extends TestCase
 
         $this->assertDatabaseMissing('rules', ['id' => $rule->id]);
     }
-
 
     public function it_duplicates_rule()
     {
@@ -385,7 +372,6 @@ class RuleApiTest extends TestCase
         $this->assertDatabaseCount('rules', 2);
         $this->assertDatabaseHas('rules', ['name' => 'Duplicated Rule']);
     }
-
 
     public function it_gets_rule_statistics()
     {
@@ -424,7 +410,6 @@ class RuleApiTest extends TestCase
             ->assertJsonPath('data.match_rate', 50);
     }
 
-
     public function it_validates_rule_creation()
     {
         $ruleGroup = RuleGroup::factory()->create(['user_id' => $this->user->id]);
@@ -450,7 +435,6 @@ class RuleApiTest extends TestCase
                 'actions',
             ]);
     }
-
 
     public function it_validates_condition_fields_and_operators()
     {
@@ -487,7 +471,6 @@ class RuleApiTest extends TestCase
                 'actions.0.action_type',
             ]);
     }
-
 
     public function it_toggles_rule_group_activation()
     {
@@ -532,7 +515,6 @@ class RuleApiTest extends TestCase
         ]);
     }
 
-
     public function it_prevents_toggling_other_users_rule_group()
     {
         $user = User::factory()->create();
@@ -552,7 +534,6 @@ class RuleApiTest extends TestCase
             'is_active' => true, // Should remain unchanged
         ]);
     }
-
 
     public function it_toggles_rule_activation()
     {
@@ -602,7 +583,6 @@ class RuleApiTest extends TestCase
         ]);
     }
 
-
     public function it_prevents_toggling_other_users_rule()
     {
         $otherUser = User::factory()->create();
@@ -612,7 +592,6 @@ class RuleApiTest extends TestCase
 
         $response->assertNotFound();
     }
-
 
     public function it_executes_individual_rule()
     {
@@ -637,7 +616,6 @@ class RuleApiTest extends TestCase
             ->assertJsonPath('data.rule_name', $rule->name)
             ->assertJsonPath('data.total_transactions', 3);
     }
-
 
     public function it_executes_rule_group()
     {
@@ -669,7 +647,6 @@ class RuleApiTest extends TestCase
             ->assertJsonPath('data.total_transactions', 5);
     }
 
-
     public function it_prevents_executing_other_users_rule()
     {
         $otherUser = User::factory()->create();
@@ -679,7 +656,6 @@ class RuleApiTest extends TestCase
 
         $response->assertNotFound();
     }
-
 
     public function it_prevents_executing_other_users_rule_group()
     {
@@ -691,7 +667,6 @@ class RuleApiTest extends TestCase
         $response->assertNotFound();
     }
 
-
     public function it_handles_executing_empty_rule_group()
     {
         $ruleGroup = RuleGroup::factory()->create(['user_id' => $this->user->id]);
@@ -701,7 +676,6 @@ class RuleApiTest extends TestCase
         $response->assertBadRequest()
             ->assertJsonPath('error', 'Rule group has no rules to execute');
     }
-
 
     public function it_supports_dry_run_execution()
     {

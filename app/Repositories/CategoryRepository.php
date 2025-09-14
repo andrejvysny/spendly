@@ -2,9 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\Category;
 use App\Contracts\Repositories\CategoryRepositoryInterface;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Category;
 use Illuminate\Support\Collection;
 
 class CategoryRepository extends BaseRepository implements CategoryRepositoryInterface
@@ -22,11 +21,12 @@ class CategoryRepository extends BaseRepository implements CategoryRepositoryInt
     public function update(int $id, array $data): ?Category
     {
         $category = $this->model->find($id);
-        if (!$category) {
+        if (! $category) {
             return null;
         }
 
         $category->update($data);
+
         return $category->fresh();
     }
 

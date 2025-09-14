@@ -4,7 +4,6 @@ namespace App\Models\RuleEngine;
 
 enum ActionType: string
 {
-
     case ACTION_SET_CATEGORY = 'set_category';
 
     case ACTION_SET_MERCHANT = 'set_merchant';
@@ -37,11 +36,11 @@ enum ActionType: string
 
     case ACTION_CREATE_MERCHANT_IF_NOT_EXISTS = 'create_merchant_if_not_exists';
 
-
     public static function value(): string
     {
         return self::class;
     }
+
     public static function idBasedActions(): array
     {
         return [
@@ -67,7 +66,6 @@ enum ActionType: string
         ];
     }
 
-
     public static function valuelessActions(): array
     {
         return [
@@ -75,6 +73,4 @@ enum ActionType: string
             self::ACTION_MARK_RECONCILED,
         ];
     }
-
-
 }

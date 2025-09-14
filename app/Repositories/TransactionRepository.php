@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\Transaction;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
+use App\Models\Transaction;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -104,7 +104,7 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     /**
      * Find transactions by composite (account_id, transaction_id) pairs, with relations loaded.
      *
-     * @param array<int, array{0:int,1:string}> $pairs
+     * @param  array<int, array{0:int,1:string}>  $pairs
      */
     public function findByAccountAndTransactionIdPairs(array $pairs): Collection
     {

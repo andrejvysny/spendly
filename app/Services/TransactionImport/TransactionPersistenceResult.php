@@ -37,7 +37,7 @@ class TransactionPersistenceResult
      */
     public function hasSqlFailures(): bool
     {
-        return !empty($this->sqlFailures);
+        return ! empty($this->sqlFailures);
     }
 
     /**
@@ -70,7 +70,7 @@ class TransactionPersistenceResult
     public static function isFingerprintConstraintViolation(\Exception $exception): bool
     {
         $message = $exception->getMessage();
-        
+
         return str_contains($message, 'UNIQUE constraint failed: transactions.fingerprint') ||
                str_contains($message, 'Duplicate entry') && str_contains($message, 'fingerprint') ||
                str_contains($message, 'violates unique constraint') && str_contains($message, 'fingerprint');
@@ -87,7 +87,7 @@ class TransactionPersistenceResult
 
         // Check for other constraint violations
         $message = $exception->getMessage();
-        if (str_contains($message, 'UNIQUE constraint') || 
+        if (str_contains($message, 'UNIQUE constraint') ||
             str_contains($message, 'Duplicate entry') ||
             str_contains($message, 'violates unique constraint')) {
             return 'duplicate';

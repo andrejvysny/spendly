@@ -12,14 +12,11 @@ use Inertia\Inertia;
 
 class AnalyticsController extends Controller
 {
-
     public function __construct(
-        private readonly AccountRepository  $accountRepository,
+        private readonly AccountRepository $accountRepository,
         private readonly CategoryRepository $categoryRepository,
 
-    )
-    {
-    }
+    ) {}
 
     public function index(AnalyticsRequest $request): \Inertia\Response
     {

@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\Account;
 use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Models\Account;
 use Illuminate\Support\Collection;
 
 class AccountRepository extends BaseRepository implements AccountRepositoryInterface
@@ -18,7 +18,7 @@ class AccountRepository extends BaseRepository implements AccountRepositoryInter
      */
     public function findByIdForUser(int $accountId, int $userId): ?Account
     {
-    return Account::where('id', $accountId)
+        return Account::where('id', $accountId)
             ->where('user_id', $userId)
             ->first();
     }

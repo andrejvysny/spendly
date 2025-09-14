@@ -21,11 +21,12 @@ class RuleActionRepository extends BaseRepository implements RuleActionRepositor
     public function update(int $id, array $data): ?RuleAction
     {
         $action = $this->model->find($id);
-        if (!$action) {
+        if (! $action) {
             return null;
         }
 
         $action->update($data);
+
         return $action->fresh();
     }
 

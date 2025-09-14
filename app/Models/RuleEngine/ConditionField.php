@@ -32,5 +32,4 @@ enum ConditionField: string
 
     case FIELD_TAGS = 'tags';
 
-
 }

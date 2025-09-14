@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\Merchant;
 use App\Contracts\Repositories\MerchantRepositoryInterface;
+use App\Models\Merchant;
 use Illuminate\Support\Collection;
 
 class MerchantRepository extends BaseRepository implements MerchantRepositoryInterface
@@ -15,20 +15,22 @@ class MerchantRepository extends BaseRepository implements MerchantRepositoryInt
 
     public function create(array $data): Merchant
     {
-        if (!isset($data['user_id'])) {
+        if (! isset($data['user_id'])) {
             $data['user_id'] = auth()->id();
         }
+
         return $this->model->create($data);
     }
 
     public function update(int $id, array $data): ?Merchant
     {
         $merchant = $this->model->find($id);
-        if (!$merchant) {
+        if (! $merchant) {
             return null;
         }
 
         $merchant->update($data);
+
         return $merchant->fresh();
     }
 

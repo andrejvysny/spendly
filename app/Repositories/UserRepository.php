@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\User;
 use App\Contracts\Repositories\UserRepositoryInterface;
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
 class UserRepository extends BaseRepository implements UserRepositoryInterface
@@ -18,14 +18,14 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         }
-        
+
         return $this->model->create($data);
     }
 
     public function update(int $id, array $data): ?User
     {
         $user = $this->model->find($id);
-        if (!$user) {
+        if (! $user) {
             return null;
         }
 
@@ -34,6 +34,7 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
         }
 
         $user->update($data);
+
         return $user->fresh();
     }
 

@@ -21,11 +21,12 @@ class ImportRepository extends BaseRepository implements ImportRepositoryInterfa
     public function update(int $id, array $data): ?Import
     {
         $import = $this->model->find($id);
-        if (!$import) {
+        if (! $import) {
             return null;
         }
 
         $import->update($data);
+
         return $import->fresh();
     }
 

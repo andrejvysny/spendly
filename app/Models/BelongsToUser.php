@@ -2,7 +2,4 @@
 
 namespace App\Models;
 
-trait BelongsToUser
-{
-
-}
+trait BelongsToUser {}

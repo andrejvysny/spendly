@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\BankProviders\GoCardlessController;
+use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\RuleEngine\RuleExecutionController;
 use App\Http\Controllers\Transactions\TransactionController;
