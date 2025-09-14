@@ -12,7 +12,6 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -22,9 +21,7 @@ class MerchantController extends Controller
 
     public function __construct(
         private readonly MerchantRepository $merchantRepository,
-    )
-    {
-    }
+    ) {}
 
     public function index(): Response
     {

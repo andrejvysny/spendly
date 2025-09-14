@@ -275,8 +275,8 @@ class ImportFailureTest extends TestCase
 
         $response->assertOk();
         $this->assertStringStartsWith('text/csv', $response->headers->get('Content-Type'));
-        //$this->assertStringContains('attachment', $response->headers->get('Content-Disposition'));
-        //$this->assertStringContains("import-{$this->import->id}-failures", $response->headers->get('Content-Disposition'));
+        // $this->assertStringContains('attachment', $response->headers->get('Content-Disposition'));
+        // $this->assertStringContains("import-{$this->import->id}-failures", $response->headers->get('Content-Disposition'));
     }
 
     public function test_user_cannot_update_failure_from_different_import()

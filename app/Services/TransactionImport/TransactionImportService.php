@@ -142,7 +142,7 @@ readonly class TransactionImportService
     /**
      * Update import status based on results.
      */
-    private function updateImportStatus(Import $import, BatchResultInterface $batch, TransactionPersistenceResult $persistenceResult = null): void
+    private function updateImportStatus(Import $import, BatchResultInterface $batch, ?TransactionPersistenceResult $persistenceResult = null): void
     {
         $processed = $batch->getSuccessCount();
         $failed = $batch->getFailedCount();

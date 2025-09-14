@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\Tag;
 use App\Contracts\Repositories\TagRepositoryInterface;
+use App\Models\Tag;
 use Illuminate\Support\Collection;
 
 class TagRepository extends BaseRepository implements TagRepositoryInterface
@@ -21,11 +21,12 @@ class TagRepository extends BaseRepository implements TagRepositoryInterface
     public function update(int $id, array $data): ?Tag
     {
         $tag = $this->model->find($id);
-        if (!$tag) {
+        if (! $tag) {
             return null;
         }
 
         $tag->update($data);
+
         return $tag->fresh();
     }
 

@@ -11,7 +11,6 @@ use App\Models\RuleEngine\ConditionField;
 use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\RuleAction;
-use App\Models\RuleEngine\RuleCondition;
 use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use App\Models\User;
@@ -38,7 +37,6 @@ class EventDrivenRulesTest extends TestCase
         $this->account = Account::factory()->create(['user_id' => $this->user->id]);
         $this->ruleRepository = app(\App\Contracts\Repositories\RuleRepositoryInterface::class);
     }
-
 
     public function it_processes_rules_when_transaction_is_created()
     {
@@ -85,7 +83,6 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($groceryCategory->id, $transaction->category_id);
     }
 
-
     public function it_does_not_process_rules_when_apply_rules_is_false()
     {
         $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
@@ -118,7 +115,6 @@ class EventDrivenRulesTest extends TestCase
         $transaction->refresh();
         $this->assertNull($transaction->note);
     }
-
 
     public function it_processes_rules_when_transaction_is_updated()
     {
@@ -167,7 +163,6 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($category->id, $transaction->category_id);
         $this->assertTrue($transaction->tags()->where('name', 'Large Transaction')->exists());
     }
-
 
     public function it_respects_stop_processing_flag_on_rules()
     {
@@ -232,7 +227,6 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($category1->id, $transaction->category_id);
     }
 
-
     public function it_processes_multiple_actions_in_order()
     {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
@@ -283,7 +277,6 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals('[COFFEE] Starbucks Coffee Shop', $transaction->description);
         $this->assertEquals('Categorized as coffee expense', $transaction->note);
     }
-
 
     public function it_handles_complex_condition_groups_with_or_logic()
     {
@@ -364,7 +357,6 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($travelCategory->id, $hotelTransaction->category_id);
     }
 
-
     public function it_logs_rule_execution()
     {
         $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
@@ -401,7 +393,6 @@ class EventDrivenRulesTest extends TestCase
             'matched' => true,
         ]);
     }
-
 
     public function it_handles_inactive_rules(): void
     {
@@ -441,7 +432,6 @@ class EventDrivenRulesTest extends TestCase
         $transaction->refresh();
         $this->assertNull($transaction->note);
     }
-
 
     public function it_queues_rule_processing(): void
     {

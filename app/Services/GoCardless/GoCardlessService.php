@@ -206,6 +206,7 @@ class GoCardlessService
 
     /**
      * Get available institutions for a country.
+     *
      * @throws \Exception
      */
     public function getInstitutions(string $countryCode, User $user): array
@@ -227,6 +228,7 @@ class GoCardlessService
 
     /**
      * Get requisition details.
+     *
      * @throws \Exception
      */
     public function getRequisition(string $requisitionId, User $user): array

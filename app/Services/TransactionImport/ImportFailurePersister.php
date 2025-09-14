@@ -205,7 +205,7 @@ class ImportFailurePersister
             'sql_failures_stored' => 0,
         ];
 
-        if (!$persistenceResult->hasSqlFailures()) {
+        if (! $persistenceResult->hasSqlFailures()) {
             return $stats;
         }
 
@@ -272,7 +272,7 @@ class ImportFailurePersister
     {
         // Try to get original import data if available
         $importData = $dto->get('import_data', []);
-        if (is_array($importData) && !empty($importData)) {
+        if (is_array($importData) && ! empty($importData)) {
 
             if (is_string($importData)) {
                 // Attempt to decode JSON string if necessary
@@ -298,7 +298,7 @@ class ImportFailurePersister
             return 'Duplicate transaction detected - transaction with same fingerprint already exists';
         }
 
-        return 'Database error occurred while saving transaction: ' . $exception->getMessage();
+        return 'Database error occurred while saving transaction: '.$exception->getMessage();
     }
 
     /**

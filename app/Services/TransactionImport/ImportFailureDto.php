@@ -2,24 +2,22 @@
 
 namespace App\Services\TransactionImport;
 
- class ImportFailureDto
+class ImportFailureDto
 {
-
     public function __construct(
-        private readonly int                          $import_id,
-        private readonly ?int                         $row_number = null,
-        private readonly string                       $raw_data = '',
-        private readonly ImportFailureType            $error_type = ImportFailureType::UNKNOWN_ERROR,
-        private readonly string              $error_message = '',
-        private array                        $error_details = [],
-        private readonly array               $parsed_data = [],
-        private array                        $metadata = [],
+        private readonly int $import_id,
+        private readonly ?int $row_number = null,
+        private readonly string $raw_data = '',
+        private readonly ImportFailureType $error_type = ImportFailureType::UNKNOWN_ERROR,
+        private readonly string $error_message = '',
+        private array $error_details = [],
+        private readonly array $parsed_data = [],
+        private array $metadata = [],
         private readonly ImportFailureStatus $status = ImportFailureStatus::PENDING,
-        private readonly ?string             $review_notes = null,
-        private readonly ?\DateTime          $reviewed_at = null,
-        private readonly ?int                         $reviewed_by = null
-    ) {
-    }
+        private readonly ?string $review_notes = null,
+        private readonly ?\DateTime $reviewed_at = null,
+        private readonly ?int $reviewed_by = null
+    ) {}
 
     public function pushMetadata(string $key, mixed $value): void
     {
@@ -90,6 +88,4 @@ namespace App\Services\TransactionImport;
     {
         return $this->reviewed_by;
     }
-
-
 }

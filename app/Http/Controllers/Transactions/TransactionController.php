@@ -239,7 +239,6 @@ class TransactionController extends Controller
         }
     }
 
-
     /**
      * Updates the merchant, category, and tags of a transaction.
      *
@@ -336,10 +335,10 @@ class TransactionController extends Controller
                     $transaction->update(['note' => $validated['note']]);
                 } elseif ($validated['method'] === 'append') {
                     $existingNote = $transaction->note ?? '';
-                    $newNote = $existingNote ? $existingNote . "\n" . $validated['note'] : $validated['note'];
+                    $newNote = $existingNote ? $existingNote."\n".$validated['note'] : $validated['note'];
                     $transaction->update(['note' => $newNote]);
                 }
-                
+
                 // Refresh the transaction to get the updated note
                 $transaction->refresh();
                 $updatedTransactions[] = [

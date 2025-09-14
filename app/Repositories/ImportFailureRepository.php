@@ -26,6 +26,7 @@ class ImportFailureRepository extends BaseRepository implements ImportFailureRep
                     $row[$jsonField] = json_encode($row[$jsonField]);
                 }
             }
+
             return $row;
         }, $failures);
 

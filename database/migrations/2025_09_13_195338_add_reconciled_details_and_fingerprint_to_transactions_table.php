@@ -15,7 +15,7 @@ return new class extends Migration
             // Add reconciled timestamp and note fields
             $table->timestamp('reconciled_at')->nullable()->after('is_reconciled');
             $table->text('reconciled_note')->nullable()->after('reconciled_at');
-            
+
             // Add fingerprint field for duplicate detection
             $table->string('fingerprint', 64)->nullable()->unique()->after('reconciled_note');
         });

@@ -9,7 +9,7 @@ trait EntityBehavior
      */
     public function __get($key)
     {
-        $getter = 'get' . $this->camelCase($key);
+        $getter = 'get'.$this->camelCase($key);
         if (method_exists($this, $getter)) {
             return $this->$getter();
         }
@@ -22,9 +22,10 @@ trait EntityBehavior
      */
     public function __set($key, $value)
     {
-        $setter = 'set' . $this->camelCase($key);
+        $setter = 'set'.$this->camelCase($key);
         if (method_exists($this, $setter)) {
             $this->$setter($value);
+
             return;
         }
 

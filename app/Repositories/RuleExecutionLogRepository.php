@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\RuleEngine\RuleExecutionLog;
 use App\Contracts\Repositories\RuleExecutionLogRepositoryInterface;
+use App\Models\RuleEngine\RuleExecutionLog;
 use Illuminate\Support\Collection;
 
 class RuleExecutionLogRepository extends BaseRepository implements RuleExecutionLogRepositoryInterface

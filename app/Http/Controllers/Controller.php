@@ -3,11 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Foundation\Auth\User;
 
 abstract class Controller
 {
-
     protected function getAuthUser(): Authenticatable
     {
         return auth()->user();
@@ -28,5 +26,4 @@ abstract class Controller
             'trace' => $e->getTraceAsString(),
         ]);
     }
-
 }

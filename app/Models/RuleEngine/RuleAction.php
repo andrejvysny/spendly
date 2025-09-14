@@ -10,7 +10,6 @@ class RuleAction extends Model
 {
     use HasFactory;
 
-
     /**
      * The attributes that are mass assignable.
      *
@@ -71,7 +70,4 @@ class RuleAction extends Model
             ? json_encode($value)
             : $value;
     }
-
-
-
 }

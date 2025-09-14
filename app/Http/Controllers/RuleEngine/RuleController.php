@@ -7,8 +7,6 @@ use App\Models\RuleEngine\ActionType;
 use App\Models\RuleEngine\ConditionField;
 use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\Rule;
-use App\Models\RuleEngine\RuleAction;
-use App\Models\RuleEngine\RuleCondition;
 use App\Models\RuleEngine\RuleGroup;
 use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
@@ -249,20 +247,20 @@ class RuleController extends Controller
             'rule_group_id' => 'required|exists:rule_groups,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'trigger_type' => 'required|in:'.implode(',', array_map(fn($case) => $case->value, Trigger::cases())),
+            'trigger_type' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, Trigger::cases())),
             'stop_processing' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
             'condition_groups' => 'required|array|min:1',
             'condition_groups.*.logic_operator' => 'required|in:AND,OR',
             'condition_groups.*.conditions' => 'required|array|min:1',
-            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', array_map(fn($case) => $case->value, ConditionField::cases())),
-            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', array_map(fn($case) => $case->value, ConditionOperator::cases())),
+            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionField::cases())),
+            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionOperator::cases())),
             'condition_groups.*.conditions.*.value' => 'required|string',
             'condition_groups.*.conditions.*.is_case_sensitive' => 'nullable|boolean',
             'condition_groups.*.conditions.*.is_negated' => 'nullable|boolean',
             'actions' => 'required|array|min:1',
-            'actions.*.action_type' => 'required|in:'.implode(',', array_map(fn($case) => $case->value, ActionType::cases())),
+            'actions.*.action_type' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ActionType::cases())),
             'actions.*.action_value' => 'nullable',
             'actions.*.stop_processing' => 'nullable|boolean',
         ]);
@@ -318,20 +316,20 @@ class RuleController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'trigger_type' => 'nullable|in:'.implode(',', array_map(fn($case) => $case->value, Trigger::cases())),
+            'trigger_type' => 'nullable|in:'.implode(',', array_map(fn ($case) => $case->value, Trigger::cases())),
             'stop_processing' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
             'condition_groups' => 'nullable|array',
             'condition_groups.*.logic_operator' => 'required_with:condition_groups|in:AND,OR',
             'condition_groups.*.conditions' => 'required_with:condition_groups|array|min:1',
-            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', array_map(fn($case) => $case->value, ConditionField::cases())),
-            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', array_map(fn($case) => $case->value, ConditionOperator::cases())),
+            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionField::cases())),
+            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionOperator::cases())),
             'condition_groups.*.conditions.*.value' => 'required|string',
             'condition_groups.*.conditions.*.is_case_sensitive' => 'nullable|boolean',
             'condition_groups.*.conditions.*.is_negated' => 'nullable|boolean',
             'actions' => 'nullable|array',
-            'actions.*.action_type' => 'required|in:'.implode(',', array_map(fn($case) => $case->value, ActionType::cases())),
+            'actions.*.action_type' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ActionType::cases())),
             'actions.*.action_value' => 'nullable',
             'actions.*.stop_processing' => 'nullable|boolean',
         ]);

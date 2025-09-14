@@ -4,14 +4,13 @@ namespace App\Models;
 
 use App\Contracts\OwnedByUserContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Merchant extends BaseModel implements OwnedByUserContract
 {
     /** @use HasFactory<\Database\Factories\MerchantFactory> */
-    use HasFactory, BelongsToUser;
+    use BelongsToUser, HasFactory;
 
     protected $fillable = [
         'name',

@@ -21,11 +21,12 @@ class ImportMappingRepository extends BaseRepository implements ImportMappingRep
     public function update(int $id, array $data): ?ImportMapping
     {
         $mapping = $this->model->find($id);
-        if (!$mapping) {
+        if (! $mapping) {
             return null;
         }
 
         $mapping->update($data);
+
         return $mapping->fresh();
     }
 

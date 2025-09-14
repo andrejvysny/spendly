@@ -23,7 +23,5 @@ class TransactionCreated
 
     public function __construct(
         private readonly Transaction $transaction,
-        private readonly bool        $applyRules = true)
-    {
-    }
+        private readonly bool $applyRules = true) {}
 }

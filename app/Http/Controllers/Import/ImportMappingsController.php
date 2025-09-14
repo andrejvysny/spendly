@@ -162,6 +162,7 @@ class ImportMappingsController extends Controller
             foreach ($savedMapping as $field => $value) {
                 if ($value === false || $value === '') {
                     $savedMapping[$field] = null;
+
                     continue;
                 }
 

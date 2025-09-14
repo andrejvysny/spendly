@@ -4,7 +4,6 @@ namespace App\Enums;
 
 enum AnalyticsPeriod: string
 {
-
     case CUSTOM = 'custom';
     case SPECIFIC_MONTH = 'specific_month';
     case CURRENT_MONTH = 'current_month';

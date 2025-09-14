@@ -117,7 +117,7 @@ class TransactionSyncService
         }
 
         // Perform batch operations
-    $this->transactionRepository->transaction(function () use ($toCreate, $toUpdate, &$stats) {
+        $this->transactionRepository->transaction(function () use ($toCreate, $toUpdate, &$stats) {
             // Batch create
             if (! empty($toCreate)) {
                 $created = $this->transactionRepository->createBatch($toCreate);
@@ -129,7 +129,7 @@ class TransactionSyncService
                 $updated = $this->transactionRepository->updateBatch($toUpdate);
                 $stats['updated'] = $updated;
             }
-    });
+        });
 
         return $stats;
     }

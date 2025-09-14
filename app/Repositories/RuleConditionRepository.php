@@ -21,11 +21,12 @@ class RuleConditionRepository extends BaseRepository implements RuleConditionRep
     public function update(int $id, array $data): ?RuleCondition
     {
         $condition = $this->model->find($id);
-        if (!$condition) {
+        if (! $condition) {
             return null;
         }
 
         $condition->update($data);
+
         return $condition->fresh();
     }
 

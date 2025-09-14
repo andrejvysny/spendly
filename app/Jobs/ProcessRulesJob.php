@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Contracts\RuleEngine\RuleEngineInterface;
-use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\Trigger;
 use App\Models\User;
 use Carbon\Carbon;

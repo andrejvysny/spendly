@@ -6,11 +6,7 @@ use App\Models\Category;
 use App\Models\Import\Import;
 use App\Models\Merchant;
 use App\Models\Tag;
-use App\Policies\CategoryPolicy;
-use App\Policies\ImportPolicy;
-use App\Policies\MerchantPolicy;
 use App\Policies\OwnedByUserPolicy;
-use App\Policies\TagPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider

@@ -18,8 +18,11 @@ class ActionExecutor implements ActionExecutorInterface
 {
     // Cache for frequently accessed models to reduce database queries
     private array $categoryCache = [];
+
     private array $merchantCache = [];
+
     private array $tagCache = [];
+
     private array $transactionUpdateBatch = [];
 
     public function __construct(
@@ -115,14 +118,14 @@ class ActionExecutor implements ActionExecutorInterface
         $categoryId = (int) $action->getDecodedValue();
 
         // Use cache to avoid repeated database queries
-        if (!isset($this->categoryCache[$categoryId])) {
+        if (! isset($this->categoryCache[$categoryId])) {
             $category = $this->categoryRepository->find($categoryId);
             $this->categoryCache[$categoryId] = $category;
         } else {
             $category = $this->categoryCache[$categoryId];
         }
 
-        if (!$category || $category->user_id !== $transaction->account->user_id) {
+        if (! $category || $category->user_id !== $transaction->account->user_id) {
             return false;
         }
 
@@ -137,7 +140,7 @@ class ActionExecutor implements ActionExecutorInterface
         $merchantId = (int) $action->getDecodedValue();
 
         // Use cache to avoid repeated database queries
-        if (!isset($this->merchantCache[$merchantId])) {
+        if (! isset($this->merchantCache[$merchantId])) {
             $merchant = $this->merchantRepository->find($merchantId);
             $this->merchantCache[$merchantId] = $merchant;
         } else {
@@ -159,7 +162,7 @@ class ActionExecutor implements ActionExecutorInterface
         $tagId = (int) $action->getDecodedValue();
 
         // Use cache to avoid repeated database queries
-        if (!isset($this->tagCache[$tagId])) {
+        if (! isset($this->tagCache[$tagId])) {
             $tag = $this->tagRepository->find($tagId);
             $this->tagCache[$tagId] = $tag;
         } else {
@@ -245,7 +248,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function markReconciled(Transaction $transaction): bool
     {
         // Assuming there's a reconciled field - adjust based on actual schema
-        $transaction->markReconciled("Marked reconciled by rule engine");
+        $transaction->markReconciled('Marked reconciled by rule engine');
         $transaction->save();
 
         return true;
@@ -323,7 +326,7 @@ class ActionExecutor implements ActionExecutorInterface
         }
 
         // Use cache to avoid repeated database queries
-        if (!isset($this->categoryCache[$categoryId])) {
+        if (! isset($this->categoryCache[$categoryId])) {
             $category = Category::find($categoryId);
             $this->categoryCache[$categoryId] = $category;
         } else {
@@ -336,7 +339,7 @@ class ActionExecutor implements ActionExecutorInterface
     private function getMerchantName(int $merchantId): string
     {
         // Use cache to avoid repeated database queries
-        if (!isset($this->merchantCache[$merchantId])) {
+        if (! isset($this->merchantCache[$merchantId])) {
             $merchant = Merchant::find($merchantId);
             $this->merchantCache[$merchantId] = $merchant;
         } else {
@@ -353,7 +356,7 @@ class ActionExecutor implements ActionExecutorInterface
         }
 
         // Use cache to avoid repeated database queries
-        if (!isset($this->tagCache[$tagId])) {
+        if (! isset($this->tagCache[$tagId])) {
             $tag = Tag::find($tagId);
             $this->tagCache[$tagId] = $tag;
         } else {

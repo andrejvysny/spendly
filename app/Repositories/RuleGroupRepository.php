@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\RuleEngine\RuleGroup;
 use App\Contracts\Repositories\RuleGroupRepositoryInterface;
+use App\Models\RuleEngine\RuleGroup;
 use Illuminate\Support\Collection;
 
 class RuleGroupRepository extends BaseRepository implements RuleGroupRepositoryInterface
@@ -21,11 +21,12 @@ class RuleGroupRepository extends BaseRepository implements RuleGroupRepositoryI
     public function update(int $id, array $data): ?RuleGroup
     {
         $group = $this->model->find($id);
-        if (!$group) {
+        if (! $group) {
             return null;
         }
 
         $group->update($data);
+
         return $group->fresh();
     }
 

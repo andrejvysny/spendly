@@ -51,6 +51,6 @@ class RuleCondition extends Model
      */
     public static function getFields(): array
     {
-        return array_map(fn(ConditionField $field) => $field->value, ConditionField::cases());
+        return array_map(fn (ConditionField $field) => $field->value, ConditionField::cases());
     }
 }

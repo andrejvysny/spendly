@@ -64,7 +64,6 @@ class ConditionEvaluatorTest extends TestCase
         ];
     }
 
-
     public function it_evaluates_not_equals_operator()
     {
         $condition = new RuleCondition([
@@ -75,7 +74,6 @@ class ConditionEvaluatorTest extends TestCase
 
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
-
 
     #[DataProvider('containsOperatorProvider')]
     public function it_evaluates_contains_operator($field, $value, $expected, $caseSensitive = false)
@@ -101,7 +99,6 @@ class ConditionEvaluatorTest extends TestCase
         ];
     }
 
-
     public function it_evaluates_starts_with_operator()
     {
         $condition = new RuleCondition([
@@ -116,7 +113,6 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertFalse($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-
     public function it_evaluates_ends_with_operator()
     {
         $condition = new RuleCondition([
@@ -127,7 +123,6 @@ class ConditionEvaluatorTest extends TestCase
 
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
-
 
     #[DataProvider('numericOperatorProvider')]
     public function it_evaluates_numeric_operators($operator, $value, $expected)
@@ -154,7 +149,6 @@ class ConditionEvaluatorTest extends TestCase
         ];
     }
 
-
     public function it_evaluates_between_operator()
     {
         $condition = new RuleCondition([
@@ -168,7 +162,6 @@ class ConditionEvaluatorTest extends TestCase
         $condition->value = '200,300';
         $this->assertFalse($this->evaluator->evaluate($condition, $this->transaction));
     }
-
 
     public function it_evaluates_regex_operator()
     {
@@ -188,7 +181,6 @@ class ConditionEvaluatorTest extends TestCase
         $condition->value = '/^AMAZON/';
         $this->assertFalse($this->evaluator->evaluate($condition, $this->transaction));
     }
-
 
     public function it_evaluates_wildcard_operator()
     {
@@ -210,7 +202,6 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-
     public function it_evaluates_is_empty_operator()
     {
         $emptyTransaction = new Transaction(['description' => '', 'note' => null]);
@@ -228,7 +219,6 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertTrue($this->evaluator->evaluate($condition, $emptyTransaction));
     }
 
-
     public function it_evaluates_in_operator()
     {
         $condition = new RuleCondition([
@@ -242,7 +232,6 @@ class ConditionEvaluatorTest extends TestCase
         $condition->value = 'WITHDRAWAL,EXCHANGE';
         $this->assertFalse($this->evaluator->evaluate($condition, $this->transaction));
     }
-
 
     public function it_evaluates_date_comparisons()
     {
@@ -263,7 +252,6 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-
     public function it_evaluates_tag_conditions()
     {
         // Create tags and associate with transaction
@@ -280,7 +268,6 @@ class ConditionEvaluatorTest extends TestCase
 
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
-
 
     public function it_handles_category_and_merchant_fields()
     {
@@ -303,7 +290,6 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-
     public function it_handles_negated_conditions()
     {
         $condition = new RuleCondition([
@@ -318,7 +304,6 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertFalse($result);
     }
 
-
     public function it_handles_invalid_regex_gracefully()
     {
         $condition = new RuleCondition([
@@ -330,7 +315,6 @@ class ConditionEvaluatorTest extends TestCase
         $result = $this->evaluator->evaluate($condition, $this->transaction);
         $this->assertFalse($result);
     }
-
 
     public function it_supports_all_defined_operators()
     {

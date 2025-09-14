@@ -27,13 +27,13 @@ class TransactionPersister
         private readonly RuleEngineInterface $ruleEngine,
         private readonly TransactionRepositoryInterface $transactions
     ) {
-        $this->persistenceResult = new TransactionPersistenceResult();
+        $this->persistenceResult = new TransactionPersistenceResult;
     }
 
     public function persistBatch(BatchResultInterface $transactions): TransactionPersistenceResult
     {
         // Reset persistence result for this batch
-        $this->persistenceResult = new TransactionPersistenceResult();
+        $this->persistenceResult = new TransactionPersistenceResult;
 
         foreach ($transactions->getSuccessResults() as $transaction) {
             assert($transaction instanceof CsvProcessResult, 'Expected CsvProcessResult in batch results');
