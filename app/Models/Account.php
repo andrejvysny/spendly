@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Account extends BaseModel implements OwnedByUserContract
+class Account extends BaseModel
 {
     use HasFactory;
 
@@ -62,8 +62,5 @@ class Account extends BaseModel implements OwnedByUserContract
         return $this->hasMany(Transaction::class);
     }
 
-    public function getUserId(): int
-    {
-      return $this->user_id;
-    }
+
 }

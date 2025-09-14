@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Arr;
 
 class Transaction extends BaseModel
 {
@@ -35,7 +36,44 @@ class Transaction extends BaseModel
         'gocardless_synced_at',
         'gocardless_account_id',
         'is_reconciled',
+        'reconciled_at',
+        'reconciled_note',
+        'fingerprint',
     ];
+
+    public static function getFingerprintAttributes(): array
+    {
+        return [
+            'amount',
+            'currency',
+            'processed_date',
+            'description',
+            'target_iban',
+            'source_iban',
+            'partner',
+            'type',
+            'account_id',
+        ];
+    }
+
+    public static function generateFingerprint(array $model): string
+    {
+        $attributes = Arr::sort(Transaction::getFingerprintAttributes());
+        $data = [];
+
+        foreach ($attributes as $attribute) {
+
+            if ($attribute === 'processed_date' && isset($model[$attribute])) {
+                // Normalize date to Y-m-d format for fingerprinting
+                $data[$attribute] = date('Y-m-d', strtotime($model[$attribute]));
+                continue;
+            }
+
+            $data[$attribute] = $model[$attribute] ?? null;
+        }
+
+        return hash('sha256', json_encode($data));
+    }
 
     /**
      * The attributes that should be cast.
@@ -55,6 +93,8 @@ class Transaction extends BaseModel
         'gocardless_synced_at' => 'datetime',
         'gocardless_account_id' => 'string',
         'is_reconciled' => 'boolean',
+        'reconciled_at' => 'datetime',
+        'fingerprint' => 'string',
     ];
 
     /**

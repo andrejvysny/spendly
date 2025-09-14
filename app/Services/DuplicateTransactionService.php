@@ -6,7 +6,6 @@ namespace App\Services;
 
 use App\Models\Account;
 use App\Models\Transaction;
-use App\Models\TransactionFingerprint;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 

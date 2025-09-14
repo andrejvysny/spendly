@@ -6,12 +6,21 @@ use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Contracts\Repositories\MerchantRepositoryInterface;
 use App\Contracts\Repositories\TagRepositoryInterface;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
+use App\Models\Category;
+use App\Models\Merchant;
 use App\Models\RuleEngine\RuleAction;
+use App\Models\Tag;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Log;
 
 class ActionExecutor implements ActionExecutorInterface
 {
+    // Cache for frequently accessed models to reduce database queries
+    private array $categoryCache = [];
+    private array $merchantCache = [];
+    private array $tagCache = [];
+    private array $transactionUpdateBatch = [];
+
     public function __construct(
         private CategoryRepositoryInterface $categoryRepository,
         private MerchantRepositoryInterface $merchantRepository,
@@ -21,7 +30,7 @@ class ActionExecutor implements ActionExecutorInterface
     public function execute(RuleAction $action, Transaction $transaction): bool
     {
         try {
-            return match ($action->action_type) {
+            $result = match ($action->action_type) {
                 RuleAction::ACTION_SET_CATEGORY => $this->setCategory($action, $transaction),
                 RuleAction::ACTION_SET_MERCHANT => $this->setMerchant($action, $transaction),
                 RuleAction::ACTION_ADD_TAG => $this->addTag($action, $transaction),
@@ -40,12 +49,15 @@ class ActionExecutor implements ActionExecutorInterface
                 RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => $this->createMerchantIfNotExists($action, $transaction),
                 default => false,
             };
+            
+            return $result;
         } catch (\Exception $e) {
             Log::error('Rule action execution failed', [
                 'action_type' => $action->action_type,
                 'action_value' => $action->action_value,
                 'transaction_id' => $transaction->id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return false;
@@ -102,7 +114,14 @@ class ActionExecutor implements ActionExecutorInterface
     private function setCategory(RuleAction $action, Transaction $transaction): bool
     {
         $categoryId = $action->getDecodedValue();
-        $category = $this->categoryRepository->find($categoryId);
+        
+        // Use cache to avoid repeated database queries
+        if (!isset($this->categoryCache[$categoryId])) {
+            $category = $this->categoryRepository->find($categoryId);
+            $this->categoryCache[$categoryId] = $category;
+        } else {
+            $category = $this->categoryCache[$categoryId];
+        }
 
         if (! $category || $category->user_id !== $transaction->account->user_id) {
             return false;
@@ -117,7 +136,14 @@ class ActionExecutor implements ActionExecutorInterface
     private function setMerchant(RuleAction $action, Transaction $transaction): bool
     {
         $merchantId = $action->getDecodedValue();
-        $merchant = $this->merchantRepository->find($merchantId);
+        
+        // Use cache to avoid repeated database queries
+        if (!isset($this->merchantCache[$merchantId])) {
+            $merchant = $this->merchantRepository->find($merchantId);
+            $this->merchantCache[$merchantId] = $merchant;
+        } else {
+            $merchant = $this->merchantCache[$merchantId];
+        }
 
         if (! $merchant || $merchant->user_id !== $transaction->account->user_id) {
             return false;
@@ -132,7 +158,14 @@ class ActionExecutor implements ActionExecutorInterface
     private function addTag(RuleAction $action, Transaction $transaction): bool
     {
         $tagId = $action->getDecodedValue();
-        $tag = $this->tagRepository->find($tagId);
+        
+        // Use cache to avoid repeated database queries
+        if (!isset($this->tagCache[$tagId])) {
+            $tag = $this->tagRepository->find($tagId);
+            $this->tagCache[$tagId] = $tag;
+        } else {
+            $tag = $this->tagCache[$tagId];
+        }
 
         if (! $tag || $tag->user_id !== $transaction->account->user_id) {
             return false;
@@ -304,7 +337,13 @@ class ActionExecutor implements ActionExecutorInterface
             return $categoryId;
         }
 
-        $category = Category::find($categoryId);
+        // Use cache to avoid repeated database queries
+        if (!isset($this->categoryCache[$categoryId])) {
+            $category = Category::find($categoryId);
+            $this->categoryCache[$categoryId] = $category;
+        } else {
+            $category = $this->categoryCache[$categoryId];
+        }
 
         return $category ? $category->name : "Category #{$categoryId}";
     }
@@ -315,7 +354,13 @@ class ActionExecutor implements ActionExecutorInterface
             return $merchantId;
         }
 
-        $merchant = Merchant::find($merchantId);
+        // Use cache to avoid repeated database queries
+        if (!isset($this->merchantCache[$merchantId])) {
+            $merchant = Merchant::find($merchantId);
+            $this->merchantCache[$merchantId] = $merchant;
+        } else {
+            $merchant = $this->merchantCache[$merchantId];
+        }
 
         return $merchant ? $merchant->name : "Merchant #{$merchantId}";
     }
@@ -326,8 +371,40 @@ class ActionExecutor implements ActionExecutorInterface
             return $tagId;
         }
 
-        $tag = Tag::find($tagId);
+        // Use cache to avoid repeated database queries
+        if (!isset($this->tagCache[$tagId])) {
+            $tag = Tag::find($tagId);
+            $this->tagCache[$tagId] = $tag;
+        } else {
+            $tag = $this->tagCache[$tagId];
+        }
 
         return $tag ? $tag->name : "Tag #{$tagId}";
+    }
+
+    /**
+     * Clear all caches to free memory.
+     */
+    public function clearCaches(): self
+    {
+        $this->categoryCache = [];
+        $this->merchantCache = [];
+        $this->tagCache = [];
+        $this->transactionUpdateBatch = [];
+
+        return $this;
+    }
+
+    /**
+     * Get cache statistics for debugging.
+     */
+    public function getCacheStats(): array
+    {
+        return [
+            'category_cache_count' => count($this->categoryCache),
+            'merchant_cache_count' => count($this->merchantCache),
+            'tag_cache_count' => count($this->tagCache),
+            'pending_updates' => count($this->transactionUpdateBatch),
+        ];
     }
 }

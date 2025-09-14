@@ -58,17 +58,22 @@ readonly class TransactionImportService
             ]);
 
             // Persist successful transactions
-            $this->persister->persistBatch($batch);
+            $persistenceResult = $this->persister->persistBatch($batch);
 
             // Persist failures and skipped transactions for manual review
             $failureStats = $this->failurePersister->persistFailures($batch, $import);
 
+            // Process SQL failures from transaction persistence
+
+            $sqlFailureStats = $this->failurePersister->persistSqlFailures($persistenceResult, $import);
+
             Log::info('Import failure persistence completed', [
                 'import_id' => $import->id,
                 'failure_stats' => $failureStats,
+                'sql_failure_stats' => $sqlFailureStats,
             ]);
 
-            $this->updateImportStatus($import, $batch);
+            $this->updateImportStatus($import, $batch, $persistenceResult);
 
         } catch (\Exception $e) {
             Log::error('Transaction import failed', [
@@ -137,12 +142,16 @@ readonly class TransactionImportService
     /**
      * Update import status based on results.
      */
-    private function updateImportStatus(Import $import, BatchResultInterface $batch): void
+    private function updateImportStatus(Import $import, BatchResultInterface $batch, TransactionPersistenceResult $persistenceResult = null): void
     {
         $processed = $batch->getSuccessCount();
         $failed = $batch->getFailedCount();
         $skipped = $batch->getSkippedCount();
         $total = $batch->getTotalProcessed();
+
+        // Add SQL failures to the failed count
+        $sqlFailures = $persistenceResult ? $persistenceResult->getSqlFailureCount() : 0;
+        $failed += $sqlFailures;
 
         // Determine status with improved logic
         if ($processed === 0 && $total > 0) {
@@ -167,6 +176,7 @@ readonly class TransactionImportService
             'metadata' => array_merge($import->metadata ?? [], [
                 'skipped_rows' => $skipped,
                 'failed_rows' => $failed,
+                'sql_failures' => $sqlFailures,
                 'processed_rows' => $processed,
                 'total_rows' => $total,
             ]),
@@ -177,6 +187,7 @@ readonly class TransactionImportService
             'status' => $status,
             'processed' => $processed,
             'failed' => $failed,
+            'sql_failures' => $sqlFailures,
             'skipped' => $skipped,
         ]);
     }

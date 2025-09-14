@@ -2,6 +2,7 @@
 
 namespace App\Services\TransactionImport;
 
+use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -60,6 +61,8 @@ class TransactionDataParser
 
         // Store original import data
         $data['import_data'] = $this->buildImportData($row, $headers);
+
+        $data['fingerprint'] = Transaction::generateFingerprint($data); // Placeholder for fingerprint generation
 
         return $data;
     }
