@@ -79,8 +79,6 @@ function ErrorDetailsPanel({ failure }: { failure: ImportFailure }) {
                                 </div>
                             )}
 
-
-
                             {failure.error_details?.fingerprint && (
                                 <div>
                                     <h4 className="mb-1 text-sm font-medium">Duplicate Info:</h4>

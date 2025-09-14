@@ -35,13 +35,16 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                 </div>
 
                 {/* Transaction Card */}
-                <div className={"bg-card rounded-xl border-1 shadow-xs transition-colors " + (isSelected ? 'border-current' : 'hover:border-current') + (compact ? 'py-1 px-2' : ' p-2')}>
+                <div
+                    className={
+                        'bg-card rounded-xl border-1 shadow-xs transition-colors ' +
+                        (isSelected ? 'border-current' : 'hover:border-current') +
+                        (compact ? 'px-2 py-1' : ' p-2')
+                    }
+                >
                     <div className="flex w-full cursor-pointer items-center gap-4" onClick={() => setIsExpanded(!isExpanded)}>
-
-
-
                         <div
-                            className={"flex items-center justify-center rounded-full " + (compact ? ' h-8 w-8 p-1' : 'h-12 w-12 p-2')}
+                            className={'flex items-center justify-center rounded-full ' + (compact ? ' h-8 w-8 p-1' : 'h-12 w-12 p-2')}
                             style={{ backgroundColor: transaction.category?.color || '#333333' }}
                             title={transaction.category?.name || 'Uncategorized'}
                         >
@@ -65,53 +68,50 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                             )}
                         </div>
 
-
                         <div className="flex-1">
-                            <div className={!compact ? "font-medium" : "font-medium text-sm"}>{transaction.partner || transaction.merchant?.name || transaction.type}</div>
+                            <div className={!compact ? 'font-medium' : 'text-sm font-medium'}>
+                                {transaction.partner || transaction.merchant?.name || transaction.type}
+                            </div>
                             <small className="text-gray-500">{formatDate(transaction.processed_date)}</small>
-                        {
-                            !compact && (
-
-
-                                    <div className="mt-1 flex gap-2">
-                                        {transaction.account && (
-                                            <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
-                                        {transaction.account?.name}
-                                    </span>
-                                        )}
-
+                            {!compact && (
+                                <div className="mt-1 flex gap-2">
+                                    {transaction.account && (
                                         <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
-                                    {transaction.type}
-                                </span>
+                                            {transaction.account?.name}
+                                        </span>
+                                    )}
 
-                                        {transaction.merchant?.name && (
-                                            <span
-                                                className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.merchant.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
-                                            >
-                                        {transaction.merchant.logo ? (
-                                            <img
-                                                src={transaction.merchant.logo}
-                                                alt={transaction.merchant.name}
-                                                className="h-5 w-auto rounded-full object-contain"
-                                            />
-                                        ) : (
-                                            <span className="text-xs font-bold">{transaction.merchant.name}</span>
-                                        )}
+                                    <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
+                                        {transaction.type}
                                     </span>
-                                        )}
-                                    </div>
 
-
-                            )
-                        }
-                    </div>
+                                    {transaction.merchant?.name && (
+                                        <span
+                                            className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.merchant.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
+                                        >
+                                            {transaction.merchant.logo ? (
+                                                <img
+                                                    src={transaction.merchant.logo}
+                                                    alt={transaction.merchant.name}
+                                                    className="h-5 w-auto rounded-full object-contain"
+                                                />
+                                            ) : (
+                                                <span className="text-xs font-bold">{transaction.merchant.name}</span>
+                                            )}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
                         {transaction.amount < 0 ? (
-                            <div className={"text-destructive-foreground  font-semibold" + (compact ? ' text-md' : ' text-lg')}>
+                            <div className={'text-destructive-foreground font-semibold' + (compact ? ' text-md' : ' text-lg')}>
                                 ▼ {formatAmount(transaction.amount, transaction.currency)}
                             </div>
                         ) : (
-                            <div className={"font-semibold text-green-500"+ (compact ? ' text-md' : ' text-lg')}>▲ {formatAmount(transaction.amount, transaction.currency)}</div>
+                            <div className={'font-semibold text-green-500' + (compact ? ' text-md' : ' text-lg')}>
+                                ▲ {formatAmount(transaction.amount, transaction.currency)}
+                            </div>
                         )}
                     </div>
 

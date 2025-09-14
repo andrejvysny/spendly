@@ -62,7 +62,12 @@ function TransactionList({
         }
     };
 
-    const handleResetSelection = (updatedData?: { ids: string[]; category_id?: string | null; merchant_id?: string | null; updated_transactions?: Array<{id: number; note: string}> }) => {
+    const handleResetSelection = (updatedData?: {
+        ids: string[];
+        category_id?: string | null;
+        merchant_id?: string | null;
+        updated_transactions?: Array<{ id: number; note: string }>;
+    }) => {
         // If we have updated data, update the local transactions
         if (updatedData) {
             const updatedTransactions = [...transactions];
@@ -96,7 +101,7 @@ function TransactionList({
 
                     // Handle note updates
                     if (updatedData.updated_transactions) {
-                        const updatedTransaction = updatedData.updated_transactions.find(t => String(t.id) === id);
+                        const updatedTransaction = updatedData.updated_transactions.find((t) => String(t.id) === id);
                         if (updatedTransaction) {
                             updates.note = updatedTransaction.note;
                         }

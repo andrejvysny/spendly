@@ -246,7 +246,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                         setError('Failed to apply saved mapping. Please configure manually.');
 
                         // Fallback to converting saved header-based mapping to indices before applying
-                        const rawMapping = mapping.column_mapping || {} as Record<string, unknown>;
+                        const rawMapping = mapping.column_mapping || ({} as Record<string, unknown>);
                         const convertedMapping: Record<string, number | null> = {};
 
                         // Ensure we handle values safely by narrowing to expected types
@@ -281,8 +281,8 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                                 }
 
                                 // Partial / fuzzy fallback
-                                idx = headers.findIndex((h) =>
-                                    h.toLowerCase().includes(target.toLowerCase()) || target.toLowerCase().includes(h.toLowerCase()),
+                                idx = headers.findIndex(
+                                    (h) => h.toLowerCase().includes(target.toLowerCase()) || target.toLowerCase().includes(h.toLowerCase()),
                                 );
 
                                 convertedMapping[field] = idx !== -1 ? idx : null;
