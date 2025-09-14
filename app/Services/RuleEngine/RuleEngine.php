@@ -5,6 +5,7 @@ namespace App\Services\RuleEngine;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
 use App\Contracts\RuleEngine\ConditionEvaluatorInterface;
 use App\Contracts\RuleEngine\RuleEngineInterface;
+use App\Models\RuleEngine\ConditionField;
 use App\Models\RuleEngine\ConditionGroup;
 use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\Rule;
@@ -470,7 +471,9 @@ class RuleEngine implements RuleEngineInterface
 
         // Check if field value is cached
         if (!isset($this->transactionFieldCache[$cacheKey])) {
-            $this->transactionFieldCache[$cacheKey] = $this->conditionEvaluator->getFieldValue($transaction, $condition->field);
+            // Convert string field to ConditionField enum
+            $fieldEnum = ConditionField::from($condition->field);
+            $this->transactionFieldCache[$cacheKey] = $this->conditionEvaluator->getFieldValue($transaction, $fieldEnum);
             $this->cacheMisses++;
         } else {
             $this->cacheHits++;

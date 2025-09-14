@@ -112,7 +112,7 @@ class ActionExecutor implements ActionExecutorInterface
 
     private function setCategory(RuleAction $action, Transaction $transaction): bool
     {
-        $categoryId = $action->getDecodedValue();
+        $categoryId = (int) $action->getDecodedValue();
 
         // Use cache to avoid repeated database queries
         if (!isset($this->categoryCache[$categoryId])) {
@@ -134,7 +134,7 @@ class ActionExecutor implements ActionExecutorInterface
 
     private function setMerchant(RuleAction $action, Transaction $transaction): bool
     {
-        $merchantId = $action->getDecodedValue();
+        $merchantId = (int) $action->getDecodedValue();
 
         // Use cache to avoid repeated database queries
         if (!isset($this->merchantCache[$merchantId])) {
@@ -156,7 +156,7 @@ class ActionExecutor implements ActionExecutorInterface
 
     private function addTag(RuleAction $action, Transaction $transaction): bool
     {
-        $tagId = $action->getDecodedValue();
+        $tagId = (int) $action->getDecodedValue();
 
         // Use cache to avoid repeated database queries
         if (!isset($this->tagCache[$tagId])) {
@@ -179,7 +179,7 @@ class ActionExecutor implements ActionExecutorInterface
 
     private function removeTag(RuleAction $action, Transaction $transaction): bool
     {
-        $tagId = $action->getDecodedValue();
+        $tagId = (int) $action->getDecodedValue();
         $transaction->tags()->detach($tagId);
 
         return true;
