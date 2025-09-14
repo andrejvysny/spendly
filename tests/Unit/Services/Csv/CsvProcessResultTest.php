@@ -25,7 +25,7 @@ class CsvProcessResultTest extends UnitTestCase
     public function test_failure_result_creation()
     {
         $data = ['id' => 1, 'name' => 'Test'];
-        $errors = ['Field validation failed'];
+        $errors = ['ConditionField validation failed'];
         $metadata = ['row_number' => 1];
 
         $result = CsvProcessResult::failure('Failure message', $data, $metadata, $errors);

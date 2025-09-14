@@ -1105,7 +1105,7 @@ foreach ($rule->conditionGroups as $group) {
 ### **Action Execution:**
 
 ```php
-// 13. Rule Action Execution
+// 13. Rule ActionType Execution
 RuleEngine::executeRuleActions($rule, $transaction)
     ↓
 DB::beginTransaction();
@@ -1321,7 +1321,7 @@ foreach ($rule->conditionGroups as $group) {
 ```
 
 ```php
-// 13. Rule Action Execution
+// 13. Rule ActionType Execution
 RuleEngine::executeRuleActions($rule, $transaction)
     ↓
 DB::beginTransaction();
