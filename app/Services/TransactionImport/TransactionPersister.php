@@ -7,6 +7,7 @@ use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Events\TransactionCreated;
 use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use App\Services\Csv\CsvProcessResult;
 use Illuminate\Support\Facades\Log;
@@ -196,7 +197,7 @@ class TransactionPersister
                     $user = $created->first()->account->user;
                     $this->ruleEngine
                         ->setUser($user)
-                        ->processTransactions($created, Rule::TRIGGER_TRANSACTION_CREATED);
+                        ->processTransactions($created, Trigger::TRANSACTION_CREATED);
 
                     foreach ($created as $t) {
                         event(new TransactionCreated($t, false));

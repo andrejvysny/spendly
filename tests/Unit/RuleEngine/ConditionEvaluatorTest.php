@@ -4,11 +4,13 @@ namespace Tests\Unit\RuleEngine;
 
 use App\Models\Category;
 use App\Models\Merchant;
+use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\RuleCondition;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Services\RuleEngine\ConditionEvaluator;
 use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ConditionEvaluatorTest extends TestCase
@@ -37,16 +39,12 @@ class ConditionEvaluatorTest extends TestCase
         ]);
     }
 
-    /**
-     * @test
-     *
-     * @dataProvider equalsOperatorProvider
-     */
+    #[DataProvider('equalsOperatorProvider')]
     public function it_evaluates_equals_operator($field, $value, $expected, $caseSensitive = false)
     {
         $condition = new RuleCondition([
             'field' => $field,
-            'operator' => RuleCondition::OPERATOR_EQUALS,
+            'operator' => ConditionOperator::OPERATOR_EQUALS,
             'value' => $value,
             'is_case_sensitive' => $caseSensitive,
         ]);
@@ -66,30 +64,25 @@ class ConditionEvaluatorTest extends TestCase
         ];
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_not_equals_operator()
     {
         $condition = new RuleCondition([
             'field' => 'amount',
-            'operator' => RuleCondition::OPERATOR_NOT_EQUALS,
+            'operator' => ConditionOperator::OPERATOR_NOT_EQUALS,
             'value' => '200',
         ]);
 
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     *
-     * @dataProvider containsOperatorProvider
-     */
+
+    #[DataProvider('containsOperatorProvider')]
     public function it_evaluates_contains_operator($field, $value, $expected, $caseSensitive = false)
     {
         $condition = new RuleCondition([
             'field' => $field,
-            'operator' => RuleCondition::OPERATOR_CONTAINS,
+            'operator' => ConditionOperator::OPERATOR_CONTAINS,
             'value' => $value,
             'is_case_sensitive' => $caseSensitive,
         ]);
@@ -108,14 +101,12 @@ class ConditionEvaluatorTest extends TestCase
         ];
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_starts_with_operator()
     {
         $condition = new RuleCondition([
             'field' => 'description',
-            'operator' => RuleCondition::OPERATOR_STARTS_WITH,
+            'operator' => ConditionOperator::OPERATOR_STARTS_WITH,
             'value' => 'WALMART',
         ]);
 
@@ -125,25 +116,20 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertFalse($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_ends_with_operator()
     {
         $condition = new RuleCondition([
             'field' => 'description',
-            'operator' => RuleCondition::OPERATOR_ENDS_WITH,
+            'operator' => ConditionOperator::OPERATOR_ENDS_WITH,
             'value' => 'STORE',
         ]);
 
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     *
-     * @dataProvider numericOperatorProvider
-     */
+
+    #[DataProvider('numericOperatorProvider')]
     public function it_evaluates_numeric_operators($operator, $value, $expected)
     {
         $condition = new RuleCondition([
@@ -159,23 +145,21 @@ class ConditionEvaluatorTest extends TestCase
     public static function numericOperatorProvider()
     {
         return [
-            'greater than 50' => [RuleCondition::OPERATOR_GREATER_THAN, '50', true],
-            'greater than 200' => [RuleCondition::OPERATOR_GREATER_THAN, '200', false],
-            'greater than or equal 100.50' => [RuleCondition::OPERATOR_GREATER_THAN_OR_EQUAL, '100.50', true],
-            'less than 200' => [RuleCondition::OPERATOR_LESS_THAN, '200', true],
-            'less than 50' => [RuleCondition::OPERATOR_LESS_THAN, '50', false],
-            'less than or equal 100.50' => [RuleCondition::OPERATOR_LESS_THAN_OR_EQUAL, '100.50', true],
+            'greater than 50' => [ConditionOperator::OPERATOR_GREATER_THAN, '50', true],
+            'greater than 200' => [ConditionOperator::OPERATOR_GREATER_THAN, '200', false],
+            'greater than or equal 100.50' => [ConditionOperator::OPERATOR_GREATER_THAN_OR_EQUAL, '100.50', true],
+            'less than 200' => [ConditionOperator::OPERATOR_LESS_THAN, '200', true],
+            'less than 50' => [ConditionOperator::OPERATOR_LESS_THAN, '50', false],
+            'less than or equal 100.50' => [ConditionOperator::OPERATOR_LESS_THAN_OR_EQUAL, '100.50', true],
         ];
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_between_operator()
     {
         $condition = new RuleCondition([
             'field' => 'amount',
-            'operator' => RuleCondition::OPERATOR_BETWEEN,
+            'operator' => ConditionOperator::OPERATOR_BETWEEN,
             'value' => '50,150',
         ]);
 
@@ -185,14 +169,12 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertFalse($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_regex_operator()
     {
         $condition = new RuleCondition([
             'field' => 'description',
-            'operator' => RuleCondition::OPERATOR_REGEX,
+            'operator' => ConditionOperator::OPERATOR_REGEX,
             'value' => '/WALMART|TARGET/i',
         ]);
 
@@ -207,14 +189,12 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertFalse($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_wildcard_operator()
     {
         $condition = new RuleCondition([
             'field' => 'description',
-            'operator' => RuleCondition::OPERATOR_WILDCARD,
+            'operator' => ConditionOperator::OPERATOR_WILDCARD,
             'value' => '*GROCERY*',
         ]);
 
@@ -230,16 +210,14 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_is_empty_operator()
     {
         $emptyTransaction = new Transaction(['description' => '', 'note' => null]);
 
         $condition = new RuleCondition([
             'field' => 'description',
-            'operator' => RuleCondition::OPERATOR_IS_EMPTY,
+            'operator' => ConditionOperator::OPERATOR_IS_EMPTY,
             'value' => '',
         ]);
 
@@ -250,14 +228,12 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertTrue($this->evaluator->evaluate($condition, $emptyTransaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_in_operator()
     {
         $condition = new RuleCondition([
             'field' => 'type',
-            'operator' => RuleCondition::OPERATOR_IN,
+            'operator' => ConditionOperator::OPERATOR_IN,
             'value' => 'PAYMENT,TRANSFER,DEPOSIT',
         ]);
 
@@ -267,31 +243,27 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertFalse($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_date_comparisons()
     {
         $condition = new RuleCondition([
             'field' => 'date',
-            'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+            'operator' => ConditionOperator::OPERATOR_GREATER_THAN,
             'value' => '2024-01-01',
         ]);
 
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
 
-        $condition->operator = RuleCondition::OPERATOR_LESS_THAN;
+        $condition->operator = ConditionOperator::OPERATOR_LESS_THAN;
         $condition->value = '2024-02-01';
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
 
-        $condition->operator = RuleCondition::OPERATOR_BETWEEN;
+        $condition->operator = ConditionOperator::OPERATOR_BETWEEN;
         $condition->value = '2024-01-01,2024-01-31';
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_evaluates_tag_conditions()
     {
         // Create tags and associate with transaction
@@ -302,16 +274,14 @@ class ConditionEvaluatorTest extends TestCase
 
         $condition = new RuleCondition([
             'field' => 'tags',
-            'operator' => RuleCondition::OPERATOR_IN,
+            'operator' => ConditionOperator::OPERATOR_IN,
             'value' => 'Shopping,Travel',
         ]);
 
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_handles_category_and_merchant_fields()
     {
         $category = new Category(['name' => 'Groceries']);
@@ -322,7 +292,7 @@ class ConditionEvaluatorTest extends TestCase
 
         $condition = new RuleCondition([
             'field' => 'category',
-            'operator' => RuleCondition::OPERATOR_EQUALS,
+            'operator' => ConditionOperator::OPERATOR_EQUALS,
             'value' => 'Groceries',
         ]);
 
@@ -333,14 +303,12 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    /**
-     * @test
-     */
+
     public function it_handles_negated_conditions()
     {
         $condition = new RuleCondition([
             'field' => 'amount',
-            'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+            'operator' => ConditionOperator::OPERATOR_GREATER_THAN,
             'value' => '50',
             'is_negated' => true,
         ]);
@@ -350,14 +318,12 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
+
     public function it_handles_invalid_regex_gracefully()
     {
         $condition = new RuleCondition([
             'field' => 'description',
-            'operator' => RuleCondition::OPERATOR_REGEX,
+            'operator' => ConditionOperator::OPERATOR_REGEX,
             'value' => '[invalid regex',
         ]);
 
@@ -365,9 +331,7 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
+
     public function it_supports_all_defined_operators()
     {
         $operators = RuleCondition::getOperators();

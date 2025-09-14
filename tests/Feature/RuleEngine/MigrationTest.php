@@ -10,9 +10,7 @@ class MigrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * @test
-     */
+
     public function it_creates_rule_groups_table_with_correct_schema()
     {
         $this->assertTrue(Schema::hasTable('rule_groups'));
@@ -38,9 +36,7 @@ class MigrationTest extends TestCase
         $this->assertArrayHasKey('rule_groups_user_id_is_active_index', $indexes);
     }
 
-    /**
-     * @test
-     */
+
     public function it_creates_rules_table_with_correct_schema()
     {
         $this->assertTrue(Schema::hasTable('rules'));
@@ -74,9 +70,7 @@ class MigrationTest extends TestCase
         $this->assertTrue(Schema::hasColumn('rules', 'rule_group_id'));
     }
 
-    /**
-     * @test
-     */
+
     public function it_creates_condition_groups_table_with_correct_schema()
     {
         $this->assertTrue(Schema::hasTable('condition_groups'));
@@ -103,9 +97,7 @@ class MigrationTest extends TestCase
         $this->assertTrue(Schema::hasColumn('condition_groups', 'rule_id'));
     }
 
-    /**
-     * @test
-     */
+
     public function it_creates_rule_conditions_table_with_correct_schema()
     {
         $this->assertTrue(Schema::hasTable('rule_conditions'));
@@ -136,9 +128,7 @@ class MigrationTest extends TestCase
         $this->assertTrue(Schema::hasColumn('rule_conditions', 'condition_group_id'));
     }
 
-    /**
-     * @test
-     */
+
     public function it_creates_rule_actions_table_with_correct_schema()
     {
         $this->assertTrue(Schema::hasTable('rule_actions'));
@@ -167,9 +157,7 @@ class MigrationTest extends TestCase
         $this->assertTrue(Schema::hasColumn('rule_actions', 'rule_id'));
     }
 
-    /**
-     * @test
-     */
+
     public function it_creates_rule_execution_logs_table_with_correct_schema()
     {
         $this->assertTrue(Schema::hasTable('rule_execution_logs'));
@@ -199,9 +187,7 @@ class MigrationTest extends TestCase
         $this->assertTrue(Schema::hasColumn('rule_execution_logs', 'rule_id'));
     }
 
-    /**
-     * @test
-     */
+
     public function it_adds_is_reconciled_column_to_transactions_table()
     {
         $this->assertTrue(Schema::hasTable('transactions'));
@@ -212,9 +198,7 @@ class MigrationTest extends TestCase
         $this->assertArrayHasKey('transactions_is_reconciled_index', $indexes);
     }
 
-    /**
-     * @test
-     */
+
     public function it_has_correct_foreign_key_constraints()
     {
         // Test cascade deletes
@@ -240,9 +224,7 @@ class MigrationTest extends TestCase
         $this->assertDatabaseMissing('rule_execution_logs', ['id' => $log->id]);
     }
 
-    /**
-     * @test
-     */
+
     public function it_has_correct_data_types()
     {
         // Create test data to verify data types

@@ -69,6 +69,7 @@ class AccountController extends Controller
 
     public function show(Account $account): Response|RedirectResponse
     {
+
         // Get initial paginated transactions for this account (first page only)
         $transactions = $account->transactions()
             ->with(['category', 'merchant', 'tags'])

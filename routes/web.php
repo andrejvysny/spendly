@@ -36,7 +36,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
     Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
 
-    Route::get('/accounts/{id}', [AccountController::class, 'show'])->name('accounts.show');
+    Route::get('/accounts/{account}', [AccountController::class, 'show'])->name('accounts.show');
     Route::delete('/accounts/{id}', [AccountController::class, 'destroy'])->name('accounts.destroy');
     Route::put('/accounts/{id}/sync-options', [AccountController::class, 'updateSyncOptions'])->name('accounts.sync-options.update');
 
