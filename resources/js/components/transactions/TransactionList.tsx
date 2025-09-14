@@ -15,6 +15,7 @@ interface Props {
     onLoadMore?: () => Promise<void>;
     isLoadingMore?: boolean;
     totalCount?: number;
+    compact?: boolean;
 }
 
 /**
@@ -42,6 +43,7 @@ function TransactionList({
     hasMorePages = false,
     onLoadMore,
     isLoadingMore = false,
+    compact = false,
     totalCount,
 }: Props) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -83,15 +85,15 @@ function TransactionList({
                 if (index !== -1) {
                     // Create a new object to trigger re-render
                     const updates: Partial<Transaction> = {};
-                    
+
                     if (updatedData.category_id !== undefined) {
                         updates.category = updatedData.category_id === null ? undefined : selectedCategory || undefined;
                     }
-                    
+
                     if (updatedData.merchant_id !== undefined) {
                         updates.merchant = updatedData.merchant_id === null ? undefined : selectedMerchant || undefined;
                     }
-                    
+
                     // Handle note updates
                     if (updatedData.updated_transactions) {
                         const updatedTransaction = updatedData.updated_transactions.find(t => String(t.id) === id);
@@ -99,7 +101,7 @@ function TransactionList({
                             updates.note = updatedTransaction.note;
                         }
                     }
-                    
+
                     updatedTransactions[index] = {
                         ...updatedTransactions[index],
                         ...updates,
@@ -251,6 +253,7 @@ function TransactionList({
                                         {dateGroups[date].map((transaction) => (
                                             <TransactionComponent
                                                 key={transaction.id}
+                                                compact={compact}
                                                 {...transaction}
                                                 isSelected={selectedTransactions.includes(String(transaction.id))}
                                                 onSelect={handleSelect}
