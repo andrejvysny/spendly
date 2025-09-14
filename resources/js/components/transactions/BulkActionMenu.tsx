@@ -139,12 +139,12 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
         }
     };
 
-    const handleNote = async (values: NoteFormValues, event) => {
+    const handleNote = async (values: NoteFormValues, event: { nativeEvent: { submitter: {name: string} } }) => {
         const submitter = event?.nativeEvent?.submitter;
         if (submitter?.name === 'replace') {
-            handleAddNote(values, 'replace');
+            await handleAddNote(values, 'replace');
         } else if (submitter?.name === 'append') {
-            handleAddNote(values, 'append');
+            await handleAddNote(values, 'append');
         }
     };
 
@@ -155,7 +155,7 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
                 note: values.note,
                 method: method,
             });
-            
+
             onUpdate({
                 ids: selectedTransactions,
                 updated_transactions: response.data.updated_transactions,

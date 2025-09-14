@@ -136,7 +136,7 @@ class TransactionPersister
                             $user = $insertedTransactions->first()->account->user;
                             $this->ruleEngine
                                 ->setUser($user)
-                                ->processTransactions($insertedTransactions, Rule::TRIGGER_TRANSACTION_CREATED);
+                                ->processTransactions($insertedTransactions, Trigger::TRANSACTION_CREATED);
 
                             // Fire created events for other subscribers without re-running rules
                             foreach ($insertedTransactions as $t) {

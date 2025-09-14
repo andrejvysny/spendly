@@ -32,6 +32,7 @@ use App\Repositories\TagRepository;
 use App\Repositories\TransactionRepository;
 use App\Repositories\ImportFailureRepository;
 use App\Repositories\UserRepository;
+use App\Models\RuleEngine\Rule;
 use Illuminate\Support\ServiceProvider;
 
 class RepositoryServiceProvider extends ServiceProvider
@@ -54,7 +55,9 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(ImportFailureRepositoryInterface::class, ImportFailureRepository::class);
         
         // Rule engine repositories
-        $this->app->bind(RuleRepositoryInterface::class, RuleRepository::class);
+        $this->app->bind(RuleRepositoryInterface::class, function ($app) {
+            return new RuleRepository(new Rule);
+        });
         $this->app->bind(RuleActionRepositoryInterface::class, RuleActionRepository::class);
         $this->app->bind(RuleConditionRepositoryInterface::class, RuleConditionRepository::class);
         $this->app->bind(RuleGroupRepositoryInterface::class, RuleGroupRepository::class);

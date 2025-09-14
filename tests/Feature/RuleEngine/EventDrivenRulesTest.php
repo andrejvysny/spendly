@@ -36,7 +36,7 @@ class EventDrivenRulesTest extends TestCase
 
         $this->user = User::factory()->create();
         $this->account = Account::factory()->create(['user_id' => $this->user->id]);
-        $this->ruleRepository = new RuleRepository;
+        $this->ruleRepository = app(\App\Contracts\Repositories\RuleRepositoryInterface::class);
     }
 
 
