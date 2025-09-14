@@ -10,7 +10,12 @@ interface Props {
     selectedTransactions: string[];
     categories?: Category[];
     merchants?: Merchant[];
-    onUpdate: (data?: { ids: string[]; category_id?: string | null; merchant_id?: string | null; updated_transactions?: Array<{id: number; note: string}> }) => void;
+    onUpdate: (data?: {
+        ids: string[];
+        category_id?: string | null;
+        merchant_id?: string | null;
+        updated_transactions?: Array<{ id: number; note: string }>;
+    }) => void;
 }
 
 const categorySchema = z.object({
@@ -26,11 +31,9 @@ const merchantSchema = z.object({
     logo: z.string().optional(),
 });
 
-
 const noteSchema = z.object({
     note: z.string().min(1, 'Note is required'),
 });
-
 
 type CategoryFormValues = z.infer<typeof categorySchema>;
 type MerchantFormValues = z.infer<typeof merchantSchema>;
@@ -139,7 +142,7 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
         }
     };
 
-    const handleNote = async (values: NoteFormValues, event: { nativeEvent: { submitter: {name: string} } }) => {
+    const handleNote = async (values: NoteFormValues, event: { nativeEvent: { submitter: { name: string } } }) => {
         const submitter = event?.nativeEvent?.submitter;
         if (submitter?.name === 'replace') {
             await handleAddNote(values, 'replace');
@@ -165,7 +168,6 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
             console.error('Failed to update notes:', error);
         }
     };
-
 
     if (selectedTransactions.length === 0) return null;
 
@@ -223,7 +225,7 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
                         </button>
 
                         <button
-                            onClick={()=> setActiveMenu(activeMenu === 'note' ? null : 'note')}
+                            onClick={() => setActiveMenu(activeMenu === 'note' ? null : 'note')}
                             className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
                                 activeMenu === 'note'
                                     ? 'bg-primary text-primary-foreground'
@@ -375,7 +377,6 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
                 {activeMenu === 'note' && (
                     <div className="border-border border-t p-3">
                         <div className="space-y-2">
-
                             <SmartForm schema={noteSchema} onSubmit={handleNote} formProps={{ className: 'space-y-3' }}>
                                 {() => (
                                     <>
@@ -399,12 +400,9 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
                                     </>
                                 )}
                             </SmartForm>
-
                         </div>
                     </div>
                 )}
-
-
             </div>
         </div>
     );

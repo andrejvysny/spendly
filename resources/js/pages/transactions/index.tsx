@@ -3,6 +3,7 @@
 import CreateTransactionModal from '@/components/transactions/CreateTransactionModal';
 import TransactionList from '@/components/transactions/TransactionList';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { DateRangeInput, TextInput } from '@/components/ui/form-inputs';
 import { LoadingDots } from '@/components/ui/loading-dots';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,16 +16,10 @@ import { BreadcrumbItem, Category, Merchant, Transaction } from '@/types/index';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
+import { Settings } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import '../../bootstrap';
-import {
-    DropdownMenu,
-    DropdownMenuContent, DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { Settings } from 'lucide-react';
 
 interface Props {
     transactions: {
@@ -571,7 +566,6 @@ export default function Index({
                     {/* Left: Sticky Account Details, Settings, Analytics */}
                     <div className="w-full max-w-xs flex-shrink-0">
                         <div className="sticky top-8">
-
                             <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
                                 <h3 className="mb-4 text-lg font-semibold">Filters</h3>
 
@@ -766,56 +760,50 @@ export default function Index({
                                     </div>
 
                                     <div className="mt-6 flex justify-between">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="outline">
+                                                    <Settings className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="start">
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer items-center justify-between"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setShowMonthlySummary((prev) => !prev);
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm">Show monthly summary</span>
+                                                    </div>
+                                                    <Switch
+                                                        checked={showMonthlySummary}
+                                                        onCheckedChange={() => setShowMonthlySummary((prev) => !prev)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </DropdownMenuItem>
 
-
-
-
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button
-                                                        variant="outline"
-                                                    >
-                                                        <Settings className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="start" >
-                                                    <DropdownMenuItem
-                                                        className="flex cursor-pointer items-center justify-between"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            setShowMonthlySummary(  prev => !prev);
-                                                        }}
-                                                    >
-                                                        <div className="flex flex-col">
-                                                            <span className="text-sm">Show monthly summary</span>
-                                                        </div>
-                                                        <Switch
-                                                            checked={showMonthlySummary}
-                                                            onCheckedChange={() => setShowMonthlySummary(prev => !prev)}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
-                                                    </DropdownMenuItem>
-
-                                                    <DropdownMenuItem
-                                                        className="flex cursor-pointer items-center justify-between"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            setCompactView(  prev => !prev);
-                                                        }}
-                                                    >
-                                                        <div className="flex flex-col">
-                                                            <span className="text-sm">Compact view</span>
-                                                        </div>
-                                                        <Switch
-                                                            checked={compactView}
-                                                            onCheckedChange={() => setCompactView(prev => !prev)}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer items-center justify-between"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setCompactView((prev) => !prev);
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm">Compact view</span>
+                                                    </div>
+                                                    <Switch
+                                                        checked={compactView}
+                                                        onCheckedChange={() => setCompactView((prev) => !prev)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
 
                                         <Button
                                             variant="outline"
@@ -844,7 +832,6 @@ export default function Index({
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
