@@ -53,9 +53,10 @@ class Category extends BaseModel implements OwnedByUserContract
     {
         return $this->hasMany(Transaction::class);
     }
+    
     public function getUserId(): int
     {
-        return $this->user_id;
+        return $this->getAttribute('user_id');
     }
 
 }

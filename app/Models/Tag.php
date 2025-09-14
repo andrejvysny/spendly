@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Contracts\OwnedByUserContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-class Tag extends BaseModel
+class Tag extends BaseModel implements OwnedByUserContract
 {
     use HasFactory;
 
@@ -31,5 +32,10 @@ class Tag extends BaseModel
     public function transactions(): BelongsToMany
     {
         return $this->belongsToMany(Transaction::class);
+    }
+
+    public function getUserId(): int
+    {
+        return $this->getAttribute('user_id');
     }
 }
