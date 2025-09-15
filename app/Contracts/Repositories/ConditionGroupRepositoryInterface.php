@@ -8,12 +8,12 @@ use Illuminate\Support\Collection;
 interface ConditionGroupRepositoryInterface extends BaseRepositoryContract
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): ConditionGroup;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(int $id, array $data): ?ConditionGroup;
 

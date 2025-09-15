@@ -10,22 +10,22 @@ use Illuminate\Database\Eloquent\Collection;
 interface RuleRepositoryInterface extends BaseRepositoryContract
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createRuleGroup(User $user, array $data): RuleGroup;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function updateRuleGroup(RuleGroup $ruleGroup, array $data): RuleGroup;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createRule(User $user, array $data): Rule;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function updateRule(Rule $rule, array $data): Rule;
 
@@ -46,7 +46,7 @@ interface RuleRepositoryInterface extends BaseRepositoryContract
     public function duplicateRule(Rule $rule, ?string $newName = null): Rule;
 
     /**
-     * @param array<int> $ruleIds
+     * @param  array<int>  $ruleIds
      */
     public function reorderRules(array $ruleIds): void;
 

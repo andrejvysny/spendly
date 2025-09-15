@@ -8,12 +8,12 @@ use Illuminate\Support\Collection;
 interface TagRepositoryInterface extends BaseRepositoryContract
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): Tag;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(int $id, array $data): ?Tag;
 
@@ -25,8 +25,8 @@ interface TagRepositoryInterface extends BaseRepositoryContract
     public function findByUserAndName(int $userId, string $name): ?Tag;
 
     /**
-     * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
      */
     public function firstOrCreate(array $attributes, array $values = []): Tag;
 }

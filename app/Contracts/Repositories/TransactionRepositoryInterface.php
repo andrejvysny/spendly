@@ -10,29 +10,29 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
     public function findByTransactionId(string $transactionId): ?Transaction;
 
     /**
-     * @param array<mixed> $transactions
+     * @param  array<mixed>  $transactions
      */
     public function createBatch(array $transactions): int;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createOne(array $data): Transaction;
 
     /**
-     * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
      */
     public function updateOrCreate(array $attributes, array $values): Transaction;
 
     /**
-     * @param array<string> $transactionIds
+     * @param  array<string>  $transactionIds
      * @return Collection<int, string>
      */
     public function getExistingTransactionIds(array $transactionIds): Collection;
 
     /**
-     * @param array<mixed> $updates
+     * @param  array<mixed>  $updates
      */
     public function updateBatch(array $updates): int;
 
@@ -45,7 +45,7 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
     public function findByAccountAndTransactionIdPairs(array $pairs): Collection;
 
     /**
-     * @param array<int> $accountIds
+     * @param  array<int>  $accountIds
      * @return Collection<int, Transaction>
      */
     public function getRecentByAccounts(array $accountIds, int $limit = 10): Collection;
@@ -56,7 +56,7 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
     public function findByUser(int $userId): Collection;
 
     /**
-     * @param array<int> $accountIds
+     * @param  array<int>  $accountIds
      * @return Collection<int, Transaction>
      */
     public function findByAccountIds(array $accountIds): Collection;

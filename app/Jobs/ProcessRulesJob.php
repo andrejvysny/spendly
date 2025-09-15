@@ -53,8 +53,8 @@ class ProcessRulesJob implements ShouldQueue
     /**
      * Create a new job instance.
      *
-     * @param array<int> $ruleIds
-     * @param array<int> $transactionIds
+     * @param  array<int>  $ruleIds
+     * @param  array<int>  $transactionIds
      */
     public function __construct(
         User $user,

@@ -28,7 +28,7 @@ abstract class TestCase extends BaseTestCase
      * Make an Inertia request with the proper headers.
      * This automatically sets the X-Inertia and X-Inertia-Version headers.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return \Illuminate\Testing\TestResponse<\Illuminate\Http\Response>
      */
     protected function inertia(string $method, string $uri, array $data = [])
@@ -57,11 +57,13 @@ abstract class TestCase extends BaseTestCase
 
         if (file_exists($manifest = public_path('mix-manifest.json'))) {
             $hash = hash_file('xxh128', $manifest);
+
             return $hash !== false ? $hash : null;
         }
 
         if (file_exists($manifest = public_path('build/manifest.json'))) {
             $hash = hash_file('xxh128', $manifest);
+
             return $hash !== false ? $hash : null;
         }
 

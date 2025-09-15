@@ -23,7 +23,7 @@ class TransactionUpdated
     /**
      * Create a new event instance.
      *
-     * @param array<string, mixed> $changedAttributes
+     * @param  array<string, mixed>  $changedAttributes
      */
     public function __construct(Transaction $transaction, array $changedAttributes = [], bool $applyRules = true)
     {
