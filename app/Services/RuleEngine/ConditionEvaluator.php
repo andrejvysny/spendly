@@ -31,7 +31,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
         $conditionValue = $condition->value;
         $caseSensitive = $condition->is_case_sensitive ?? false;
 
-        $result = match (ConditionOperator::from($condition->operator)) {
+        $result = match ($condition->operator) {
             ConditionOperator::OPERATOR_EQUALS => $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
             ConditionOperator::OPERATOR_NOT_EQUALS => ! $this->evaluateEquals($fieldValue, $conditionValue, $caseSensitive),
             ConditionOperator::OPERATOR_CONTAINS => $this->evaluateContains($fieldValue, $conditionValue, $caseSensitive),
