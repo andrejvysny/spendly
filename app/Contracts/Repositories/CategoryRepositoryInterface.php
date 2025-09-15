@@ -8,12 +8,12 @@ use Illuminate\Support\Collection;
 interface CategoryRepositoryInterface extends BaseRepositoryContract
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): Category;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(int $id, array $data): ?Category;
 
@@ -35,8 +35,8 @@ interface CategoryRepositoryInterface extends BaseRepositoryContract
     public function getRootCategories(int $userId): Collection;
 
     /**
-     * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
      */
     public function firstOrCreate(array $attributes, array $values = []): Category;
 }

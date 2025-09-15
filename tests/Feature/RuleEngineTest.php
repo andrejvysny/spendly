@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Events\TransactionCreated;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\RuleEngine\ActionType;
@@ -121,7 +120,7 @@ class RuleEngineTest extends TestCase
 
     public function test_rule_engine_processes_transaction_on_creation(): void
     {
-        $this->markTestIncomplete("Not properly implemented");
+        $this->markTestIncomplete('Not properly implemented');
         // Create a category
         $category = Category::factory()->create([
             'user_id' => $this->user->id,
@@ -161,7 +160,7 @@ class RuleEngineTest extends TestCase
             'amount' => 25.50,
         ]);
 
-        //TODO: not properly implemented
+        // TODO: not properly implemented
 
         // Load the account relationship
         $transaction->load('account.user');

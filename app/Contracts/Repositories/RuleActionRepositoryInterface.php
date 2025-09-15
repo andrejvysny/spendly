@@ -8,12 +8,12 @@ use Illuminate\Support\Collection;
 interface RuleActionRepositoryInterface extends BaseRepositoryContract
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): RuleAction;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(int $id, array $data): ?RuleAction;
 

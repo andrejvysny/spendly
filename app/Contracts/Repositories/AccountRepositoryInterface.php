@@ -24,7 +24,7 @@ interface AccountRepositoryInterface extends BaseRepositoryContract
     public function updateSyncTimestamp(Account $account): bool;
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): Account;
 

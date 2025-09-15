@@ -390,7 +390,7 @@ class ActionExecutorTest extends TestCase
             );
         }
 
-        // Test that ActionType::from() throws for invalid values  
+        // Test that ActionType::from() throws for invalid values
         $this->expectException(\ValueError::class);
         ActionType::from('invalid_action');
     }

@@ -8,7 +8,7 @@ use Illuminate\Support\Collection;
 interface RuleExecutionLogRepositoryInterface extends BaseRepositoryContract
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): RuleExecutionLog;
 
