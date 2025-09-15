@@ -122,7 +122,7 @@ jobs:
           php artisan route:clear
 
       - name: Run Tests
-        run: php artisan test
+        run: php artisan test -c phpunit.xml --parallel --max-processes=4
         env:
           APP_ENV: testing
           DB_CONNECTION: sqlite
