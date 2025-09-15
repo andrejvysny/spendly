@@ -24,7 +24,7 @@ class ImportFailureTest extends TestCase
         $this->import = Import::factory()->create(['user_id' => $this->user->id]);
     }
 
-    public function test_user_can_view_import_failures()
+    public function test_user_can_view_import_failures(): void
     {
         // Create some failures for the import
         ImportFailure::factory()->count(5)->create(['import_id' => $this->import->id]);
@@ -66,7 +66,7 @@ class ImportFailureTest extends TestCase
         $this->assertEquals(10, $response->json('stats.pending'));
     }
 
-    public function test_user_cannot_view_other_users_import_failures()
+    public function test_user_cannot_view_other_users_import_failures(): void
     {
         $otherUser = User::factory()->create();
         $otherImport = Import::factory()->create(['user_id' => $otherUser->id]);
@@ -78,7 +78,7 @@ class ImportFailureTest extends TestCase
         $response->assertForbidden();
     }
 
-    public function test_user_can_filter_failures_by_error_type()
+    public function test_user_can_filter_failures_by_error_type(): void
     {
         ImportFailure::factory()->duplicate()->count(3)->create(['import_id' => $this->import->id]);
         ImportFailure::factory()->validationFailed()->count(2)->create(['import_id' => $this->import->id]);
@@ -94,7 +94,7 @@ class ImportFailureTest extends TestCase
         }
     }
 
-    public function test_user_can_mark_failure_as_reviewed()
+    public function test_user_can_mark_failure_as_reviewed(): void
     {
         $failure = ImportFailure::factory()->create(['import_id' => $this->import->id]);
 
@@ -115,7 +115,7 @@ class ImportFailureTest extends TestCase
         $this->assertNotNull($failure->reviewed_at);
     }
 
-    public function test_user_can_mark_failure_as_resolved()
+    public function test_user_can_mark_failure_as_resolved(): void
     {
         $failure = ImportFailure::factory()->create(['import_id' => $this->import->id]);
 
@@ -134,7 +134,7 @@ class ImportFailureTest extends TestCase
         $this->assertEquals('Fixed the issue', $failure->review_notes);
     }
 
-    public function test_user_can_mark_failure_as_ignored()
+    public function test_user_can_mark_failure_as_ignored(): void
     {
         $failure = ImportFailure::factory()->create(['import_id' => $this->import->id]);
 
@@ -153,7 +153,7 @@ class ImportFailureTest extends TestCase
         $this->assertEquals('Not important', $failure->review_notes);
     }
 
-    public function test_user_can_unmark_failure_to_pending()
+    public function test_user_can_unmark_failure_to_pending(): void
     {
         // Create a reviewed failure
         $failure = ImportFailure::factory()->reviewed()->create(['import_id' => $this->import->id]);
@@ -179,7 +179,7 @@ class ImportFailureTest extends TestCase
         $this->assertNull($failure->reviewed_by);
     }
 
-    public function test_user_can_bulk_unmark_failures()
+    public function test_user_can_bulk_unmark_failures(): void
     {
         $reviewedFailures = ImportFailure::factory()->reviewed()->count(2)->create(['import_id' => $this->import->id]);
         $ignoredFailures = ImportFailure::factory()->ignored()->count(1)->create(['import_id' => $this->import->id]);
@@ -215,7 +215,7 @@ class ImportFailureTest extends TestCase
         }
     }
 
-    public function test_user_can_bulk_update_failures()
+    public function test_user_can_bulk_update_failures(): void
     {
         $failures = ImportFailure::factory()->count(3)->create(['import_id' => $this->import->id]);
         $failureIds = $failures->pluck('id')->toArray();
@@ -240,7 +240,7 @@ class ImportFailureTest extends TestCase
         }
     }
 
-    public function test_user_can_get_failure_statistics()
+    public function test_user_can_get_failure_statistics(): void
     {
         ImportFailure::factory()->count(2)->create(['import_id' => $this->import->id]);
         ImportFailure::factory()->reviewed()->count(1)->create(['import_id' => $this->import->id]);
@@ -266,7 +266,7 @@ class ImportFailureTest extends TestCase
         $this->assertEquals(1, $stats['reviewed']);
     }
 
-    public function test_user_can_export_failures_as_csv()
+    public function test_user_can_export_failures_as_csv(): void
     {
         ImportFailure::factory()->count(5)->create(['import_id' => $this->import->id]);
 
@@ -279,7 +279,7 @@ class ImportFailureTest extends TestCase
         // $this->assertStringContains("import-{$this->import->id}-failures", $response->headers->get('Content-Disposition'));
     }
 
-    public function test_user_cannot_update_failure_from_different_import()
+    public function test_user_cannot_update_failure_from_different_import(): void
     {
         $otherImport = Import::factory()->create(['user_id' => $this->user->id]);
         $failure = ImportFailure::factory()->create(['import_id' => $otherImport->id]);
@@ -292,13 +292,13 @@ class ImportFailureTest extends TestCase
         $response->assertNotFound();
     }
 
-    public function test_unauthenticated_user_cannot_access_failures()
+    public function test_unauthenticated_user_cannot_access_failures(): void
     {
         $response = $this->getJson("/api/imports/{$this->import->id}/failures");
         $response->assertUnauthorized();
     }
 
-    public function test_failure_validation_requires_valid_notes()
+    public function test_failure_validation_requires_valid_notes(): void
     {
         $failure = ImportFailure::factory()->create(['import_id' => $this->import->id]);
 
@@ -312,7 +312,7 @@ class ImportFailureTest extends TestCase
             ->assertJsonValidationErrors(['notes']);
     }
 
-    public function test_bulk_update_validation()
+    public function test_bulk_update_validation(): void
     {
         $failure = ImportFailure::factory()->create(['import_id' => $this->import->id]);
 

@@ -13,7 +13,7 @@ class RuleCondition extends Model
     /**
      * The attributes that are mass assignable.
      *
-     * @var array<string>
+     * @var list<string>
      */
     protected $fillable = [
         'condition_group_id',
@@ -31,6 +31,7 @@ class RuleCondition extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'operator' => ConditionOperator::class,
         'is_case_sensitive' => 'boolean',
         'is_negated' => 'boolean',
         'order' => 'integer',
@@ -52,5 +53,15 @@ class RuleCondition extends Model
     public static function getFields(): array
     {
         return array_map(fn (ConditionField $field) => $field->value, ConditionField::cases());
+    }
+
+    /**
+     * Get all available condition operators.
+     *
+     * @return array<string>
+     */
+    public static function getOperators(): array
+    {
+        return array_map(fn (ConditionOperator $operator) => $operator->value, ConditionOperator::cases());
     }
 }

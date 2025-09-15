@@ -18,6 +18,10 @@ interface BaseRepositoryContract
 
     public function find(int $id): ?object;
 
+    /**
+     * @param array<string> $columns
+     * @return array<mixed>
+     */
     public function all(array $columns = ['*']): array;
 
     public function count(): int;

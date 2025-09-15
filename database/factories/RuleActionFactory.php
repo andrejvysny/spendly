@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\RuleEngine\ActionType;
 use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\RuleAction;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -20,11 +21,11 @@ class RuleActionFactory extends Factory
      */
     public function definition(): array
     {
-        $actionType = $this->faker->randomElement(RuleAction::getActionTypes());
+        $actionType = $this->faker->randomElement(ActionType::cases());
 
         return [
             'rule_id' => Rule::factory(),
-            'action_type' => $actionType,
+            'action_type' => $actionType->value,
             'action_value' => $this->getValueForActionType($actionType),
             'order' => $this->faker->numberBetween(0, 10),
             'stop_processing' => $this->faker->boolean(10), // 10% stop processing
@@ -34,28 +35,28 @@ class RuleActionFactory extends Factory
     /**
      * Get appropriate value for action type.
      */
-    private function getValueForActionType(string $actionType): ?string
+    private function getValueForActionType(ActionType $actionType): ?string
     {
         return match ($actionType) {
-            RuleAction::ACTION_SET_CATEGORY,
-            RuleAction::ACTION_SET_MERCHANT,
-            RuleAction::ACTION_ADD_TAG,
-            RuleAction::ACTION_REMOVE_TAG => (string) $this->faker->numberBetween(1, 100),
+            ActionType::ACTION_SET_CATEGORY,
+            ActionType::ACTION_SET_MERCHANT,
+            ActionType::ACTION_ADD_TAG,
+            ActionType::ACTION_REMOVE_TAG => (string) $this->faker->numberBetween(1, 100),
 
-            RuleAction::ACTION_SET_DESCRIPTION,
-            RuleAction::ACTION_APPEND_DESCRIPTION,
-            RuleAction::ACTION_PREPEND_DESCRIPTION,
-            RuleAction::ACTION_SET_NOTE,
-            RuleAction::ACTION_APPEND_NOTE,
-            RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS,
-            RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS,
-            RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS,
-            RuleAction::ACTION_SEND_NOTIFICATION => $this->faker->sentence(),
+            ActionType::ACTION_SET_DESCRIPTION,
+            ActionType::ACTION_APPEND_DESCRIPTION,
+            ActionType::ACTION_PREPEND_DESCRIPTION,
+            ActionType::ACTION_SET_NOTE,
+            ActionType::ACTION_APPEND_NOTE,
+            ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS,
+            ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS,
+            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS,
+            ActionType::ACTION_SEND_NOTIFICATION => $this->faker->sentence(),
 
-            RuleAction::ACTION_SET_TYPE => $this->faker->randomElement(['PAYMENT', 'TRANSFER', 'DEPOSIT', 'EXCHANGE']),
+            ActionType::ACTION_SET_TYPE => $this->faker->randomElement(['PAYMENT', 'TRANSFER', 'DEPOSIT', 'EXCHANGE']),
 
-            RuleAction::ACTION_REMOVE_ALL_TAGS,
-            RuleAction::ACTION_MARK_RECONCILED => '',
+            ActionType::ACTION_REMOVE_ALL_TAGS,
+            ActionType::ACTION_MARK_RECONCILED => '',
 
             default => $this->faker->word(),
         };
@@ -64,10 +65,10 @@ class RuleActionFactory extends Factory
     /**
      * Create a specific action type.
      */
-    public function actionType(string $type): static
+    public function actionType(ActionType $type): static
     {
         return $this->state(fn (array $attributes) => [
-            'action_type' => $type,
+            'action_type' => $type->value,
             'action_value' => $this->getValueForActionType($type),
         ]);
     }

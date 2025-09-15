@@ -121,7 +121,7 @@ class AccountController extends Controller
         ]);
     }
 
-    public function destroy($id)
+    public function destroy(int $id): \Illuminate\Http\RedirectResponse
     {
 
         $account = Account::where('user_id', auth()->id())->findOrFail($id);
@@ -139,7 +139,7 @@ class AccountController extends Controller
 
     }
 
-    public function getCashflowOfMonth($accountIds, $before_month = 0)
+    public function getCashflowOfMonth(mixed $accountIds, int $before_month = 0): mixed
     {
         $startDate = now()->subMonths($before_month)->startOfMonth();
         $endDate = now()->subMonths($before_month)->endOfMonth();

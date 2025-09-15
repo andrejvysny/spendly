@@ -15,7 +15,7 @@ class TransactionDataParserTest extends UnitTestCase
         $this->parser = new TransactionDataParser;
     }
 
-    public function test_parse_with_basic_mapping()
+    public function test_parse_with_basic_mapping(): void
     {
         $row = ['2023-12-25', '100.50', 'John Doe', 'Christmas payment', 'TX123'];
         $configuration = [
@@ -45,7 +45,7 @@ class TransactionDataParserTest extends UnitTestCase
         $this->assertEquals(456, $result['import_id']);
     }
 
-    public function test_parse_date_formats()
+    public function test_parse_date_formats(): void
     {
         $testCases = [
             ['date' => '25.12.2023', 'format' => 'd.m.Y'],
@@ -73,7 +73,7 @@ class TransactionDataParserTest extends UnitTestCase
         }
     }
 
-    public function test_parse_amount_formats()
+    public function test_parse_amount_formats(): void
     {
         $testCases = [
             ['amount' => '1,234.56', 'format' => '1,234.56', 'expected' => 1234.56],
@@ -101,7 +101,7 @@ class TransactionDataParserTest extends UnitTestCase
         }
     }
 
-    public function test_parse_amount_type_strategy()
+    public function test_parse_amount_type_strategy(): void
     {
         $row = ['2023-12-25', '100.00', 'Partner'];
 
@@ -126,7 +126,7 @@ class TransactionDataParserTest extends UnitTestCase
         $this->assertEquals(100.00, $result['amount']);
     }
 
-    public function test_parse_with_missing_optional_fields()
+    public function test_parse_with_missing_optional_fields(): void
     {
         $row = ['2023-12-25', '100.00', 'John Doe'];
         $configuration = [
@@ -146,7 +146,7 @@ class TransactionDataParserTest extends UnitTestCase
         $this->assertStringStartsWith('2023-12-25', $result['processed_date']); // Should default to booked_date
     }
 
-    public function test_parse_throws_exception_for_missing_required_fields()
+    public function test_parse_throws_exception_for_missing_required_fields(): void
     {
         $row = ['2023-12-25', '100.00']; // Missing partner
         $configuration = [
@@ -165,7 +165,7 @@ class TransactionDataParserTest extends UnitTestCase
         $this->parser->parse($row, $configuration);
     }
 
-    public function test_parse_with_empty_values()
+    public function test_parse_with_empty_values(): void
     {
         $row = ['2023-12-25', '100.00', 'John Doe', ''];
         $configuration = [
@@ -184,7 +184,7 @@ class TransactionDataParserTest extends UnitTestCase
         $this->assertEquals('John Doe', $result['description']); // Empty description should default to partner
     }
 
-    public function test_parse_generates_transaction_id_if_not_provided()
+    public function test_parse_generates_transaction_id_if_not_provided(): void
     {
         $row = ['2023-12-25', '100.00', 'John Doe'];
         $configuration = [
@@ -203,7 +203,7 @@ class TransactionDataParserTest extends UnitTestCase
         $this->assertStringStartsWith('IMP-', $result['transaction_id']);
     }
 
-    public function test_parse_stores_import_data()
+    public function test_parse_stores_import_data(): void
     {
         $row = ['2023-12-25', '100.00', 'John Doe'];
         $headers = ['Date', 'Amount', 'Partner'];
@@ -228,7 +228,7 @@ class TransactionDataParserTest extends UnitTestCase
         ], $result['import_data']);
     }
 
-    public function test_parse_with_special_characters()
+    public function test_parse_with_special_characters(): void
     {
         $row = ["2023-12-25\x00", "100.00\x1F", "John Doe\x7F", "Test\x00Description"];
         $configuration = [
@@ -252,7 +252,7 @@ class TransactionDataParserTest extends UnitTestCase
         $this->assertEquals("Test\x00Description", $result['description']);
     }
 
-    public function test_parse_with_currency_symbols()
+    public function test_parse_with_currency_symbols(): void
     {
         $row = ['2023-12-25', '$1,234.56', 'John Doe'];
         $configuration = [

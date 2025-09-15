@@ -15,7 +15,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->service = new ImportMappingService;
     }
 
-    public function test_convert_index_mapping_to_headers()
+    public function test_convert_index_mapping_to_headers(): void
     {
         $columnMapping = [
             'booked_date' => 0,
@@ -35,7 +35,7 @@ class ImportMappingServiceTest extends UnitTestCase
         ], $result);
     }
 
-    public function test_convert_header_mapping_to_indices()
+    public function test_convert_header_mapping_to_indices(): void
     {
         $headerMapping = [
             'booked_date' => 'Transaction Date',
@@ -55,7 +55,7 @@ class ImportMappingServiceTest extends UnitTestCase
         ], $result);
     }
 
-    public function test_fuzzy_matching_for_header_conversion()
+    public function test_fuzzy_matching_for_header_conversion(): void
     {
         $headerMapping = [
             'booked_date' => 'Date',
@@ -72,7 +72,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertEquals(2, $result['partner']); // 'Merchant' matches 'Merchant Name'
     }
 
-    public function test_apply_saved_mapping_with_index_based_legacy()
+    public function test_apply_saved_mapping_with_index_based_legacy(): void
     {
         $savedMapping = [
             'booked_date' => 0,
@@ -90,7 +90,7 @@ class ImportMappingServiceTest extends UnitTestCase
         ], $result);
     }
 
-    public function test_apply_saved_mapping_with_header_based()
+    public function test_apply_saved_mapping_with_header_based(): void
     {
         $savedMapping = [
             'booked_date' => 'Transaction Date',
@@ -108,7 +108,7 @@ class ImportMappingServiceTest extends UnitTestCase
         ], $result);
     }
 
-    public function test_apply_saved_mapping_handles_mismatched_headers()
+    public function test_apply_saved_mapping_handles_mismatched_headers(): void
     {
         // Saved mapping for original CSV structure
         $savedMapping = [
@@ -127,7 +127,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertEquals(0, $result['partner']); // 'Partner' is now at index 0
     }
 
-    public function test_auto_detect_mapping()
+    public function test_auto_detect_mapping(): void
     {
         $headers = ['Transaction Date', 'Amount', 'Partner Name', 'Description', 'Transaction ID'];
 
@@ -140,7 +140,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertEquals(4, $result['transaction_id']);
     }
 
-    public function test_auto_detect_mapping_with_multilingual_headers()
+    public function test_auto_detect_mapping_with_multilingual_headers(): void
     {
         $headers = ['Datum', 'Suma', 'Partner', 'Popis'];
 
@@ -152,7 +152,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertEquals(3, $result['description']); // 'Popis' should match description
     }
 
-    public function test_validate_mapping_success()
+    public function test_validate_mapping_success(): void
     {
         $columnMapping = [
             'booked_date' => 0,
@@ -167,7 +167,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertEmpty($result['errors']);
     }
 
-    public function test_validate_mapping_missing_required_fields()
+    public function test_validate_mapping_missing_required_fields(): void
     {
         $columnMapping = [
             'booked_date' => 0,
@@ -182,7 +182,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertContains('Missing required field mapping: amount', $result['errors']);
     }
 
-    public function test_validate_mapping_invalid_indices()
+    public function test_validate_mapping_invalid_indices(): void
     {
         $columnMapping = [
             'booked_date' => 0,
@@ -197,7 +197,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertContains('Invalid column index for field partner: 10', $result['errors']);
     }
 
-    public function test_find_best_header_match()
+    public function test_find_best_header_match(): void
     {
         $availableHeaders = ['Transaction Date', 'Amount USD', 'Merchant Name', 'Details'];
 
@@ -218,7 +218,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertNull($result);
     }
 
-    public function test_is_index_based_mapping()
+    public function test_is_index_based_mapping(): void
     {
         // Index-based mapping
         $indexMapping = [
@@ -245,7 +245,7 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertFalse($this->service->isIndexBasedMapping($mixedMapping));
     }
 
-    public function test_real_world_scenario_fixing_mismatched_mapping()
+    public function test_real_world_scenario_fixing_mismatched_mapping(): void
     {
         // Scenario: User saves mapping for CSV with headers ['Date', 'Amount', 'Partner']
         $originalHeaders = ['Date', 'Amount', 'Partner'];

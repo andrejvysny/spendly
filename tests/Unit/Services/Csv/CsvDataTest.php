@@ -8,7 +8,7 @@ use Tests\Unit\UnitTestCase;
 
 class CsvDataTest extends UnitTestCase
 {
-    public function test_constructor_creates_csv_data_with_headers_and_rows()
+    public function test_constructor_creates_csv_data_with_headers_and_rows(): void
     {
         $headers = ['name', 'email', 'age'];
         $rows = [
@@ -23,7 +23,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(2, $csvData->count());
     }
 
-    public function test_from_array_creates_csv_data_from_array_structure()
+    public function test_from_array_creates_csv_data_from_array_structure(): void
     {
         $arrayData = [
             'headers' => ['name', 'email'],
@@ -39,7 +39,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(2, $csvData->count());
     }
 
-    public function test_get_header_returns_header_at_index()
+    public function test_get_header_returns_header_at_index(): void
     {
         $headers = ['name', 'email', 'age'];
         $csvData = new CsvData($headers, []);
@@ -49,7 +49,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertNull($csvData->getHeader(10));
     }
 
-    public function test_get_header_index_returns_index_by_name()
+    public function test_get_header_index_returns_index_by_name(): void
     {
         $headers = ['name', 'email', 'age'];
         $csvData = new CsvData($headers, []);
@@ -59,7 +59,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertNull($csvData->getHeaderIndex('nonexistent'));
     }
 
-    public function test_has_header_checks_header_existence()
+    public function test_has_header_checks_header_existence(): void
     {
         $headers = ['name', 'email', 'age'];
         $csvData = new CsvData($headers, []);
@@ -69,7 +69,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertFalse($csvData->hasHeader('nonexistent'));
     }
 
-    public function test_get_row_returns_row_at_index()
+    public function test_get_row_returns_row_at_index(): void
     {
         $headers = ['name', 'email'];
         $rows = [
@@ -83,7 +83,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertNull($csvData->getRow(10));
     }
 
-    public function test_get_row_as_assoc_returns_associative_array()
+    public function test_get_row_as_assoc_returns_associative_array(): void
     {
         $headers = ['name', 'email', 'age'];
         $rows = [
@@ -101,7 +101,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertNull($csvData->getRowAsAssoc(10));
     }
 
-    public function test_get_rows_as_assoc_returns_all_rows_as_associative_arrays()
+    public function test_get_rows_as_assoc_returns_all_rows_as_associative_arrays(): void
     {
         $headers = ['name', 'email'];
         $rows = [
@@ -118,7 +118,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals($expected, $csvData->getRowsAsAssoc());
     }
 
-    public function test_get_column_returns_column_by_header_name()
+    public function test_get_column_returns_column_by_header_name(): void
     {
         $headers = ['name', 'email', 'age'];
         $rows = [
@@ -131,7 +131,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['john@example.com', 'jane@example.com'], $csvData->getColumn('email'));
     }
 
-    public function test_get_column_throws_exception_for_nonexistent_header()
+    public function test_get_column_throws_exception_for_nonexistent_header(): void
     {
         $headers = ['name', 'email'];
         $rows = [['John Doe', 'john@example.com']];
@@ -143,7 +143,7 @@ class CsvDataTest extends UnitTestCase
         $csvData->getColumn('nonexistent');
     }
 
-    public function test_get_column_by_index_returns_column_by_index()
+    public function test_get_column_by_index_returns_column_by_index(): void
     {
         $headers = ['name', 'email', 'age'];
         $rows = [
@@ -156,7 +156,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['john@example.com', 'jane@example.com'], $csvData->getColumnByIndex(1));
     }
 
-    public function test_get_column_by_index_throws_exception_for_invalid_index()
+    public function test_get_column_by_index_throws_exception_for_invalid_index(): void
     {
         $headers = ['name', 'email'];
         $rows = [['John Doe', 'john@example.com']];
@@ -168,7 +168,7 @@ class CsvDataTest extends UnitTestCase
         $csvData->getColumnByIndex(10);
     }
 
-    public function test_filter_returns_filtered_csv_data()
+    public function test_filter_returns_filtered_csv_data(): void
     {
         $headers = ['name', 'age'];
         $rows = [
@@ -187,7 +187,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['Bob Johnson', '35'], $filtered->getRow(1));
     }
 
-    public function test_map_returns_mapped_csv_data()
+    public function test_map_returns_mapped_csv_data(): void
     {
         $headers = ['name', 'age'];
         $rows = [
@@ -204,7 +204,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['Jane Smith', 26], $mapped->getRow(1));
     }
 
-    public function test_slice_returns_subset_of_rows()
+    public function test_slice_returns_subset_of_rows(): void
     {
         $headers = ['name', 'age'];
         $rows = [
@@ -222,7 +222,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['Bob Johnson', '35'], $sliced->getRow(1));
     }
 
-    public function test_take_returns_first_n_rows()
+    public function test_take_returns_first_n_rows(): void
     {
         $headers = ['name', 'age'];
         $rows = [
@@ -239,7 +239,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['Jane Smith', '25'], $taken->getRow(1));
     }
 
-    public function test_skip_returns_rows_after_n()
+    public function test_skip_returns_rows_after_n(): void
     {
         $headers = ['name', 'age'];
         $rows = [
@@ -256,7 +256,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['Bob Johnson', '35'], $skipped->getRow(1));
     }
 
-    public function test_add_row_adds_new_row()
+    public function test_add_row_adds_new_row(): void
     {
         $headers = ['name', 'email'];
         $csvData = new CsvData($headers, []);
@@ -267,7 +267,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['John Doe', 'john@example.com'], $csvData->getRow(0));
     }
 
-    public function test_add_row_throws_exception_for_invalid_column_count()
+    public function test_add_row_throws_exception_for_invalid_column_count(): void
     {
         $headers = ['name', 'email'];
         $csvData = new CsvData($headers, []);
@@ -278,7 +278,7 @@ class CsvDataTest extends UnitTestCase
         $csvData->addRow(['John Doe']);
     }
 
-    public function test_add_row_assoc_adds_row_from_associative_array()
+    public function test_add_row_assoc_adds_row_from_associative_array(): void
     {
         $headers = ['name', 'email'];
         $csvData = new CsvData($headers, []);
@@ -292,7 +292,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['John Doe', 'john@example.com'], $csvData->getRow(0));
     }
 
-    public function test_remove_row_removes_row_at_index()
+    public function test_remove_row_removes_row_at_index(): void
     {
         $headers = ['name', 'email'];
         $rows = [
@@ -307,7 +307,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['Jane Smith', 'jane@example.com'], $csvData->getRow(0));
     }
 
-    public function test_is_empty_checks_if_csv_data_is_empty()
+    public function test_is_empty_checks_if_csv_data_is_empty(): void
     {
         $headers = ['name', 'email'];
 
@@ -318,7 +318,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertFalse($nonEmptyCsv->isEmpty());
     }
 
-    public function test_to_array_returns_array_structure()
+    public function test_to_array_returns_array_structure(): void
     {
         $headers = ['name', 'email'];
         $rows = [['John Doe', 'john@example.com']];
@@ -332,7 +332,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals($expected, $csvData->toArray());
     }
 
-    public function test_get_stats_returns_statistics()
+    public function test_get_stats_returns_statistics(): void
     {
         $headers = ['name', 'email'];
         $rows = [
@@ -349,7 +349,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(['name', 'email'], $stats['headers']);
     }
 
-    public function test_array_access_implementation()
+    public function test_array_access_implementation(): void
     {
         $headers = ['name', 'email'];
         $rows = [['John Doe', 'john@example.com']];
@@ -371,7 +371,7 @@ class CsvDataTest extends UnitTestCase
         $this->assertEquals(1, $csvData->count());
     }
 
-    public function test_iterator_implementation()
+    public function test_iterator_implementation(): void
     {
         $headers = ['name', 'email'];
         $rows = [

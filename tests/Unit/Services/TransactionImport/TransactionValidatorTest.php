@@ -15,7 +15,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->validator = new TransactionValidator;
     }
 
-    public function test_validate_valid_transaction()
+    public function test_validate_valid_transaction(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -33,7 +33,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertEmpty($result->getErrors());
     }
 
-    public function test_validate_missing_required_fields()
+    public function test_validate_missing_required_fields(): void
     {
         $data = [
             'amount' => 100.50,
@@ -49,7 +49,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Account ID is required', $errors);
     }
 
-    public function test_validate_invalid_amount()
+    public function test_validate_invalid_amount(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -67,7 +67,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Amount must be a number', $result->getErrors());
     }
 
-    public function test_validate_zero_amount()
+    public function test_validate_zero_amount(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -85,7 +85,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Amount cannot be zero', $result->getErrors());
     }
 
-    public function test_validate_invalid_date_format()
+    public function test_validate_invalid_date_format(): void
     {
         $data = [
             'booked_date' => 'invalid-date', // Truly invalid date
@@ -106,7 +106,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Invalid processed date format', $errors);
     }
 
-    public function test_validate_invalid_currency()
+    public function test_validate_invalid_currency(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -124,7 +124,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Invalid currency code', $result->getErrors());
     }
 
-    public function test_validate_invalid_iban()
+    public function test_validate_invalid_iban(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -146,7 +146,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Invalid target IBAN format', $errors);
     }
 
-    public function test_validate_valid_iban()
+    public function test_validate_valid_iban(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -165,7 +165,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function test_validate_long_description()
+    public function test_validate_long_description(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -183,7 +183,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Description is too long (max 1000 characters)', $result->getErrors());
     }
 
-    public function test_validate_long_partner_name()
+    public function test_validate_long_partner_name(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -201,7 +201,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Partner name is too long (max 255 characters)', $result->getErrors());
     }
 
-    public function test_validate_preview_mode_without_account_id()
+    public function test_validate_preview_mode_without_account_id(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -221,7 +221,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertContains('Account ID is required', $result->getErrors());
     }
 
-    public function test_validate_preview_mode_with_account_id()
+    public function test_validate_preview_mode_with_account_id(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -240,7 +240,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function test_validate_multiple_errors()
+    public function test_validate_multiple_errors(): void
     {
         $data = [
             'amount' => 'not-a-number',
@@ -255,7 +255,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertGreaterThan(4, count($errors)); // Should have multiple errors
     }
 
-    public function test_validate_empty_values()
+    public function test_validate_empty_values(): void
     {
         $data = [
             'booked_date' => '',
@@ -273,7 +273,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertGreaterThanOrEqual(6, count($errors)); // At least 6 errors for required fields
     }
 
-    public function test_validate_lowercase_currency_code()
+    public function test_validate_lowercase_currency_code(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',
@@ -290,7 +290,7 @@ class TransactionValidatorTest extends UnitTestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function test_validate_lowercase_currency_code_invalid()
+    public function test_validate_lowercase_currency_code_invalid(): void
     {
         $data = [
             'booked_date' => '2023-12-25 00:00:00',

@@ -21,16 +21,23 @@ interface RuleEngineInterface
 
     /**
      * Process multiple transactions through all applicable rules.
+     * 
+     * @param Collection<int, Transaction> $transactions
      */
     public function processTransactions(Collection $transactions, Trigger $triggerType): void;
 
     /**
      * Process transactions for specific rules only.
+     * 
+     * @param Collection<int, Transaction> $transactions
+     * @param Collection<int, int> $ruleIds
      */
     public function processTransactionsForRules(Collection $transactions, Collection $ruleIds): void;
 
     /**
      * Process all transactions within a date range.
+     * 
+     * @param array<int>|null $ruleIds
      */
     public function processDateRange(\DateTimeInterface $startDate, \DateTimeInterface $endDate, ?array $ruleIds = null): void;
 
@@ -46,6 +53,8 @@ interface RuleEngineInterface
 
     /**
      * Get the execution results from the last run.
+     * 
+     * @return array<string, mixed>
      */
     public function getExecutionResults(): array;
 

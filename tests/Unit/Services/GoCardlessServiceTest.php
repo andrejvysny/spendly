@@ -100,7 +100,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with successful sync
      */
-    public function test_sync_account_transactions_success()
+    public function test_sync_account_transactions_success(): void
     {
         // Inject mocks to bypass initialization
         $this->injectMocks();
@@ -175,7 +175,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with missing user credentials
      */
-    public function test_sync_account_transactions_missing_credentials()
+    public function test_sync_account_transactions_missing_credentials(): void
     {
         $userWithoutCredentials = Mockery::mock(User::class)->makePartial();
         $userWithoutCredentials->id = 2;
@@ -192,7 +192,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with account not found
      */
-    public function test_sync_account_transactions_account_not_found()
+    public function test_sync_account_transactions_account_not_found(): void
     {
         // Mock the app() helper to return our mocked TokenManager
         $this->app->bind(TokenManager::class, function ($app, $params) {
@@ -217,7 +217,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with non-synced account
      */
-    public function test_sync_account_transactions_non_synced_account()
+    public function test_sync_account_transactions_non_synced_account(): void
     {
         // Mock the app() helper to return our mocked TokenManager
         $this->app->bind(TokenManager::class, function ($app, $params) {
@@ -251,7 +251,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with force max date range
      */
-    public function test_sync_account_transactions_force_max_date_range()
+    public function test_sync_account_transactions_force_max_date_range(): void
     {
         // Inject mocks to bypass initialization
         $this->injectMocks();
@@ -320,7 +320,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAllAccounts with successful sync
      */
-    public function test_sync_all_accounts_success()
+    public function test_sync_all_accounts_success(): void
     {
         // Inject mocks to bypass initialization
         $this->injectMocks();
@@ -382,7 +382,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAllAccounts with partial failure
      */
-    public function test_sync_all_accounts_partial_failure()
+    public function test_sync_all_accounts_partial_failure(): void
     {
         // Inject mocks to bypass initialization
         $this->injectMocks();
@@ -450,7 +450,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test getInstitutions success
      */
-    public function test_get_institutions_success()
+    public function test_get_institutions_success(): void
     {
         // Inject mocks to bypass initialization
         $this->injectMocks();
@@ -474,7 +474,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test createRequisition success
      */
-    public function test_create_requisition_success()
+    public function test_create_requisition_success(): void
     {
         // Inject mocks to bypass initialization
         $this->injectMocks();
@@ -499,7 +499,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test getRequisition success
      */
-    public function test_get_requisition_success()
+    public function test_get_requisition_success(): void
     {
         // Inject mocks to bypass initialization
         $this->injectMocks();
@@ -524,7 +524,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test importAccount success
      */
-    public function test_import_account_success()
+    public function test_import_account_success(): void
     {
         // Inject mocks to bypass initialization
         $this->injectMocks();
@@ -595,7 +595,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test importAccount with already existing account
      */
-    public function test_import_account_already_exists()
+    public function test_import_account_already_exists(): void
     {
         // Mock the app() helper to return our mocked TokenManager
         $this->app->bind(TokenManager::class, function ($app, $params) {
@@ -622,7 +622,7 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test client initialization failure
      */
-    public function test_client_initialization_failure()
+    public function test_client_initialization_failure(): void
     {
         $countryCode = 'GB';
 

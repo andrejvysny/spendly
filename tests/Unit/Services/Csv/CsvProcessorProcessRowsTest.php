@@ -19,7 +19,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         $this->csvProcessor = new CsvProcessor;
     }
 
-    public function test_process_rows_with_headers()
+    public function test_process_rows_with_headers(): void
     {
         // Create a test CSV file
         $csvContent = "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25";
@@ -47,7 +47,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_process_rows_without_headers()
+    public function test_process_rows_without_headers(): void
     {
         // Create a test CSV file
         $csvContent = "John Doe,john@example.com,30\nJane Smith,jane@example.com,25";
@@ -78,7 +78,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_process_rows_with_limit()
+    public function test_process_rows_with_limit(): void
     {
         // Create a test CSV file
         $csvContent = "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25\nBob Johnson,bob@example.com,35";
@@ -103,7 +103,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_process_rows_with_failing_processor()
+    public function test_process_rows_with_failing_processor(): void
     {
         $csvContent = "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25";
         $path = 'test.csv';
@@ -135,7 +135,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_process_rows_with_skipping_processor()
+    public function test_process_rows_with_skipping_processor(): void
     {
         $csvContent = "name,email,age\nJohn Doe,john@example.com,30\n,,\nJane Smith,jane@example.com,25";
         $path = 'test.csv';
@@ -166,7 +166,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_process_rows_with_exception_in_processor()
+    public function test_process_rows_with_exception_in_processor(): void
     {
         $csvContent = "name,email,age\nJohn Doe,john@example.com,30";
         $path = 'test.csv';
@@ -195,7 +195,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_process_rows_metadata_includes_correct_info()
+    public function test_process_rows_metadata_includes_correct_info(): void
     {
         $csvContent = "name,email,age\nJohn Doe,john@example.com,30";
         $path = 'test.csv';
@@ -232,7 +232,7 @@ class CsvProcessorProcessRowsTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_process_rows_throws_exception_for_nonexistent_file()
+    public function test_process_rows_throws_exception_for_nonexistent_file(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('CSV file not found: nonexistent.csv');

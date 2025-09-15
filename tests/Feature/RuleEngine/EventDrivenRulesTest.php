@@ -38,7 +38,7 @@ class EventDrivenRulesTest extends TestCase
         $this->ruleRepository = app(\App\Contracts\Repositories\RuleRepositoryInterface::class);
     }
 
-    public function it_processes_rules_when_transaction_is_created()
+    public function it_processes_rules_when_transaction_is_created(): void
     {
         // Create a category
         $groceryCategory = Category::factory()->create([
@@ -83,7 +83,7 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($groceryCategory->id, $transaction->category_id);
     }
 
-    public function it_does_not_process_rules_when_apply_rules_is_false()
+    public function it_does_not_process_rules_when_apply_rules_is_false(): void
     {
         $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [
@@ -116,7 +116,7 @@ class EventDrivenRulesTest extends TestCase
         $this->assertNull($transaction->note);
     }
 
-    public function it_processes_rules_when_transaction_is_updated()
+    public function it_processes_rules_when_transaction_is_updated(): void
     {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
 
@@ -164,7 +164,7 @@ class EventDrivenRulesTest extends TestCase
         $this->assertTrue($transaction->tags()->where('name', 'Large Transaction')->exists());
     }
 
-    public function it_respects_stop_processing_flag_on_rules()
+    public function it_respects_stop_processing_flag_on_rules(): void
     {
         $category1 = Category::factory()->create(['user_id' => $this->user->id, 'name' => 'Category 1']);
         $category2 = Category::factory()->create(['user_id' => $this->user->id, 'name' => 'Category 2']);
@@ -227,7 +227,7 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($category1->id, $transaction->category_id);
     }
 
-    public function it_processes_multiple_actions_in_order()
+    public function it_processes_multiple_actions_in_order(): void
     {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
 
@@ -278,7 +278,7 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals('Categorized as coffee expense', $transaction->note);
     }
 
-    public function it_handles_complex_condition_groups_with_or_logic()
+    public function it_handles_complex_condition_groups_with_or_logic(): void
     {
         $travelCategory = Category::factory()->create([
             'user_id' => $this->user->id,
@@ -357,7 +357,7 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($travelCategory->id, $hotelTransaction->category_id);
     }
 
-    public function it_logs_rule_execution()
+    public function it_logs_rule_execution(): void
     {
         $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [

@@ -18,7 +18,7 @@ interface ConditionEvaluatorInterface
      * Evaluate a condition against a pre-extracted field value.
      * This method enables performance optimization by allowing field value caching.
      */
-    public function evaluateWithValue(RuleCondition $condition, $fieldValue): bool;
+    public function evaluateWithValue(RuleCondition $condition, mixed $fieldValue): bool;
 
     /**
      * Check if the evaluator supports a given operator.
