@@ -68,6 +68,9 @@ class ProcessTransactionRules implements ShouldQueue
 
     /**
      * Register the listeners for the subscriber.
+     *
+     * @param mixed $events
+     * @return array<string, string>
      */
     public function subscribe($events): array
     {

@@ -25,7 +25,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_requires_authentication_to_list_mappings()
+    public function it_requires_authentication_to_list_mappings(): void
     {
         $response = $this->getJson(route('imports.mappings.get'));
 
@@ -33,7 +33,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_lists_user_import_mappings_ordered_by_last_used()
+    public function it_lists_user_import_mappings_ordered_by_last_used(): void
     {
         // Create mappings for the authenticated user
         $oldMapping = ImportMapping::factory()->create([
@@ -70,7 +70,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_requires_authentication_to_store_mapping()
+    public function it_requires_authentication_to_store_mapping(): void
     {
         $response = $this->postJson(route('imports.mappings.save'), [
             'name' => 'Test Mapping',
@@ -80,7 +80,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_stores_a_new_import_mapping()
+    public function it_stores_a_new_import_mapping(): void
     {
         $mappingData = [
             'name' => 'My Bank Mapping',
@@ -121,7 +121,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_validates_required_fields_when_storing_mapping()
+    public function it_validates_required_fields_when_storing_mapping(): void
     {
         $response = $this->actingAs($this->user)
             ->postJson(route('imports.mappings.save'), []);
@@ -138,7 +138,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_validates_field_formats_when_storing_mapping()
+    public function it_validates_field_formats_when_storing_mapping(): void
     {
         $invalidData = [
             'name' => str_repeat('a', 256), // Too long
@@ -166,7 +166,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_allows_null_bank_name_when_storing_mapping()
+    public function it_allows_null_bank_name_when_storing_mapping(): void
     {
         $mappingData = [
             'name' => 'Generic Mapping',
@@ -191,7 +191,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_requires_authentication_to_update_last_used()
+    public function it_requires_authentication_to_update_last_used(): void
     {
         $mapping = ImportMapping::factory()->create();
 
@@ -201,7 +201,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_updates_last_used_timestamp_for_own_mapping()
+    public function it_updates_last_used_timestamp_for_own_mapping(): void
     {
         $mapping = ImportMapping::factory()->create([
             'user_id' => $this->user->id,
@@ -222,7 +222,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_prevents_updating_last_used_for_other_users_mapping()
+    public function it_prevents_updating_last_used_for_other_users_mapping(): void
     {
         $mapping = ImportMapping::factory()->create([
             'user_id' => $this->otherUser->id,
@@ -236,7 +236,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_requires_authentication_to_delete_mapping()
+    public function it_requires_authentication_to_delete_mapping(): void
     {
         $mapping = ImportMapping::factory()->create();
 
@@ -246,7 +246,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_deletes_own_mapping()
+    public function it_deletes_own_mapping(): void
     {
         $mapping = ImportMapping::factory()->create([
             'user_id' => $this->user->id,
@@ -264,7 +264,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_prevents_deleting_other_users_mapping()
+    public function it_prevents_deleting_other_users_mapping(): void
     {
         $mapping = ImportMapping::factory()->create([
             'user_id' => $this->otherUser->id,
@@ -283,7 +283,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_handles_nonexistent_mapping_gracefully()
+    public function it_handles_nonexistent_mapping_gracefully(): void
     {
         $nonExistentId = 99999;
 
@@ -299,7 +299,7 @@ class ImportMappingsControllerTest extends TestCase
     }
 
     #[Test]
-    public function it_stores_complex_column_mapping_correctly()
+    public function it_stores_complex_column_mapping_correctly(): void
     {
         $complexMapping = [
             'date' => ['column' => 'Date', 'format' => 'd/m/Y'],

@@ -16,7 +16,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->batchResult = new CsvBatchResult;
     }
 
-    public function test_initial_state()
+    public function test_initial_state(): void
     {
         $this->assertEquals(0, $this->batchResult->getTotalProcessed());
         $this->assertEquals(0, $this->batchResult->getSuccessCount());
@@ -26,7 +26,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->assertFalse($this->batchResult->isCompleteSuccess());
     }
 
-    public function test_add_success_result()
+    public function test_add_success_result(): void
     {
         $result = CsvProcessResult::success('Success', ['data']);
 
@@ -39,7 +39,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->assertTrue($this->batchResult->isCompleteSuccess());
     }
 
-    public function test_add_failure_result()
+    public function test_add_failure_result(): void
     {
         $result = CsvProcessResult::failure('Failed', ['data']);
 
@@ -52,7 +52,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->assertFalse($this->batchResult->isCompleteSuccess());
     }
 
-    public function test_add_skipped_result()
+    public function test_add_skipped_result(): void
     {
         $result = CsvProcessResult::skipped('Skipped', ['data'], []);
 
@@ -65,7 +65,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->assertTrue($this->batchResult->isCompleteSuccess());
     }
 
-    public function test_mixed_results()
+    public function test_mixed_results(): void
     {
         $success1 = CsvProcessResult::success('Success 1', ['data1']);
         $success2 = CsvProcessResult::success('Success 2', ['data2']);
@@ -84,7 +84,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->assertFalse($this->batchResult->isCompleteSuccess());
     }
 
-    public function test_get_failed_results()
+    public function test_get_failed_results(): void
     {
         $success = CsvProcessResult::success('Success', ['data1']);
         $failure1 = CsvProcessResult::failure('Failed 1', ['data2']);
@@ -103,7 +103,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->assertEquals('Failed 2', $failedResults[2]->getMessage());
     }
 
-    public function test_get_success_results()
+    public function test_get_success_results(): void
     {
         $success1 = CsvProcessResult::success('Success 1', ['data1']);
         $success2 = CsvProcessResult::success('Success 2', ['data2']);
@@ -122,7 +122,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->assertEquals('Success 2', $successResults[1]->getMessage());
     }
 
-    public function test_get_skipped_results()
+    public function test_get_skipped_results(): void
     {
         $success = CsvProcessResult::success('Success', ['data1']);
         $failure = CsvProcessResult::failure('Failed', ['data2']);
@@ -141,7 +141,7 @@ class CsvBatchResultTest extends UnitTestCase
         $this->assertEquals('Skipped 2', $skippedResults[3]->getMessage());
     }
 
-    public function test_iterator_interface()
+    public function test_iterator_interface(): void
     {
         $result1 = CsvProcessResult::success('Success 1', ['data1']);
         $result2 = CsvProcessResult::success('Success 2', ['data2']);
@@ -165,12 +165,12 @@ class CsvBatchResultTest extends UnitTestCase
         ], $messages);
     }
 
-    public function test_empty_batch_is_not_complete_success()
+    public function test_empty_batch_is_not_complete_success(): void
     {
         $this->assertFalse($this->batchResult->isCompleteSuccess());
     }
 
-    public function test_batch_with_only_skipped_is_complete_success()
+    public function test_batch_with_only_skipped_is_complete_success(): void
     {
         $skipped1 = CsvProcessResult::skipped('Skipped 1', ['data1'], []);
         $skipped2 = CsvProcessResult::skipped('Skipped 2', ['data2'], []);

@@ -6,8 +6,14 @@ use App\Models\User;
 
 interface UserRepositoryInterface extends BaseRepositoryContract
 {
+    /**
+     * @param array<string, mixed> $data
+     */
     public function create(array $data): User;
 
+    /**
+     * @param array<string, mixed> $data
+     */
     public function update(int $id, array $data): ?User;
 
     public function findByEmail(string $email): ?User;

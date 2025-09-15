@@ -383,12 +383,15 @@ class ActionExecutorTest extends TestCase
         $actionTypes = RuleAction::getActionTypes();
 
         foreach ($actionTypes as $actionType) {
+            $enumActionType = ActionType::from($actionType);
             $this->assertTrue(
-                $this->executor->supportsAction($actionType),
+                $this->executor->supportsAction($enumActionType),
                 "ActionType type {$actionType} should be supported"
             );
         }
 
-        $this->assertFalse($this->executor->supportsAction('invalid_action'));
+        // Test that ActionType::from() throws for invalid values  
+        $this->expectException(\ValueError::class);
+        ActionType::from('invalid_action');
     }
 }

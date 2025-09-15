@@ -36,7 +36,7 @@ class RuleEngineTest extends TestCase
         $this->ruleRepository = app(\App\Contracts\Repositories\RuleRepositoryInterface::class);
     }
 
-    public function test_create_rule_with_conditions_and_actions()
+    public function test_create_rule_with_conditions_and_actions(): void
     {
         // Create categories and tags
         $groceryCategory = Category::factory()->create([
@@ -119,7 +119,7 @@ class RuleEngineTest extends TestCase
         $this->assertCount(3, $rule->actions);
     }
 
-    public function test_rule_engine_processes_transaction_on_creation()
+    public function test_rule_engine_processes_transaction_on_creation(): void
     {
         // Create a category
         $category = Category::factory()->create([
@@ -171,7 +171,7 @@ class RuleEngineTest extends TestCase
         $this->assertEquals($category->id, $transaction->category_id);
     }
 
-    public function test_rule_with_regex_and_wildcard_conditions()
+    public function test_rule_with_regex_and_wildcard_conditions(): void
     {
         $rule = $this->ruleRepository->createRule($this->user, [
             'rule_group_id' => $this->createRuleGroup()->id,
@@ -205,7 +205,7 @@ class RuleEngineTest extends TestCase
         $this->assertNotNull($rule);
     }
 
-    public function test_api_create_rule()
+    public function test_api_create_rule(): void
     {
         $this->actingAs($this->user);
 
@@ -242,7 +242,7 @@ class RuleEngineTest extends TestCase
             ]);
     }
 
-    public function test_api_execute_rules_on_transactions()
+    public function test_api_execute_rules_on_transactions(): void
     {
         $this->actingAs($this->user);
 
@@ -271,7 +271,7 @@ class RuleEngineTest extends TestCase
             ]);
     }
 
-    public function test_api_test_rule_without_saving()
+    public function test_api_test_rule_without_saving(): void
     {
         $this->actingAs($this->user);
 

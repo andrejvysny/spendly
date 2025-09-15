@@ -13,7 +13,7 @@ class RuleAction extends Model
     /**
      * The attributes that are mass assignable.
      *
-     * @var array<string>
+     * @var list<string>
      */
     protected $fillable = [
         'rule_id',
@@ -44,7 +44,7 @@ class RuleAction extends Model
     /**
      * Get decoded action value.
      */
-    public function getDecodedValue()
+    public function getDecodedValue(): mixed
     {
         if ($this->action_value === null || $this->action_value === '') {
             return $this->action_value;

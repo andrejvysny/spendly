@@ -37,7 +37,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         );
     }
 
-    public function test_configure_with_valid_configuration()
+    public function test_configure_with_valid_configuration(): void
     {
         $configuration = [
             'column_mapping' => ['date' => 0, 'amount' => 1],
@@ -51,7 +51,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertTrue(true);
     }
 
-    public function test_configure_with_invalid_configuration()
+    public function test_configure_with_invalid_configuration(): void
     {
         $configuration = [
             'column_mapping' => ['date' => 0], // Missing required fields
@@ -63,7 +63,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->processor->configure($configuration);
     }
 
-    public function test_process_empty_row()
+    public function test_process_empty_row(): void
     {
         $row = ['', '', ''];
         $metadata = ['row_number' => 1];
@@ -83,7 +83,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertEquals('Empty row 1', $result->getMessage());
     }
 
-    public function test_process_valid_row()
+    public function test_process_valid_row(): void
     {
         $row = ['2023-12-25', '100.00', 'John Doe'];
         $metadata = ['row_number' => 1];
@@ -130,7 +130,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertInstanceOf(TransactionDto::class, $result->getData());
     }
 
-    public function test_process_invalid_row()
+    public function test_process_invalid_row(): void
     {
         $row = ['2023-12-25', 'invalid-amount', 'John Doe'];
         $metadata = ['row_number' => 2];
@@ -169,7 +169,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertEquals(['Amount is required'], $result->getErrors());
     }
 
-    public function test_process_duplicate_row()
+    public function test_process_duplicate_row(): void
     {
         $row = ['2023-12-25', '100.00', 'John Doe'];
         $metadata = ['row_number' => 3];
@@ -215,7 +215,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertEquals('Duplicate transaction', $result->getMessage());
     }
 
-    public function test_process_preview_mode()
+    public function test_process_preview_mode(): void
     {
         $row = ['2023-12-25', '100.00', 'John Doe'];
         $metadata = ['row_number' => 1];
@@ -257,7 +257,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertEquals('Preview data', $result->getMessage());
     }
 
-    public function test_process_row_with_exception()
+    public function test_process_row_with_exception(): void
     {
         $row = ['2023-12-25', '100.00', 'John Doe'];
         $metadata = ['row_number' => 1];
@@ -282,7 +282,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertStringContainsString('Processing error: Parsing error', $result->getMessage());
     }
 
-    public function test_invoke_method()
+    public function test_invoke_method(): void
     {
         $row = ['', '', ''];
         $metadata = ['row_number' => 1];
@@ -302,7 +302,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertTrue($result->isSkipped());
     }
 
-    public function test_can_process_with_valid_configuration()
+    public function test_can_process_with_valid_configuration(): void
     {
         $configuration = [
             'column_mapping' => ['date' => 0, 'amount' => 1],
@@ -315,7 +315,7 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertTrue($canProcess);
     }
 
-    public function test_can_process_with_missing_required_fields()
+    public function test_can_process_with_missing_required_fields(): void
     {
         $testCases = [
             ['date_format' => 'Y-m-d', 'amount_format' => '1,234.56'], // Missing column_mapping

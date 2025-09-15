@@ -34,18 +34,27 @@ class ProcessRulesJob implements ShouldQueue
 
     private User $user;
 
+    /**
+     * @var array<int>
+     */
     private array $ruleIds;
 
     private ?Carbon $startDate;
 
     private ?Carbon $endDate;
 
+    /**
+     * @var array<int>
+     */
     private array $transactionIds;
 
     private bool $dryRun;
 
     /**
      * Create a new job instance.
+     *
+     * @param array<int> $ruleIds
+     * @param array<int> $transactionIds
      */
     public function __construct(
         User $user,

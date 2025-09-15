@@ -15,10 +15,15 @@ class TransactionUpdated
 
     public bool $applyRules;
 
+    /**
+     * @var array<string, mixed>
+     */
     public array $changedAttributes;
 
     /**
      * Create a new event instance.
+     *
+     * @param array<string, mixed> $changedAttributes
      */
     public function __construct(Transaction $transaction, array $changedAttributes = [], bool $applyRules = true)
     {

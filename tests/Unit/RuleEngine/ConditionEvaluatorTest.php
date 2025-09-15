@@ -321,12 +321,15 @@ class ConditionEvaluatorTest extends TestCase
         $operators = RuleCondition::getOperators();
 
         foreach ($operators as $operator) {
+            $enumOperator = ConditionOperator::from($operator);
             $this->assertTrue(
-                $this->evaluator->supportsOperator($operator),
+                $this->evaluator->supportsOperator($enumOperator),
                 "Operator {$operator} should be supported"
             );
         }
 
-        $this->assertFalse($this->evaluator->supportsOperator('invalid_operator'));
+        // Test that ConditionOperator::from() throws for invalid values
+        $this->expectException(\ValueError::class);
+        ConditionOperator::from('invalid_operator');
     }
 }

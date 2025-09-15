@@ -17,7 +17,7 @@ class CsvProcessorTest extends UnitTestCase
         $this->csvProcessor = new CsvProcessor;
     }
 
-    public function test_get_rows_returns_csv_data_object()
+    public function test_get_rows_returns_csv_data_object(): void
     {
         // Create a test CSV file
         $csvContent = "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25";
@@ -36,7 +36,7 @@ class CsvProcessorTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_get_rows_without_headers_returns_csv_data_object()
+    public function test_get_rows_without_headers_returns_csv_data_object(): void
     {
         // Create a test CSV file without headers
         $csvContent = "John Doe,john@example.com,30\nJane Smith,jane@example.com,25";
@@ -56,7 +56,7 @@ class CsvProcessorTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_get_rows_with_limit_returns_limited_csv_data()
+    public function test_get_rows_with_limit_returns_limited_csv_data(): void
     {
         // Create a test CSV file
         $csvContent = "name,email,age\nJohn Doe,john@example.com,30\nJane Smith,jane@example.com,25\nBob Johnson,bob@example.com,35";
@@ -75,7 +75,7 @@ class CsvProcessorTest extends UnitTestCase
         Storage::delete($path);
     }
 
-    public function test_get_rows_throws_exception_for_nonexistent_file()
+    public function test_get_rows_throws_exception_for_nonexistent_file(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('CSV file not found: nonexistent.csv');

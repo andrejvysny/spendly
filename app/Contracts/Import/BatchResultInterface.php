@@ -41,8 +41,18 @@ interface BatchResultInterface
      */
     public function getFailedResults(): array;
 
+    /**
+     * Get all skipped results.
+     *
+     * @return array<ProcessResultInterface>
+     */
     public function getSkippedResults(): array;
 
+    /**
+     * Get all successful results.
+     *
+     * @return array<ProcessResultInterface>
+     */
     public function getSuccessResults(): array;
 
     /**
