@@ -1,0 +1,5 @@
+# Cursor indexing: exclude noise (docs/screenshots, coverage, DB files)
+# .gitignore already excludes vendor, node_modules, public/build
+docs/screenshots/
+coverage/
+*.sqlite*

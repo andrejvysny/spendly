@@ -1,0 +1,11 @@
+---
+description: "When working on the Import wizard (upload, configure, map, clean, process steps)."
+alwaysApply: false
+---
+
+# Import wizard
+
+- Steps: upload → configure → map → clean → confirm/process. Backend: ImportWizardController (routes under imports/wizard).
+- Key services: TransactionImportService, CsvProcessor, TransactionRowProcessor; mapping and persistence in app/Services/TransactionImport/, app/Services/Csv/.
+- When changing steps or mappings: keep backend step APIs and frontend wizard state in sync. Frontend: resources/js/pages/import/ (ImportWizard, wizard-steps/).
+- Reference: app/Http/Controllers/Import/ImportWizardController.php, resources/js/pages/import/components/ImportWizard.tsx.
