@@ -1,0 +1,11 @@
+---
+description: "When working on GoCardless or bank data integration (requisitions, accounts, sync)."
+alwaysApply: false
+---
+
+# GoCardless
+
+- Full docs: docs/ai/GoCardless_Architecture.md.
+- Controllers: GoCardlessController (routes under settings/bank). BankDataController for settings UI.
+- Use BankDataClientInterface; production vs mock via client factories (GoCardlessClientFactoryInterface, ProductionClientFactory, MockClientFactory).
+- Token/requisition flow: TokenManager, requisition creation and callback handling. Do not hardcode secrets.
