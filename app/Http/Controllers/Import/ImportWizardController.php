@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Http\Request;
 
 class ImportWizardController extends Controller
 {
@@ -89,6 +90,20 @@ class ImportWizardController extends Controller
             $totalRows--; // Subtract 1 for header
         }
 
+        // Create new account if requested
+        $accountId = $request->getAccountId();
+        if (! $accountId && $request->getNewAccountName()) {
+            $account = Account::create([
+                'user_id' => Auth::id(),
+                'name' => $request->getNewAccountName(),
+                'currency' => $request->getNewAccountCurrency(),
+                'type' => 'cash', // Default type
+                'balance' => 0,
+            ]);
+            $accountId = $account->id;
+            Log::info('Created new account during import', ['account_id' => $accountId]);
+        }
+
         // Create import record
         $import = Import::create([
             'user_id' => Auth::id(),
@@ -99,7 +114,7 @@ class ImportWizardController extends Controller
             'metadata' => [
                 'headers' => $sampleData->getHeaders(),
                 'sample_rows' => $sampleData->getRows(),
-                'account_id' => $request->getAccountId(),
+                'account_id' => $accountId,
                 'delimiter' => $request->getDelimiter(),
                 'quote_char' => $request->getQuoteChar(),
             ],
@@ -112,6 +127,7 @@ class ImportWizardController extends Controller
             'headers' => $sampleData->getHeaders(),
             'sample_rows' => $sampleData->getRows(),
             'total_rows' => $totalRows,
+            'account_id' => $accountId, // Return the used account ID
         ]);
     }
 
@@ -182,13 +198,52 @@ class ImportWizardController extends Controller
         ]);
     }
 
-    public function clean(): JsonResponse
+    public function getRows(Request $request, Import $import): JsonResponse
     {
-        // TODO: implement functionality to clean data before importing
+        $limit = $request->input('limit', 50);
+        $offset = $request->input('offset', 0);
 
-        return response()->json([
-            'message' => 'Old imports cleaned',
-        ]);
+        try {
+            $rows = $this->importService->getRows($import, (int) $limit, (int) $offset);
+
+            return response()->json([
+                'rows' => $rows,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get rows', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Failed to get rows'], 500);
+        }
+    }
+
+    public function updateRow(Request $request, Import $import, int $rowNumber): JsonResponse
+    {
+        // $request->all() contains the edit data (e.g. ['description' => 'New Desc'])
+        try {
+            $data = $request->except(['_token', '_method']);
+            $this->importService->saveRowEdit($import, $rowNumber, $data);
+
+            return response()->json(['message' => 'Row updated']);
+        } catch (\Exception $e) {
+            Log::error('Failed to update row', ['row_number' => $rowNumber, 'error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Failed to update row'], 500);
+        }
+    }
+
+    public function getColumnStats(Request $request, Import $import, string $column): JsonResponse
+    {
+        try {
+            $stats = $this->importService->getColumnValues($import, $column);
+
+            return response()->json([
+                'stats' => $stats,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get column stats', ['column' => $column, 'error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Failed to get column stats'], 500);
+        }
     }
 
     public function map(): JsonResponse

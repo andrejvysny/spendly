@@ -4,6 +4,7 @@ namespace App\Models\Import;
 
 use App\Contracts\OwnedByUserContract;
 use App\Models\User;
+use App\Models\Import\ImportRowEdit;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -113,5 +114,10 @@ class Import extends Model implements OwnedByUserContract
     public function getUserId(): int
     {
         return $this->user_id;
+    }
+
+    public function rowEdits(): HasMany
+    {
+        return $this->hasMany(ImportRowEdit::class);
     }
 }

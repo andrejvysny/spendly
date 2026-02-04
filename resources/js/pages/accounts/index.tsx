@@ -6,6 +6,7 @@ import { Account } from '@/types/index';
 import { formatAmount } from '@/utils/currency';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
     accounts: Account[];
@@ -56,7 +57,14 @@ export default function Index({ accounts }: Props) {
                             >
                                 <div className="mb-4 flex items-start justify-between">
                                     <div>
-                                        <h3 className="text-lg font-medium">{account.name}</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-lg font-medium">{account.name}</h3>
+                                            {account.is_gocardless_synced && (
+                                                <Badge variant="secondary" title="Imported from Bank via GoCardless">
+                                                    GoCardless
+                                                </Badge>
+                                            )}
+                                        </div>
                                         <p className="text-sm">{account.bank_name}</p>
                                     </div>
                                     <span className="text-sm">{account.currency}</span>

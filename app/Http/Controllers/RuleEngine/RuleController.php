@@ -46,72 +46,72 @@ class RuleController extends Controller
 
         // ActionType input configuration
         $actionInputConfig = [
-            ActionType::ACTION_SET_CATEGORY::value() => [
+            ActionType::ACTION_SET_CATEGORY->value => [
                 'type' => 'select',
                 'model' => 'categories',
                 'placeholder' => 'Select a category',
             ],
-            ActionType::ACTION_SET_MERCHANT::value() => [
+            ActionType::ACTION_SET_MERCHANT->value => [
                 'type' => 'select',
                 'model' => 'merchants',
                 'placeholder' => 'Select a merchant',
             ],
-            ActionType::ACTION_ADD_TAG::value() => [
+            ActionType::ACTION_ADD_TAG->value => [
                 'type' => 'select',
                 'model' => 'tags',
                 'placeholder' => 'Select a tag',
             ],
-            ActionType::ACTION_REMOVE_TAG::value() => [
+            ActionType::ACTION_REMOVE_TAG->value => [
                 'type' => 'select',
                 'model' => 'tags',
                 'placeholder' => 'Select a tag',
             ],
-            ActionType::ACTION_REMOVE_ALL_TAGS::value() => [
+            ActionType::ACTION_REMOVE_ALL_TAGS->value => [
                 'type' => 'none',
                 'placeholder' => 'No value needed',
             ],
-            ActionType::ACTION_SET_DESCRIPTION::value() => [
+            ActionType::ACTION_SET_DESCRIPTION->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter description',
             ],
-            ActionType::ACTION_APPEND_DESCRIPTION::value() => [
+            ActionType::ACTION_APPEND_DESCRIPTION->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter text to append',
             ],
-            ActionType::ACTION_PREPEND_DESCRIPTION::value() => [
+            ActionType::ACTION_PREPEND_DESCRIPTION->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter text to prepend',
             ],
-            ActionType::ACTION_SET_NOTE::value() => [
+            ActionType::ACTION_SET_NOTE->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter note',
             ],
-            ActionType::ACTION_APPEND_NOTE::value() => [
+            ActionType::ACTION_APPEND_NOTE->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter text to append',
             ],
-            ActionType::ACTION_SET_TYPE::value() => [
+            ActionType::ACTION_SET_TYPE->value => [
                 'type' => 'select',
                 'model' => 'transaction_types',
                 'placeholder' => 'Select transaction type',
             ],
-            ActionType::ACTION_MARK_RECONCILED::value() => [
+            ActionType::ACTION_MARK_RECONCILED->value => [
                 'type' => 'none',
                 'placeholder' => 'No value needed',
             ],
-            ActionType::ACTION_SEND_NOTIFICATION::value() => [
+            ActionType::ACTION_SEND_NOTIFICATION->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter notification message',
             ],
-            ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS::value() => [
+            ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter tag name',
             ],
-            ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS::value() => [
+            ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter category name',
             ],
-            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS::value() => [
+            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter merchant name',
             ],
@@ -508,72 +508,72 @@ class RuleController extends Controller
         return response()->json([
             'data' => [
                 'action_input_types' => [
-                    ActionType::ACTION_SET_CATEGORY::value() => [
+                    ActionType::ACTION_SET_CATEGORY->value => [
                         'type' => 'select',
                         'model' => 'categories',
                         'placeholder' => 'Select a category',
                     ],
-                    ActionType::ACTION_SET_MERCHANT::value() => [
+                    ActionType::ACTION_SET_MERCHANT->value => [
                         'type' => 'select',
                         'model' => 'merchants',
                         'placeholder' => 'Select a merchant',
                     ],
-                    ActionType::ACTION_ADD_TAG::value() => [
+                    ActionType::ACTION_ADD_TAG->value => [
                         'type' => 'select',
                         'model' => 'tags',
                         'placeholder' => 'Select a tag',
                     ],
-                    ActionType::ACTION_REMOVE_TAG::value() => [
+                    ActionType::ACTION_REMOVE_TAG->value => [
                         'type' => 'select',
                         'model' => 'tags',
                         'placeholder' => 'Select a tag',
                     ],
-                    ActionType::ACTION_REMOVE_ALL_TAGS::value() => [
+                    ActionType::ACTION_REMOVE_ALL_TAGS->value => [
                         'type' => 'none',
                         'placeholder' => 'No value needed',
                     ],
-                    ActionType::ACTION_SET_DESCRIPTION::value() => [
+                    ActionType::ACTION_SET_DESCRIPTION->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter description',
                     ],
-                    ActionType::ACTION_APPEND_DESCRIPTION::value() => [
+                    ActionType::ACTION_APPEND_DESCRIPTION->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter text to append',
                     ],
-                    ActionType::ACTION_PREPEND_DESCRIPTION::value() => [
+                    ActionType::ACTION_PREPEND_DESCRIPTION->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter text to prepend',
                     ],
-                    ActionType::ACTION_SET_NOTE::value() => [
+                    ActionType::ACTION_SET_NOTE->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter note',
                     ],
-                    ActionType::ACTION_APPEND_NOTE::value() => [
+                    ActionType::ACTION_APPEND_NOTE->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter text to append',
                     ],
-                    ActionType::ACTION_SET_TYPE::value() => [
+                    ActionType::ACTION_SET_TYPE->value => [
                         'type' => 'select',
                         'model' => 'transaction_types',
                         'placeholder' => 'Select transaction type',
                     ],
-                    ActionType::ACTION_MARK_RECONCILED::value() => [
+                    ActionType::ACTION_MARK_RECONCILED->value => [
                         'type' => 'none',
                         'placeholder' => 'No value needed',
                     ],
-                    ActionType::ACTION_SEND_NOTIFICATION::value() => [
+                    ActionType::ACTION_SEND_NOTIFICATION->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter notification message',
                     ],
-                    ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS::value() => [
+                    ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter tag name',
                     ],
-                    ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS::value() => [
+                    ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter category name',
                     ],
-                    ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS::value() => [
+                    ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter merchant name',
                     ],

@@ -21,4 +21,24 @@ class DashboardTest extends TestCase
 
         $this->get('/dashboard')->assertOk();
     }
+
+    public function test_dashboard_returns_correct_stats_structure(): void
+    {
+        $user = User::factory()->create();
+        
+        $this->actingAs($user)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('dashboard')
+                ->has('accounts') // Existing prop
+                ->has('recentTransactions') // Existing prop
+                ->has('monthlyBalances') // Updated prop
+                ->has('currentMonthStats', fn ($stats) => $stats
+                    ->has('income')
+                    ->has('expenses')
+                )
+                ->has('expensesByCategory')
+            );
+    }
 }

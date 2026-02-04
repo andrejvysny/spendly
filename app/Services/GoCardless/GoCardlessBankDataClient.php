@@ -5,7 +5,7 @@ namespace App\Services\GoCardless;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
-class GoCardlessBankDataClient
+class GoCardlessBankDataClient implements BankDataClientInterface
 {
     private string $baseUrl = 'https://bankaccountdata.gocardless.com/api/v2';
 

@@ -31,6 +31,7 @@ return [
         'access_token' => env('GOCARDLESS_ACCESS_TOKEN'),
         'secret_id' => env('GOCARDLESS_SECRET_ID'),
         'secret_key' => env('GOCARDLESS_SECRET_KEY'),
+        'use_mock' => env('GOCARDLESS_USE_MOCK', false),
     ],
     'slack' => [
         'notifications' => [

@@ -202,9 +202,9 @@ function TransactionList({
                 sortedMonths.map((month) => {
                     const summary =
                         monthlySummaries[month] &&
-                        typeof monthlySummaries[month].income === 'number' &&
-                        typeof monthlySummaries[month].expense === 'number' &&
-                        typeof monthlySummaries[month].balance === 'number'
+                            typeof monthlySummaries[month].income === 'number' &&
+                            typeof monthlySummaries[month].expense === 'number' &&
+                            typeof monthlySummaries[month].balance === 'number'
                             ? monthlySummaries[month]
                             : { income: 0, expense: 0, balance: 0 };
                     const dateGroups = groupedByMonth[month];
@@ -275,6 +275,7 @@ function TransactionList({
             {selectedTransactions.length > 0 && (
                 <BulkActionMenu
                     selectedTransactions={selectedTransactions}
+                    transactions={transactions}
                     categories={categories}
                     merchants={merchants}
                     onUpdate={handleResetSelection}

@@ -12,6 +12,9 @@ interface UploadStepProps {
 export default function UploadStep({ onComplete }: UploadStepProps) {
     const [file, setFile] = useState<File | null>(null);
     const [accountId, setAccountId] = useState<string>('');
+    const [isNewAccount, setIsNewAccount] = useState(false);
+    const [newAccountName, setNewAccountName] = useState('');
+    const [newAccountCurrency, setNewAccountCurrency] = useState('EUR');
     const [accounts, setAccounts] = useState<{ id: number; name: string }[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -44,16 +47,24 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
     const handleSubmit = useCallback(
         async (e: React.FormEvent) => {
             e.preventDefault();
-            if (!file || !accountId) return;
+            if (!file) return;
+            if (!isNewAccount && !accountId) return;
+            if (isNewAccount && !newAccountName) return;
 
             setIsLoading(true);
             setError(null);
 
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('account_id', accountId);
             formData.append('delimiter', delimiter);
             formData.append('quote_char', quoteChar);
+
+            if (isNewAccount) {
+                formData.append('new_account_name', newAccountName);
+                formData.append('new_account_currency', newAccountCurrency);
+            } else {
+                formData.append('account_id', accountId);
+            }
 
             try {
                 const response = await axios.post(route('imports.wizard.upload'), formData, {
@@ -66,7 +77,7 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
                     importId: response.data.import_id,
                     headers: response.data.headers,
                     sampleRows: response.data.sample_rows,
-                    accountId: parseInt(accountId),
+                    accountId: response.data.account_id,
                     totalRows: response.data.total_rows,
                 });
             } catch (err) {
@@ -89,20 +100,78 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
 
             <form onSubmit={handleSubmit} className="text-foreground bg-card space-y-6 rounded-lg p-6 shadow-md">
                 {/* Account Selection */}
-                <div className="space-y-2">
-                    <Label htmlFor="account">Account</Label>
-                    <Select value={accountId} onValueChange={setAccountId}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select an account" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {accounts.map((account) => (
-                                <SelectItem key={account.id} value={account.id.toString()}>
-                                    {account.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                <div className="space-y-4">
+                    <Label>Account</Label>
+
+                    <div className="flex space-x-4 border-b">
+                        <button
+                            type="button"
+                            className={`border-b-2 px-4 py-2 text-sm font-medium ${!isNewAccount
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
+                                }`}
+                            onClick={() => {
+                                setIsNewAccount(false);
+                                setAccountId(accounts.length > 0 ? accounts[0].id.toString() : '');
+                            }}
+                        >
+                            Select Existing
+                        </button>
+                        <button
+                            type="button"
+                            className={`border-b-2 px-4 py-2 text-sm font-medium ${isNewAccount
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
+                                }`}
+                            onClick={() => {
+                                setIsNewAccount(true);
+                                setAccountId('');
+                            }}
+                        >
+                            Create New
+                        </button>
+                    </div>
+
+                    {!isNewAccount ? (
+                        <Select value={accountId} onValueChange={setAccountId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an account" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {accounts.map((account) => (
+                                    <SelectItem key={account.id} value={account.id.toString()}>
+                                        {account.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="new-account-name">Account Name</Label>
+                                <Input
+                                    id="new-account-name"
+                                    value={newAccountName}
+                                    onChange={(e) => setNewAccountName(e.target.value)}
+                                    placeholder="e.g. Main Checking"
+                                    required={isNewAccount}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new-account-currency">Currency</Label>
+                                <Select value={newAccountCurrency} onValueChange={setNewAccountCurrency}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="EUR" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="EUR">EUR</SelectItem>
+                                        <SelectItem value="USD">USD</SelectItem>
+                                        <SelectItem value="GBP">GBP</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* CSV Options */}
@@ -175,7 +244,7 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
                 {error && <div className="rounded-md border border-red-800 bg-red-900/20 p-3 text-red-300">{error}</div>}
 
                 <div className="flex justify-end">
-                    <Button type="submit" disabled={isLoading || !file || !accountId}>
+                    <Button type="submit" disabled={isLoading || !file || (!isNewAccount && !accountId) || (isNewAccount && !newAccountName)}>
                         {isLoading ? 'Uploading...' : 'Continue to Configure'}
                     </Button>
                 </div>
