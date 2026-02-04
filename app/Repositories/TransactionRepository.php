@@ -131,6 +131,7 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     public function getRecentByAccounts(array $accountIds, int $limit = 10): Collection
     {
         return $this->model->whereIn('account_id', $accountIds)
+            ->with(['category', 'merchant', 'account', 'tags'])
             ->orderBy('booked_date', 'desc')
             ->limit($limit)
             ->get();

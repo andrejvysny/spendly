@@ -1,13 +1,14 @@
 import { TextareaInput, TextInput } from '@/components/ui/form-inputs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SmartForm } from '@/components/ui/smart-form';
-import { Category, Merchant } from '@/types/index';
+import { Category, Merchant, Transaction } from '@/types/index';
 import axios from 'axios';
 import { useState } from 'react';
 import { z } from 'zod';
 
 interface Props {
     selectedTransactions: string[];
+    transactions?: Transaction[];
     categories?: Category[];
     merchants?: Merchant[];
     onUpdate: (data?: {
@@ -45,18 +46,31 @@ type NoteFormValues = z.infer<typeof noteSchema>;
  * The menu appears when transactions are selected, allowing users to assign an existing or newly created category or merchant to all selected transactions. After a successful assignment or creation, the parent component is notified via the provided callback.
  *
  * @param selectedTransactions - Array of transaction IDs to update.
+ * @param transactions - Array of transaction objects (optional, used for calculating totals).
  * @param categories - Optional list of available categories for assignment.
  * @param merchants - Optional list of available merchants for assignment.
  * @param onUpdate - Callback invoked after a successful assignment or when the menu is closed.
  *
  * @returns The bulk action menu UI, or `null` if no transactions are selected.
  */
-export default function BulkActionMenu({ selectedTransactions, categories = [], merchants = [], onUpdate }: Props) {
+export default function BulkActionMenu({
+    selectedTransactions,
+    transactions = [],
+    categories = [],
+    merchants = [],
+    onUpdate,
+}: Props) {
     const [activeMenu, setActiveMenu] = useState<'category' | 'merchant' | 'note' | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [selectedMerchant, setSelectedMerchant] = useState<string>('');
     const [isCreatingCategory, setIsCreatingCategory] = useState(false);
     const [isCreatingMerchant, setIsCreatingMerchant] = useState(false);
+
+    // Calculate totals
+    const selectedTransactionObjects = transactions.filter((t) => selectedTransactions.includes(String(t.id)));
+    const relativeTotal = selectedTransactionObjects.reduce((sum, t) => sum + Number(t.amount), 0);
+    const absoluteTotal = selectedTransactionObjects.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+    const currency = selectedTransactionObjects.length > 0 ? selectedTransactionObjects[0].currency : 'EUR';
 
     const handleAssignCategory = async () => {
         if (!selectedCategory) return;
@@ -142,8 +156,9 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
         }
     };
 
-    const handleNote = async (values: NoteFormValues, event: { nativeEvent: { submitter: { name: string } } }) => {
-        const submitter = event?.nativeEvent?.submitter;
+    const handleNote = async (values: NoteFormValues, event?: React.BaseSyntheticEvent) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const submitter = (event?.nativeEvent as any)?.submitter;
         if (submitter?.name === 'replace') {
             await handleAddNote(values, 'replace');
         } else if (submitter?.name === 'append') {
@@ -173,13 +188,26 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
 
     return (
         <div className="fixed right-4 bottom-4 z-50">
-            <div className="bg-card border-border w-80 rounded-lg border shadow-lg">
+            <div className="bg-card border-border w-[500px] rounded-lg border shadow-lg">
                 {/* Header */}
                 <div className="border-border border-b p-3">
                     <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">
-                            {selectedTransactions.length} {selectedTransactions.length === 1 ? 'transaction' : 'transactions'} selected
-                        </span>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-sm font-medium">
+                                {selectedTransactions.length} {selectedTransactions.length === 1 ? 'transaction' : 'transactions'} selected
+                            </span>
+                            {transactions.length > 0 && (
+                                <div className="text-muted-foreground flex gap-3 text-xs">
+                                    <span className={relativeTotal >= 0 ? 'text-green-600' : 'text-red-500'}>
+                                        Total: {relativeTotal >= 0 ? '+' : ''}
+                                        {relativeTotal.toFixed(2)} {currency}
+                                    </span>
+                                    <span>
+                                        Absolute: {absoluteTotal.toFixed(2)} {currency}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                         <button onClick={() => onUpdate()} className="text-muted-foreground hover:text-foreground" title="Cancel">
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -204,33 +232,30 @@ export default function BulkActionMenu({ selectedTransactions, categories = [], 
                     <div className="space-y-1.5">
                         <button
                             onClick={() => setActiveMenu(activeMenu === 'category' ? null : 'category')}
-                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
-                                activeMenu === 'category'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                            }`}
+                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${activeMenu === 'category'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                                }`}
                         >
                             Assign Category
                         </button>
 
                         <button
                             onClick={() => setActiveMenu(activeMenu === 'merchant' ? null : 'merchant')}
-                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
-                                activeMenu === 'merchant'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                            }`}
+                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${activeMenu === 'merchant'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                                }`}
                         >
                             Assign Merchant
                         </button>
 
                         <button
                             onClick={() => setActiveMenu(activeMenu === 'note' ? null : 'note')}
-                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
-                                activeMenu === 'note'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                            }`}
+                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${activeMenu === 'note'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                                }`}
                         >
                             Add Note
                         </button>

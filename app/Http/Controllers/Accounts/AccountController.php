@@ -18,9 +18,6 @@ class AccountController extends Controller
     public function __construct(
         private AccountRepository $accountRepository
     ) {
-        if (! auth()->id()) {
-            throw new \Exception('User not authenticated');
-        }
     }
 
     public function index(): JsonResponse|Response

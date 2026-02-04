@@ -52,6 +52,12 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
 
             $parsedData = $this->parser->parse($row, $this->configuration);
 
+            // Apply overrides if present
+            if (isset($this->configuration['overrides'][$rowNumber])) {
+                $parsedData = array_merge($parsedData, $this->configuration['overrides'][$rowNumber]);
+                Log::debug('Applied overrides for row '.$rowNumber, ['overrides' => $this->configuration['overrides'][$rowNumber]]);
+            }
+
             $transactionDto = new TransactionDto(
                 $parsedData,
                 $this->validator->validate($parsedData, $this->configuration)

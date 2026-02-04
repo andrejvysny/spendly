@@ -10,6 +10,7 @@ use App\Services\GoCardless\GocardlessMapper;
 use App\Services\GoCardless\GoCardlessService;
 use App\Services\GoCardless\TokenManager;
 use App\Services\GoCardless\TransactionSyncService;
+use App\Services\GoCardless\ClientFactory\GoCardlessClientFactoryInterface;
 use Illuminate\Support\ServiceProvider;
 
 class GoCardlessServiceProvider extends ServiceProvider
@@ -38,11 +39,20 @@ class GoCardlessServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(GoCardlessClientFactoryInterface::class, function ($app) {
+            if (config('services.gocardless.use_mock', false)) {
+                return new \App\Services\GoCardless\ClientFactory\MockClientFactory;
+            }
+
+            return new \App\Services\GoCardless\ClientFactory\ProductionClientFactory;
+        });
+
         $this->app->singleton(GoCardlessService::class, function ($app) {
             return new GoCardlessService(
                 $app->make(AccountRepository::class),
                 $app->make(TransactionSyncService::class),
-                $app->make(GocardlessMapper::class)
+                $app->make(GocardlessMapper::class),
+                $app->make(GoCardlessClientFactoryInterface::class)
             );
         });
 

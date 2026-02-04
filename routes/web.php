@@ -73,6 +73,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/{import}/configure', [ImportWizardController::class, 'configure'])->name('configure');
             Route::post('/{account}/{import}/process', [ImportWizardController::class, 'process'])->name('process');
             Route::get('/categories', [ImportWizardController::class, 'getCategories'])->name('categories');
+            Route::get('/{import}/rows', [ImportWizardController::class, 'getRows'])->name('rows');
+            Route::patch('/{import}/rows/{row}', [ImportWizardController::class, 'updateRow'])->name('rows.update');
+            Route::get('/{import}/columns/{column}/stats', [ImportWizardController::class, 'getColumnStats'])->name('columns.stats');
         });
 
         Route::group(['prefix' => '/mappings', 'as' => 'mappings.'], function () {

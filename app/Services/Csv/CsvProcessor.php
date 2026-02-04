@@ -146,6 +146,12 @@ class CsvProcessor
                     continue;
                 }
 
+                // Handle offset
+                if ($batch->getSkippedCount() + $batch->getSuccessCount() + $batch->getFailedCount() < $offset) {
+                    $batch->addResult(CsvProcessResult::skipped('Offset skip', $row));
+                    continue;
+                }
+
                 $result = $callback($row, [
                     'row_number' => $skip_header ? $totalRows : $totalRows + 1,
                     'headers' => $skip_header ? $headers : null,
