@@ -1,4 +1,4 @@
-import AccountDetailMonthlyComparisonChart from '@/components/accounts/AccountDetailMonthlyComparisonChart';
+import MonthlyComparisonChart from '@/components/charts/MonthlyComparisonChart';
 import TransactionList from '@/components/transactions/TransactionList';
 import {
     AlertDialog,
@@ -434,19 +434,18 @@ export default function Detail({
                             <div className="bg-card rounded-xl border-1 p-5 shadow-xs">
                                 <h3 className="mb-4 text-lg font-semibold">Monthly comparison</h3>
 
-                                <AccountDetailMonthlyComparisonChart
-                                    currentMonthData={cashflow_this_month.map((item) => ({
+                                <MonthlyComparisonChart
+                                    firstMonthData={cashflow_this_month.map((item) => ({
                                         date: `${item.year}-${String(item.month).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`,
-                                        balance: item.daily_balance,
-                                        income: item.daily_income,
-                                        expense: -item.daily_spending,
+                                        dailySpending: item.daily_spending,
                                     }))}
-                                    previousMonthData={cashflow_last_month.map((item) => ({
+                                    secondMonthData={cashflow_last_month.map((item) => ({
                                         date: `${item.year}-${String(item.month).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`,
-                                        balance: item.daily_balance,
-                                        income: item.daily_income,
-                                        expense: -item.daily_spending,
+                                        dailySpending: item.daily_spending,
                                     }))}
+                                    firstMonthLabel="Current month"
+                                    secondMonthLabel="Previous month"
+                                    currency={account.currency}
                                 />
                             </div>
                         </div>
