@@ -1,56 +1,51 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Models\Account;
+use App\Repositories\Concerns\UserScoped;
 use Illuminate\Support\Collection;
 
 class AccountRepository extends BaseRepository implements AccountRepositoryInterface
 {
+    use UserScoped;
+
     public function __construct(Account $model)
     {
         parent::__construct($model);
     }
 
-    /**
-     * Find an account by ID for a specific user.
-     */
     public function findByIdForUser(int $accountId, int $userId): ?Account
     {
-        return Account::where('id', $accountId)
+        $account = $this->model->where('id', $accountId)
             ->where('user_id', $userId)
             ->first();
+
+        return $account instanceof Account ? $account : null;
     }
 
-    public function findByUserId(int $userId): Collection
-    {
-        return Account::where('user_id', $userId)->get();
-    }
-
-    /**
-     * Find an account by GoCardless account ID.
-     */
     public function findByGocardlessId(string $gocardlessAccountId, int $userId): ?Account
     {
-        return Account::where('gocardless_account_id', $gocardlessAccountId)
+        $account = $this->model->where('gocardless_account_id', $gocardlessAccountId)
             ->where('user_id', $userId)
             ->first();
+
+        return $account instanceof Account ? $account : null;
     }
 
     /**
-     * Get all GoCardless synced accounts for a user.
+     * @return Collection<int, Account>
      */
     public function getGocardlessSyncedAccounts(int $userId): Collection
     {
-        return Account::where('user_id', $userId)
+        return $this->model->where('user_id', $userId)
             ->where('is_gocardless_synced', true)
             ->get();
     }
 
-    /**
-     * Update account sync timestamp.
-     */
     public function updateSyncTimestamp(Account $account): bool
     {
         return $account->update([
@@ -59,24 +54,13 @@ class AccountRepository extends BaseRepository implements AccountRepositoryInter
     }
 
     /**
-     * Create a new account.
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): Account
     {
         return $this->model->create($data);
     }
 
-    /**
-     * Find all accounts for a user.
-     */
-    public function findByUser(int $userId): Collection
-    {
-        return $this->model->where('user_id', $userId)->get();
-    }
-
-    /**
-     * Check if GoCardless account exists for user.
-     */
     public function gocardlessAccountExists(string $gocardlessAccountId, int $userId): bool
     {
         return $this->model->where('gocardless_account_id', $gocardlessAccountId)

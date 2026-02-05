@@ -1,20 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Contracts\Repositories;
 
 use App\Models\Account;
 use Illuminate\Support\Collection;
 
-interface AccountRepositoryInterface extends BaseRepositoryContract
+/**
+ * @extends UserScopedRepositoryInterface<Account>
+ */
+interface AccountRepositoryInterface extends UserScopedRepositoryInterface
 {
     public function findByIdForUser(int $accountId, int $userId): ?Account;
 
     public function findByGocardlessId(string $gocardlessAccountId, int $userId): ?Account;
-
-    /**
-     * @return Collection<int, Account>
-     */
-    public function findByUser(int $userId): Collection;
 
     /**
      * @return Collection<int, Account>

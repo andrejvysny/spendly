@@ -1,21 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Contracts\Repositories;
 
 use App\Models\User;
 
+/**
+ * @extends BaseRepositoryContract<User>
+ */
 interface UserRepositoryInterface extends BaseRepositoryContract
 {
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function create(array $data): User;
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function update(int $id, array $data): ?User;
-
     public function findByEmail(string $email): ?User;
 
     public function findByEmailVerificationToken(string $token): ?User;

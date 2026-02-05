@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Contracts\Repositories;
 
 use App\Models\Transaction;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
+/**
+ * @extends BaseRepositoryContract<Transaction>
+ */
 interface TransactionRepositoryInterface extends BaseRepositoryContract
 {
     public function findByTransactionId(string $transactionId): ?Transaction;
@@ -68,7 +74,9 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
     /**
      * Get transactions for recurring detection within a date range.
      *
-     * @return \Illuminate\Support\Collection<int, Transaction>
+     * @return Collection<int, Transaction>
      */
-    public function getForRecurringDetection(int $userId, \Carbon\Carbon $from, \Carbon\Carbon $to, ?int $accountId = null): \Illuminate\Support\Collection;
+    public function getForRecurringDetection(int $userId, Carbon $from, Carbon $to, ?int $accountId = null): Collection;
+
+    public function fingerprintExists(int $accountId, string $fingerprint): bool;
 }

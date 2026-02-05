@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\ImportRepositoryInterface;
 use App\Models\Import\Import;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 class ImportRepository extends BaseRepository implements ImportRepositoryInterface
@@ -13,23 +16,19 @@ class ImportRepository extends BaseRepository implements ImportRepositoryInterfa
         parent::__construct($model);
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function create(array $data): Import
     {
-        return $this->model->create($data);
+        $model = parent::create($data);
+
+        return $model instanceof Import ? $model : $this->model->find($model->getKey());
     }
 
-    public function update(int $id, array $data): ?Import
-    {
-        $import = $this->model->find($id);
-        if (! $import) {
-            return null;
-        }
-
-        $import->update($data);
-
-        return $import->fresh();
-    }
-
+    /**
+     * @return Collection<int, Import>
+     */
     public function findByUser(int $userId): Collection
     {
         return $this->model->where('user_id', $userId)
@@ -37,18 +36,27 @@ class ImportRepository extends BaseRepository implements ImportRepositoryInterfa
             ->get();
     }
 
-    public function findByUserWithPagination(int $userId, int $perPage = 15): object
+    /**
+     * @return LengthAwarePaginator<Import>
+     */
+    public function findByUserWithPagination(int $userId, int $perPage = 15): LengthAwarePaginator
     {
         return $this->model->where('user_id', $userId)
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
     }
 
+    /**
+     * @return Collection<int, Import>
+     */
     public function findByStatus(string $status): Collection
     {
         return $this->model->where('status', $status)->get();
     }
 
+    /**
+     * @return Collection<int, Import>
+     */
     public function findByUserAndStatus(int $userId, string $status): Collection
     {
         return $this->model->where('user_id', $userId)

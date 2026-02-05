@@ -1,28 +1,22 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Contracts\Repositories;
 
 use App\Models\Import\Import;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
-interface ImportRepositoryInterface extends BaseRepositoryContract
+/**
+ * @extends UserScopedRepositoryInterface<Import>
+ */
+interface ImportRepositoryInterface extends UserScopedRepositoryInterface
 {
     /**
-     * @param  array<string, mixed>  $data
+     * @return LengthAwarePaginator<Import>
      */
-    public function create(array $data): Import;
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function update(int $id, array $data): ?Import;
-
-    /**
-     * @return Collection<int, Import>
-     */
-    public function findByUser(int $userId): Collection;
-
-    public function findByUserWithPagination(int $userId, int $perPage = 15): object;
+    public function findByUserWithPagination(int $userId, int $perPage = 15): LengthAwarePaginator;
 
     /**
      * @return Collection<int, Import>

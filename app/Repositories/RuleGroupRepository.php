@@ -1,37 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\RuleGroupRepositoryInterface;
 use App\Models\RuleEngine\RuleGroup;
-use Illuminate\Support\Collection;
+use App\Repositories\Concerns\UserScoped;
 
 class RuleGroupRepository extends BaseRepository implements RuleGroupRepositoryInterface
 {
+    use UserScoped;
+
     public function __construct(RuleGroup $model)
     {
         parent::__construct($model);
-    }
-
-    public function create(array $data): RuleGroup
-    {
-        return $this->model->create($data);
-    }
-
-    public function update(int $id, array $data): ?RuleGroup
-    {
-        $group = $this->model->find($id);
-        if (! $group) {
-            return null;
-        }
-
-        $group->update($data);
-
-        return $group->fresh();
-    }
-
-    public function findByUser(int $userId): Collection
-    {
-        return $this->model->where('user_id', $userId)->get();
     }
 }

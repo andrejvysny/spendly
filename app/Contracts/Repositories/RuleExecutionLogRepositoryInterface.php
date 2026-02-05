@@ -1,17 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Contracts\Repositories;
 
 use App\Models\RuleEngine\RuleExecutionLog;
 use Illuminate\Support\Collection;
 
+/**
+ * @extends BaseRepositoryContract<RuleExecutionLog>
+ */
 interface RuleExecutionLogRepositoryInterface extends BaseRepositoryContract
 {
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function create(array $data): RuleExecutionLog;
-
     /**
      * @return Collection<int, RuleExecutionLog>
      */

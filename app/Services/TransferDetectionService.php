@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Transaction;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class TransferDetectionService
 {
@@ -15,7 +15,8 @@ class TransferDetectionService
     private const float AMOUNT_TOLERANCE = 0.01;
 
     public function __construct(
-        private readonly AccountRepositoryInterface $accountRepository
+        private readonly AccountRepositoryInterface $accountRepository,
+        private readonly TransactionRepositoryInterface $transactionRepository
     ) {}
 
     /**
@@ -66,7 +67,7 @@ class TransferDetectionService
                     continue;
                 }
 
-                DB::transaction(function () use ($debit, $match, &$updated) {
+                $this->transactionRepository->transaction(function () use ($debit, $match, &$updated) {
                     $debit->update([
                         'type' => Transaction::TYPE_TRANSFER,
                         'transfer_pair_transaction_id' => $match->id,

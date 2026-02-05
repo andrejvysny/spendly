@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Contracts\Repositories;
 
 use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\RuleGroup;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 
 interface RuleRepositoryInterface extends BaseRepositoryContract
 {

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\ConditionGroupRepositoryInterface;
@@ -13,23 +15,9 @@ class ConditionGroupRepository extends BaseRepository implements ConditionGroupR
         parent::__construct($model);
     }
 
-    public function create(array $data): ConditionGroup
-    {
-        return $this->model->create($data);
-    }
-
-    public function update(int $id, array $data): ?ConditionGroup
-    {
-        $group = $this->model->find($id);
-        if (! $group) {
-            return null;
-        }
-
-        $group->update($data);
-
-        return $group->fresh();
-    }
-
+    /**
+     * @return Collection<int, ConditionGroup>
+     */
     public function findByRule(int $ruleId): Collection
     {
         return $this->model->where('rule_id', $ruleId)->get();

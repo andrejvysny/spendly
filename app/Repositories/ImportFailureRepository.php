@@ -1,42 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\ImportFailureRepositoryInterface;
 use App\Models\Import\ImportFailure;
-use Illuminate\Support\Facades\DB;
+use App\Repositories\Concerns\BatchInsert;
 
 class ImportFailureRepository extends BaseRepository implements ImportFailureRepositoryInterface
 {
+    use BatchInsert;
+
     public function __construct(ImportFailure $model)
     {
         parent::__construct($model);
     }
 
+    /**
+     * @param  array<mixed>  $failures
+     */
     public function createBatch(array $failures): int
     {
-        if (empty($failures)) {
-            return 0;
-        }
-
-        // Ensure JSON columns are encoded
-        $processed = array_map(function ($row) {
-            foreach (['raw_data', 'error_details', 'parsed_data', 'metadata'] as $jsonField) {
-                if (isset($row[$jsonField]) && is_array($row[$jsonField])) {
-                    $row[$jsonField] = json_encode($row[$jsonField]);
-                }
-            }
-
-            return $row;
-        }, $failures);
-
-        DB::table('import_failures')->insert($processed);
-
-        return count($processed);
+        return $this->batchInsert(
+            'import_failures',
+            $failures,
+            ['raw_data', 'error_details', 'parsed_data', 'metadata']
+        );
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function createOne(array $data): ImportFailure
     {
-        return ImportFailure::create($data);
+        $model = $this->model->create($data);
+
+        return $model instanceof ImportFailure ? $model : $this->model->find($model->getKey());
     }
 }
