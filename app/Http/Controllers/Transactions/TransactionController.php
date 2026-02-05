@@ -40,8 +40,8 @@ class TransactionController extends Controller
 
             $totalSummary = [
                 'count' => $countClone->count(),
-                'income' => $incomeSum->where('amount', '>', 0)->sum('amount'),
-                'expense' => abs($expenseSum->where('amount', '<', 0)->sum('amount')),
+                'income' => $incomeSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '>', 0)->sum('amount'),
+                'expense' => abs($expenseSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '<', 0)->sum('amount')),
                 'balance' => $balanceSum->sum('amount'),
                 'categoriesCount' => $categoriesCount->whereNotNull('category_id')->distinct('category_id')->count('category_id'),
                 'merchantsCount' => $merchantsCount->whereNotNull('merchant_id')->distinct('merchant_id')->count('merchant_id'),
@@ -53,7 +53,7 @@ class TransactionController extends Controller
         // Get paginated transactions
         $transactions = $query->paginate(self::PAGINATION_COUNT);
 
-        // Calculate monthly summaries for the current page
+        // Calculate monthly summaries for the current page (exclude transfers from income/expense)
         $monthlySummaries = [];
         foreach ($transactions->items() as $transaction) {
             $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
@@ -64,10 +64,12 @@ class TransactionController extends Controller
                     'balance' => 0,
                 ];
             }
-            if ($transaction->amount > 0) {
-                $monthlySummaries[$month]['income'] += $transaction->amount;
-            } else {
-                $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+            if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+                if ($transaction->amount > 0) {
+                    $monthlySummaries[$month]['income'] += $transaction->amount;
+                } else {
+                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                }
             }
             $monthlySummaries[$month]['balance'] += $transaction->amount;
         }
@@ -118,7 +120,7 @@ class TransactionController extends Controller
 
             $transactions = $query->paginate(self::PAGINATION_COUNT, ['*'], 'page', $request->page);
 
-            // Calculate monthly summaries for the current page
+            // Calculate monthly summaries for the current page (exclude transfers from income/expense)
             $monthlySummaries = [];
             foreach ($transactions->items() as $transaction) {
                 $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
@@ -129,10 +131,12 @@ class TransactionController extends Controller
                         'balance' => 0,
                     ];
                 }
-                if ($transaction->amount > 0) {
-                    $monthlySummaries[$month]['income'] += $transaction->amount;
-                } else {
-                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+                    if ($transaction->amount > 0) {
+                        $monthlySummaries[$month]['income'] += $transaction->amount;
+                    } else {
+                        $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                    }
                 }
                 $monthlySummaries[$month]['balance'] += $transaction->amount;
             }
@@ -181,8 +185,8 @@ class TransactionController extends Controller
 
             $totalSummary = [
                 'count' => $totalCount->count(),
-                'income' => $incomeSum->where('amount', '>', 0)->sum('amount'),
-                'expense' => abs($expenseSum->where('amount', '<', 0)->sum('amount')),
+                'income' => $incomeSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '>', 0)->sum('amount'),
+                'expense' => abs($expenseSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '<', 0)->sum('amount')),
                 'balance' => $balanceSum->sum('amount'),
                 'categoriesCount' => $categoriesCount->whereNotNull('category_id')->distinct('category_id')->count('category_id'),
                 'merchantsCount' => $merchantsCount->whereNotNull('merchant_id')->distinct('merchant_id')->count('merchant_id'),
@@ -195,7 +199,7 @@ class TransactionController extends Controller
 
             Log::info('Filtered transactions count: '.$transactions->count().', isFiltered: '.($isFiltered ? 'true' : 'false'));
 
-            // Calculate monthly summaries for the current page
+            // Calculate monthly summaries for the current page (exclude transfers from income/expense)
             $monthlySummaries = [];
             foreach ($transactions->items() as $transaction) {
                 $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
@@ -206,10 +210,12 @@ class TransactionController extends Controller
                         'balance' => 0,
                     ];
                 }
-                if ($transaction->amount > 0) {
-                    $monthlySummaries[$month]['income'] += $transaction->amount;
-                } else {
-                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+                    if ($transaction->amount > 0) {
+                        $monthlySummaries[$month]['income'] += $transaction->amount;
+                    } else {
+                        $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                    }
                 }
                 $monthlySummaries[$month]['balance'] += $transaction->amount;
             }

@@ -23,8 +23,11 @@ interface Props extends TransactionType {
  * @param onSelect - Callback invoked when the selection state changes, receiving the transaction ID and new checked state.
  * @param transaction
  */
+const TYPE_TRANSFER = 'TRANSFER';
+
 export default function Transaction({ compact = false, isSelected = false, onSelect, ...transaction }: Props) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const isTransfer = transaction.type === TYPE_TRANSFER;
 
     return (
         <div className="flex flex-col">
@@ -37,18 +40,38 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                 {/* Transaction Card */}
                 <div
                     className={
-                        'bg-card rounded-xl border-1 shadow-xs transition-colors ' +
-                        (isSelected ? 'border-current' : 'hover:border-current') +
+                        'rounded-xl border-1 shadow-xs transition-colors ' +
+                        (isTransfer ? 'bg-muted/50 text-muted-foreground' : 'bg-card') +
+                        (isSelected ? ' border-current' : ' hover:border-current') +
                         (compact ? 'px-2 py-1' : ' p-2')
                     }
                 >
                     <div className="flex w-full cursor-pointer items-center gap-4" onClick={() => setIsExpanded(!isExpanded)}>
                         <div
-                            className={'flex items-center justify-center rounded-full ' + (compact ? ' h-8 w-8 p-1' : 'h-12 w-12 p-2')}
-                            style={{ backgroundColor: transaction.category?.color || '#333333' }}
-                            title={transaction.category?.name || 'Uncategorized'}
+                            className={
+                                'flex items-center justify-center rounded-full ' +
+                                (compact ? ' h-8 w-8 p-1' : 'h-12 w-12 p-2') +
+                                (isTransfer ? ' bg-muted' : '')
+                            }
+                            style={!isTransfer ? { backgroundColor: transaction.category?.color || '#333333' } : undefined}
+                            title={isTransfer ? 'Transfer' : (transaction.category?.name || 'Uncategorized')}
                         >
-                            {transaction.category?.icon ? (
+                            {isTransfer ? (
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth={1.5}
+                                    stroke="currentColor"
+                                    className={compact ? 'h-5 w-5 text-muted-foreground' : 'h-8 w-8 text-muted-foreground'}
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
+                                    />
+                                </svg>
+                            ) : transaction.category?.icon ? (
                                 <Icon iconNode={icons[transaction.category.icon || '']} className="h-8 w-8 text-white" />
                             ) : (
                                 <svg
@@ -86,7 +109,13 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                                         </span>
                                     )}
 
-                                    <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
+                                    <span
+                                        className={
+                                            isTransfer
+                                                ? 'bg-muted rounded-full border-1 border-border px-2 py-1 text-base text-xs'
+                                                : 'bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs'
+                                        }
+                                    >
                                         {transaction.type}
                                     </span>
 
@@ -109,7 +138,11 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                             )}
                         </div>
 
-                        {transaction.amount < 0 ? (
+                        {isTransfer ? (
+                            <div className={'text-muted-foreground font-semibold' + (compact ? ' text-md' : ' text-lg')}>
+                                ⇄ {formatAmount(transaction.amount, transaction.currency)}
+                            </div>
+                        ) : transaction.amount < 0 ? (
                             <div className={'text-destructive-foreground font-semibold' + (compact ? ' text-md' : ' text-lg')}>
                                 ▼ {formatAmount(transaction.amount, transaction.currency)}
                             </div>

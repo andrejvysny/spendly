@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Accounts;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccountRequest;
 use App\Models\Account;
+use App\Models\Transaction;
 use App\Repositories\AccountRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -74,7 +75,7 @@ class AccountController extends Controller
 
         $total_transactions = $account->transactions()->count();
 
-        // Calculate monthly summaries for the current page only
+        // Calculate monthly summaries for the current page only (exclude transfers from income/expense)
         $monthlySummaries = [];
         foreach ($transactions->items() as $transaction) {
             $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
@@ -85,10 +86,12 @@ class AccountController extends Controller
                     'balance' => 0,
                 ];
             }
-            if ($transaction->amount > 0) {
-                $monthlySummaries[$month]['income'] += $transaction->amount;
-            } else {
-                $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+            if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+                if ($transaction->amount > 0) {
+                    $monthlySummaries[$month]['income'] += $transaction->amount;
+                } else {
+                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                }
             }
             $monthlySummaries[$month]['balance'] += $transaction->amount;
         }
@@ -147,8 +150,8 @@ class AccountController extends Controller
                 \DB::raw('CAST(strftime("%m", processed_date) AS INTEGER) as month'),
                 \DB::raw('CAST(strftime("%d", processed_date) AS INTEGER) as day'),
                 \DB::raw('COUNT(*) as transaction_count'),
-                \DB::raw('SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as daily_spending'),
-                \DB::raw('SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as daily_income'),
+                \DB::raw("SUM(CASE WHEN amount < 0 AND type != '".Transaction::TYPE_TRANSFER."' THEN ABS(amount) ELSE 0 END) as daily_spending"),
+                \DB::raw("SUM(CASE WHEN amount > 0 AND type != '".Transaction::TYPE_TRANSFER."' THEN amount ELSE 0 END) as daily_income"),
                 \DB::raw('SUM(amount) as daily_balance')
             )
             ->whereIn('account_id', $accountIds)

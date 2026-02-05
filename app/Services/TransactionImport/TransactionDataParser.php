@@ -206,12 +206,34 @@ class TransactionDataParser
         // Ensure type is set
         if (empty($data['type'])) {
             $data['type'] = 'Imported';
+        } else {
+            $data['type'] = $this->normalizeTransactionType($data['type']);
         }
 
         // Generate transaction ID if not provided
         if (empty($data['transaction_id'])) {
             $data['transaction_id'] = 'IMP-'.uniqid();
         }
+    }
+
+    /**
+     * Normalize CSV-mapped type to standard TRANSFER when value indicates a transfer.
+     *
+     * @param  string  $type  Raw type value from CSV (e.g. "Transfer", "transfer", "TRANSFER").
+     * @return string Transaction::TYPE_TRANSFER or unchanged type.
+     */
+    private function normalizeTransactionType(string $type): string
+    {
+        $normalized = strtolower(trim($type));
+        $transferAliases = ['transfer', 'prevod', 'überweisung', 'virement', 'bonifico'];
+
+        foreach ($transferAliases as $alias) {
+            if ($normalized === $alias) {
+                return Transaction::TYPE_TRANSFER;
+            }
+        }
+
+        return $type;
     }
 
     /**
