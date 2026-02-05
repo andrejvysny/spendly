@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\AnalyticsRequest;
+use App\Models\Transaction;
 use App\Repositories\AccountRepository;
 use App\Repositories\CategoryRepository;
 use Carbon\Carbon;
@@ -154,10 +155,11 @@ class AnalyticsController extends Controller
         $isShortRange = $daysDiff < 32;
 
         if ($isShortRange) {
-            // Get all transactions for the period to calculate running balance
+            // Get all transactions for the period to calculate running balance (exclude transfers from income/expense only)
             $transactions = $query->select(
                 'processed_date',
-                'amount'
+                'amount',
+                'type'
             )
                 ->orderBy('processed_date')
                 ->get();
@@ -182,15 +184,16 @@ class AnalyticsController extends Controller
                 }
 
                 $dailyBalances[$dateKey]['transaction_count']++;
-                if ($transaction->amount > 0) {
-                    $dailyBalances[$dateKey]['total_income'] += $transaction->amount;
-                } else {
-                    $dailyBalances[$dateKey]['total_expenses'] += abs($transaction->amount);
+                $isTransfer = $transaction->type === Transaction::TYPE_TRANSFER;
+                if (! $isTransfer) {
+                    if ($transaction->amount > 0) {
+                        $dailyBalances[$dateKey]['total_income'] += $transaction->amount;
+                    } else {
+                        $dailyBalances[$dateKey]['total_expenses'] += abs($transaction->amount);
+                    }
                 }
-
-                // Calculate net balance as income - expenses
-                $dailyBalances[$dateKey]['day_balance'] =
-                    $dailyBalances[$dateKey]['total_income'] - $dailyBalances[$dateKey]['total_expenses'];
+                // Balance includes all transactions (net movement)
+                $dailyBalances[$dateKey]['day_balance'] += $transaction->amount;
             }
 
             // Convert to array and sort by date
@@ -200,10 +203,11 @@ class AnalyticsController extends Controller
 
             return $result;
         } else {
-            // For monthly view, calculate monthly balances
+            // For monthly view, calculate monthly balances (exclude transfers from income/expense only)
             $transactions = $query->select(
                 'processed_date',
-                'amount'
+                'amount',
+                'type'
             )
                 ->orderBy('processed_date')
                 ->get();
@@ -227,15 +231,16 @@ class AnalyticsController extends Controller
                 }
 
                 $monthlyBalances[$monthKey]['transaction_count']++;
-                if ($transaction->amount > 0) {
-                    $monthlyBalances[$monthKey]['total_income'] += $transaction->amount;
-                } else {
-                    $monthlyBalances[$monthKey]['total_expenses'] += abs($transaction->amount);
+                $isTransfer = $transaction->type === Transaction::TYPE_TRANSFER;
+                if (! $isTransfer) {
+                    if ($transaction->amount > 0) {
+                        $monthlyBalances[$monthKey]['total_income'] += $transaction->amount;
+                    } else {
+                        $monthlyBalances[$monthKey]['total_expenses'] += abs($transaction->amount);
+                    }
                 }
-
-                // Calculate net balance as income - expenses
-                $monthlyBalances[$monthKey]['month_balance'] =
-                    $monthlyBalances[$monthKey]['total_income'] - $monthlyBalances[$monthKey]['total_expenses'];
+                // Balance includes all transactions (net movement)
+                $monthlyBalances[$monthKey]['month_balance'] += $transaction->amount;
             }
 
             // Convert to array and sort by date
@@ -267,6 +272,7 @@ class AnalyticsController extends Controller
             ->where('transactions.processed_date', '>=', $startDate)
             ->where('transactions.processed_date', '<=', $endDate)
             ->where('transactions.amount', '<', 0)
+            ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNotNull('transactions.category_id')
             ->groupBy('categories.id', 'categories.name')
             ->orderBy('total', 'desc')
@@ -281,6 +287,7 @@ class AnalyticsController extends Controller
             ->where('processed_date', '>=', $startDate)
             ->where('processed_date', '<=', $endDate)
             ->where('amount', '<', 0)
+            ->where('type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNull('category_id')
             ->first();
 
@@ -310,6 +317,7 @@ class AnalyticsController extends Controller
             ->where('transactions.processed_date', '>=', $startDate)
             ->where('transactions.processed_date', '<=', $endDate)
             ->where('transactions.amount', '<', 0)
+            ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNotNull('transactions.merchant_id')
             ->groupBy('merchants.id', 'merchants.name')
             ->orderBy('total', 'desc')
@@ -324,6 +332,7 @@ class AnalyticsController extends Controller
             ->where('processed_date', '>=', $startDate)
             ->where('processed_date', '<=', $endDate)
             ->where('amount', '<', 0)
+            ->where('type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNull('merchant_id')
             ->first();
 

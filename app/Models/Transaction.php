@@ -29,6 +29,7 @@ class Transaction extends BaseModel
         'merchant_id',
         'category_id',
         'recurring_group_id',
+        'transfer_pair_transaction_id',
         'note',
         'recipient_note',
         'place',
@@ -151,6 +152,14 @@ class Transaction extends BaseModel
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class);
+    }
+
+    /**
+     * Get the counterpart transaction when this is one leg of a transfer pair.
+     */
+    public function pairTransaction(): BelongsTo
+    {
+        return $this->belongsTo(Transaction::class, 'transfer_pair_transaction_id');
     }
 
     /**

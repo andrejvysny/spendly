@@ -197,6 +197,21 @@ class GocardlessMapper
     }
 
     /**
+     * Bank/purpose codes that indicate an internal or external transfer (PSD2/Open Banking).
+     * Normalized to uppercase for comparison; extend as needed for your banks.
+     */
+    private const TRANSFER_CODES = [
+        'TRFD',      // Transfer (common abbreviation)
+        'TRF',       // Transfer
+        'TRANSFER',
+        'DMCT',      // Domestic credit transfer
+        'CDCB',      // Credit transfer
+        'PMNT.RCDT', // ISO 20022: received credit transfer
+        'PMNT.RCDT.OTHR',
+        'IDDT',      // Instant domestic transfer
+    ];
+
+    /**
      * Determines the transaction type based on the transaction data.
      *
      * @param  array  $transaction  The transaction data.
@@ -206,13 +221,23 @@ class GocardlessMapper
     {
         // Try to get the bank's proprietary code
         $bankCode = $this->get($transaction, 'proprietaryBankTransactionCode');
-        if ($bankCode) {
+        if ($bankCode !== null && $bankCode !== '') {
+            $code = strtoupper(trim((string) $bankCode));
+            if ($this->isTransferCode($code)) {
+                return Transaction::TYPE_TRANSFER;
+            }
+
             return (string) $bankCode;
         }
 
         // Try to get the purpose code
         $purposeCode = $this->get($transaction, 'purposeCode');
-        if ($purposeCode) {
+        if ($purposeCode !== null && $purposeCode !== '') {
+            $code = strtoupper(trim((string) $purposeCode));
+            if ($this->isTransferCode($code)) {
+                return Transaction::TYPE_TRANSFER;
+            }
+
             return (string) $purposeCode;
         }
 
@@ -225,6 +250,21 @@ class GocardlessMapper
         }
 
         return Transaction::TYPE_PAYMENT;
+    }
+
+    private function isTransferCode(string $code): bool
+    {
+        if ($code === '') {
+            return false;
+        }
+
+        foreach (self::TRANSFER_CODES as $transferCode) {
+            if ($code === $transferCode || str_starts_with($code, $transferCode.'.')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

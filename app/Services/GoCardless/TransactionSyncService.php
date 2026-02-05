@@ -4,6 +4,7 @@ namespace App\Services\GoCardless;
 
 use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Account;
+use App\Services\TransferDetectionService;
 use Illuminate\Support\Facades\Log;
 
 class TransactionSyncService
@@ -12,7 +13,8 @@ class TransactionSyncService
 
     public function __construct(
         private readonly TransactionRepositoryInterface $transactionRepository,
-        private readonly GocardlessMapper $mapper
+        private readonly GocardlessMapper $mapper,
+        private readonly TransferDetectionService $transferDetectionService
     ) {}
 
     /**
@@ -43,6 +45,16 @@ class TransactionSyncService
             $stats['updated'] += $batchStats['updated'];
             $stats['skipped'] += $batchStats['skipped'];
             $stats['errors'] += $batchStats['errors'];
+        }
+
+        // Run transfer detection for this user so new same-day pairs are marked
+        try {
+            $this->transferDetectionService->detectAndMarkTransfersForUser((int) $account->user_id);
+        } catch (\Throwable $e) {
+            Log::warning('Transfer detection after sync failed', [
+                'account_id' => $account->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return $stats;

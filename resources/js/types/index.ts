@@ -53,6 +53,7 @@ export interface Transaction {
     merchant_id?: number;
     category_id?: number;
     recurring_group_id?: number | null;
+    transfer_pair_transaction_id?: number | null;
     note?: string;
     recipient_note?: string;
     place?: string;
