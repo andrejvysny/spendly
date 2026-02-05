@@ -240,4 +240,56 @@ class AnalyticsController extends Controller
 
         return $netWorth;
     }
+
+    /**
+     * Get monthly comparison data for two specified months.
+     *
+     * Returns daily cashflow data for two months to enable comparison charts.
+     *
+     * @return JsonResponse
+     */
+    public function monthlyComparison(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'account_ids' => 'required|array',
+            'account_ids.*' => 'integer|exists:accounts,id',
+            'first_month' => 'required|date_format:Y-m',
+            'second_month' => 'required|date_format:Y-m',
+        ]);
+
+        $userAccounts = $this->accountRepository->findByUser($this->getAuthUserId());
+
+        // Filter account IDs to only those belonging to the user
+        $selectedIds = $validated['account_ids'];
+        $accountIds = $userAccounts->pluck('id')
+            ->intersect($selectedIds)
+            ->values()
+            ->toArray();
+
+        if (empty($accountIds)) {
+            return response()->json([
+                'first_month' => [],
+                'second_month' => [],
+            ]);
+        }
+
+        // Parse months to Carbon dates
+        $firstMonth = Carbon::createFromFormat('Y-m', $validated['first_month']);
+        $secondMonth = Carbon::createFromFormat('Y-m', $validated['second_month']);
+
+        $firstStart = $firstMonth->copy()->startOfMonth();
+        $firstEnd = $firstMonth->copy()->endOfMonth()->endOfDay();
+
+        $secondStart = $secondMonth->copy()->startOfMonth();
+        $secondEnd = $secondMonth->copy()->endOfMonth()->endOfDay();
+
+        // Get cashflow for both months
+        $firstMonthCashflow = $this->analyticsRepository->getCashflow($accountIds, $firstStart, $firstEnd);
+        $secondMonthCashflow = $this->analyticsRepository->getCashflow($accountIds, $secondStart, $secondEnd);
+
+        return response()->json([
+            'first_month' => $firstMonthCashflow->values()->all(),
+            'second_month' => $secondMonthCashflow->values()->all(),
+        ]);
+    }
 }

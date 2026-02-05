@@ -34,6 +34,7 @@ Route::middleware(['web', 'auth'])->group(function () {
 // Analytics endpoints
 Route::middleware(['web', 'auth'])->prefix('analytics')->group(function () {
     Route::get('/balance-history', [AnalyticsController::class, 'balanceHistory'])->name('api.analytics.balance-history');
+    Route::get('/monthly-comparison', [AnalyticsController::class, 'monthlyComparison'])->name('api.analytics.monthly-comparison');
 });
 
 // GoCardless sync endpoints
