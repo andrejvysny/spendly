@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\UserRepositoryInterface;
@@ -13,15 +15,23 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
         parent::__construct($model);
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function create(array $data): User
     {
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         }
 
-        return $this->model->create($data);
+        $model = $this->model->create($data);
+
+        return $model instanceof User ? $model : $this->model->find($model->getKey());
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function update(int $id, array $data): ?User
     {
         $user = $this->model->find($id);
@@ -35,22 +45,30 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
 
         $user->update($data);
 
-        return $user->fresh();
+        $fresh = $user->fresh();
+
+        return $fresh instanceof User ? $fresh : null;
     }
 
     public function findByEmail(string $email): ?User
     {
-        return $this->model->where('email', $email)->first();
+        $user = $this->model->where('email', $email)->first();
+
+        return $user instanceof User ? $user : null;
     }
 
     public function findByEmailVerificationToken(string $token): ?User
     {
-        return $this->model->where('email_verification_token', $token)->first();
+        $user = $this->model->where('email_verification_token', $token)->first();
+
+        return $user instanceof User ? $user : null;
     }
 
     public function findByPasswordResetToken(string $token): ?User
     {
-        return $this->model->where('password_reset_token', $token)->first();
+        $user = $this->model->where('password_reset_token', $token)->first();
+
+        return $user instanceof User ? $user : null;
     }
 
     public function updatePassword(int $id, string $password): bool

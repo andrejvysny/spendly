@@ -6,11 +6,8 @@ use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Contracts\Repositories\MerchantRepositoryInterface;
 use App\Contracts\Repositories\TagRepositoryInterface;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
-use App\Models\Category;
-use App\Models\Merchant;
 use App\Models\RuleEngine\ActionType;
 use App\Models\RuleEngine\RuleAction;
-use App\Models\Tag;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Log;
 
@@ -275,7 +272,7 @@ class ActionExecutor implements ActionExecutorInterface
         $tagName = $action->getDecodedValue();
         $userId = $transaction->account->user_id;
 
-        $tag = Tag::firstOrCreate(
+        $tag = $this->tagRepository->firstOrCreate(
             ['name' => $tagName, 'user_id' => $userId],
             ['description' => 'Created by rule engine']
         );
@@ -292,7 +289,7 @@ class ActionExecutor implements ActionExecutorInterface
         $categoryName = $action->getDecodedValue();
         $userId = $transaction->account->user_id;
 
-        $category = Category::firstOrCreate(
+        $category = $this->categoryRepository->firstOrCreate(
             ['name' => $categoryName, 'user_id' => $userId],
             ['description' => 'Created by rule engine', 'color' => '#'.dechex(rand(0x000000, 0xFFFFFF))]
         );
@@ -308,7 +305,7 @@ class ActionExecutor implements ActionExecutorInterface
         $merchantName = $action->getDecodedValue();
         $userId = $transaction->account->user_id;
 
-        $merchant = Merchant::firstOrCreate(
+        $merchant = $this->merchantRepository->firstOrCreate(
             ['name' => $merchantName, 'user_id' => $userId],
             ['description' => 'Created by rule engine']
         );
@@ -327,7 +324,7 @@ class ActionExecutor implements ActionExecutorInterface
 
         // Use cache to avoid repeated database queries
         if (! isset($this->categoryCache[$categoryId])) {
-            $category = Category::find($categoryId);
+            $category = $this->categoryRepository->find((int) $categoryId);
             $this->categoryCache[$categoryId] = $category;
         } else {
             $category = $this->categoryCache[$categoryId];
@@ -340,7 +337,7 @@ class ActionExecutor implements ActionExecutorInterface
     {
         // Use cache to avoid repeated database queries
         if (! isset($this->merchantCache[$merchantId])) {
-            $merchant = Merchant::find($merchantId);
+            $merchant = $this->merchantRepository->find($merchantId);
             $this->merchantCache[$merchantId] = $merchant;
         } else {
             $merchant = $this->merchantCache[$merchantId];
@@ -357,7 +354,7 @@ class ActionExecutor implements ActionExecutorInterface
 
         // Use cache to avoid repeated database queries
         if (! isset($this->tagCache[$tagId])) {
-            $tag = Tag::find($tagId);
+            $tag = $this->tagRepository->find((int) $tagId);
             $this->tagCache[$tagId] = $tag;
         } else {
             $tag = $this->tagCache[$tagId];

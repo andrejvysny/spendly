@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\RuleExecutionLogRepositoryInterface;
@@ -13,16 +15,17 @@ class RuleExecutionLogRepository extends BaseRepository implements RuleExecution
         parent::__construct($model);
     }
 
-    public function create(array $data): RuleExecutionLog
-    {
-        return $this->model->create($data);
-    }
-
+    /**
+     * @return Collection<int, RuleExecutionLog>
+     */
     public function findByRule(int $ruleId): Collection
     {
         return $this->model->where('rule_id', $ruleId)->get();
     }
 
+    /**
+     * @return Collection<int, RuleExecutionLog>
+     */
     public function findByTransaction(int $transactionId): Collection
     {
         return $this->model->where('transaction_id', $transactionId)->get();

@@ -25,7 +25,7 @@ class MerchantController extends Controller
 
     public function index(): Response
     {
-        $merchants = $this->merchantRepository->findByUserId($this->getAuthUserId());
+        $merchants = $this->merchantRepository->findByUser($this->getAuthUserId());
 
         return Inertia::render('merchants/index', [
             'merchants' => $merchants,

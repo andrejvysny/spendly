@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\BaseRepositoryContract;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 abstract class BaseRepository implements BaseRepositoryContract
@@ -42,9 +45,13 @@ abstract class BaseRepository implements BaseRepositoryContract
         return $this->model->find($id);
     }
 
-    public function all(array $columns = ['*']): array
+    /**
+     * @param  array<string>  $columns
+     * @return Collection<int, Model>
+     */
+    public function all(array $columns = ['*']): Collection
     {
-        return $this->model->all($columns)->toArray();
+        return $this->model->all($columns);
     }
 
     public function count(): int
@@ -65,5 +72,30 @@ abstract class BaseRepository implements BaseRepositoryContract
         }
 
         return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return Model
+     */
+    public function create(array $data): object
+    {
+        return $this->model->create($data);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return Model|null
+     */
+    public function update(int $id, array $data): ?object
+    {
+        $model = $this->model->find($id);
+        if (! $model) {
+            return null;
+        }
+
+        $model->update($data);
+
+        return $model->fresh();
     }
 }

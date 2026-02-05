@@ -1,24 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Contracts\Repositories;
 
 use App\Models\RuleEngine\RuleGroup;
-use Illuminate\Support\Collection;
 
-interface RuleGroupRepositoryInterface extends BaseRepositoryContract
+/**
+ * @extends UserScopedRepositoryInterface<RuleGroup>
+ */
+interface RuleGroupRepositoryInterface extends UserScopedRepositoryInterface
 {
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function create(array $data): RuleGroup;
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function update(int $id, array $data): ?RuleGroup;
-
-    /**
-     * @return Collection<int, RuleGroup>
-     */
-    public function findByUser(int $userId): Collection;
 }

@@ -2,21 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Contracts\Repositories\AnalyticsRepositoryInterface;
+use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Http\Requests\AnalyticsRequest;
-use App\Models\Transaction;
-use App\Repositories\AccountRepository;
-use App\Repositories\CategoryRepository;
 use Carbon\Carbon;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class AnalyticsController extends Controller
 {
     public function __construct(
-        private readonly AccountRepository $accountRepository,
-        private readonly CategoryRepository $categoryRepository,
-
+        private readonly AccountRepositoryInterface $accountRepository,
+        private readonly CategoryRepositoryInterface $categoryRepository,
+        private readonly AnalyticsRepositoryInterface $analyticsRepository
     ) {}
 
     public function index(AnalyticsRequest $request): \Inertia\Response
@@ -24,8 +22,8 @@ class AnalyticsController extends Controller
 
         $selectedAccountIds = $request->getAccountIds();
 
-        $user_accounts = $this->accountRepository->findByUserId($this->getAuthUserId());
-        $user_categories = $this->categoryRepository->findByUserId($this->getAuthUserId());
+        $user_accounts = $this->accountRepository->findByUser($this->getAuthUserId());
+        $user_categories = $this->categoryRepository->findByUser($this->getAuthUserId());
 
         // If no accounts selected or invalid input, use all user accounts
         if (empty($selectedAccountIds)) {
@@ -46,9 +44,10 @@ class AnalyticsController extends Controller
         $endDate = $dateRange['end'];
 
         // Get data for analytics
-        $cashFlow = $this->getCashFlowData($accountIds, $startDate, $endDate);
-        $categorySpending = $this->getCategorySpending($accountIds, $startDate, $endDate);
-        $merchantSpending = $this->getMerchantSpending($accountIds, $startDate, $endDate);
+        $accountIdsArray = $accountIds->toArray();
+        $cashFlow = $this->analyticsRepository->getCashflow($accountIdsArray, $startDate, $endDate);
+        $categorySpending = $this->analyticsRepository->getCategorySpending($accountIdsArray, $startDate, $endDate);
+        $merchantSpending = $this->analyticsRepository->getMerchantSpending($accountIdsArray, $startDate, $endDate);
 
         return Inertia::render('Analytics/Index', [
             'accounts' => $user_accounts,
@@ -66,7 +65,9 @@ class AnalyticsController extends Controller
     }
 
     /**
-     * Parse date range from request
+     * Parse date range from request.
+     *
+     * @return array{start: Carbon, end: Carbon}
      */
     private function parseDateRange(AnalyticsRequest $request): array
     {
@@ -125,220 +126,4 @@ class AnalyticsController extends Controller
         ];
     }
 
-    /**
-     * Get cashFlow data for the specified accounts and date range
-     */
-    public function getCashFlowData($accountIds, $startDate = null, $endDate = null, $months = 12): \Illuminate\Support\Collection
-    {
-        if (! $startDate) {
-            $startDate = now()->subMonths($months)->startOfMonth();
-        }
-
-        // If no accounts selected or explicitly selected accounts with no data, return empty collection
-        if ($accountIds->isEmpty()) {
-            return collect();
-        }
-
-        // Convert to array to ensure proper SQL query generation
-        $accountIdsArray = $accountIds->toArray();
-
-        $query = DB::table('transactions')
-            ->whereIn('account_id', $accountIdsArray)
-            ->where('processed_date', '>=', $startDate);
-
-        if ($endDate) {
-            $query->where('processed_date', '<=', $endDate);
-        }
-
-        // Check if we're looking at a date range less than 32 days
-        $daysDiff = $startDate->diffInDays($endDate);
-        $isShortRange = $daysDiff < 32;
-
-        if ($isShortRange) {
-            // Get all transactions for the period to calculate running balance (exclude transfers from income/expense only)
-            $transactions = $query->select(
-                'processed_date',
-                'amount',
-                'type'
-            )
-                ->orderBy('processed_date')
-                ->get();
-
-            // Calculate daily balances
-            $dailyBalances = [];
-
-            foreach ($transactions as $transaction) {
-                $date = Carbon::parse($transaction->processed_date);
-                $dateKey = $date->format('Y-m-d');
-
-                if (! isset($dailyBalances[$dateKey])) {
-                    $dailyBalances[$dateKey] = [
-                        'year' => (int) $date->format('Y'),
-                        'month' => (int) $date->format('m'),
-                        'day' => (int) $date->format('d'),
-                        'transaction_count' => 0,
-                        'total_income' => 0,
-                        'total_expenses' => 0,
-                        'day_balance' => 0,
-                    ];
-                }
-
-                $dailyBalances[$dateKey]['transaction_count']++;
-                $isTransfer = $transaction->type === Transaction::TYPE_TRANSFER;
-                if (! $isTransfer) {
-                    if ($transaction->amount > 0) {
-                        $dailyBalances[$dateKey]['total_income'] += $transaction->amount;
-                    } else {
-                        $dailyBalances[$dateKey]['total_expenses'] += abs($transaction->amount);
-                    }
-                }
-                // Balance includes all transactions (net movement)
-                $dailyBalances[$dateKey]['day_balance'] += $transaction->amount;
-            }
-
-            // Convert to array and sort by date
-            $result = collect($dailyBalances)->values()->sortBy(function ($item) {
-                return sprintf('%04d-%02d-%02d', $item['year'], $item['month'], $item['day']);
-            });
-
-            return $result;
-        } else {
-            // For monthly view, calculate monthly balances (exclude transfers from income/expense only)
-            $transactions = $query->select(
-                'processed_date',
-                'amount',
-                'type'
-            )
-                ->orderBy('processed_date')
-                ->get();
-
-            // Calculate monthly balances
-            $monthlyBalances = [];
-
-            foreach ($transactions as $transaction) {
-                $date = Carbon::parse($transaction->processed_date);
-                $monthKey = $date->format('Y-m');
-
-                if (! isset($monthlyBalances[$monthKey])) {
-                    $monthlyBalances[$monthKey] = [
-                        'year' => (int) $date->format('Y'),
-                        'month' => (int) $date->format('m'),
-                        'transaction_count' => 0,
-                        'total_income' => 0,
-                        'total_expenses' => 0,
-                        'month_balance' => 0,
-                    ];
-                }
-
-                $monthlyBalances[$monthKey]['transaction_count']++;
-                $isTransfer = $transaction->type === Transaction::TYPE_TRANSFER;
-                if (! $isTransfer) {
-                    if ($transaction->amount > 0) {
-                        $monthlyBalances[$monthKey]['total_income'] += $transaction->amount;
-                    } else {
-                        $monthlyBalances[$monthKey]['total_expenses'] += abs($transaction->amount);
-                    }
-                }
-                // Balance includes all transactions (net movement)
-                $monthlyBalances[$monthKey]['month_balance'] += $transaction->amount;
-            }
-
-            // Convert to array and sort by date
-            $result = collect($monthlyBalances)->values()->sortBy(function ($item) {
-                return sprintf('%04d-%02d', $item['year'], $item['month']);
-            });
-
-            return $result;
-        }
-    }
-
-    /**
-     * Get spending by category for the specified date range
-     */
-    private function getCategorySpending($accountIds, $startDate, $endDate)
-    {
-        if ($accountIds->isEmpty()) {
-            return collect();
-        }
-        $accountIdsArray = $accountIds->toArray();
-        $categorized = DB::table('transactions')
-            ->join('categories', 'transactions.category_id', '=', 'categories.id')
-            ->select(
-                'categories.name as category',
-                DB::raw('SUM(ABS(amount)) as total'),
-                DB::raw('COUNT(*) as count')
-            )
-            ->whereIn('transactions.account_id', $accountIdsArray)
-            ->where('transactions.processed_date', '>=', $startDate)
-            ->where('transactions.processed_date', '<=', $endDate)
-            ->where('transactions.amount', '<', 0)
-            ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
-            ->whereNotNull('transactions.category_id')
-            ->groupBy('categories.id', 'categories.name')
-            ->orderBy('total', 'desc')
-            ->limit(10)
-            ->get();
-        $uncategorized = DB::table('transactions')
-            ->select(
-                DB::raw('SUM(ABS(amount)) as total'),
-                DB::raw('COUNT(*) as count')
-            )
-            ->whereIn('account_id', $accountIdsArray)
-            ->where('processed_date', '>=', $startDate)
-            ->where('processed_date', '<=', $endDate)
-            ->where('amount', '<', 0)
-            ->where('type', '!=', Transaction::TYPE_TRANSFER)
-            ->whereNull('category_id')
-            ->first();
-
-        return [
-            'categorized' => $categorized,
-            'uncategorized' => $uncategorized,
-        ];
-    }
-
-    /**
-     * Get spending by merchant for the specified date range
-     */
-    private function getMerchantSpending($accountIds, $startDate, $endDate)
-    {
-        if ($accountIds->isEmpty()) {
-            return collect();
-        }
-        $accountIdsArray = $accountIds->toArray();
-        $withMerchant = DB::table('transactions')
-            ->join('merchants', 'transactions.merchant_id', '=', 'merchants.id')
-            ->select(
-                'merchants.name as merchant',
-                DB::raw('SUM(ABS(transactions.amount)) as total'),
-                DB::raw('COUNT(*) as count')
-            )
-            ->whereIn('transactions.account_id', $accountIdsArray)
-            ->where('transactions.processed_date', '>=', $startDate)
-            ->where('transactions.processed_date', '<=', $endDate)
-            ->where('transactions.amount', '<', 0)
-            ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
-            ->whereNotNull('transactions.merchant_id')
-            ->groupBy('merchants.id', 'merchants.name')
-            ->orderBy('total', 'desc')
-            ->limit(10)
-            ->get();
-        $noMerchant = DB::table('transactions')
-            ->select(
-                DB::raw('SUM(ABS(amount)) as total'),
-                DB::raw('COUNT(*) as count')
-            )
-            ->whereIn('account_id', $accountIdsArray)
-            ->where('processed_date', '>=', $startDate)
-            ->where('processed_date', '<=', $endDate)
-            ->where('amount', '<', 0)
-            ->where('type', '!=', Transaction::TYPE_TRANSFER)
-            ->whereNull('merchant_id')
-            ->first();
-
-        return [
-            'withMerchant' => $withMerchant,
-            'noMerchant' => $noMerchant,
-        ];
-    }
 }

@@ -1,9 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Contracts\Repositories;
 
 use App\Models\Import\ImportFailure;
 
+/**
+ * @extends BaseRepositoryContract<ImportFailure>
+ */
 interface ImportFailureRepositoryInterface extends BaseRepositoryContract
 {
     /**

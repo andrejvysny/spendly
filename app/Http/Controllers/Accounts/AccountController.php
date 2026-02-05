@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers\Accounts;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Contracts\Repositories\AnalyticsRepositoryInterface;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccountRequest;
 use App\Models\Account;
 use App\Models\Transaction;
-use App\Repositories\AccountRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,13 +18,13 @@ use Inertia\Response;
 class AccountController extends Controller
 {
     public function __construct(
-        private AccountRepository $accountRepository
-    ) {
-    }
+        private AccountRepositoryInterface $accountRepository,
+        private AnalyticsRepositoryInterface $analyticsRepository
+    ) {}
 
     public function index(): JsonResponse|Response
     {
-        $accounts = $this->accountRepository->findByUserId(auth()->id());
+        $accounts = $this->accountRepository->findByUser(auth()->id());
 
         if (request()->wantsJson()) {
             return response()->json([
@@ -139,35 +140,13 @@ class AccountController extends Controller
 
     }
 
-    public function getCashflowOfMonth(mixed $accountIds, int $before_month = 0): mixed
+    /**
+     * @param  array<int>  $accountIds
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    public function getCashflowOfMonth(array $accountIds, int $before_month = 0): \Illuminate\Support\Collection
     {
-        $startDate = now()->subMonths($before_month)->startOfMonth();
-        $endDate = now()->subMonths($before_month)->endOfMonth();
-
-        $cashflow = \DB::table('transactions')
-            ->select(
-                \DB::raw('CAST(strftime("%Y", processed_date) AS INTEGER) as year'),
-                \DB::raw('CAST(strftime("%m", processed_date) AS INTEGER) as month'),
-                \DB::raw('CAST(strftime("%d", processed_date) AS INTEGER) as day'),
-                \DB::raw('COUNT(*) as transaction_count'),
-                \DB::raw("SUM(CASE WHEN amount < 0 AND type != '".Transaction::TYPE_TRANSFER."' THEN ABS(amount) ELSE 0 END) as daily_spending"),
-                \DB::raw("SUM(CASE WHEN amount > 0 AND type != '".Transaction::TYPE_TRANSFER."' THEN amount ELSE 0 END) as daily_income"),
-                \DB::raw('SUM(amount) as daily_balance')
-            )
-            ->whereIn('account_id', $accountIds)
-            ->where('processed_date', '>=', $startDate)
-            ->where('processed_date', '<=', $endDate)
-            ->groupBy(
-                \DB::raw('strftime("%Y", processed_date)'),
-                \DB::raw('strftime("%m", processed_date)'),
-                \DB::raw('strftime("%d", processed_date)')
-            )
-            ->orderBy('year')
-            ->orderBy('month')
-            ->orderBy('day')
-            ->get();
-
-        return $cashflow;
+        return $this->analyticsRepository->getMonthlyCashflow($accountIds, $before_month);
     }
 
     /**

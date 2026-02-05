@@ -5,7 +5,7 @@ namespace App\Services\GoCardless;
 use App\Exceptions\AccountAlreadyExistsException;
 use App\Models\Account;
 use App\Models\User;
-use App\Repositories\AccountRepository;
+use App\Contracts\Repositories\AccountRepositoryInterface;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessService
@@ -15,7 +15,7 @@ class GoCardlessService
     private TokenManager $tokenManager;
 
     public function __construct(
-        private AccountRepository $accountRepository,
+        private AccountRepositoryInterface $accountRepository,
         private TransactionSyncService $transactionSyncService,
         private GocardlessMapper $mapper,
         private ClientFactory\GoCardlessClientFactoryInterface $clientFactory

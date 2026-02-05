@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Contracts\Repositories\AnalyticsRepositoryInterface;
 use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Contracts\Repositories\ConditionGroupRepositoryInterface;
 use App\Contracts\Repositories\GoCardlessSyncFailureRepositoryInterface;
@@ -20,6 +21,7 @@ use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Models\RuleEngine\Rule;
 use App\Repositories\AccountRepository;
+use App\Repositories\AnalyticsRepository;
 use App\Repositories\CategoryRepository;
 use App\Repositories\ConditionGroupRepository;
 use App\Repositories\GoCardlessSyncFailureRepository;
@@ -45,6 +47,7 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
         $this->app->bind(AccountRepositoryInterface::class, AccountRepository::class);
         $this->app->bind(TransactionRepositoryInterface::class, TransactionRepository::class);
+        $this->app->bind(AnalyticsRepositoryInterface::class, AnalyticsRepository::class);
 
         // Category and Tag repositories
         $this->app->bind(CategoryRepositoryInterface::class, CategoryRepository::class);

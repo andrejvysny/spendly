@@ -1,76 +1,67 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Transaction;
+use App\Repositories\Concerns\BatchInsert;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class TransactionRepository extends BaseRepository implements TransactionRepositoryInterface
 {
+    use BatchInsert;
+
     public function __construct(Transaction $model)
     {
         parent::__construct($model);
     }
 
-    /**
-     * Find a transaction by its GoCardless transaction ID.
-     */
     public function findByTransactionId(string $transactionId): ?Transaction
     {
-        return Transaction::where('transaction_id', $transactionId)->first();
+        $model = $this->model->where('transaction_id', $transactionId)->first();
+
+        return $model instanceof Transaction ? $model : null;
     }
 
     /**
-     * Create multiple transactions in a batch.
-     *
-     * @return int Number of created transactions
+     * @param  array<mixed>  $transactions
      */
     public function createBatch(array $transactions): int
     {
-        if (empty($transactions)) {
-            return 0;
-        }
-
-        // Process each transaction to ensure proper JSON encoding
-        $processedTransactions = array_map(function ($transaction) {
-            // JSON encode metadata if it's an array
-            if (isset($transaction['metadata']) && is_array($transaction['metadata'])) {
-                $transaction['metadata'] = json_encode($transaction['metadata']);
-            }
-
-            // JSON encode import_data if it's an array (shouldn't happen now since mapper encodes it)
-            if (isset($transaction['import_data']) && is_array($transaction['import_data'])) {
-                $transaction['import_data'] = json_encode($transaction['import_data']);
-            }
-
-            return $transaction;
-        }, $transactions);
-
-        DB::table('transactions')->insert($processedTransactions);
-
-        return count($transactions);
+        return $this->batchInsert(
+            'transactions',
+            $transactions,
+            ['metadata', 'import_data']
+        );
     }
 
     /**
-     * Create a single transaction.
+     * @param  array<string, mixed>  $data
      */
     public function createOne(array $data): Transaction
     {
-        return Transaction::create($data);
+        $model = $this->model->create($data);
+
+        return $model instanceof Transaction ? $model : $this->model->find($model->getKey());
     }
 
     /**
-     * Update or create a transaction.
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $values
      */
     public function updateOrCreate(array $attributes, array $values): Transaction
     {
-        return Transaction::updateOrCreate($attributes, $values);
+        $model = $this->model->updateOrCreate($attributes, $values);
+
+        return $model instanceof Transaction ? $model : $this->model->find($model->getKey());
     }
 
     /**
-     * Get existing transaction IDs for an account (scoped by account_id).
+     * @param  array<string>  $transactionIds
+     * @return Collection<int, string>
      */
     public function getExistingTransactionIds(int $accountId, array $transactionIds): Collection
     {
@@ -78,24 +69,21 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
             return collect();
         }
 
-        return Transaction::where('account_id', $accountId)
+        return $this->model->where('account_id', $accountId)
             ->whereIn('transaction_id', $transactionIds)
             ->pluck('transaction_id');
     }
 
     /**
-     * Update multiple transactions for an account (scoped by account_id).
-     *
-     * @param  array  $updates  Array of updates with transaction_id as key
-     * @return int Number of updated transactions
+     * @param  array<mixed>  $updates
      */
     public function updateBatch(int $accountId, array $updates): int
     {
         $count = 0;
 
-        DB::transaction(function () use ($accountId, $updates, &$count) {
+        $this->transaction(function () use ($accountId, $updates, &$count) {
             foreach ($updates as $transactionId => $data) {
-                $updated = Transaction::where('account_id', $accountId)
+                $updated = $this->model->where('account_id', $accountId)
                     ->where('transaction_id', $transactionId)
                     ->update($data);
                 if ($updated) {
@@ -108,9 +96,8 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     }
 
     /**
-     * Find transactions by composite (account_id, transaction_id) pairs, with relations loaded.
-     *
      * @param  array<int, array{0:int,1:string}>  $pairs
+     * @return Collection<int, Transaction>
      */
     public function findByAccountAndTransactionIdPairs(array $pairs): Collection
     {
@@ -118,7 +105,7 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
             return collect();
         }
 
-        return Transaction::query()
+        return $this->model->query()
             ->with(['account.user', 'tags', 'category', 'merchant'])
             ->where(function ($q) use ($pairs) {
                 foreach ($pairs as [$accId, $txId]) {
@@ -132,7 +119,8 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     }
 
     /**
-     * Get recent transactions for given account IDs.
+     * @param  array<int>  $accountIds
+     * @return Collection<int, Transaction>
      */
     public function getRecentByAccounts(array $accountIds, int $limit = 10): Collection
     {
@@ -144,7 +132,7 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     }
 
     /**
-     * Find all transactions for a user.
+     * @return Collection<int, Transaction>
      */
     public function findByUser(int $userId): Collection
     {
@@ -154,7 +142,8 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     }
 
     /**
-     * Find transactions by account IDs.
+     * @param  array<int>  $accountIds
+     * @return Collection<int, Transaction>
      */
     public function findByAccountIds(array $accountIds): Collection
     {
@@ -162,9 +151,9 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     }
 
     /**
-     * Get transactions for recurring detection within a date range.
+     * @return Collection<int, Transaction>
      */
-    public function getForRecurringDetection(int $userId, \Carbon\Carbon $from, \Carbon\Carbon $to, ?int $accountId = null): Collection
+    public function getForRecurringDetection(int $userId, Carbon $from, Carbon $to, ?int $accountId = null): Collection
     {
         $query = $this->model
             ->with(['merchant', 'account'])
@@ -176,5 +165,14 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
         }
 
         return $query->orderBy('booked_date')->get();
+    }
+
+    public function fingerprintExists(int $accountId, string $fingerprint): bool
+    {
+        return $this->model
+            ->where('account_id', $accountId)
+            ->where('fingerprint', $fingerprint)
+            ->whereNotNull('fingerprint')
+            ->exists();
     }
 }

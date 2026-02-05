@@ -21,7 +21,7 @@ class TagController extends Controller
 
     public function index(): Response
     {
-        $tags = $this->tagRepository->findByUserId($this->getAuthUserId());
+        $tags = $this->tagRepository->findByUser($this->getAuthUserId());
 
         return Inertia::render('tags/index', [
             'tags' => $tags,

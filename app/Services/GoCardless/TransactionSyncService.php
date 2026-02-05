@@ -136,10 +136,10 @@ class TransactionSyncService
 
                 $transactionId = $mappedData['transaction_id'];
 
-                $fingerprintExists = Transaction::where('account_id', $account->id)
-                    ->where('fingerprint', $mappedData['fingerprint'])
-                    ->whereNotNull('fingerprint')
-                    ->exists();
+                $fingerprintExists = $this->transactionRepository->fingerprintExists(
+                    $account->id,
+                    $mappedData['fingerprint']
+                );
                 if ($fingerprintExists && ! $existingIds->contains($transactionId)) {
                     $stats['skipped']++;
                     continue;
