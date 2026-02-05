@@ -1,3 +1,6 @@
+import { ConfidenceBadge } from '@/pages/import/components/ConfidenceBadge';
+import { FormatConfiguration } from '@/pages/import/components/FormatConfiguration';
+import { InteractiveSampleTable } from '@/pages/import/components/InteractiveSampleTable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ImportMapping, Transaction } from '@/types/index';
 import axios from 'axios';
 import { Save, Trash2 } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface ConfigureStepProps {
     headers: string[];
@@ -111,15 +114,47 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         fetchSavedMappings();
     }, []);
 
+    const [detectedFormats, setDetectedFormats] = useState<{ date: string | null; amount: string | null }>({ date: null, amount: null });
+    const [mappingConfidence, setMappingConfidence] = useState<Record<number, { field: string; confidence: number; signals: Record<string, number> }>>({});
+
     // Auto-detect column mappings on initial render with enhanced backend logic
     useEffect(() => {
         const autoDetectMapping = async () => {
             try {
-                // Try to use enhanced backend auto-detection
+                // Prefer wizard auto-detect when we have importId (returns mappings + confidence + detected formats)
+                if (importId) {
+                    const wizardUrl = route('imports.wizard.auto-detect', { import: importId });
+                    const res = await axios.post(wizardUrl);
+                    const mappings = res.data.mappings as Record<number, { field: string | null; confidence: number; signals?: Record<string, number> }> | undefined;
+                    const formats = res.data.detected_formats as { date?: string | null; amount?: string | null } | undefined;
+                    if (formats) {
+                        setDetectedFormats({ date: formats.date ?? null, amount: formats.amount ?? null });
+                        if (formats.date) setDateFormat(formats.date === 'Y-m-d' ? 'Y-m-d' : formats.date === 'm/d/Y' ? 'm/d/Y' : 'd.m.Y');
+                        if (formats.amount) setAmountFormat(formats.amount === 'us' ? '1,234.56' : formats.amount === 'eu' ? '1.234,56' : amountFormat);
+                    }
+                    if (mappings && typeof mappings === 'object') {
+                        const newMapping: Record<string, number | null> = {};
+                        transactionFields.forEach((f) => (newMapping[f.key] = null));
+                        Object.entries(mappings).forEach(([colStr, data]) => {
+                            const col = parseInt(colStr, 10);
+                            if (data?.field && data.confidence >= 0.5) {
+                                if (transactionFields.some((f) => f.key === data.field)) {
+                                    newMapping[data.field] = col;
+                                }
+                                setMappingConfidence((prev) => ({ ...prev, [col]: { field: data.field!, confidence: data.confidence, signals: data.signals ?? {} } }));
+                            }
+                        });
+                        setColumnMapping(newMapping);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Wizard auto-detect failed:', e);
+            }
+            try {
                 const response = await axios.post('/imports/mappings/auto-detect', {
                     headers: headers,
                 });
-
                 const detectedMapping = response.data.mapping;
                 if (detectedMapping) {
                     setColumnMapping(detectedMapping);
@@ -510,11 +545,17 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
 
                     {/* Column Mapping */}
                     <div className="text-foreground mb-8 grid grid-cols-3 gap-6">
-                        {transactionFields.map((field) => (
-                            <div key={field.key} className="space-y-2">
+                        {transactionFields.map((field) => {
+                            const colIndex = columnMapping[field.key] ?? null;
+                            const confidenceData = colIndex !== null ? mappingConfidence[colIndex] : null;
+                            return (
+                                <div key={field.key} className="space-y-2">
                                 <Label className="flex items-center gap-1">
                                     {field.label}
                                     {field.required && <span className="text-red-500">*</span>}
+                                    {confidenceData && confidenceData.field === field.key && (
+                                        <ConfidenceBadge confidence={confidenceData.confidence} signals={confidenceData.signals} showDetails />
+                                    )}
                                 </Label>
                                 <Select
                                     value={columnMapping[field.key]?.toString() ?? 'none'}
@@ -532,43 +573,23 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            </div>
-                        ))}
+                                </div>
+                            );
+                        })}
                     </div>
 
-                    {/* Date and Amount Format */}
-                    <div className="text-foreground mb-8 grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label>Date Format</Label>
-                            <Select value={dateFormat} onValueChange={setDateFormat}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select date format" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {dateFormats.map((format) => (
-                                        <SelectItem key={format.value} value={format.value}>
-                                            {format.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Amount Format</Label>
-                            <Select value={amountFormat} onValueChange={setAmountFormat}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select amount format" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {amountFormats.map((format) => (
-                                        <SelectItem key={format.value} value={format.value}>
-                                            {format.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                    {/* Date and Amount Format with detected hints */}
+                    <div className="text-foreground mb-8">
+                        <FormatConfiguration
+                            detectedDateFormat={detectedFormats.date}
+                            detectedAmountFormat={detectedFormats.amount === 'eu' ? '1.234,56' : detectedFormats.amount === 'us' ? '1,234.56' : detectedFormats.amount}
+                            dateFormat={dateFormat}
+                            amountFormat={amountFormat}
+                            onDateFormatChange={setDateFormat}
+                            onAmountFormatChange={setAmountFormat}
+                            sampleDateValues={sampleRows.map((r) => r[columnMapping.booked_date ?? -1]?.toString()).filter(Boolean) as string[]}
+                            sampleAmountValues={sampleRows.map((r) => r[columnMapping.amount ?? -1]?.toString()).filter(Boolean) as string[]}
+                        />
                     </div>
 
                     {/* Amount Type Strategy and Currency */}
@@ -651,34 +672,18 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
             {/* Sample Data */}
             <div className="mb-8">
                 <h6 className="text-foreground mb-4">Sample data from your uploaded CSV</h6>
-                <div className="border-foreground overflow-x-auto rounded-lg border">
-                    <table className="w-full">
-                        <thead className="bg-card border-foreground border-b">
-                            <tr>
-                                {headers.map((header, index) => (
-                                    <th key={index} className="px-4 py-2 text-left" style={{ minWidth: `${Math.max(header.length * 8, 100)}px` }}>
-                                        {header}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sampleRows.map((row, rowIndex) => (
-                                <tr key={rowIndex} className="border-muted-foreground border-b">
-                                    {row.map((cell, cellIndex) => (
-                                        <td
-                                            key={cellIndex}
-                                            className="text-foreground max-w-md px-4 py-2"
-                                            style={{ minWidth: `${Math.max(headers[cellIndex]?.length * 8 || 0, 100)}px` }}
-                                        >
-                                            <div className="overflow-hidden text-ellipsis whitespace-nowrap">{cell}</div>
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <InteractiveSampleTable
+                    headers={headers}
+                    rows={sampleRows}
+                    columnMappings={columnMapping}
+                    suggestedMappings={useMemo(() => {
+                        const out: Record<number, { field: string; confidence: number }> = {};
+                        Object.entries(mappingConfidence).forEach(([col, data]) => {
+                            out[parseInt(col, 10)] = { field: data.field, confidence: data.confidence };
+                        });
+                        return out;
+                    }, [mappingConfidence])}
+                />
             </div>
 
             {error && <div className="mb-6 rounded-md border border-red-800 bg-red-900/20 p-3 text-red-300">{error}</div>}

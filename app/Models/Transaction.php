@@ -40,6 +40,14 @@ class Transaction extends BaseModel
         'reconciled_at',
         'reconciled_note',
         'fingerprint',
+        'needs_manual_review',
+        'review_reason',
+        'original_currency',
+        'original_amount',
+        'exchange_rate',
+        'internal_transaction_id',
+        'entry_reference',
+        'bank_transaction_code',
     ];
 
     public static function getFingerprintAttributes(): array
@@ -97,6 +105,9 @@ class Transaction extends BaseModel
         'is_reconciled' => 'boolean',
         'reconciled_at' => 'datetime',
         'fingerprint' => 'string',
+        'needs_manual_review' => 'boolean',
+        'original_amount' => 'decimal:2',
+        'exchange_rate' => 'decimal:6',
     ];
 
     /**

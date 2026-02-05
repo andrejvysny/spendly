@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\GoCardless;
 
+use App\Contracts\Repositories\GoCardlessSyncFailureRepositoryInterface;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Account;
+use App\Models\GoCardlessSyncFailure;
+use App\Models\Transaction;
 use App\Services\TransferDetectionService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class TransactionSyncService
@@ -14,7 +20,9 @@ class TransactionSyncService
     public function __construct(
         private readonly TransactionRepositoryInterface $transactionRepository,
         private readonly GocardlessMapper $mapper,
-        private readonly TransferDetectionService $transferDetectionService
+        private readonly TransferDetectionService $transferDetectionService,
+        private readonly TransactionDataValidator $validator,
+        private readonly GoCardlessSyncFailureRepositoryInterface $failureRepository
     ) {}
 
     /**
@@ -25,12 +33,14 @@ class TransactionSyncService
      */
     public function syncTransactions(array $transactions, Account $account, bool $updateExisting = true): array
     {
+        $syncDate = Carbon::now();
         $stats = [
             'total' => count($transactions),
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
             'errors' => 0,
+            'needs_review' => 0,
         ];
 
         if (empty($transactions)) {
@@ -39,12 +49,13 @@ class TransactionSyncService
 
         // Process transactions in batches
         foreach (array_chunk($transactions, self::BATCH_SIZE) as $batch) {
-            $batchStats = $this->processBatch($batch, $account, $updateExisting);
+            $batchStats = $this->processBatch($batch, $account, $updateExisting, $syncDate);
 
             $stats['created'] += $batchStats['created'];
             $stats['updated'] += $batchStats['updated'];
             $stats['skipped'] += $batchStats['skipped'];
             $stats['errors'] += $batchStats['errors'];
+            $stats['needs_review'] += $batchStats['needs_review'] ?? 0;
         }
 
         // Run transfer detection for this user so new same-day pairs are marked
@@ -65,16 +76,18 @@ class TransactionSyncService
      *
      * @param  bool  $updateExisting  Whether to update already imported transactions
      */
-    private function processBatch(array $batch, Account $account, bool $updateExisting = true): array
+    private function processBatch(array $batch, Account $account, bool $updateExisting = true, ?Carbon $syncDate = null): array
     {
+        $syncDate = $syncDate ?? Carbon::now();
         $stats = [
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
             'errors' => 0,
+            'needs_review' => 0,
         ];
 
-        // Extract transaction IDs
+        // Extract transaction IDs (including fallback IDs from validator)
         $transactionIds = array_map(function ($transaction) {
             return $transaction['transactionId'] ?? null;
         }, $batch);
@@ -88,24 +101,54 @@ class TransactionSyncService
         $toUpdate = [];
 
         foreach ($batch as $transaction) {
+            $externalTransactionId = $transaction['transactionId'] ?? null;
+
             try {
-                $transactionId = $transaction['transactionId'] ?? null;
+                $mappedData = $this->mapper->mapTransactionData($transaction, $account, $syncDate);
 
-                if (! $transactionId) {
-                    Log::warning('Transaction without ID', ['transaction' => $transaction]);
+                $validation = $this->validator->validate($mappedData, $syncDate);
+
+                if ($validation->hasErrors()) {
+                    $this->failureRepository->create([
+                        'account_id' => $account->id,
+                        'user_id' => (int) $account->user_id,
+                        'external_transaction_id' => $externalTransactionId,
+                        'error_type' => GoCardlessSyncFailure::ERROR_TYPE_VALIDATION,
+                        'error_message' => implode(', ', $validation->errors),
+                        'raw_data' => $transaction,
+                        'validation_errors' => $validation->errors,
+                    ]);
                     $stats['errors']++;
-
                     continue;
                 }
 
-                $mappedData = $this->mapper->mapTransactionData($transaction, $account);
+                $mappedData = $validation->data;
+                $mappedData['needs_manual_review'] = $validation->needsReview;
+                $mappedData['review_reason'] = $validation->reviewReasons !== []
+                    ? implode(',', $validation->reviewReasons)
+                    : null;
+
+                if ($validation->needsReview) {
+                    $stats['needs_review']++;
+                }
+
+                $mappedData['fingerprint'] = Transaction::generateFingerprint($mappedData);
+
+                $transactionId = $mappedData['transaction_id'];
+
+                $fingerprintExists = Transaction::where('account_id', $account->id)
+                    ->where('fingerprint', $mappedData['fingerprint'])
+                    ->whereNotNull('fingerprint')
+                    ->exists();
+                if ($fingerprintExists && ! $existingIds->contains($transactionId)) {
+                    $stats['skipped']++;
+                    continue;
+                }
 
                 if ($existingIds->contains($transactionId)) {
                     if ($updateExisting) {
-                        // Prepare for update
                         $toUpdate[$transactionId] = $mappedData;
                     } else {
-                        // Skip existing transactions if updateExisting is false
                         $stats['skipped']++;
                         Log::info('Skipping existing transaction', [
                             'transaction_id' => $transactionId,
@@ -114,15 +157,22 @@ class TransactionSyncService
                         ]);
                     }
                 } else {
-                    // Prepare for creation
                     $mappedData['created_at'] = now();
                     $mappedData['updated_at'] = now();
                     $toCreate[] = $mappedData;
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 Log::error('Error mapping transaction', [
                     'error' => $e->getMessage(),
                     'transaction' => $transaction,
+                ]);
+                $this->failureRepository->create([
+                    'account_id' => $account->id,
+                    'user_id' => (int) $account->user_id,
+                    'external_transaction_id' => $externalTransactionId,
+                    'error_type' => GoCardlessSyncFailure::ERROR_TYPE_MAPPING,
+                    'error_message' => $e->getMessage(),
+                    'raw_data' => $transaction,
                 ]);
                 $stats['errors']++;
             }

@@ -29,6 +29,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/recurring', [\App\Http\Controllers\RecurringController::class, 'index'])->name('recurring.index');
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
+    Route::get('/transactions/review', [TransactionController::class, 'reviewQueue'])->name('transactions.review');
     Route::post('/transactions-store', [TransactionController::class, 'store'])->name('transactions.store');
     Route::post('/transactions/bulk-update', [TransactionController::class, 'bulkUpdate'])->name('transactions.bulk-update');
     Route::post('/transactions/bulk-note-update', [TransactionController::class, 'bulkNoteUpdate'])->name('transactions.bulk-note-update');
@@ -77,6 +78,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{import}/rows', [ImportWizardController::class, 'getRows'])->name('rows');
             Route::patch('/{import}/rows/{row}', [ImportWizardController::class, 'updateRow'])->name('rows.update');
             Route::get('/{import}/columns/{column}/stats', [ImportWizardController::class, 'getColumnStats'])->name('columns.stats');
+            Route::post('/{import}/auto-detect', [ImportWizardController::class, 'autoDetect'])->name('auto-detect');
+            Route::post('/{import}/preview-mapping', [ImportWizardController::class, 'previewMapping'])->name('preview-mapping');
+            Route::post('/{import}/detect-formats', [ImportWizardController::class, 'detectFormats'])->name('detect-formats');
         });
 
         Route::group(['prefix' => '/mappings', 'as' => 'mappings.'], function () {

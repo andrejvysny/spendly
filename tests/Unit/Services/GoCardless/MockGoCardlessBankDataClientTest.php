@@ -68,6 +68,8 @@ class MockGoCardlessBankDataClientTest extends TestCase
         
         $transaction = $result['transactions']['booked'][0];
         $this->assertStringStartsWith('mock_tx_booked_', $transaction['transactionId']);
+        $this->assertArrayHasKey('remittanceInformationUnstructuredArray', $transaction);
+        $this->assertIsArray($transaction['remittanceInformationUnstructuredArray']);
     }
 
     public function test_get_balances_returns_mock_balance(): void
