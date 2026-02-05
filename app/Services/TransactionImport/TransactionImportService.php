@@ -3,8 +3,10 @@
 namespace App\Services\TransactionImport;
 
 use App\Contracts\Import\BatchResultInterface;
+use App\Models\Account;
 use App\Models\Import\Import;
 use App\Models\Import\ImportRowEdit;
+use App\Services\AccountBalanceService;
 use App\Services\Csv\CsvProcessor;
 use Illuminate\Support\Facades\Log;
 
@@ -19,6 +21,7 @@ readonly class TransactionImportService
         private TransactionRowProcessor $rowProcessor,
         private TransactionPersister $persister,
         private ImportFailurePersister $failurePersister,
+        private AccountBalanceService $balanceService,
     ) {}
 
     /**
@@ -79,6 +82,10 @@ readonly class TransactionImportService
                 'failure_stats' => $failureStats,
                 'sql_failure_stats' => $sqlFailureStats,
             ]);
+
+            // Recalculate account balance after import completes
+            // This is needed because batch inserts don't trigger Eloquent model events
+            $this->recalculateAccountBalance($accountId);
 
             $this->updateImportStatus($import, $batch, $persistenceResult);
 
@@ -322,5 +329,38 @@ readonly class TransactionImportService
             'total_rows' => $result->getTotalProcessed(),
             'success' => $result->isCompleteSuccess(),
         ];
+    }
+
+    /**
+     * Recalculate account balance after import.
+     * Called after batch inserts since they don't trigger Eloquent model events.
+     */
+    private function recalculateAccountBalance(int $accountId): void
+    {
+        try {
+            $account = Account::find($accountId);
+
+            if (! $account) {
+                Log::warning('Cannot recalculate balance: account not found', [
+                    'account_id' => $accountId,
+                ]);
+
+                return;
+            }
+
+            $success = $this->balanceService->recalculateForAccount($account);
+
+            Log::info('Account balance recalculated after import', [
+                'account_id' => $accountId,
+                'new_balance' => $account->balance,
+                'success' => $success,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to recalculate account balance after import', [
+                'account_id' => $accountId,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - the import was successful, just balance update failed
+        }
     }
 }

@@ -29,4 +29,12 @@ interface AccountRepositoryInterface extends UserScopedRepositoryInterface
     public function create(array $data): Account;
 
     public function gocardlessAccountExists(string $gocardlessAccountId, int $userId): bool;
+
+    /**
+     * Update the balance of an account.
+     *
+     * @param  Account  $account  The account to update
+     * @param  float|string  $balance  The new balance value
+     */
+    public function updateBalance(Account $account, float|string $balance): bool;
 }

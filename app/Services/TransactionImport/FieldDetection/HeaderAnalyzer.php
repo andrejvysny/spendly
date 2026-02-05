@@ -32,6 +32,11 @@ class HeaderAnalyzer
             'medium' => ['currency code', 'iso currency'],
             'low' => [],
         ],
+        'balance_after_transaction' => [
+            'high' => ['balance', 'saldo', 'kontostand', 'zostatok', 'account balance', 'running balance'],
+            'medium' => ['balance after', 'new balance', 'ending balance', 'closing balance'],
+            'low' => ['available', 'remaining'],
+        ],
     ];
 
     public function analyze(string $header): HeaderAnalysisResult

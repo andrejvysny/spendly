@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Services\AccountBalanceService;
 use App\Services\Csv\CsvProcessor;
 use App\Services\DuplicateTransactionService;
+use App\Services\GoCardless\BankDataClientInterface;
 use App\Services\TransactionImport\ImportFailurePersister;
 use App\Services\TransactionImport\ImportMappingService;
 use App\Services\TransactionImport\TransactionDataParser;
@@ -51,12 +54,32 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        // Register AccountBalanceService (before TransactionImportService since it depends on it)
+        $this->app->singleton(AccountBalanceService::class, function ($app) {
+            // BankDataClient is optional (may not be configured for GoCardless)
+            $bankDataClient = null;
+
+            try {
+                if ($app->bound(BankDataClientInterface::class)) {
+                    $bankDataClient = $app->make(BankDataClientInterface::class);
+                }
+            } catch (\Exception $e) {
+                // GoCardless not configured, continue without it
+            }
+
+            return new AccountBalanceService(
+                $app->make(AccountRepositoryInterface::class),
+                $bankDataClient
+            );
+        });
+
         $this->app->singleton(TransactionImportService::class, function ($app) {
             return new TransactionImportService(
                 $app->make(CsvProcessor::class),
                 $app->make(TransactionRowProcessor::class),
                 $app->make(TransactionPersister::class),
-                $app->make(ImportFailurePersister::class)
+                $app->make(ImportFailurePersister::class),
+                $app->make(AccountBalanceService::class)
             );
         });
     }

@@ -67,4 +67,17 @@ class AccountRepository extends BaseRepository implements AccountRepositoryInter
             ->where('user_id', $userId)
             ->exists();
     }
+
+    /**
+     * Update the balance of an account.
+     *
+     * @param  Account  $account  The account to update
+     * @param  float|string  $balance  The new balance value
+     */
+    public function updateBalance(Account $account, float|string $balance): bool
+    {
+        return $account->update([
+            'balance' => $balance,
+        ]);
+    }
 }

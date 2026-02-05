@@ -228,4 +228,90 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->orderBy('day')
             ->get();
     }
+
+    /**
+     * Get balance history over time for accounts using back-calculation from current balance.
+     *
+     * @param  array<int>  $accountIds
+     * @param  array<int, float>  $currentBalances  Map of account_id => current balance
+     * @param  string  $granularity  'day' or 'month'
+     * @return array<int, array<array{date: string, balance: float}>>  Map of account_id => time series
+     */
+    public function getBalanceHistory(
+        array $accountIds,
+        array $currentBalances,
+        Carbon $startDate,
+        Carbon $endDate,
+        string $granularity = 'month'
+    ): array {
+        if ($accountIds === []) {
+            return [];
+        }
+
+        $result = [];
+        $isDaily = $granularity === 'day';
+
+        // Generate date points based on granularity
+        $datePoints = [];
+        $current = $endDate->copy();
+        while ($current >= $startDate) {
+            $datePoints[] = $current->copy();
+            if ($isDaily) {
+                $current->subDay();
+            } else {
+                $current->subMonth();
+            }
+        }
+        // Reverse to oldest first
+        $datePoints = array_reverse($datePoints);
+
+        // Get database-specific date format
+        $dateFormat = match (config('database.default')) {
+            'sqlite' => $isDaily ? 'strftime("%Y-%m-%d", booked_date)' : 'strftime("%Y-%m", booked_date)',
+            'pgsql' => $isDaily ? "TO_CHAR(booked_date, 'YYYY-MM-DD')" : "TO_CHAR(booked_date, 'YYYY-MM')",
+            default => $isDaily ? 'DATE_FORMAT(booked_date, "%Y-%m-%d")' : 'DATE_FORMAT(booked_date, "%Y-%m")',
+        };
+
+        foreach ($accountIds as $accountId) {
+            if (! isset($currentBalances[$accountId])) {
+                continue;
+            }
+
+            $currentBalance = (float) $currentBalances[$accountId];
+
+            // Get transactions grouped by period for this account
+            $txByPeriod = DB::table('transactions')
+                ->where('account_id', $accountId)
+                ->where('booked_date', '>=', $startDate->startOfDay())
+                ->where('booked_date', '<=', $endDate->endOfDay())
+                ->selectRaw("$dateFormat as period, SUM(amount) as net_amount")
+                ->groupBy('period')
+                ->pluck('net_amount', 'period');
+
+            // Back-calculate: Start from current balance and work backwards
+            $runningBalance = $currentBalance;
+            $chartData = [];
+
+            // Iterate from newest to oldest
+            $reversedPoints = array_reverse($datePoints);
+            foreach ($reversedPoints as $point) {
+                $periodKey = $isDaily ? $point->format('Y-m-d') : $point->format('Y-m');
+                $displayDate = $isDaily ? $point->format('Y-m-d') : $point->format('M Y');
+
+                $chartData[] = [
+                    'date' => $displayDate,
+                    'balance' => round($runningBalance, 2),
+                ];
+
+                // Subtract this period's net change to get previous period's balance
+                $netChange = $txByPeriod->get($periodKey) ?? 0;
+                $runningBalance -= (float) $netChange;
+            }
+
+            // Reverse back to chronological order
+            $result[$accountId] = array_reverse($chartData);
+        }
+
+        return $result;
+    }
 }
