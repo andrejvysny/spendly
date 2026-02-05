@@ -1,229 +1,68 @@
-# GoCardless (Nordigen) Integration Architecture
+# GoCardless Bank Account Data – Architecture
 
-## 1. Overall Architecture
+## 1. Overview
 
-The GoCardless integration follows a layered architecture pattern with clear separation of concerns:
+The integration uses **GoCardless Bank Account Data API v2** (base URL: `https://bankaccountdata.gocardless.com`). It allows users to link bank accounts via requisitions, import account metadata and balances, and sync transactions.
 
-```mermaid
-graph TD
-    A[Controllers] --> B[Services]
-    B --> C[Models]
-    B --> D[Requests]
-    B --> E[Responses]
-    B --> F[TokenManager]
-    F --> G[SecretManager]
-```
+### Key components
 
-### Key Components:
-- **Controllers**: Handle HTTP requests and coordinate the flow
-- **Services**: Implement business logic and coordinate data operations
-- **Models**: Represent data structures and business entities
-- **Requests**: Handle API communication with GoCardless
-- **Responses**: Parse and validate API responses
-- **TokenManager**: Manages authentication and token lifecycle
-- **SecretManager**: Handles secure credential storage
+- **BankDataController** (`app/Http/Controllers/Settings/BankDataController.php`): Settings UI and API for credentials, institutions, requisitions, callback, import account, and transaction sync. All Bank Data operations use the client from the **factory** (mock or production).
+- **GoCardlessService** (`app/Services/GoCardless/GoCardlessService.php`): Uses `GoCardlessClientFactoryInterface` to obtain a client; exposes methods for institutions, requisitions, create/delete requisition, get accounts, import account, and sync transactions.
+- **BankDataClientInterface** (`app/Services/GoCardless/BankDataClientInterface.php`): Contract for all Bank Data API operations.
+- **GoCardlessBankDataClient**: Production HTTP client. **MockGoCardlessBankDataClient**: In-memory mock for development when `GOCARDLESS_USE_MOCK=true`.
+- **TokenManager** (`app/Services/GoCardless/TokenManager.php`): Obtains access token via `POST /api/v2/token/refresh/` with body `refresh` (not `refresh_token`), persists tokens on the User model.
+- **Client factories** (`app/Services/GoCardless/ClientFactory/`): `GoCardlessClientFactoryInterface` is bound in `GoCardlessServiceProvider` to `MockClientFactory` when `config('services.gocardless.use_mock')` is true, otherwise `ProductionClientFactory`. This ensures the entire Settings > Bank Data flow (institutions, connect bank, callback, import, sync) uses the mock when enabled.
 
-## 2. Component Responsibilities
+## 2. Authentication (API v2)
 
-### Controllers
+- **New token pair**: `POST /api/v2/token/new/` with `secret_id`, `secret_key` → returns `access`, `refresh`, `access_expires`, `refresh_expires`.
+- **Refresh access**: `POST /api/v2/token/refresh/` with **`refresh`** (not `refresh_token`) → returns `access`, `access_expires`.
+- TokenManager uses the User’s stored refresh token and persists new access/refresh when refreshing.
 
-#### SelectionController
-- Handles bank selection flow
-- Routes:
-  - `GET /selection`: Display bank selection form
-  - `POST /selection`: Process bank selection
-- Responsibilities:
-  - Validates user input
-  - Manages configuration state
-  - Coordinates with TokenManager for authentication
-  - Handles bank listing and selection
+## 3. Flow
 
-#### LinkController
-- Manages bank account linking process
-- Routes:
-  - `GET /build`: Create requisition and redirect to bank
-  - `GET /callback`: Handle bank callback
-- Responsibilities:
-  - Creates user agreements
-  - Manages requisitions
-  - Handles OAuth flow
-  - Stores account references
+1. User sets GoCardless Secret ID and Secret Key in Settings > Bank Data.
+2. **Institutions**: `GET /api/v2/institutions/?country={iso2}` (e.g. `gb`) → list of institutions (id, name, bic, logo, etc.).
+3. **Requisition**: `POST /api/v2/requisitions/` with `institution_id`, `redirect` (callback URL), optional `agreement` → returns `id`, `link`. User is redirected to `link` to complete bank auth.
+4. **Callback**: User returns to app callback URL. Controller reads `session('gocardless_requisition_id')`, calls **getAccounts(requisitionId)**, then **auto-imports** each account via `GoCardlessService::importAccount`, and redirects with a success message (e.g. “N account(s) linked”).
+5. **List requisitions**: `GET /api/v2/requisitions/` → paginated `{ count, next, previous, results }`. Single: `GET /api/v2/requisitions/{id}/` → one Requisition (id, created, redirect, status, institution_id, agreement, accounts, link, etc.).
+6. **Account data**: For each account ID from a requisition:
+   - **Details**: `GET /api/v2/accounts/{id}/details/` → `{ "account": { "resourceId", "iban", "currency", "ownerName", "name", … } }`.
+   - **Balances**: `GET /api/v2/accounts/{id}/balances/`.
+   - **Transactions**: `GET /api/v2/accounts/{id}/transactions/?date_from=&date_to=` → `{ "transactions": { "booked", "pending" } }`.
+7. **Transaction sync**: Duplicate detection and updates are **scoped by account**: `TransactionRepository::getExistingTransactionIds(int $accountId, array $transactionIds)` and `updateBatch(int $accountId, array $updates)`. The `transactions` table has a composite unique constraint on `(account_id, transaction_id)` so the same external transaction ID can exist in different accounts without collision.
 
-### Services
+## 4. Mock (development)
 
-#### TokenManager
-- Manages authentication lifecycle
-- Key methods:
-  - `getAccessToken()`: Retrieves valid access token
-  - `validateAllTokens()`: Validates and refreshes tokens
-  - `getNewTokenSet()`: Obtains new token set
-- Handles token refresh and validation
+- Set `GOCARDLESS_USE_MOCK=true` in `.env` so all Bank Data operations use `MockGoCardlessBankDataClient`.
+- Mock `createRequisition` returns a `link` that points to the app’s callback URL with `?mock=1&requisition_id=...`, so the full connect → redirect → callback → list → import/sync flow can be tested without the real API.
+- Mock stores requisitions in cache (per user) and returns API-aligned shapes (paginated list, single Requisition, account details with `account` key, balances, transactions with `booked`/`pending`).
 
-#### SecretManager
-- Manages secure credential storage
-- Handles encryption/decryption of sensitive data
-- Provides credential retrieval interface
+## 5. Configuration and routes
 
-### Models
+- **Config**: `config/services.php` → `gocardless.use_mock` (env `GOCARDLESS_USE_MOCK`, default false), `secret_id`, `secret_key`, etc.
+- **Routes** (under `auth` except callback):  
+  - `GET/PATCH settings/bank_data` (edit/update), `DELETE settings/bank_data/credentials`.  
+  - `GET /api/bank-data/gocardless/institutions`, `GET/POST /api/bank-data/gocardless/requisitions`, `DELETE .../requisitions/{id}`.  
+  - `GET /api/bank-data/gocardless/requisition/callback` (no auth).  
+  - `POST /api/bank-data/gocardless/import/account`.  
+  - `POST /api/bank-data/gocardless/accounts/{account}/sync-transactions`, `POST .../accounts/sync-all`.
 
-#### Account
-- Represents bank account information
-- Key fields:
-  - `identifier`: Unique account identifier
-  - `iban`: International Bank Account Number
-  - `currency`: Account currency
-  - `balances`: Array of account balances
-  - `status`: Account status
-  - `name`: Account name
-  - `ownerName`: Account owner name
+## 6. Security and errors
 
-#### Transaction
-- Represents bank transaction data
-- Key fields:
-  - `transactionId`: Unique transaction identifier
-  - `bookingDate`: Transaction booking date
-  - `valueDate`: Transaction value date
-  - `transactionAmount`: Transaction amount
-  - `currencyCode`: Transaction currency
-  - `creditorName`: Creditor name
-  - `debtorName`: Debtor name
-  - `remittanceInformation`: Transaction description
+- Controllers authorize via authenticated user; callback uses session to get requisition ID and optionally `auth()->user()`.
+- No credentials in code; validation and policies used where applicable.
+- Errors from the client are caught and returned as JSON or redirect with flash messages; token refresh failures are handled by TokenManager.
 
-#### Balance
-- Represents account balance information
-- Key fields:
-  - `balanceAmount`: Current balance amount
-  - `currency`: Balance currency
-  - `balanceType`: Type of balance (e.g., "closingBooked")
-  - `lastChangeDateTime`: Last balance change timestamp
+## 7. Related files
 
-## 3. Data Flow
-
-1. **Authentication Flow**:
-   ```
-   Client -> SelectionController -> TokenManager -> GoCardless API
-   ```
-
-2. **Bank Selection Flow**:
-   ```
-   Client -> SelectionController -> ListBanksRequest -> GoCardless API
-   ```
-
-3. **Account Linking Flow**:
-   ```
-   Client -> LinkController -> PostNewUserAgreement -> PostNewRequisitionRequest -> GoCardless API
-   ```
-
-4. **Transaction Import Flow**:
-   ```
-   Client -> ImportController -> GetAccountTransactionsRequest -> GoCardless API
-   ```
-
-## 4. Error Handling
-
-The integration uses a robust error handling system:
-
-1. **Custom Exceptions**:
-   - `ImporterErrorException`: General import errors
-   - `ImporterHttpException`: HTTP-related errors
-   - `ImporterJsonException`: JSON parsing errors
-
-2. **Error Response Handling**:
-   - All API responses are wrapped in `ErrorResponse` objects
-   - Detailed error messages and codes are preserved
-   - Errors are logged with appropriate context
-
-3. **Validation**:
-   - Input validation at controller level
-   - Response validation at service level
-   - Model-level validation for data integrity
-
-## 5. Configuration
-
-The integration uses several configuration files:
-
-1. **nordigen.php**:
-   - API endpoints
-   - Country configurations
-   - Sandbox settings
-   - Timeout settings
-
-2. **Environment Variables**:
-   - `NORDIGEN_ID`: API client ID
-   - `NORDIGEN_KEY`: API client secret
-   - `NORDIGEN_URL`: API base URL
-
-## 6. Security Considerations
-
-1. **Token Management**:
-   - Access tokens are stored in session
-   - Refresh tokens are securely managed
-   - Token validation before each request
-
-2. **Credential Storage**:
-   - API credentials are encrypted
-   - Secure credential retrieval
-   - No hardcoded credentials
-
-3. **Data Protection**:
-   - Sensitive data is encrypted
-   - Secure session management
-   - Input sanitization
-
-## 7. Extension Points
-
-1. **Custom Bank Integration**:
-   - Add new bank configurations in `nordigen.php`
-   - Implement bank-specific adapters if needed
-
-2. **Transaction Processing**:
-   - Extend `Transaction` model for custom fields
-   - Implement custom transaction processors
-
-3. **Error Handling**:
-   - Add custom exception handlers
-   - Implement custom error responses
-
-## 8. Usage Examples
-
-### Bank Selection
-```php
-// Controller
-$controller = new SelectionController();
-$response = $controller->index();
-
-// Service
-$tokenManager = new TokenManager();
-$accessToken = $tokenManager->getAccessToken();
-$request = new ListBanksRequest($url, $accessToken);
-$banks = $request->get();
-```
-
-### Account Linking
-```php
-// Controller
-$controller = new LinkController();
-$response = $controller->build();
-
-// Service
-$agreementRequest = new PostNewUserAgreement($url, $accessToken);
-$agreementRequest->setBank($bankId);
-$agreement = $agreementRequest->post();
-
-$requisitionRequest = new PostNewRequisitionRequest($url, $accessToken);
-$requisitionRequest->setBank($bankId);
-$requisitionRequest->setAgreement($agreement->id);
-$requisition = $requisitionRequest->post();
-```
-
-### Transaction Import
-```php
-// Controller
-$controller = new ImportController();
-$response = $controller->download();
-
-// Service
-$request = new GetAccountTransactionsRequest($url, $accessToken);
-$request->setAccount($accountId);
-$transactions = $request->get();
-``` 
+| Area           | Files |
+|----------------|-------|
+| Controller     | `app/Http/Controllers/Settings/BankDataController.php` |
+| Service        | `app/Services/GoCardless/GoCardlessService.php` |
+| Clients        | `app/Services/GoCardless/GoCardlessBankDataClient.php`, `MockGoCardlessBankDataClient.php` |
+| Token          | `app/Services/GoCardless/TokenManager.php` |
+| Sync           | `app/Services/GoCardless/TransactionSyncService.php` |
+| Repositories    | `app/Repositories/TransactionRepository.php` (account-scoped getExistingTransactionIds / updateBatch) |
+| Provider       | `app/Providers/GoCardlessServiceProvider.php` |
+| Frontend       | `resources/js/pages/settings/bank_data.tsx`, `resources/js/components/settings/requisition.tsx`, `GoCardlessImportWizard.tsx` |

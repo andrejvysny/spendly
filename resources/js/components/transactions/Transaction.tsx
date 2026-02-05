@@ -74,7 +74,12 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                             </div>
                             <small className="text-gray-500">{formatDate(transaction.processed_date)}</small>
                             {!compact && (
-                                <div className="mt-1 flex gap-2">
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                    {transaction.recurring_group_id != null && (
+                                        <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs font-medium">
+                                            Recurring
+                                        </span>
+                                    )}
                                     {transaction.account && (
                                         <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
                                             {transaction.account?.name}

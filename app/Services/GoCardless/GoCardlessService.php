@@ -2,6 +2,7 @@
 
 namespace App\Services\GoCardless;
 
+use App\Exceptions\AccountAlreadyExistsException;
 use App\Models\Account;
 use App\Models\User;
 use App\Repositories\AccountRepository;
@@ -39,12 +40,12 @@ class GoCardlessService
             // If using mock, credentials might not be needed.
             // Let's rely on the factory to handle specific needs, but existing code checks this.
             // If we are using the mock factory, we might skip this validation?
-            // Actually, let's keep it simple. If referencing the factory, we just call make. 
-            // BUT, the original code had validation here. 
+            // Actually, let's keep it simple. If referencing the factory, we just call make.
+            // BUT, the original code had validation here.
             // Let's assume production needs it.
         }
         // Ideally we move this validation into the ProductionClientFactory.
-        // For now, let's keep it but maybe relax it if using mock? 
+        // For now, let's keep it but maybe relax it if using mock?
         // Or better, just call the factory.
     }
 
@@ -54,7 +55,7 @@ class GoCardlessService
     private function initializeClient(User $user): void
     {
         try {
-           $this->client = $this->clientFactory->make($user);
+            $this->client = $this->clientFactory->make($user);
         } catch (\InvalidArgumentException $e) {
             // Re-throw validation errors as-is
             throw $e;
@@ -211,7 +212,7 @@ class GoCardlessService
     }
 
     /**
-     * Get requisition details.
+     * Get requisition details (single requisition by ID).
      *
      * @throws \Exception
      */
@@ -223,8 +224,43 @@ class GoCardlessService
     }
 
     /**
+     * Get all requisitions for the user (paginated list).
+     *
+     * @return array{count: int, next: string|null, previous: string|null, results: array<int, array<string, mixed>>}
+     */
+    public function getRequisitionsList(User $user): array
+    {
+        $this->getClient($user);
+
+        return $this->client->getRequisitions(null);
+    }
+
+    /**
+     * Get account IDs linked to a requisition.
+     *
+     * @return array<int, string>
+     */
+    public function getAccounts(string $requisitionId, User $user): array
+    {
+        $this->getClient($user);
+
+        return $this->client->getAccounts($requisitionId);
+    }
+
+    /**
+     * Delete a requisition by ID.
+     */
+    public function deleteRequisition(string $requisitionId, User $user): bool
+    {
+        $this->getClient($user);
+
+        return $this->client->deleteRequisition($requisitionId);
+    }
+
+    /**
      * Import account from GoCardless.
      *
+     * @throws AccountAlreadyExistsException When the account is already linked for this user
      * @throws \Exception
      */
     public function importAccount(string $goCardlessAccountId, User $user): Account
@@ -233,7 +269,7 @@ class GoCardlessService
 
         // Check if account already exists
         if ($this->accountRepository->gocardlessAccountExists($goCardlessAccountId, $user->id)) {
-            throw new \Exception('Account already exists');
+            throw new AccountAlreadyExistsException;
         }
 
         // Get account details from GoCardless

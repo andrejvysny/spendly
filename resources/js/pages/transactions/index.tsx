@@ -59,6 +59,7 @@ interface Props {
         dateRange?: { from: string; to: string };
         merchant_id?: string;
         category_id?: string;
+        recurring_only?: boolean;
     };
 }
 
@@ -92,6 +93,7 @@ type FilterValues = {
     };
     merchant_id?: string;
     category_id?: string;
+    recurring_only?: boolean;
 };
 
 // Zod schemas for SmartForm components
@@ -218,6 +220,7 @@ export default function Index({
         dateRange: filters.dateRange || { from: '', to: '' },
         merchant_id: filters.merchant_id || 'all',
         category_id: filters.category_id || 'all',
+        recurring_only: filters.recurring_only ?? false,
     });
 
     // Skip initial fetch on page load if no filters are active
@@ -227,6 +230,7 @@ export default function Index({
     const hasActiveFilters = useCallback(() => {
         return Object.entries(filterValues).some(([key, value]) => {
             if (key === 'dateRange') return false;
+            if (key === 'recurring_only') return value === true;
             if (key === 'dateFrom' || key === 'dateTo') {
                 return value !== '' && value !== null && value !== undefined;
             }
@@ -257,6 +261,7 @@ export default function Index({
             dateRange: { from: '', to: '' },
             merchant_id: 'all',
             category_id: 'all',
+            recurring_only: false,
         }),
         [],
     );
@@ -412,6 +417,8 @@ export default function Index({
             case 'dateFrom':
             case 'dateTo':
                 return !!filterValues[name];
+            case 'recurring_only':
+                return !!filterValues.recurring_only;
             default:
                 return false;
         }
@@ -712,6 +719,7 @@ export default function Index({
                                                             newValues.amountFilter ||
                                                             newValues.merchant_id !== 'all' ||
                                                             newValues.category_id !== 'all' ||
+                                                            newValues.recurring_only ||
                                                             newDateFrom ||
                                                             newDateTo;
 
@@ -757,6 +765,18 @@ export default function Index({
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                    </div>
+
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <label
+                                            className={`text-sm ${filterValues.recurring_only ? 'font-medium text-green-600' : 'font-medium'}`}
+                                        >
+                                            Recurring only
+                                        </label>
+                                        <Switch
+                                            checked={filterValues.recurring_only ?? false}
+                                            onCheckedChange={(checked) => handleFilterChange('recurring_only', checked)}
+                                        />
                                     </div>
 
                                     <div className="mt-6 flex justify-between">

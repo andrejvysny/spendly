@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Http\Controllers\Import\ImportFailureController;
+use App\Http\Controllers\RecurringGroupController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\RuleEngine\RuleExecutionController;
 use App\Http\Controllers\Transactions\TransactionController;
@@ -67,6 +68,17 @@ Route::middleware(['web', 'auth'])->prefix('rules')->group(function () {
         ->name('rules.execute.rule');
     Route::post('/groups/{id}/execute', [RuleExecutionController::class, 'executeRuleGroup'])
         ->name('rules.execute.group');
+});
+
+// Recurring groups (subscriptions) API
+Route::middleware(['web', 'auth'])->prefix('recurring')->group(function () {
+    Route::get('/', [RecurringGroupController::class, 'index'])->name('api.recurring.index');
+    Route::get('/analytics', [RecurringGroupController::class, 'analytics'])->name('api.recurring.analytics');
+    Route::get('/settings', [RecurringGroupController::class, 'getSettings'])->name('api.recurring.settings');
+    Route::put('/settings', [RecurringGroupController::class, 'updateSettings'])->name('api.recurring.settings.update');
+    Route::post('/groups/{recurringGroup}/confirm', [RecurringGroupController::class, 'confirm'])->name('api.recurring.confirm');
+    Route::post('/groups/{recurringGroup}/dismiss', [RecurringGroupController::class, 'dismiss'])->name('api.recurring.dismiss');
+    Route::post('/groups/{recurringGroup}/unlink', [RecurringGroupController::class, 'unlink'])->name('api.recurring.unlink');
 });
 
 // Import failure management routes

@@ -70,27 +70,33 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     }
 
     /**
-     * Get existing transaction IDs from a list.
+     * Get existing transaction IDs for an account (scoped by account_id).
      */
-    public function getExistingTransactionIds(array $transactionIds): Collection
+    public function getExistingTransactionIds(int $accountId, array $transactionIds): Collection
     {
-        return Transaction::whereIn('transaction_id', $transactionIds)
+        if (empty($transactionIds)) {
+            return collect();
+        }
+
+        return Transaction::where('account_id', $accountId)
+            ->whereIn('transaction_id', $transactionIds)
             ->pluck('transaction_id');
     }
 
     /**
-     * Update multiple transactions.
+     * Update multiple transactions for an account (scoped by account_id).
      *
      * @param  array  $updates  Array of updates with transaction_id as key
      * @return int Number of updated transactions
      */
-    public function updateBatch(array $updates): int
+    public function updateBatch(int $accountId, array $updates): int
     {
         $count = 0;
 
-        DB::transaction(function () use ($updates, &$count) {
+        DB::transaction(function () use ($accountId, $updates, &$count) {
             foreach ($updates as $transactionId => $data) {
-                $updated = Transaction::where('transaction_id', $transactionId)
+                $updated = Transaction::where('account_id', $accountId)
+                    ->where('transaction_id', $transactionId)
                     ->update($data);
                 if ($updated) {
                     $count++;
@@ -153,5 +159,22 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     public function findByAccountIds(array $accountIds): Collection
     {
         return $this->model->whereIn('account_id', $accountIds)->get();
+    }
+
+    /**
+     * Get transactions for recurring detection within a date range.
+     */
+    public function getForRecurringDetection(int $userId, \Carbon\Carbon $from, \Carbon\Carbon $to, ?int $accountId = null): Collection
+    {
+        $query = $this->model
+            ->with(['merchant', 'account'])
+            ->whereHas('account', fn ($q) => $q->where('user_id', $userId))
+            ->whereBetween('booked_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
+
+        if ($accountId !== null) {
+            $query->where('account_id', $accountId);
+        }
+
+        return $query->orderBy('booked_date')->get();
     }
 }

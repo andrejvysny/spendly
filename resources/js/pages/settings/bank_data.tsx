@@ -11,7 +11,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Transition } from '@headlessui/react';
 import { Head, useForm } from '@inertiajs/react';
 import axios from 'axios';
-import { FormEventHandler, useEffect, useState } from 'react';
+import { FormEventHandler, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -60,25 +60,34 @@ export default function BankData({ gocardless_secret_id, gocardless_secret_key }
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
     const [requisitions, setRequisitions] = useState<RequisitionsResponse>({ count: 0, next: null, previous: null, results: [] });
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const fetchRequisitions = useCallback(async () => {
+        try {
+            const response = await axios.get('/api/bank-data/gocardless/requisitions');
+            setRequisitions(response.data);
+        } catch (error) {
+            console.error('Error fetching requisitions:', error);
+            toast.error('Failed to load requisitions. Please try again.');
+        } finally {
+            setIsLoading(false);
+            setIsRefreshing(false);
+        }
+    }, []);
 
     useEffect(() => {
-        const fetchRequisitions = async () => {
-            try {
-                const response = await axios.get('/api/bank-data/gocardless/requisitions');
-                setRequisitions(response.data);
-            } catch (error) {
-                console.error('Error fetching requisitions:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         if (!gocardless_secret_id || !gocardless_secret_key) {
             setIsLoading(false);
             return;
         }
         fetchRequisitions();
-    }, [gocardless_secret_id, gocardless_secret_key]);
+    }, [gocardless_secret_id, gocardless_secret_key, fetchRequisitions]);
+
+    const handleRefreshRequisitions = () => {
+        if (!gocardless_secret_id || !gocardless_secret_key) return;
+        setIsRefreshing(true);
+        fetchRequisitions();
+    };
 
     const handlePurgeCredentials = () => {
         if (!confirm('Are you sure you want to clear your GoCardless credentials? This action cannot be undone.')) {
@@ -171,8 +180,14 @@ export default function BankData({ gocardless_secret_id, gocardless_secret_key }
                     </Button>
 
                     <div className="flex items-center justify-between">
-                        <span>Last updated: {new Date().toLocaleDateString()}</span>
-                        <Button variant="outline">Refresh</Button>
+                        <span className="text-muted-foreground text-sm">Requisitions</span>
+                        <Button
+                            variant="outline"
+                            onClick={handleRefreshRequisitions}
+                            disabled={!gocardless_secret_id || !gocardless_secret_key || isRefreshing}
+                        >
+                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                        </Button>
                     </div>
                 </div>
 

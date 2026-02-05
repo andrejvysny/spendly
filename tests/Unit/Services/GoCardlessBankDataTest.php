@@ -86,7 +86,7 @@ class GoCardlessBankDataTest extends UnitTestCase
 
         Http::assertSent(function (Request $request) {
             return str_contains($request->url(), '/token/refresh/') &&
-                   $request['refresh_token'] == 'valid_refresh_token';
+                   $request['refresh'] == 'valid_refresh_token';
         });
     }
 

@@ -69,8 +69,8 @@ class TransactionSyncService
 
         $transactionIds = array_filter($transactionIds);
 
-        // Get existing transaction IDs
-        $existingIds = $this->transactionRepository->getExistingTransactionIds($transactionIds);
+        // Get existing transaction IDs (scoped by account to avoid cross-account collisions)
+        $existingIds = $this->transactionRepository->getExistingTransactionIds($account->id, $transactionIds);
 
         $toCreate = [];
         $toUpdate = [];
@@ -124,9 +124,9 @@ class TransactionSyncService
                 $stats['created'] = $created;
             }
 
-            // Batch update
+            // Batch update (scoped by account)
             if (! empty($toUpdate)) {
-                $updated = $this->transactionRepository->updateBatch($toUpdate);
+                $updated = $this->transactionRepository->updateBatch($account->id, $toUpdate);
                 $stats['updated'] = $updated;
             }
         });
