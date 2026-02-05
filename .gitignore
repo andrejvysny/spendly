@@ -28,3 +28,6 @@ yarn-error.log
 **/.DS_Store
 /coverage
 .phpunit.cache/
+
+
+/gocardless_bank_account_data
