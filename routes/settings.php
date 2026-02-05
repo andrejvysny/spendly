@@ -41,6 +41,8 @@ Route::middleware('auth')->group(function () {
             ->name('bank_data.syncAccountTransactions');
         Route::post('/accounts/sync-all', [BankDataController::class, 'syncAllAccounts'])
             ->name('bank_data.syncAllAccounts');
+        Route::post('/accounts/{account}/refresh-balance', [BankDataController::class, 'refreshAccountBalance'])
+            ->name('bank_data.refreshAccountBalance');
     });
 
 });

@@ -140,17 +140,22 @@ class GoCardlessService
         // Update sync timestamp
         $this->accountRepository->updateSyncTimestamp($account);
 
+        // Refresh account balance from GoCardless API
+        $balanceUpdated = $this->refreshAccountBalance($account);
+
         Log::info('Transaction sync completed', [
             'account_id' => $accountId,
             'stats' => $stats,
             'update_existing' => $updateExisting,
             'force_max_date_range' => $forceMaxDateRange,
+            'balance_updated' => $balanceUpdated,
         ]);
 
         return [
             'account_id' => $accountId,
             'stats' => $stats,
             'date_range' => $dateRange,
+            'balance_updated' => $balanceUpdated,
         ];
     }
 
@@ -187,6 +192,59 @@ class GoCardlessService
         }
 
         return $results;
+    }
+
+    /**
+     * Refresh account balance from GoCardless API.
+     *
+     * @param  Account  $account  The account to refresh balance for
+     * @return bool True if balance was updated, false otherwise
+     */
+    public function refreshAccountBalance(Account $account): bool
+    {
+        if (! $account->is_gocardless_synced || ! $account->gocardless_account_id) {
+            Log::warning('Cannot refresh balance for non-GoCardless account', [
+                'account_id' => $account->id,
+            ]);
+
+            return false;
+        }
+
+        try {
+            $balances = $this->client->getBalances($account->gocardless_account_id);
+            $currentBalance = null;
+
+            foreach ($balances['balances'] ?? [] as $balance) {
+                if ($balance['balanceType'] === 'closingBooked') {
+                    $currentBalance = (float) ($balance['balanceAmount']['amount'] ?? 0);
+                    break;
+                }
+            }
+
+            if ($currentBalance !== null) {
+                $this->accountRepository->updateBalance($account, $currentBalance);
+                Log::info('Account balance updated from GoCardless', [
+                    'account_id' => $account->id,
+                    'balance' => $currentBalance,
+                ]);
+
+                return true;
+            }
+
+            Log::warning('No closingBooked balance found in GoCardless response', [
+                'account_id' => $account->id,
+                'balances' => $balances,
+            ]);
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Failed to refresh account balance from GoCardless', [
+                'account_id' => $account->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**

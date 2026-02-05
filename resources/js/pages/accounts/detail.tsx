@@ -126,6 +126,8 @@ export default function Detail({
     const [updateExisting, setUpdateExisting] = useState(account.sync_options?.update_existing ?? false);
     const [forceMaxDateRange, setForceMaxDateRange] = useState(account.sync_options?.force_max_date_range ?? false);
     const [savingOptions, setSavingOptions] = useState(false);
+    const [refreshingBalance, setRefreshingBalance] = useState(false);
+    const [currentBalance, setCurrentBalance] = useState(account.balance);
 
     // Load more functionality
     const {
@@ -225,6 +227,23 @@ export default function Detail({
         }
     };
 
+    const handleRefreshBalance = async () => {
+        setRefreshingBalance(true);
+        try {
+            const response = await axios.post(`/api/bank-data/gocardless/accounts/${account.id}/refresh-balance`);
+            if (response.data.success) {
+                setCurrentBalance(response.data.data.balance);
+                console.log('Balance refreshed successfully:', response.data.data);
+            } else {
+                console.error('Failed to refresh balance:', response.data.error);
+            }
+        } catch (error) {
+            console.error('Error refreshing balance:', error);
+        } finally {
+            setRefreshingBalance(false);
+        }
+    };
+
     // Load more transactions and update monthly summaries
     const handleLoadMore = async () => {
         try {
@@ -272,10 +291,19 @@ export default function Detail({
                                         { label: 'IBAN', value: account.iban },
                                         { label: 'Type', value: account.type },
                                         { label: 'Currency', value: account.currency },
-                                        { label: 'Balance', value: formatAmount(account.balance, account.currency) },
+                                        { label: 'Balance', value: formatAmount(currentBalance, account.currency) },
                                         { label: 'Number of transactions', value: total_transactions },
                                     ]}
                                 />
+
+                                <Button
+                                    variant="outline"
+                                    onClick={handleRefreshBalance}
+                                    disabled={refreshingBalance}
+                                    className="mb-4 w-full"
+                                >
+                                    {refreshingBalance ? 'Refreshing...' : 'Refresh Balance'}
+                                </Button>
 
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>

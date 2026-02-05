@@ -36,7 +36,7 @@ class TransactionDataParser
                 'import_id' => $configuration['import_id'] ?? null,
                 'imported_at' => now()->format('Y-m-d H:i:s'),
             ],
-            'balance_after_transaction' => 0, // Placeholder
+            // balance_after_transaction will be set from CSV if mapped, otherwise null
         ];
 
         // Map fields based on column mapping
@@ -82,6 +82,14 @@ class TransactionDataParser
                     $value,
                     $configuration['amount_format'] ?? '1,234.56',
                     $configuration['amount_type_strategy'] ?? 'signed_amount'
+                );
+
+            case 'balance_after_transaction':
+                // Parse balance as an amount but never negate it (balances are always signed as-is)
+                return $this->parseAmount(
+                    $value,
+                    $configuration['amount_format'] ?? '1,234.56',
+                    'signed_amount' // Always use signed_amount for balance
                 );
 
             default:

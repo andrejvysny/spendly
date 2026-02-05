@@ -40,4 +40,20 @@ interface AnalyticsRepositoryInterface
      * @return Collection<int, object>
      */
     public function getMonthlyCashflow(array $accountIds, int $beforeMonth = 0): Collection;
+
+    /**
+     * Get balance history over time for accounts using back-calculation from current balance.
+     *
+     * @param  array<int>  $accountIds
+     * @param  array<int, float>  $currentBalances  Map of account_id => current balance
+     * @param  string  $granularity  'day' or 'month'
+     * @return array<int, array<array{date: string, balance: float}>>  Map of account_id => time series
+     */
+    public function getBalanceHistory(
+        array $accountIds,
+        array $currentBalances,
+        Carbon $startDate,
+        Carbon $endDate,
+        string $granularity = 'month'
+    ): array;
 }

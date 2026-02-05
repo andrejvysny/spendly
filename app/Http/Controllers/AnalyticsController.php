@@ -7,6 +7,8 @@ use App\Contracts\Repositories\AnalyticsRepositoryInterface;
 use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Http\Requests\AnalyticsRequest;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class AnalyticsController extends Controller
@@ -126,4 +128,116 @@ class AnalyticsController extends Controller
         ];
     }
 
+    /**
+     * Get balance history over time for accounts.
+     *
+     * @return JsonResponse
+     */
+    public function balanceHistory(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'account_ids' => 'nullable|array',
+            'account_ids.*' => 'integer',
+            'from' => 'nullable|date',
+            'to' => 'nullable|date',
+            'granularity' => 'nullable|in:day,month',
+        ]);
+
+        $userAccounts = $this->accountRepository->findByUser($this->getAuthUserId());
+
+        // Get selected account IDs or all user accounts
+        $selectedIds = $validated['account_ids'] ?? [];
+        if (empty($selectedIds)) {
+            $accountIds = $userAccounts->pluck('id')->toArray();
+        } else {
+            // Filter to only user's accounts
+            $accountIds = $userAccounts->pluck('id')
+                ->intersect($selectedIds)
+                ->values()
+                ->toArray();
+        }
+
+        // Build current balances map
+        $currentBalances = $userAccounts
+            ->whereIn('id', $accountIds)
+            ->pluck('balance', 'id')
+            ->map(fn ($balance) => (float) $balance)
+            ->toArray();
+
+        // Parse date range
+        $from = isset($validated['from'])
+            ? Carbon::parse($validated['from'])->startOfDay()
+            : Carbon::now()->subMonths(12)->startOfMonth();
+        $to = isset($validated['to'])
+            ? Carbon::parse($validated['to'])->endOfDay()
+            : Carbon::now()->endOfDay();
+
+        $granularity = $validated['granularity'] ?? 'month';
+
+        // Get balance history
+        $balanceHistory = $this->analyticsRepository->getBalanceHistory(
+            $accountIds,
+            $currentBalances,
+            $from,
+            $to,
+            $granularity
+        );
+
+        // Also calculate net worth over time (sum of all accounts at each point)
+        $netWorthHistory = $this->calculateNetWorthHistory($balanceHistory);
+
+        // Get account info for frontend
+        $accounts = $userAccounts->whereIn('id', $accountIds)->map(fn ($account) => [
+            'id' => $account->id,
+            'name' => $account->name,
+            'currency' => $account->currency,
+            'balance' => (float) $account->balance,
+        ])->values();
+
+        return response()->json([
+            'accounts' => $accounts,
+            'balance_history' => $balanceHistory,
+            'net_worth_history' => $netWorthHistory,
+            'date_range' => [
+                'from' => $from->format('Y-m-d'),
+                'to' => $to->format('Y-m-d'),
+            ],
+            'granularity' => $granularity,
+        ]);
+    }
+
+    /**
+     * Calculate net worth over time by summing all account balances at each point.
+     *
+     * @param  array<int, array<array{date: string, balance: float}>>  $balanceHistory
+     * @return array<array{date: string, balance: float}>
+     */
+    private function calculateNetWorthHistory(array $balanceHistory): array
+    {
+        if (empty($balanceHistory)) {
+            return [];
+        }
+
+        // Get the first account's dates as reference
+        $firstAccountHistory = reset($balanceHistory);
+        if (empty($firstAccountHistory)) {
+            return [];
+        }
+
+        $netWorth = [];
+        foreach ($firstAccountHistory as $index => $point) {
+            $totalBalance = 0;
+            foreach ($balanceHistory as $accountHistory) {
+                if (isset($accountHistory[$index])) {
+                    $totalBalance += $accountHistory[$index]['balance'];
+                }
+            }
+            $netWorth[] = [
+                'date' => $point['date'],
+                'balance' => round($totalBalance, 2),
+            ];
+        }
+
+        return $netWorth;
+    }
 }

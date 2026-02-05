@@ -24,6 +24,7 @@ class Account extends BaseModel implements OwnedByUserContract
         'type',
         'currency',
         'balance',
+        'opening_balance',
         'gocardless_account_id',
         'gocardless_institution_id',
         'bic',
@@ -40,6 +41,7 @@ class Account extends BaseModel implements OwnedByUserContract
      */
     protected $casts = [
         'balance' => 'decimal:2',
+        'opening_balance' => 'decimal:2',
         'is_gocardless_synced' => 'boolean',
         'gocardless_last_synced_at' => 'datetime',
         'import_data' => 'json',

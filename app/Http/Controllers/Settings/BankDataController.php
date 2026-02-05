@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Settings;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Exceptions\AccountAlreadyExistsException;
 use App\Http\Controllers\Controller;
 use App\Jobs\RecurringDetectionJob;
 use App\Models\Account;
 use App\Models\RecurringDetectionSetting;
 use App\Models\User;
+use App\Services\AccountBalanceService;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -25,13 +27,22 @@ class BankDataController extends Controller
 
     private GoCardlessService $gocardlessService;
 
+    private AccountBalanceService $balanceService;
+
+    private AccountRepositoryInterface $accountRepository;
+
     /**
      * Initializes the controller with the authenticated user and GoCardless service.
      * User is loaded for the settings form (edit/update). API actions use the client via the service (factory: mock or production).
      */
-    public function __construct(GoCardlessService $gocardlessService)
-    {
+    public function __construct(
+        GoCardlessService $gocardlessService,
+        AccountBalanceService $balanceService,
+        AccountRepositoryInterface $accountRepository
+    ) {
         $this->gocardlessService = $gocardlessService;
+        $this->balanceService = $balanceService;
+        $this->accountRepository = $accountRepository;
 
         $id = auth()->id();
         $found = $id ? User::select('id', 'gocardless_secret_id', 'gocardless_secret_key')->find($id) : null;
@@ -494,6 +505,71 @@ class BankDataController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to sync accounts: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Refresh account balance from GoCardless API without syncing transactions.
+     */
+    public function refreshAccountBalance(Request $request, int $accountId): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            if (! $user instanceof User) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'User not authenticated',
+                ], 401);
+            }
+
+            $account = $this->accountRepository->findByIdForUser($accountId, $user->id);
+
+            if (! $account) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Account not found',
+                ], 404);
+            }
+
+            if (! $account->is_gocardless_synced) {
+                // For non-GoCardless accounts, recalculate from transactions
+                $success = $this->balanceService->recalculateForAccount($account);
+                $source = 'transactions';
+            } else {
+                // For GoCardless accounts, refresh from API
+                $success = $this->gocardlessService->refreshAccountBalance($account);
+                $source = 'gocardless_api';
+            }
+
+            if ($success) {
+                $account->refresh();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Balance refreshed successfully',
+                    'data' => [
+                        'account_id' => $account->id,
+                        'balance' => (float) $account->balance,
+                        'currency' => $account->currency,
+                        'source' => $source,
+                    ],
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Could not refresh balance',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Failed to refresh account balance', [
+                'account_id' => $accountId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to refresh balance: '.$e->getMessage(),
             ], 500);
         }
     }

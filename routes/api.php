@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\RecurringGroupController;
@@ -28,6 +29,11 @@ Route::middleware('auth')->get('/user', function (Request $request) {
 Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/transactions', [TransactionController::class, 'store'])->name('api.transactions.store');
     Route::get('/transactions/field-definitions', [TransactionController::class, 'getFieldDefinitions'])->name('api.transactions.field-definitions');
+});
+
+// Analytics endpoints
+Route::middleware(['web', 'auth'])->prefix('analytics')->group(function () {
+    Route::get('/balance-history', [AnalyticsController::class, 'balanceHistory'])->name('api.analytics.balance-history');
 });
 
 // GoCardless sync endpoints

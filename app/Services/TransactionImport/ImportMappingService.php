@@ -91,6 +91,7 @@ class ImportMappingService
         $transactionFields = [
             'transaction_id', 'booked_date', 'amount', 'description', 'partner',
             'type', 'target_iban', 'source_iban', 'category', 'tags', 'notes',
+            'balance_after_transaction',
         ];
 
         foreach ($transactionFields as $field) {
@@ -134,6 +135,10 @@ class ImportMappingService
             'tags' => [
                 'patterns' => ['tag', 'label', 'tags'],
                 'exact_matches' => ['transaction tags'],
+            ],
+            'balance_after_transaction' => [
+                'patterns' => ['balance', 'saldo', 'kontostand', 'zostatok', 'running'],
+                'exact_matches' => ['account balance', 'running balance', 'new balance', 'ending balance', 'closing balance'],
             ],
         ];
 
@@ -337,6 +342,7 @@ class ImportMappingService
             ['amount', 'suma', 'betrag', 'monto', 'value', 'sum'],
             ['description', 'popis', 'beschreibung', 'details', 'memo', 'note'],
             ['partner', 'payee', 'merchant', 'counterparty', 'recipient'],
+            ['balance', 'saldo', 'kontostand', 'zostatok', 'running'],
         ];
 
         // Extract individual words from the input strings
