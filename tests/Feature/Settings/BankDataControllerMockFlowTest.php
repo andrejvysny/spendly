@@ -71,4 +71,47 @@ class BankDataControllerMockFlowTest extends TestCase
         $syncResponse->assertOk();
         $syncResponse->assertJsonPath('success', true);
     }
+
+    public function test_revolut_fixture_flow_import_and_sync_uses_fixture_data(): void
+    {
+        $basePath = config('services.gocardless.mock_data_path', base_path('gocardless_bank_account_data'));
+        $revolutDir = $basePath . '/Revolut';
+        if (! is_dir($revolutDir)) {
+            $this->markTestSkipped('Revolut fixture data not present at ' . $revolutDir);
+        }
+
+        config(['services.gocardless.use_mock' => true]);
+
+        $callbackUrl = url('/api/bank-data/gocardless/requisition/callback');
+
+        $createResponse = $this->actingAs($this->user)
+            ->postJson('/api/bank-data/gocardless/requisitions', [
+                'institution_id' => 'Revolut',
+            ]);
+
+        $createResponse->assertOk();
+        $link = $createResponse->json('link');
+
+        $callbackResponse = $this->get($link);
+        $callbackResponse->assertRedirect(route('bank_data.edit'));
+        $callbackResponse->assertSessionHas('success');
+
+        $accounts = Account::where('user_id', $this->user->id)->get();
+        $this->assertGreaterThan(0, $accounts->count(), 'At least one Revolut account should be imported');
+
+        $account = $accounts->first();
+        $this->assertSame('Revolut', $account->gocardless_institution_id);
+
+        $syncResponse = $this->actingAs($this->user)
+            ->postJson("/api/bank-data/gocardless/accounts/{$account->id}/sync-transactions", [
+                'update_existing' => true,
+                'force_max_date_range' => false,
+            ]);
+
+        $syncResponse->assertOk();
+        $syncResponse->assertJsonPath('success', true);
+        $stats = $syncResponse->json('stats');
+        $this->assertIsArray($stats);
+        $this->assertGreaterThan(0, $stats['total'] ?? 0, 'Fixture transactions should be synced');
+    }
 }

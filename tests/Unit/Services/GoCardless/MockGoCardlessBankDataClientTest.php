@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Services\GoCardless;
 
 use App\Models\User;
+use App\Services\GoCardless\Mock\MockGoCardlessFixtureRepository;
 use App\Services\GoCardless\MockGoCardlessBankDataClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -26,7 +27,8 @@ class MockGoCardlessBankDataClientTest extends TestCase
     {
         parent::setUp();
         $this->user = User::factory()->create();
-        $this->client = new MockGoCardlessBankDataClient($this->user);
+        $fixtureRepository = new MockGoCardlessFixtureRepository(__DIR__ . '/../../../nonexistent_fixture_path');
+        $this->client = new MockGoCardlessBankDataClient($this->user, $fixtureRepository);
     }
 
     public function test_get_secret_tokens_returns_mock_data(): void

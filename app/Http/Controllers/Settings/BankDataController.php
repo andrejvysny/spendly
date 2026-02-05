@@ -61,6 +61,7 @@ class BankDataController extends Controller
         return Inertia::render('settings/bank_data', [
             'gocardless_secret_id' => $this->user->gocardless_secret_id,
             'gocardless_secret_key' => $this->user->gocardless_secret_key,
+            'gocardless_use_mock' => config('services.gocardless.use_mock'),
         ]);
     }
 
@@ -152,9 +153,9 @@ class BankDataController extends Controller
     }
 
     /**
-     * Retrieves the user's existing GoCardless requisitions and returns them as a JSON response.
+     * Retrieves the user's existing GoCardless requisitions with enriched account details and returns them as a JSON response.
      *
-     * @return JsonResponse List of requisitions associated with the authenticated user.
+     * @return JsonResponse List of requisitions with accounts enriched (name, iban, currency, status, etc.).
      */
     public function getRequisitions(Request $request): JsonResponse
     {
@@ -164,6 +165,16 @@ class BankDataController extends Controller
                 return response()->json(['error' => 'Unauthenticated'], 401);
             }
             $existingRequisitions = $this->gocardlessService->getRequisitionsList($user);
+
+            foreach ($existingRequisitions['results'] ?? [] as $i => $req) {
+                $accountIds = $req['accounts'] ?? [];
+                if ($accountIds !== []) {
+                    $existingRequisitions['results'][$i]['accounts'] = $this->gocardlessService->getEnrichedAccountsForRequisition(
+                        $accountIds,
+                        $user
+                    );
+                }
+            }
 
             return response()->json($existingRequisitions);
         } catch (\RuntimeException $e) {

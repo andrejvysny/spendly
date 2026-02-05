@@ -15,6 +15,7 @@ use App\Services\GoCardless\TokenManager;
 use App\Services\GoCardless\TransactionDataValidator;
 use App\Services\GoCardless\TransactionSyncService;
 use App\Services\GoCardless\ClientFactory\GoCardlessClientFactoryInterface;
+use App\Services\GoCardless\Mock\MockGoCardlessFixtureRepository;
 use App\Services\TransferDetectionService;
 use Illuminate\Support\ServiceProvider;
 
@@ -51,9 +52,17 @@ class GoCardlessServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(MockGoCardlessFixtureRepository::class, function ($app) {
+            return new MockGoCardlessFixtureRepository(
+                config('services.gocardless.mock_data_path', base_path('gocardless_bank_account_data'))
+            );
+        });
+
         $this->app->singleton(GoCardlessClientFactoryInterface::class, function ($app) {
             if (config('services.gocardless.use_mock', false)) {
-                return new \App\Services\GoCardless\ClientFactory\MockClientFactory;
+                return new \App\Services\GoCardless\ClientFactory\MockClientFactory(
+                    $app->make(MockGoCardlessFixtureRepository::class)
+                );
             }
 
             return new \App\Services\GoCardless\ClientFactory\ProductionClientFactory;
