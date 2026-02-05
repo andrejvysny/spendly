@@ -5,6 +5,7 @@ alwaysApply: false
 
 # GoCardless
 
+- Prefer delegating to the `gocardless` subagent for Bank Data integration work.
 - Full docs: docs/ai/GoCardless_Architecture.md.
 - Controllers: GoCardlessController (routes under settings/bank). BankDataController for settings UI.
 - Use BankDataClientInterface; production vs mock via client factories (GoCardlessClientFactoryInterface, ProductionClientFactory, MockClientFactory).
