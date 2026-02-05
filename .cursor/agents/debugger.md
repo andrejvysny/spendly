@@ -1,6 +1,6 @@
 ---
 name: debugger
-description: "Debugging specialist for errors and test failures. Use when encountering issues or investigating root cause."
+description: "Debugging specialist for errors and test failures. Use when encountering runtime errors, failing tests, regressions, or when root-cause analysis is needed."
 model: inherit
 ---
 
