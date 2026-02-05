@@ -11,7 +11,10 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Import\Import;
 use App\Services\Csv\CsvProcessor;
+use App\Services\TransactionImport\FieldDetection\AutoDetectionService;
 use App\Services\TransactionImport\ImportMappingService;
+use App\Services\TransactionImport\Parsers\AmountParser;
+use App\Services\TransactionImport\Parsers\DateParser;
 use App\Jobs\RecurringDetectionJob;
 use App\Models\RecurringDetectionSetting;
 use App\Services\TransactionImport\TransactionImportService;
@@ -27,7 +30,8 @@ class ImportWizardController extends Controller
     public function __construct(
         private readonly CsvProcessor $csvProcessor,
         private readonly TransactionImportService $importService,
-        private readonly ImportMappingService $mappingService
+        private readonly ImportMappingService $mappingService,
+        private readonly AutoDetectionService $autoDetectionService
     ) {}
 
     public function upload(ImportUploadRequest $request): JsonResponse
@@ -254,6 +258,108 @@ class ImportWizardController extends Controller
 
         return response()->json([
             'message' => 'Columns mapped',
+        ]);
+    }
+
+    /**
+     * Auto-detect column mappings and date/amount formats from import sample data.
+     */
+    public function autoDetect(Import $import): JsonResponse
+    {
+        if ($import->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized access to import');
+        }
+
+        $path = "imports/{$import->filename}";
+        if (! Storage::exists($path)) {
+            return response()->json(['message' => 'Import file not found'], 404);
+        }
+
+        $delimiter = $import->metadata['delimiter'] ?? ',';
+        $quoteChar = $import->metadata['quote_char'] ?? '"';
+        $sampleSize = 100;
+
+        $csvData = $this->csvProcessor->getRows($path, $delimiter, $quoteChar, $sampleSize);
+        $headers = $csvData->getHeaders();
+        $rows = $csvData->getRows();
+
+        $result = $this->autoDetectionService->detectMappings($headers, $rows);
+
+        return response()->json([
+            'mappings' => $result['mappings'],
+            'overall_confidence' => $result['overall_confidence'],
+            'detected_formats' => [
+                'date' => $result['detected_date_format'],
+                'amount' => $result['detected_amount_format'],
+            ],
+        ]);
+    }
+
+    /**
+     * Detect date and amount formats from sample column values.
+     */
+    public function detectFormats(Request $request, Import $import): JsonResponse
+    {
+        if ($import->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized access to import');
+        }
+
+        $dateColumnIndex = $request->input('date_column_index');
+        $amountColumnIndex = $request->input('amount_column_index');
+
+        $path = "imports/{$import->filename}";
+        if (! Storage::exists($path)) {
+            return response()->json(['message' => 'Import file not found'], 404);
+        }
+
+        $delimiter = $import->metadata['delimiter'] ?? ',';
+        $quoteChar = $import->metadata['quote_char'] ?? '"';
+        $csvData = $this->csvProcessor->getRows($path, $delimiter, $quoteChar, 50);
+        $rows = $csvData->getRows();
+
+        $dateFormat = null;
+        $amountFormat = null;
+
+        if ($dateColumnIndex !== null && $dateColumnIndex !== '') {
+            $dateValues = array_map(fn ($row) => (string) ($row[(int) $dateColumnIndex] ?? ''), $rows);
+            $dateValues = array_filter($dateValues);
+            $dateParser = app(DateParser::class);
+            $dateFormat = $dateParser->detectFormatFromSamples($dateValues);
+        }
+
+        if ($amountColumnIndex !== null && $amountColumnIndex !== '') {
+            $amountValues = array_map(fn ($row) => (string) ($row[(int) $amountColumnIndex] ?? ''), $rows);
+            $amountValues = array_filter($amountValues);
+            $amountParser = app(AmountParser::class);
+            $amountFormat = $amountParser->detectFormatFromSamples($amountValues);
+        }
+
+        return response()->json([
+            'detected_formats' => [
+                'date' => $dateFormat,
+                'amount' => $amountFormat,
+            ],
+        ]);
+    }
+
+    /**
+     * Preview parsed rows with current mapping (for validation indicators).
+     */
+    public function previewMapping(Request $request, Import $import): JsonResponse
+    {
+        if ($import->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized access to import');
+        }
+
+        try {
+            $previewData = $this->importService->getPreview($import, (int) ($request->input('limit', 10)));
+        } catch (\Exception $e) {
+            Log::error('Failed to generate preview', ['import_id' => $import->id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Failed to generate preview'], 500);
+        }
+
+        return response()->json([
+            'preview_rows' => $previewData,
         ]);
     }
 

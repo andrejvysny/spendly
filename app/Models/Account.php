@@ -25,6 +25,8 @@ class Account extends BaseModel implements OwnedByUserContract
         'currency',
         'balance',
         'gocardless_account_id',
+        'gocardless_institution_id',
+        'bic',
         'is_gocardless_synced',
         'gocardless_last_synced_at',
         'import_data',

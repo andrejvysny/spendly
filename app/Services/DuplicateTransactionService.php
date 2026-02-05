@@ -157,43 +157,26 @@ class DuplicateTransactionService
 
     /**
      * Determine if a record is a duplicate for the given user.
+     * Uses Transaction::generateFingerprint and the transactions.fingerprint column.
      *
-     * @param  array<string, mixed>  $input
+     * @param  array<string, mixed>  $input  Must include account_id and fingerprint attributes (amount, processed_date, description, etc.)
      */
     public function isDuplicate(array $input, int $userId): bool
     {
-        return false; // Temporarily disable duplicate checks
-
-        // TODO: Re-enable duplicate checks when TransactionFingerprint model is implemented
-        $normalized = $this->normalizeRecord($input);
-        $fingerprint = $this->buildFingerprint($normalized);
-
-        //        $exists = TransactionFingerprint::where('user_id', $userId)
-        //            ->where('fingerprint', $fingerprint)
-        //            ->exists();
-        //        if ($exists) {
-        //            return true;
-        //        }
-
-        $candidates = $this->fetchCandidates($normalized, $userId);
-        foreach ($candidates as $candidate) {
-            if ($this->computeScore($normalized, $candidate) >= 0.80) {
-                return true;
-            }
+        $accountId = $input['account_id'] ?? null;
+        if ($accountId === null || $accountId === '') {
+            return false;
         }
 
-        // Save the fingerprint for future duplicate checks
-        //        TransactionFingerprint::updateOrCreate(
-        //            [
-        //                'user_id' => $userId,
-        //                'fingerprint' => $fingerprint,
-        //            ],
-        //            [
-        //                'created_at' => now(),
-        //            ]
-        //        );
+        $fingerprint = $input['fingerprint'] ?? null;
+        if ($fingerprint === null || $fingerprint === '') {
+            $fingerprint = Transaction::generateFingerprint($input);
+        }
 
-        return false;
+        return Transaction::where('account_id', $accountId)
+            ->where('fingerprint', $fingerprint)
+            ->whereNotNull('fingerprint')
+            ->exists();
     }
 
     /**

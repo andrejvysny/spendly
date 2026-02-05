@@ -74,6 +74,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
                     'currency' => 'EUR',
                 ],
                 'remittanceInformationUnstructured' => 'Mock Transaction ' . $i,
+                'remittanceInformationUnstructuredArray' => ['Mock Transaction ' . $i],
             ];
         }
 

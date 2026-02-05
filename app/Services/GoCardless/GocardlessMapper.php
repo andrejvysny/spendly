@@ -4,14 +4,14 @@ namespace App\Services\GoCardless;
 
 use App\Models\Account;
 use App\Models\Transaction;
+use App\Services\GoCardless\FieldExtractors\FieldExtractorFactory;
 use Carbon\Carbon;
 
 class GocardlessMapper
 {
-    /**
-     * Initializes a new instance of the GocardlessMapper class.
-     */
-    public function __construct() {}
+    public function __construct(
+        private readonly FieldExtractorFactory $extractorFactory
+    ) {}
 
     /**
      * Maps GoCardless account data into a structured array for application use.
@@ -141,39 +141,60 @@ class GocardlessMapper
      *
      * @param  array  $transaction  Raw transaction data from GoCardless.
      * @param  Account  $account  The associated account model.
+     * @param  Carbon  $syncDate  Date of sync (used when dates are missing).
      * @return array Structured transaction data suitable for application processing.
      */
-    public function mapTransactionData(array $transaction, Account $account): array
+    public function mapTransactionData(array $transaction, Account $account, Carbon $syncDate): array
     {
-        // Parse dates
+        $extractor = $this->extractorFactory->make($account);
+
         $bookedRaw = $this->get($transaction, 'bookingDateTime', $this->get($transaction, 'bookingDate'));
         $bookedDateTime = $this->parseDate($bookedRaw);
-
         $valueRaw = $this->get($transaction, 'valueDateTime', $this->get($transaction, 'valueDate', $bookedRaw));
         $valueDateTime = $this->parseDate($valueRaw);
 
-        // Extract amount and currency
-        $amount = $this->get($transaction, 'transactionAmount.amount', 0);
+        $amountRaw = $this->get($transaction, 'transactionAmount.amount', 0);
+        $amount = is_numeric($amountRaw) ? (float) $amountRaw : 0.0;
         $currency = $this->get($transaction, 'transactionAmount.currency', 'EUR');
 
-        // Extract IBANs
         $sourceIban = $this->get($transaction, 'debtorAccount.iban');
         $targetIban = $this->get($transaction, 'creditorAccount.iban');
 
-        // Extract partner name
-        $partner = $this->extractPartnerName($transaction);
+        $description = $extractor->extractDescription($transaction);
+        if (trim($description) === '') {
+            $partner = $extractor->extractPartner($transaction);
+            $description = $partner ?: 'Transaction ' . ($this->get($transaction, 'transactionId') ?? 'unknown');
+        }
+        $partner = $extractor->extractPartner($transaction);
+        $type = $extractor->extractTransactionType($transaction, $amount);
+        $metadata = $extractor->extractMetadata($transaction);
 
-        // Format description
-        $description = $this->formatDescription($transaction);
+        $currencyExchange = $extractor->extractCurrencyExchange($transaction);
+        $originalCurrency = null;
+        $originalAmount = null;
+        $exchangeRate = null;
+        if ($currencyExchange !== null) {
+            $metadata['currency_exchange'] = $currencyExchange;
+            $originalCurrency = $currencyExchange['sourceCurrency'] ?? null;
+            $instructed = $currencyExchange['instructedAmount'] ?? [];
+            $originalAmount = isset($instructed['amount']) ? (float) $instructed['amount'] : null;
+            $exchangeRate = isset($currencyExchange['exchangeRate']) ? (float) $currencyExchange['exchangeRate'] : null;
+        }
 
-        // Determine transaction type
-        $type = $this->determineTransactionType($transaction);
+        $transactionId = $this->get($transaction, 'transactionId');
+        $internalTransactionId = $this->get($transaction, 'internalTransactionId');
+        $entryReference = $this->get($transaction, 'entryReference');
+        $bankTransactionCode = $this->get($transaction, 'bankTransactionCode');
 
-        // Extract metadata
-        $metadata = $this->extractMetadata($transaction);
+        $importDataJson = $transaction;
+        try {
+            $importDataEncoded = json_encode($importDataJson, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException) {
+            $importDataEncoded = '{}';
+        }
 
         return [
-            'transaction_id' => $this->get($transaction, 'transactionId'),
+            'transaction_id' => $transactionId,
             'account_id' => $account->id,
             'gocardless_account_id' => $account->gocardless_account_id,
             'is_gocardless_synced' => true,
@@ -192,7 +213,14 @@ class GocardlessMapper
 
             'balance_after_transaction' => $this->get($transaction, 'balanceAfterTransaction.balanceAmount.amount', 0),
             'metadata' => $metadata,
-            'import_data' => json_encode($transaction, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'import_data' => $importDataEncoded,
+
+            'original_currency' => $originalCurrency,
+            'original_amount' => $originalAmount,
+            'exchange_rate' => $exchangeRate,
+            'internal_transaction_id' => $internalTransactionId,
+            'entry_reference' => $entryReference,
+            'bank_transaction_code' => $bankTransactionCode,
         ];
     }
 

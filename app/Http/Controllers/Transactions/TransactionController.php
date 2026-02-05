@@ -107,6 +107,30 @@ class TransactionController extends Controller
     }
 
     /**
+     * Display transactions that need manual review (e.g. flagged during import).
+     */
+    public function reviewQueue(Request $request): \Inertia\Response
+    {
+        $query = Transaction::whereHas('account', function (Builder $q) {
+            $q->where('user_id', Auth::id());
+        })
+            ->where('needs_manual_review', true)
+            ->with(['account'])
+            ->orderByDesc('booked_date');
+
+        if ($request->filled('review_reason')) {
+            $query->where('review_reason', 'like', '%' . $request->review_reason . '%');
+        }
+
+        $transactions = $query->paginate(50);
+
+        return Inertia::render('transactions/review', [
+            'transactions' => $transactions,
+            'filters' => $request->only('review_reason'),
+        ]);
+    }
+
+    /**
      * Retrieves a paginated list of transactions for the authenticated user, applying filters and returning results as JSON.
      *
      * Applies filters for search term, transaction type, account, merchant, category, and date range. Returns the paginated transactions and a flag indicating if more pages are available.
@@ -381,6 +405,7 @@ class TransactionController extends Controller
             'note' => 'nullable|string',
             'partner' => 'nullable|string',
             'place' => 'nullable|string',
+            'needs_manual_review' => 'nullable|boolean',
         ]);
 
         try {
