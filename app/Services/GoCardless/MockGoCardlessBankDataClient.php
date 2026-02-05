@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\GoCardless;
 
 use App\Models\User;
+use App\Services\GoCardless\Mock\MockGoCardlessFixtureRepository;
 use Illuminate\Support\Facades\Cache;
 
 class MockGoCardlessBankDataClient implements BankDataClientInterface
@@ -15,7 +16,12 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     private const string MOCK_ACCOUNT_2 = 'mock_account_2';
 
-    public function __construct(private User $user) {}
+    private const string MOCK_INSTITUTION = 'MOCK_INSTITUTION';
+
+    public function __construct(
+        private User $user,
+        private MockGoCardlessFixtureRepository $fixtureRepository
+    ) {}
 
     public function getSecretTokens(): array
     {
@@ -38,15 +44,30 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     public function getAccounts(string $requisitionId): array
     {
-        $this->markRequisitionLinked($requisitionId);
+        $requisition = $this->findRequisition($requisitionId);
+        $institutionId = $requisition !== null ? ($requisition['institution_id'] ?? null) : null;
+        $accountIds = $this->getAccountIdsForRequisition($institutionId);
+        $this->markRequisitionLinked($requisitionId, $accountIds);
 
-        return [self::MOCK_ACCOUNT_1, self::MOCK_ACCOUNT_2];
+        return $accountIds;
     }
 
     public function getAccountDetails(string $accountId): array
     {
+        $payload = $this->fixtureRepository->getAccountDetailsPayload($accountId);
+        if ($payload !== null) {
+            $resolved = $this->fixtureRepository->resolveAccountId($accountId);
+            if ($resolved !== null) {
+                $payload['account']['institution_id'] = $resolved['institution'];
+                $payload['account']['id'] = $accountId;
+            }
+
+            return $payload;
+        }
+
         return [
             'account' => [
+                'id' => $accountId,
                 'resourceId' => $accountId,
                 'iban' => 'GB99MOCK' . substr(md5($accountId), 0, 8),
                 'name' => 'Mock Account ' . substr($accountId, -4),
@@ -59,6 +80,11 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     public function getTransactions(string $accountId, ?string $dateFrom = null, ?string $dateTo = null): array
     {
+        $payload = $this->fixtureRepository->getTransactionsPayload($accountId, $dateFrom, $dateTo);
+        if ($payload !== null) {
+            return $payload;
+        }
+
         $transactions = [
             'booked' => [],
             'pending' => [],
@@ -95,6 +121,11 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     public function getBalances(string $accountId): array
     {
+        $payload = $this->fixtureRepository->getBalancesPayload($accountId);
+        if ($payload !== null) {
+            return $payload;
+        }
+
         return [
             'balances' => [
                 [
@@ -136,7 +167,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
                 $requisitionId,
                 '',
                 'LN',
-                'MOCK_INSTITUTION',
+                self::MOCK_INSTITUTION,
                 'mock_agreement_id',
                 [self::MOCK_ACCOUNT_1, self::MOCK_ACCOUNT_2]
             );
@@ -161,9 +192,13 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     public function getInstitutions(string $countryCode): array
     {
+        if ($this->fixtureRepository->hasFixtureData()) {
+            return $this->fixtureRepository->getInstitutions($countryCode);
+        }
+
         return [
             [
-                'id' => 'MOCK_INSTITUTION',
+                'id' => self::MOCK_INSTITUTION,
                 'name' => 'Mock Bank',
                 'bic' => 'MOCKGB2L',
                 'transaction_total_days' => '90',
@@ -233,17 +268,37 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
         $this->setCachedRequisitions($list);
     }
 
-    private function markRequisitionLinked(string $requisitionId): void
+    /**
+     * @param  array<int, string>  $accountIds
+     */
+    private function markRequisitionLinked(string $requisitionId, array $accountIds): void
     {
         $list = $this->getCachedRequisitions();
         foreach ($list as $i => $req) {
             if (($req['id'] ?? '') === $requisitionId) {
                 $list[$i]['status'] = 'LN';
-                $list[$i]['accounts'] = [self::MOCK_ACCOUNT_1, self::MOCK_ACCOUNT_2];
+                $list[$i]['accounts'] = $accountIds;
                 $this->setCachedRequisitions($list);
                 break;
             }
         }
+    }
+
+    /**
+     * Get account IDs for a requisition's institution (fixture or fallback).
+     *
+     * @return array<int, string>
+     */
+    private function getAccountIdsForRequisition(?string $institutionId): array
+    {
+        if ($institutionId !== null && $institutionId !== '') {
+            $ids = $this->fixtureRepository->getAccountIdsForInstitution($institutionId);
+            if ($ids !== []) {
+                return $ids;
+            }
+        }
+
+        return [self::MOCK_ACCOUNT_1, self::MOCK_ACCOUNT_2];
     }
 
     private function findRequisition(string $requisitionId): ?array

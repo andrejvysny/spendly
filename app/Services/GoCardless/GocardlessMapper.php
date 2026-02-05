@@ -23,16 +23,35 @@ class GocardlessMapper
     {
         return [
             'gocardless_account_id' => $data['id'] ?? null,
+            'gocardless_institution_id' => $data['institution_id'] ?? null,
             'name' => $data['name'] ?? null,
             'bank_name' => $data['bank_name'] ?? null,
             'iban' => $data['iban'] ?? null,
-            'type' => $data['type'] ?? null,
+            'type' => $this->mapAccountType($data),
             'currency' => $data['currency'] ?? null,
             'balance' => $data['balance'] ?? 0.00,
             'is_gocardless_synced' => true,
             'gocardless_last_synced_at' => now(),
             'import_data' => json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
         ];
+    }
+
+    /**
+     * Map GoCardless account type/cashAccountType to application account type.
+     * accounts.type is NOT NULL; GoCardless uses cashAccountType (CACC, SVGS, etc.).
+     */
+    private function mapAccountType(array $data): string
+    {
+        $raw = $data['type'] ?? $data['cashAccountType'] ?? null;
+        if ($raw === null || $raw === '') {
+            return 'checking';
+        }
+        $upper = strtoupper((string) $raw);
+        return match ($upper) {
+            'SVGS' => 'savings',
+            'CACC' => 'checking',
+            default => in_array($upper, ['CHECKING', 'SAVINGS'], true) ? strtolower($upper) : 'checking',
+        };
     }
 
     /**

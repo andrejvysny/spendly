@@ -294,6 +294,67 @@ class GoCardlessService
     }
 
     /**
+     * Enrich account IDs with details from local DB or GoCardless API.
+     *
+     * @param  array<int, string>  $accountIds
+     * @return array<int, array{id: string, local_id: int|null, name: string, iban: string|null, currency: string|null, owner_name: string|null, status: string, last_synced_at: string|null}>
+     */
+    public function getEnrichedAccountsForRequisition(array $accountIds, User $user): array
+    {
+        $enriched = [];
+        $this->getClient($user);
+
+        foreach ($accountIds as $accountId) {
+            $local = $this->accountRepository->findByGocardlessId($accountId, (int) $user->id);
+            if ($local !== null) {
+                $enriched[] = [
+                    'id' => $accountId,
+                    'local_id' => $local->id,
+                    'name' => $local->name ?? 'Account',
+                    'iban' => $local->iban,
+                    'currency' => $local->currency,
+                    'owner_name' => null,
+                    'status' => 'Imported',
+                    'last_synced_at' => $local->gocardless_last_synced_at?->toIso8601String(),
+                ];
+                continue;
+            }
+
+            try {
+                $details = $this->client->getAccountDetails($accountId);
+                $account = $details['account'] ?? [];
+                $enriched[] = [
+                    'id' => $accountId,
+                    'local_id' => null,
+                    'name' => $account['name'] ?? $account['product'] ?? 'Account',
+                    'iban' => $account['iban'] ?? null,
+                    'currency' => $account['currency'] ?? null,
+                    'owner_name' => $account['ownerName'] ?? null,
+                    'status' => 'Ready to import',
+                    'last_synced_at' => null,
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('Failed to fetch account details for enrichment', [
+                    'account_id' => $accountId,
+                    'error' => $e->getMessage(),
+                ]);
+                $enriched[] = [
+                    'id' => $accountId,
+                    'local_id' => null,
+                    'name' => 'Account',
+                    'iban' => null,
+                    'currency' => null,
+                    'owner_name' => null,
+                    'status' => 'Ready to import',
+                    'last_synced_at' => null,
+                ];
+            }
+        }
+
+        return $enriched;
+    }
+
+    /**
      * Get account IDs linked to a requisition.
      *
      * @return array<int, string>

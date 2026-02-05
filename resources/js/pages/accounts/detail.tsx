@@ -14,7 +14,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
-import ValueSplit from '@/components/ui/value-split';
 import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
 import { Account, Category, Merchant, Transaction } from '@/types/index';
@@ -22,7 +21,7 @@ import { formatAmount } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
-import { Settings } from 'lucide-react';
+import { Check, MoreVertical, Settings } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 interface Props {
@@ -123,10 +122,11 @@ export default function Detail({
 }: Props) {
     const [syncing, setSyncing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [updateExisting, setUpdateExisting] = useState(account.sync_options?.update_existing ?? false);
     const [forceMaxDateRange, setForceMaxDateRange] = useState(account.sync_options?.force_max_date_range ?? false);
     const [savingOptions, setSavingOptions] = useState(false);
-    const [refreshingBalance, setRefreshingBalance] = useState(false);
+    const [syncScope, setSyncScope] = useState<'both' | 'transactions' | 'balance'>('both');
     const [currentBalance, setCurrentBalance] = useState(account.balance);
 
     // Load more functionality
@@ -185,27 +185,37 @@ export default function Detail({
         [account.id],
     );
 
-    const handleSyncTransactions = async () => {
+    const handleSync = async () => {
         setSyncing(true);
         try {
-            axios
-                .post(`/api/bank-data/gocardless/accounts/${account.id}/sync-transactions`, {
+            const doTransactions = syncScope === 'both' || syncScope === 'transactions';
+            const doBalance = syncScope === 'both' || syncScope === 'balance';
+
+            if (doTransactions) {
+                const response = await axios.post(`/api/bank-data/gocardless/accounts/${account.id}/sync-transactions`, {
                     account_id: account.id,
                     update_existing: updateExisting,
                     force_max_date_range: forceMaxDateRange,
-                })
-                .then((response) => {
-                    if (response.status === 200) {
-                        // Optionally handle success response
-                        console.log('Transactions synced successfully');
-                        window.location.reload();
-                    } else {
-                        console.error('Failed to sync transactions:', response.data);
-                    }
                 });
-            // Refresh the page to show new transactions
-        } catch {
-            // Handle error silently
+                if (response.status !== 200) {
+                    console.error('Failed to sync transactions:', response.data);
+                }
+            }
+
+            if (doBalance) {
+                const response = await axios.post(`/api/bank-data/gocardless/accounts/${account.id}/refresh-balance`);
+                if (response.data?.success && response.data?.data?.balance != null) {
+                    setCurrentBalance(response.data.data.balance);
+                } else {
+                    console.error('Failed to refresh balance:', response.data?.error);
+                }
+            }
+
+            if (doTransactions) {
+                window.location.reload();
+            }
+        } catch (error) {
+            console.error('Sync error:', error);
         } finally {
             setSyncing(false);
         }
@@ -220,27 +230,11 @@ export default function Detail({
                 },
                 onError: () => {
                     console.error('Failed to delete account:');
+                    setDeleteDialogOpen(false);
                 },
             });
         } finally {
             setIsDeleting(false);
-        }
-    };
-
-    const handleRefreshBalance = async () => {
-        setRefreshingBalance(true);
-        try {
-            const response = await axios.post(`/api/bank-data/gocardless/accounts/${account.id}/refresh-balance`);
-            if (response.data.success) {
-                setCurrentBalance(response.data.data.balance);
-                console.log('Balance refreshed successfully:', response.data.data);
-            } else {
-                console.error('Failed to refresh balance:', response.data.error);
-            }
-        } catch (error) {
-            console.error('Error refreshing balance:', error);
-        } finally {
-            setRefreshingBalance(false);
         }
     };
 
@@ -282,35 +276,49 @@ export default function Detail({
                     <div className="w-full max-w-xs flex-shrink-0">
                         <div className="sticky top-8">
                             <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
-                                <h2 className="text-xl font-semibold">{account.name}</h2>
-                                <div className="text-muted-foreground mb-4 font-bold">{account.bank_name}</div>
+                                <div className="mb-4 flex items-center justify-between">
+                                    <h2 className="text-xl font-semibold">{account.name}</h2>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <MoreVertical className="h-4 w-4" />
+                                                <span className="sr-only">Account settings</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem
+                                                className="text-destructive focus:text-destructive"
+                                                onClick={() => setDeleteDialogOpen(true)}
+                                            >
+                                                Delete Account
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
 
-                                <ValueSplit
-                                    className="mb-4"
-                                    data={[
-                                        { label: 'IBAN', value: account.iban },
-                                        { label: 'Type', value: account.type },
-                                        { label: 'Currency', value: account.currency },
-                                        { label: 'Balance', value: formatAmount(currentBalance, account.currency) },
-                                        { label: 'Number of transactions', value: total_transactions },
-                                    ]}
-                                />
+                                {account.bank_name && (
+                                    <div className="mb-4 flex flex-col">
+                                        <span className="text-muted-foreground mb-1 text-xs">{'Bank'}</span>
+                                        <span className="text-sm">{account.bank_name}</span>
+                                    </div>
+                                )}
 
-                                <Button
-                                    variant="outline"
-                                    onClick={handleRefreshBalance}
-                                    disabled={refreshingBalance}
-                                    className="mb-4 w-full"
-                                >
-                                    {refreshingBalance ? 'Refreshing...' : 'Refresh Balance'}
-                                </Button>
+                                <div className="mb-4 flex flex-col gap-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-muted-foreground mb-1 text-xs">{'IBAN'}</span>
+                                        <span className="break-words text-sm">{account.iban || '—'}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-muted-foreground mb-1 text-xs">{'Type'}</span>
+                                        <span className="text-sm">{account.type}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-muted-foreground mb-1 text-xs">{'Balance'}</span>
+                                        <span className="text-sm">{formatAmount(currentBalance, account.currency)}</span>
+                                    </div>
+                                </div>
 
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="destructive" className="w-full">
-                                            Delete Account
-                                        </Button>
-                                    </AlertDialogTrigger>
+                                <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -342,34 +350,67 @@ export default function Detail({
                             {account.is_gocardless_synced && (
                                 <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
                                     <h3 className="mb-4 text-lg font-semibold">GoCardless</h3>
-                                    <ValueSplit
-                                        className="mb-4"
-                                        data={[
-                                            { label: 'Bank', value: account.bank_name },
-                                            { label: 'Account ID', value: account.gocardless_account_id },
-                                            {
-                                                label: 'Synced',
-                                                value: account.gocardless_last_synced_at ? formatDate(account.gocardless_last_synced_at) : 'Never',
-                                            },
-                                        ]}
-                                    />
+                                    <div className="mb-4 flex flex-col">
+                                        <span className="text-muted-foreground mb-1 text-xs">{'Synced'}</span>
+                                        <span className="text-sm">
+                                            {account.gocardless_last_synced_at ? formatDate(account.gocardless_last_synced_at) : 'Never'}
+                                        </span>
+                                    </div>
 
-                                    <div className="flex">
-                                        <Button onClick={handleSyncTransactions} disabled={syncing} className="flex-1 rounded-r-none">
-                                            {syncing ? 'Syncing...' : 'Sync Transactions'}
+                                    <div className="flex w-full">
+                                        <Button
+                                            onClick={handleSync}
+                                            disabled={syncing}
+                                            className="flex-1 rounded-r-none border-r border-border"
+                                        >
+                                            {syncing ? 'Syncing...' : 'Sync'}
                                         </Button>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button
-                                                    variant="outline"
-                                                    className="focus-none bg-foreground border-foreground text-background hover:bg-foreground/90 hover:text-background rounded-l-none border-1 focus-visible:ring-0"
+                                                    variant="default"
                                                     disabled={syncing}
+                                                    className="rounded-l-none px-3"
+                                                    aria-label="Sync settings"
                                                 >
                                                     <Settings className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="w-56">
-                                                <div className="px-2 py-1.5 text-sm font-semibold">Sync Settings</div>
+                                            <DropdownMenuContent align="end" className="w-64">
+                                                <div className="px-2 py-1.5 text-sm font-semibold">What to sync</div>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer flex-col items-start gap-0.5"
+                                                    onClick={(e) => { e.preventDefault(); setSyncScope('both'); }}
+                                                >
+                                                    <span className="flex items-center gap-2 text-sm font-medium">
+                                                        <span className="w-4">{syncScope === 'both' ? <Check className="h-4 w-4" /> : null}</span>
+                                                        Transactions and balance
+                                                    </span>
+                                                    <span className="text-muted-foreground text-xs">Sync transactions and refresh balance</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer flex-col items-start gap-0.5"
+                                                    onClick={(e) => { e.preventDefault(); setSyncScope('transactions'); }}
+                                                >
+                                                    <span className="flex items-center gap-2 text-sm font-medium">
+                                                        <span className="w-4">{syncScope === 'transactions' ? <Check className="h-4 w-4" /> : null}</span>
+                                                        Transactions only
+                                                    </span>
+                                                    <span className="text-muted-foreground text-xs">Fetch new and updated transactions</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    className="flex cursor-pointer flex-col items-start gap-0.5"
+                                                    onClick={(e) => { e.preventDefault(); setSyncScope('balance'); }}
+                                                >
+                                                    <span className="flex items-center gap-2 text-sm font-medium">
+                                                        <span className="w-4">{syncScope === 'balance' ? <Check className="h-4 w-4" /> : null}</span>
+                                                        Balance only
+                                                    </span>
+                                                    <span className="text-muted-foreground text-xs">Refresh account balance from bank</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <div className="px-2 py-1.5 text-sm font-semibold">How to sync</div>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
                                                     className="flex cursor-pointer items-center justify-between"

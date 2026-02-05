@@ -34,13 +34,18 @@ The integration uses **GoCardless Bank Account Data API v2** (base URL: `https:/
 
 ## 4. Mock (development)
 
-- Set `GOCARDLESS_USE_MOCK=true` in `.env` so all Bank Data operations use `MockGoCardlessBankDataClient`.
+- **Default in local/development**: When `APP_ENV` is `local` or `development`, the mock is used by default. You can override with `GOCARDLESS_USE_MOCK=true` or `GOCARDLESS_USE_MOCK=false` in `.env`.
+- **Fixture-based data**: If the directory `gocardless_bank_account_data/` exists, the mock loads institutions and account data from it. Each subdirectory (e.g. `Revolut`, `SLSP`) is an institution. Account IDs are discovered from `*_details.json` and `*_details_*.json` (e.g. `*_details_USD.json`) filenames. For each account, the mock serves:
+  - **Details**: `{institution}/{prefix}_details{suffix}.json` (shape `{ "account": { ... } }`). The mock injects `institution_id` so imported accounts get the correct field extractor (Revolut/SLSP).
+  - **Balances**: `{institution}/{prefix}_balances{suffix}.json`. If the file has no `closingBooked` balance, the mock adds one from the first available balance type so import/refresh work.
+  - **Transactions**: `{institution}/{prefix}_transactions_booked{suffix}.json` (and optional `_transactions_pending`). Results are filtered by `date_from`/`date_to` when provided.
+- **Fallback**: If an account ID has no fixture file (e.g. legacy `mock_account_1` / `mock_account_2`) or the fixture directory is missing, the mock falls back to in-memory fake data so existing tests and flows (e.g. `MOCK_INSTITUTION`) keep working.
 - Mock `createRequisition` returns a `link` that points to the app’s callback URL with `?mock=1&requisition_id=...`, so the full connect → redirect → callback → list → import/sync flow can be tested without the real API.
 - Mock stores requisitions in cache (per user) and returns API-aligned shapes (paginated list, single Requisition, account details with `account` key, balances, transactions with `booked`/`pending`).
 
 ## 5. Configuration and routes
 
-- **Config**: `config/services.php` → `gocardless.use_mock` (env `GOCARDLESS_USE_MOCK`, default false), `secret_id`, `secret_key`, etc.
+- **Config**: `config/services.php` → `gocardless.use_mock` (env `GOCARDLESS_USE_MOCK`; when unset, defaults to `true` if `APP_ENV` is `local` or `development`, otherwise `false`), `gocardless.mock_data_path` (env `GOCARDLESS_MOCK_DATA_PATH`, default `base_path('gocardless_bank_account_data')`), `secret_id`, `secret_key`, etc.
 - **Routes** (under `auth` except callback):  
   - `GET/PATCH settings/bank_data` (edit/update), `DELETE settings/bank_data/credentials`.  
   - `GET /api/bank-data/gocardless/institutions`, `GET/POST /api/bank-data/gocardless/requisitions`, `DELETE .../requisitions/{id}`.  
@@ -61,6 +66,7 @@ The integration uses **GoCardless Bank Account Data API v2** (base URL: `https:/
 | Controller     | `app/Http/Controllers/Settings/BankDataController.php` |
 | Service        | `app/Services/GoCardless/GoCardlessService.php` |
 | Clients        | `app/Services/GoCardless/GoCardlessBankDataClient.php`, `MockGoCardlessBankDataClient.php` |
+| Mock fixtures  | `app/Services/GoCardless/Mock/MockGoCardlessFixtureRepository.php`, `gocardless_bank_account_data/` |
 | Token          | `app/Services/GoCardless/TokenManager.php` |
 | Sync           | `app/Services/GoCardless/TransactionSyncService.php` |
 | Repositories    | `app/Repositories/TransactionRepository.php` (account-scoped getExistingTransactionIds / updateBatch) |
