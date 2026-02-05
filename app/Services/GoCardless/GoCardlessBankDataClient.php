@@ -67,7 +67,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
         // If we have a refresh token and it's not expired, use it to get a new access token
         if ($this->refreshToken && $this->refreshTokenExpires > new \DateTime) {
             $response = Http::post("{$this->baseUrl}/token/refresh/", [
-                'refresh_token' => $this->refreshToken,
+                'refresh' => $this->refreshToken,
             ]);
 
             if ($response->successful()) {
@@ -162,7 +162,6 @@ class GoCardlessBankDataClient implements BankDataClientInterface
                 'max_historical_days' => 90,
                 'access_valid_for_days' => 90,
                 'access_scope' => ['balances', 'details', 'transactions'],
-                'user_data' => $userData,
             ]);
 
         if (! $response->successful()) {

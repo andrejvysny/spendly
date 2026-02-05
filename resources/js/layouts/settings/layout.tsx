@@ -27,6 +27,11 @@ const sidebarNavItems: NavItem[] = [
         href: '/settings/bank_data',
         icon: null,
     },
+    {
+        title: 'Recurring detection',
+        href: '/settings/recurring',
+        icon: null,
+    },
 ];
 
 /**

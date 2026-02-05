@@ -12,6 +12,8 @@ use App\Models\Category;
 use App\Models\Import\Import;
 use App\Services\Csv\CsvProcessor;
 use App\Services\TransactionImport\ImportMappingService;
+use App\Jobs\RecurringDetectionJob;
+use App\Models\RecurringDetectionSetting;
 use App\Services\TransactionImport\TransactionImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -278,6 +280,12 @@ class ImportWizardController extends Controller
         try {
             // Process the import
             $results = $this->importService->processImport($import, $account->getKey());
+
+            // Run recurring detection if user has it enabled (async)
+            $settings = RecurringDetectionSetting::forUser((int) Auth::id());
+            if ($settings->run_after_import) {
+                RecurringDetectionJob::dispatch(Auth::id(), $account->getKey());
+            }
 
             // Determine response message based on import status
             $message = match ($import->fresh()->status) {

@@ -52,6 +52,7 @@ export interface Transaction {
     import_data?: Record<string, unknown> | undefined;
     merchant_id?: number;
     category_id?: number;
+    recurring_group_id?: number | null;
     note?: string;
     recipient_note?: string;
     place?: string;

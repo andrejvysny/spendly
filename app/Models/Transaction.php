@@ -28,6 +28,7 @@ class Transaction extends BaseModel
         'import_data',
         'merchant_id',
         'category_id',
+        'recurring_group_id',
         'note',
         'recipient_note',
         'place',
@@ -134,6 +135,14 @@ class Transaction extends BaseModel
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /**
+     * Get the recurring group this transaction belongs to (when confirmed).
+     */
+    public function recurringGroup(): BelongsTo
+    {
+        return $this->belongsTo(RecurringGroup::class);
     }
 
     /**

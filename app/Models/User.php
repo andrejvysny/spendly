@@ -118,6 +118,22 @@ class User extends Authenticatable
         );
     }
 
+    /**
+     * Get the recurring groups for the user.
+     */
+    public function recurringGroups(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\RecurringGroup::class);
+    }
+
+    /**
+     * Get the recurring detection settings for the user.
+     */
+    public function recurringDetectionSetting(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\RecurringDetectionSetting::class);
+    }
+
     public function getId(): mixed
     {
         return $this->id;

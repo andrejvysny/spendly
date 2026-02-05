@@ -1,11 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\GoCardless;
 
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 
 class MockGoCardlessBankDataClient implements BankDataClientInterface
 {
+    private const string CACHE_KEY_PREFIX = 'gocardless_mock_requisitions_';
+
+    private const string MOCK_ACCOUNT_1 = 'mock_account_1';
+
+    private const string MOCK_ACCOUNT_2 = 'mock_account_2';
+
     public function __construct(private User $user) {}
 
     public function getSecretTokens(): array
@@ -29,22 +38,21 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     public function getAccounts(string $requisitionId): array
     {
-        // Return a couple of mock accounts
-        return [
-            'mock_account_1',
-            'mock_account_2',
-        ];
+        $this->markRequisitionLinked($requisitionId);
+
+        return [self::MOCK_ACCOUNT_1, self::MOCK_ACCOUNT_2];
     }
 
     public function getAccountDetails(string $accountId): array
     {
         return [
             'account' => [
-                'id' => $accountId,
-                'iban' => 'GB99MOCK' . rand(10000000, 99999999),
+                'resourceId' => $accountId,
+                'iban' => 'GB99MOCK' . substr(md5($accountId), 0, 8),
                 'name' => 'Mock Account ' . substr($accountId, -4),
                 'currency' => 'EUR',
                 'ownerName' => 'Mock User',
+                'type' => 'checking',
             ],
         ];
     }
@@ -56,7 +64,6 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             'pending' => [],
         ];
 
-        // Generate some random booked transactions
         for ($i = 0; $i < 5; $i++) {
             $transactions['booked'][] = [
                 'transactionId' => 'mock_tx_booked_' . $accountId . '_' . $i,
@@ -70,16 +77,15 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             ];
         }
 
-         // Generate a pending transaction
         $transactions['pending'][] = [
-             'transactionId' => 'mock_tx_pending_' . $accountId,
-             'valueDate' => now()->addDays(1)->format('Y-m-d'),
-             'transactionAmount' => [
-                 'amount' => '-15.50',
-                 'currency' => 'EUR',
-             ],
-             'remittanceInformationUnstructured' => 'Pending Mock Transaction',
-         ];
+            'transactionId' => 'mock_tx_pending_' . $accountId,
+            'valueDate' => now()->addDays(1)->format('Y-m-d'),
+            'transactionAmount' => [
+                'amount' => '-15.50',
+                'currency' => 'EUR',
+            ],
+            'remittanceInformationUnstructured' => 'Pending Mock Transaction',
+        ];
 
         return [
             'transactions' => $transactions,
@@ -104,45 +110,51 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null): array
     {
-        return [
-            'id' => 'mock_requisition_' . uniqid(),
-            'created' => now()->toIso8601String(),
-            'redirect' => $redirectUrl,
-            'status' => 'CR',
-            'agreement' => $agreementId ?? 'mock_agreement_id',
-            'accounts' => [],
-            'link' => $redirectUrl,
-        ];
+        $id = 'mock_requisition_' . uniqid();
+        $requisition = $this->buildRequisition(
+            $id,
+            $redirectUrl,
+            'CR',
+            $institutionId,
+            $agreementId ?? 'mock_agreement_id',
+            []
+        );
+        $requisition['link'] = $redirectUrl . '?mock=1&requisition_id=' . $id;
+
+        $this->appendRequisition($requisition);
+
+        return $requisition;
     }
 
     public function getRequisitions(?string $requisitionId = null): array
     {
-        if ($requisitionId) {
-            return [
-                 'id' => $requisitionId,
-                 'created' => now()->subDays(1)->toIso8601String(),
-                 'status' => 'LN', // Linked
-                 'accounts' => ['mock_account_1', 'mock_account_2'],
-                 'institution_id' => 'MOCK_INSTITUTION',
-            ];
+        if ($requisitionId !== null) {
+            $single = $this->findRequisition($requisitionId);
+
+            return $single ?? $this->buildRequisition(
+                $requisitionId,
+                '',
+                'LN',
+                'MOCK_INSTITUTION',
+                'mock_agreement_id',
+                [self::MOCK_ACCOUNT_1, self::MOCK_ACCOUNT_2]
+            );
         }
 
+        $list = $this->getCachedRequisitions();
+
         return [
-            'count' => 1,
+            'count' => count($list),
             'next' => null,
             'previous' => null,
-            'results' => [
-                [
-                    'id' => 'mock_req_1',
-                    'status' => 'LN',
-                    'institution_id' => 'MOCK_INSTITUTION',
-                ]
-            ]
+            'results' => $list,
         ];
     }
 
     public function deleteRequisition(string $requisitionId): bool
     {
+        $this->removeRequisition($requisitionId);
+
         return true;
     }
 
@@ -153,10 +165,103 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
                 'id' => 'MOCK_INSTITUTION',
                 'name' => 'Mock Bank',
                 'bic' => 'MOCKGB2L',
-                'transaction_total_days' => 90,
+                'transaction_total_days' => '90',
+                'max_access_valid_for_days' => '90',
                 'countries' => [$countryCode],
                 'logo' => 'https://example.com/mock-logo.png',
             ],
         ];
+    }
+
+    /**
+     * Build a full Requisition shape matching API and RequisitionDto.
+     *
+     * @param  array<string>  $accounts
+     * @return array<string, mixed>
+     */
+    private function buildRequisition(
+        string $id,
+        string $redirect,
+        string $status,
+        string $institutionId,
+        string $agreement,
+        array $accounts,
+        ?string $link = null
+    ): array {
+        $base = [
+            'id' => $id,
+            'created' => now()->toIso8601String(),
+            'redirect' => $redirect,
+            'status' => $status,
+            'institution_id' => $institutionId,
+            'agreement' => $agreement,
+            'reference' => '',
+            'accounts' => $accounts,
+            'user_language' => 'EN',
+            'link' => $link ?? $redirect,
+            'ssn' => null,
+            'account_selection' => false,
+            'redirect_immediate' => false,
+        ];
+
+        return $base;
+    }
+
+    private function getCacheKey(): string
+    {
+        return self::CACHE_KEY_PREFIX . $this->user->id;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function getCachedRequisitions(): array
+    {
+        return Cache::get($this->getCacheKey(), []);
+    }
+
+    private function setCachedRequisitions(array $requisitions): void
+    {
+        Cache::put($this->getCacheKey(), $requisitions, now()->addDays(1));
+    }
+
+    private function appendRequisition(array $requisition): void
+    {
+        $list = $this->getCachedRequisitions();
+        $list[] = $requisition;
+        $this->setCachedRequisitions($list);
+    }
+
+    private function markRequisitionLinked(string $requisitionId): void
+    {
+        $list = $this->getCachedRequisitions();
+        foreach ($list as $i => $req) {
+            if (($req['id'] ?? '') === $requisitionId) {
+                $list[$i]['status'] = 'LN';
+                $list[$i]['accounts'] = [self::MOCK_ACCOUNT_1, self::MOCK_ACCOUNT_2];
+                $this->setCachedRequisitions($list);
+                break;
+            }
+        }
+    }
+
+    private function findRequisition(string $requisitionId): ?array
+    {
+        foreach ($this->getCachedRequisitions() as $req) {
+            if (($req['id'] ?? '') === $requisitionId) {
+                return $req;
+            }
+        }
+
+        return null;
+    }
+
+    private function removeRequisition(string $requisitionId): void
+    {
+        $list = array_values(array_filter(
+            $this->getCachedRequisitions(),
+            fn (array $req): bool => ($req['id'] ?? '') !== $requisitionId
+        ));
+        $this->setCachedRequisitions($list);
     }
 }

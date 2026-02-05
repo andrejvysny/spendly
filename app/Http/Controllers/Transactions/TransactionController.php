@@ -98,6 +98,7 @@ class TransactionController extends Controller
                 'amountFilterType', 'amountMin', 'amountMax',
                 'amountExact', 'amountAbove', 'amountBelow',
                 'dateFrom', 'dateTo', 'merchant_id', 'category_id',
+                'recurring_only',
             ]),
             'totalCount' => $totalCount,
         ]);
@@ -605,6 +606,12 @@ class TransactionController extends Controller
 
         if ($request->has('dateTo') && ! empty($request->dateTo)) {
             $query->whereDate('booked_date', '<=', $request->dateTo);
+            $isFiltered = true;
+        }
+
+        // Recurring only (has recurring_group_id)
+        if ($request->boolean('recurring_only')) {
+            $query->whereNotNull('recurring_group_id');
             $isFiltered = true;
         }
 

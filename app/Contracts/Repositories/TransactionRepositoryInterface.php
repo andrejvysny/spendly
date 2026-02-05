@@ -26,15 +26,19 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
     public function updateOrCreate(array $attributes, array $values): Transaction;
 
     /**
+     * Get existing transaction IDs for an account (scoped by account_id to avoid cross-account collisions).
+     *
      * @param  array<string>  $transactionIds
      * @return Collection<int, string>
      */
-    public function getExistingTransactionIds(array $transactionIds): Collection;
+    public function getExistingTransactionIds(int $accountId, array $transactionIds): Collection;
 
     /**
-     * @param  array<mixed>  $updates
+     * Update multiple transactions for an account (scoped by account_id).
+     *
+     * @param  array<mixed>  $updates  Map of transaction_id => data to update
      */
-    public function updateBatch(array $updates): int;
+    public function updateBatch(int $accountId, array $updates): int;
 
     /**
      * Find transactions by composite (account_id, transaction_id) pairs, with relations loaded.
@@ -60,4 +64,11 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
      * @return Collection<int, Transaction>
      */
     public function findByAccountIds(array $accountIds): Collection;
+
+    /**
+     * Get transactions for recurring detection within a date range.
+     *
+     * @return \Illuminate\Support\Collection<int, Transaction>
+     */
+    public function getForRecurringDetection(int $userId, \Carbon\Carbon $from, \Carbon\Carbon $to, ?int $accountId = null): \Illuminate\Support\Collection;
 }

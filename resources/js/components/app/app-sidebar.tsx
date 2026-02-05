@@ -4,7 +4,7 @@ import { NavUser } from '@/components/app/sidebar/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types/index';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { BookOpen, Coins, LayoutGrid, PieChartIcon, ShoppingBag, TagIcon, Tags, Users } from 'lucide-react';
+import { BookOpen, Coins, LayoutGrid, PieChartIcon, Repeat, ShoppingBag, TagIcon, Tags, Users } from 'lucide-react';
 import AppLogoIcon from './app-logo-icon';
 
 const mainNavItems: NavItem[] = [
@@ -42,6 +42,11 @@ const mainNavItems: NavItem[] = [
         title: 'Merchants',
         href: '/merchants',
         icon: ShoppingBag,
+    },
+    {
+        title: 'Recurring',
+        href: '/recurring',
+        icon: Repeat,
     },
     {
         title: 'Rules',
