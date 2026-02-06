@@ -646,6 +646,12 @@ class TransactionController extends Controller
             $isFiltered = true;
         }
 
+        // Unlinked only (no recurring group) – for "Add transaction" picker on recurring page
+        if ($request->boolean('unlinked_only')) {
+            $query->whereNull('recurring_group_id');
+            $isFiltered = true;
+        }
+
         return $isFiltered;
     }
 

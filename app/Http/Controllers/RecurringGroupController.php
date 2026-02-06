@@ -29,7 +29,11 @@ class RecurringGroupController extends Controller
         }
 
         $query = RecurringGroup::where('user_id', $user->id)
-            ->with(['merchant', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)]);
+            ->with(['merchant', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)])
+            ->withSum('transactions', 'amount')
+            ->withCount('transactions')
+            ->withMin('transactions', 'booked_date')
+            ->withMax('transactions', 'booked_date');
 
         $status = $request->query('status');
         if ($status === 'suggested') {
@@ -67,9 +71,12 @@ class RecurringGroupController extends Controller
         $addTag = $request->boolean('add_recurring_tag', true);
         $this->recurringDetectionService->confirmGroup($recurringGroup, $addTag);
 
+        $group = $recurringGroup->fresh(['merchant', 'account', 'transactions']);
+        $this->loadRecurringGroupStats($group);
+
         return response()->json([
             'message' => 'Recurring group confirmed',
-            'data' => $recurringGroup->fresh(['merchant', 'account', 'transactions']),
+            'data' => $group,
         ]);
     }
 
@@ -88,7 +95,7 @@ class RecurringGroupController extends Controller
     }
 
     /**
-     * Unlink a confirmed group from its transactions (optionally remove Recurring tag).
+     * Unlink a confirmed group from its transactions (optionally remove Recurring tag), then delete the group.
      */
     public function unlink(Request $request, RecurringGroup $recurringGroup): JsonResponse
     {
@@ -100,6 +107,78 @@ class RecurringGroupController extends Controller
         return response()->json([
             'message' => 'Recurring group unlinked from transactions',
         ]);
+    }
+
+    /**
+     * Detach specific transactions from a confirmed recurring group.
+     */
+    public function detachTransactions(Request $request, RecurringGroup $recurringGroup): JsonResponse
+    {
+        Gate::authorize('update', $recurringGroup);
+
+        $validated = $request->validate([
+            'transaction_ids' => ['required', 'array'],
+            'transaction_ids.*' => ['integer', 'min:1'],
+            'remove_recurring_tag' => ['boolean'],
+        ]);
+
+        $transactionIds = array_map('intval', $validated['transaction_ids']);
+        $removeTag = $request->boolean('remove_recurring_tag', true);
+
+        $this->recurringDetectionService->detachTransactionsFromGroup($recurringGroup, $transactionIds, $removeTag);
+
+        $group = $recurringGroup->fresh(['merchant', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)]);
+        $this->loadRecurringGroupStats($group);
+
+        return response()->json([
+            'message' => 'Transactions detached from recurring group',
+            'data' => $group,
+        ]);
+    }
+
+    /**
+     * Attach transactions to a confirmed recurring group (e.g. missed by detection).
+     */
+    public function attachTransactions(Request $request, RecurringGroup $recurringGroup): JsonResponse
+    {
+        Gate::authorize('update', $recurringGroup);
+
+        $validated = $request->validate([
+            'transaction_ids' => ['required', 'array'],
+            'transaction_ids.*' => ['integer', 'min:1'],
+            'add_recurring_tag' => ['boolean'],
+        ]);
+
+        $transactionIds = array_map('intval', $validated['transaction_ids']);
+        $addTag = $request->boolean('add_recurring_tag', true);
+
+        $result = $this->recurringDetectionService->attachTransactionsToGroup($recurringGroup, $transactionIds, $addTag);
+
+        if ($result['ineligible'] !== []) {
+            return response()->json([
+                'message' => 'Some transactions could not be attached (wrong account or already in another recurring group).',
+                'ineligible_transaction_ids' => $result['ineligible'],
+            ], 422);
+        }
+
+        $group = $recurringGroup->fresh(['merchant', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)]);
+        $this->loadRecurringGroupStats($group);
+
+        return response()->json([
+            'message' => 'Transactions attached to recurring group',
+            'data' => $group,
+        ]);
+    }
+
+    private function loadRecurringGroupStats(?RecurringGroup $group): void
+    {
+        if ($group === null) {
+            return;
+        }
+        $group->loadSum('transactions', 'amount');
+        $group->loadCount('transactions');
+        $group->loadMin('transactions', 'booked_date');
+        $group->loadMax('transactions', 'booked_date');
     }
 
     /**

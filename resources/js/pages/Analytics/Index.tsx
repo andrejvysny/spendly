@@ -27,6 +27,7 @@ import {
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { format } from 'date-fns';
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from '@inertiajs/react';
 import { Bar, Chart, Doughnut, Line } from 'react-chartjs-2';
 
 // Register ChartJS components
@@ -69,6 +70,23 @@ interface MerchantSpending {
 interface BalanceHistoryData {
     balanceHistory: Record<number, Record<string, number>>; // accountId -> period -> balance
     netWorthHistory: Record<string, number>; // period -> totalBalance
+}
+
+interface RecurringGroupStats {
+    first_payment_date: string | null;
+    last_payment_date: string | null;
+    transactions_count: number;
+    total_paid: number;
+    average_amount: number | null;
+    projected_yearly_cost: number;
+    next_expected_payment: string | null;
+}
+
+interface RecurringGroupItem {
+    id: number;
+    name: string;
+    interval: string;
+    stats?: RecurringGroupStats | null;
 }
 
 interface AnalyticsProps extends PageProps {
@@ -117,6 +135,20 @@ export default function Index({
     // Balance history state
     const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryData | null>(null);
     const [loadingBalanceHistory, setLoadingBalanceHistory] = useState(false);
+
+    // Recurring overview state
+    const [recurringGroups, setRecurringGroups] = useState<RecurringGroupItem[]>([]);
+    const [loadingRecurring, setLoadingRecurring] = useState(true);
+
+    // Fetch recurring confirmed groups for overview card
+    useEffect(() => {
+        setLoadingRecurring(true);
+        axios
+            .get<{ data: { confirmed: RecurringGroupItem[] } }>('/api/recurring?status=confirmed')
+            .then((res) => setRecurringGroups(res.data.data.confirmed ?? []))
+            .catch(() => setRecurringGroups([]))
+            .finally(() => setLoadingRecurring(false));
+    }, []);
 
     // Fetch balance history when accounts or date range changes
     const fetchBalanceHistory = useCallback(async () => {
@@ -908,6 +940,69 @@ export default function Index({
                                     </span>
                                 </div>
                             </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Recurring overview */}
+                <div className="bg-card rounded-xl border-1 p-6 shadow-xs">
+                    <h3 className="mb-4 text-lg font-semibold">Recurring overview</h3>
+                    {loadingRecurring ? (
+                        <div className="text-muted-foreground text-sm">Loading…</div>
+                    ) : recurringGroups.length === 0 ? (
+                        <div className="text-muted-foreground flex flex-col gap-2 text-sm">
+                            <p>No recurring subscriptions.</p>
+                            <Link href="/recurring" className="text-primary hover:underline">
+                                Go to Recurring payments →
+                            </Link>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-4">
+                            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-gray-400">Projected yearly</span>
+                                    <span className="text-base font-medium">
+                                        {formatAmount(
+                                            recurringGroups.reduce((sum, g) => sum + (g.stats?.projected_yearly_cost ?? 0), 0)
+                                        )}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-gray-400">Total paid (all time)</span>
+                                    <span className="text-base font-medium">
+                                        {formatAmount(
+                                            recurringGroups.reduce((sum, g) => sum + (g.stats?.total_paid ?? 0), 0)
+                                        )}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-gray-400">Subscriptions</span>
+                                    <span className="text-base font-medium">{recurringGroups.length}</span>
+                                </div>
+                            </div>
+                            {recurringGroups.length > 0 && (
+                                <div>
+                                    <p className="text-muted-foreground mb-2 text-xs">Top by projected yearly</p>
+                                    <ul className="space-y-1 text-sm">
+                                        {[...recurringGroups]
+                                            .sort((a, b) => (b.stats?.projected_yearly_cost ?? 0) - (a.stats?.projected_yearly_cost ?? 0))
+                                            .slice(0, 5)
+                                            .map((g) => (
+                                                <li key={g.id} className="flex justify-between gap-2">
+                                                    <Link href="/recurring" className="min-w-0 truncate hover:underline">
+                                                        {g.name}
+                                                    </Link>
+                                                    <span className="shrink-0 tabular-nums">
+                                                        {formatAmount(g.stats?.projected_yearly_cost ?? 0)}
+                                                    </span>
+                                                </li>
+                                            ))}
+                                    </ul>
+                                    <Link href="/recurring" className="text-muted-foreground mt-2 inline-block text-xs hover:underline">
+                                        View all →
+                                    </Link>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

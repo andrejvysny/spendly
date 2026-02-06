@@ -27,17 +27,20 @@ Spendly can automatically detect recurring payments (subscriptions and other rep
 
 ## API
 
-- `GET /api/recurring` – List suggested and confirmed groups.
+- `GET /api/recurring` – List suggested and confirmed groups. Confirmed groups include a **stats** object (derived from linked transactions): `first_payment_date`, `last_payment_date`, `transactions_count`, `total_paid`, `average_amount`, `projected_yearly_cost`, `next_expected_payment`.
 - `GET /api/recurring/analytics?month=&year=` – Monthly recurring total and by-group breakdown.
 - `GET /api/recurring/settings` – Get recurring detection settings.
 - `PUT /api/recurring/settings` – Update settings.
 - `POST /api/recurring/groups/{id}/confirm` – Confirm a suggested group (link transactions, optional "Recurring" tag).
 - `POST /api/recurring/groups/{id}/dismiss` – Dismiss a suggestion.
-- `POST /api/recurring/groups/{id}/unlink` – Unlink a confirmed group from its transactions.
+- `POST /api/recurring/groups/{id}/unlink` – Unlink and remove a confirmed group: detach its transactions (and optionally remove Recurring tag), then delete the group so it no longer appears in the list.
+- `POST /api/recurring/groups/{id}/detach-transactions` – Detach specific transactions from a confirmed group (body: `transaction_ids`, optional `remove_recurring_tag`). The group is not deleted.
+- `POST /api/recurring/groups/{id}/attach-transactions` – Attach existing transactions to a confirmed group (body: `transaction_ids`, optional `add_recurring_tag`). Respects group scope (per_account/per_user); returns 422 with `ineligible_transaction_ids` if any transaction is wrong account or already in another group.
 
 ## UI
 
-- **Recurring page** (`/recurring`): Suggested list (confirm/dismiss), confirmed list (with optional transaction list per group), and monthly recurring total.
+- **Recurring page** (`/recurring`): Suggested list (confirm/dismiss), confirmed list with per-subscription **statistics** (collapsed: started date, payment count, total paid; expanded: first/last payment, count, average, total paid, projected yearly, next expected), per-transaction "Detach" and "Add transaction", and monthly recurring total.
+- **Analytics page** (`/analytics`): **Recurring overview** card shows total projected yearly, total paid (all time), subscription count, and top 5 by projected yearly cost (with link to Recurring page).
 - **Transactions list**: Badge "Recurring" on transactions that have `recurring_group_id` set; filter "Recurring only" in the sidebar.
 - **Settings** (`/settings/recurring`): Scope, group by, amount variance type/value, run after import, scheduled detection toggles.
 
