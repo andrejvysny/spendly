@@ -494,7 +494,13 @@ class BankDataController extends Controller
 
             $settings = RecurringDetectionSetting::forUser($user->id);
             if ($settings->run_after_import) {
-                RecurringDetectionJob::dispatch($user->id, null);
+                foreach ($results as $result) {
+                    $accountId = $result['account_id'] ?? null;
+                    if (($result['status'] ?? '') !== 'success' || $accountId === null) {
+                        continue;
+                    }
+                    RecurringDetectionJob::dispatch($user->id, (int) $accountId);
+                }
             }
 
             return response()->json([

@@ -211,6 +211,18 @@ class GoCardlessService
         }
 
         try {
+            $user = $account->user;
+            if (! $user instanceof User) {
+                $user = $account->user()->first();
+            }
+            if (! $user instanceof User) {
+                Log::warning('Cannot refresh balance without account user', [
+                    'account_id' => $account->id,
+                ]);
+                return false;
+            }
+            $this->getClient($user);
+
             $balances = $this->client->getBalances($account->gocardless_account_id);
             $currentBalance = null;
 

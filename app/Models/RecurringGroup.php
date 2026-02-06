@@ -90,7 +90,7 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
 
     public function getUserId(): int
     {
-        return (int) $this->user_id;
+        return (int) $this->getAttribute('user_id');
     }
 
     /**
