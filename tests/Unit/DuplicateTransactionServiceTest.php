@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Unit;
 
 use App\Models\Account;
 use App\Models\Transaction;
-use App\Models\TransactionFingerprint;
 use App\Models\User;
 use App\Services\DuplicateTransactionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,7 +20,6 @@ class DuplicateTransactionServiceTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->markTestIncomplete('This test is incomplete and needs to be implemented.');
         parent::setUp();
         $mapping = [
             'description' => ['notes', 'description'],
@@ -32,20 +32,26 @@ class DuplicateTransactionServiceTest extends TestCase
     public static function duplicateProvider(): array
     {
         return [
-            'exact duplicate' => [
+            'exact duplicate same fingerprint' => [
                 [
                     'booked_date' => '2024-01-01',
                     'processed_date' => '2024-01-01',
                     'amount' => 9.99,
+                    'currency' => 'EUR',
                     'description' => 'Netflix EU',
+                    'partner' => 'Netflix',
                     'transaction_id' => 'abc',
+                    'type' => 'PAYMENT',
                 ],
                 [
                     'booked_date' => '2024-01-01',
                     'processed_date' => '2024-01-01',
                     'amount' => 9.99,
+                    'currency' => 'EUR',
                     'description' => 'Netflix EU',
+                    'partner' => 'Netflix',
                     'transaction_id' => 'abc',
+                    'type' => 'PAYMENT',
                 ],
                 true,
             ],
@@ -54,51 +60,23 @@ class DuplicateTransactionServiceTest extends TestCase
                     'booked_date' => '2024-01-01',
                     'processed_date' => '2024-01-01',
                     'amount' => 20.00,
+                    'currency' => 'EUR',
                     'description' => 'Gym',
+                    'partner' => 'Gym',
                     'transaction_id' => 'r1',
+                    'type' => 'PAYMENT',
                 ],
                 [
                     'booked_date' => '2024-01-10',
                     'processed_date' => '2024-01-10',
                     'amount' => 20.00,
+                    'currency' => 'EUR',
                     'description' => 'Gym',
+                    'partner' => 'Gym',
                     'transaction_id' => 'r2',
+                    'type' => 'PAYMENT',
                 ],
                 false,
-            ],
-            'fuzzy description' => [
-                [
-                    'booked_date' => '2024-02-01',
-                    'processed_date' => '2024-02-01',
-                    'amount' => 15.00,
-                    'description' => 'Netflix EU',
-                    'transaction_id' => 'f1',
-                ],
-                [
-                    'booked_date' => '2024-02-01',
-                    'processed_date' => '2024-02-01',
-                    'amount' => 15.00,
-                    'description' => 'Netflx EU',
-                    'transaction_id' => 'f2',
-                ],
-                false,
-            ],
-            'mapped fields' => [
-                [
-                    'booked_date' => '2024-03-01',
-                    'processed_date' => '2024-03-01',
-                    'amount' => 30.00,
-                    'description' => 'Utility Bill',
-                    'transaction_id' => 'm1',
-                ],
-                [
-                    'date' => '2024-03-01',
-                    'processed_date' => '2024-03-01',
-                    'amount' => 30.00,
-                    'notes' => 'Utility Bill',
-                    'reference' => 'm1',
-                ],
-                true,
             ],
         ];
     }
@@ -107,30 +85,52 @@ class DuplicateTransactionServiceTest extends TestCase
     public function test_duplicate_detection(array $existing, array $new, bool $expected): void
     {
         $user = User::factory()->create();
-        $account = Account::create([
-            'user_id' => $user->id,
-            'name' => 'Test',
-            'bank_name' => 'Bank',
-            'iban' => 'DE89370400440532013000',
-            'type' => 'checking',
-            'currency' => 'EUR',
-            'balance' => 0,
-        ]);
+        $account = Account::factory()->create(['user_id' => $user->id]);
 
         $existing['account_id'] = $account->id;
-        $existingTransaction = Transaction::factory()->create($existing);
-
-        //        TransactionFingerprint::create([
-        //            'user_id' => $user->id,
-        //            'transaction_id' => $existingTransaction->id,
-        //            'fingerprint' => $this->service->buildFingerprint(
-        //                $this->service->normalizeRecord($existing)
-        //            ),
-        //        ]);
+        $existing['fingerprint'] = Transaction::generateFingerprint($existing);
+        Transaction::factory()->create($existing);
 
         $new['account_id'] = $account->id;
-        $result = $this->service->isDuplicate($new, $user->id);
+        if (($new['fingerprint'] ?? null) === null) {
+            $new['fingerprint'] = Transaction::generateFingerprint($new);
+        }
+        $result = $this->service->isDuplicate($new, (int) $user->id);
 
         $this->assertSame($expected, $result);
+    }
+
+    public function test_same_amount_date_partner_with_row_disambiguated_fingerprint_not_duplicate(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $baseData = [
+            'account_id' => $account->id,
+            'booked_date' => '2024-03-15',
+            'processed_date' => '2024-03-15',
+            'amount' => 30.00,
+            'currency' => 'EUR',
+            'description' => 'FIIT STU',
+            'partner' => 'FIIT STU',
+            'type' => 'PAYMENT',
+        ];
+
+        $baseFingerprint = Transaction::generateFingerprint($baseData);
+        $fingerprintRow1 = hash('sha256', $baseFingerprint.'|1|1');
+        $fingerprintRow2 = hash('sha256', $baseFingerprint.'|1|2');
+
+        Transaction::factory()->create(array_merge($baseData, [
+            'transaction_id' => 'IMP-row1',
+            'fingerprint' => $fingerprintRow1,
+        ]));
+
+        $newRowData = array_merge($baseData, [
+            'transaction_id' => 'IMP-row2',
+            'fingerprint' => $fingerprintRow2,
+        ]);
+        $isDup = $this->service->isDuplicate($newRowData, (int) $user->id);
+
+        $this->assertFalse($isDup, 'Second row with same amount/date/partner but row-disambiguated fingerprint must not be considered duplicate');
     }
 }

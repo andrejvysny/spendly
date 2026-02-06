@@ -17,6 +17,7 @@ use App\Services\TransactionImport\Parsers\AmountParser;
 use App\Services\TransactionImport\Parsers\DateParser;
 use App\Jobs\RecurringDetectionJob;
 use App\Models\RecurringDetectionSetting;
+use App\Services\TransferDetectionService;
 use App\Services\TransactionImport\TransactionImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -31,7 +32,8 @@ class ImportWizardController extends Controller
         private readonly CsvProcessor $csvProcessor,
         private readonly TransactionImportService $importService,
         private readonly ImportMappingService $mappingService,
-        private readonly AutoDetectionService $autoDetectionService
+        private readonly AutoDetectionService $autoDetectionService,
+        private readonly TransferDetectionService $transferDetectionService
     ) {}
 
     public function upload(ImportUploadRequest $request): JsonResponse
@@ -83,10 +85,10 @@ class ImportWizardController extends Controller
             $request->getSampleRowsCount()
         );
 
-        // Count total rows
-        // Count total rows efficiently
+        // Count total rows and compute file signature for re-import detection
         $totalRows = 0;
-        $handle = fopen(Storage::path($path), 'r');
+        $fullPath = Storage::path($path);
+        $handle = fopen($fullPath, 'r');
         if ($handle) {
             while (! feof($handle)) {
                 fgets($handle);
@@ -95,6 +97,7 @@ class ImportWizardController extends Controller
             fclose($handle);
             $totalRows--; // Subtract 1 for header
         }
+        $fileSignature = hash_file('sha256', $fullPath);
 
         // Create new account if requested
         $accountId = $request->getAccountId();
@@ -123,6 +126,7 @@ class ImportWizardController extends Controller
                 'account_id' => $accountId,
                 'delimiter' => $request->getDelimiter(),
                 'quote_char' => $request->getQuoteChar(),
+                'file_signature' => $fileSignature,
             ],
         ]);
 
@@ -383,9 +387,41 @@ class ImportWizardController extends Controller
             ]);
         }
 
+        // Re-import detection: skip if this file was already imported for this user/account
+        $fileSignature = $import->metadata['file_signature'] ?? null;
+        $accountId = $import->metadata['account_id'] ?? $account->getKey();
+        if ($fileSignature !== null && $fileSignature !== '') {
+            $previousImport = Import::where('user_id', Auth::id())
+                ->where('id', '!=', $import->id)
+                ->whereIn('status', [Import::STATUS_COMPLETED, Import::STATUS_COMPLETED_SKIPPED_DUPLICATES])
+                ->whereJsonContains('metadata->file_signature', $fileSignature)
+                ->when($accountId, function ($q) use ($accountId) {
+                    $q->whereJsonContains('metadata->account_id', (int) $accountId);
+                })
+                ->first();
+            if ($previousImport !== null) {
+                return response()->json([
+                    'message' => 'This file was already imported. Re-importing the same file is skipped.',
+                    'import' => $import,
+                    'previous_import_id' => $previousImport->id,
+                ], 422);
+            }
+        }
+
         try {
             // Process the import
             $results = $this->importService->processImport($import, $account->getKey());
+
+            // Run transfer detection so same-day pairs across user accounts are marked as TRANSFER
+            try {
+                $this->transferDetectionService->detectAndMarkTransfersForUser((int) Auth::id());
+            } catch (\Throwable $e) {
+                Log::warning('Transfer detection after import failed', [
+                    'import_id' => $import->id,
+                    'user_id' => Auth::id(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             // Run recurring detection if user has it enabled (async)
             $settings = RecurringDetectionSetting::forUser((int) Auth::id());

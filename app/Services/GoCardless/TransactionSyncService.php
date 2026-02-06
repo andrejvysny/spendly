@@ -157,9 +157,23 @@ class TransactionSyncService
                         ]);
                     }
                 } else {
-                    $mappedData['created_at'] = now();
-                    $mappedData['updated_at'] = now();
-                    $toCreate[] = $mappedData;
+                    // Cross-source deduplication: if this transaction was previously imported via CSV,
+                    // update that row with GoCardless data instead of creating a duplicate
+                    $bookedDate = $mappedData['booked_date'] instanceof Carbon
+                        ? $mappedData['booked_date']
+                        : Carbon::parse($mappedData['booked_date']);
+                    $existingImport = $this->transactionRepository->findExistingImportByAmountAndDate(
+                        $account->id,
+                        $bookedDate,
+                        (float) $mappedData['amount']
+                    );
+                    if ($existingImport !== null) {
+                        $toUpdate[$existingImport->transaction_id] = $mappedData;
+                    } else {
+                        $mappedData['created_at'] = now();
+                        $mappedData['updated_at'] = now();
+                        $toCreate[] = $mappedData;
+                    }
                 }
             } catch (\Throwable $e) {
                 Log::error('Error mapping transaction', [

@@ -79,4 +79,10 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
     public function getForRecurringDetection(int $userId, Carbon $from, Carbon $to, ?int $accountId = null): Collection;
 
     public function fingerprintExists(int $accountId, string $fingerprint): bool;
+
+    /**
+     * Find an existing transaction that looks like a CSV import (IMP- or has import_data)
+     * with the same account, booked_date (day), and amount (±0.01). Used for cross-source deduplication.
+     */
+    public function findExistingImportByAmountAndDate(int $accountId, Carbon $bookedDate, float $amount): ?Transaction;
 }
