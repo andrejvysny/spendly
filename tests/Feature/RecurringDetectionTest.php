@@ -30,6 +30,7 @@ class RecurringDetectionTest extends TestCase
                 'amount' => -12.99,
                 'booked_date' => $date,
                 'processed_date' => $date,
+                'type' => 'PAYMENT',
             ]);
         }
 
@@ -66,6 +67,7 @@ class RecurringDetectionTest extends TestCase
                 'amount' => $amount,
                 'booked_date' => $date,
                 'processed_date' => $date,
+                'type' => 'PAYMENT',
             ]);
         }
 
@@ -103,6 +105,7 @@ class RecurringDetectionTest extends TestCase
                 'amount' => $amount,
                 'booked_date' => $date,
                 'processed_date' => $date,
+                'type' => 'PAYMENT',
             ]);
         }
 
@@ -139,6 +142,7 @@ class RecurringDetectionTest extends TestCase
                 'amount' => $amount,
                 'booked_date' => $date,
                 'processed_date' => $date,
+                'type' => 'PAYMENT',
             ]);
         }
 
@@ -361,5 +365,42 @@ class RecurringDetectionTest extends TestCase
         $this->assertSame(-10.0, (float) $stats['average_amount']);
         $this->assertLessThan(0, (float) $stats['projected_yearly_cost'], 'Projected yearly should be negative for expenses');
         $this->assertNotNull($stats['next_expected_payment']);
+    }
+
+    public function test_transfers_are_excluded_from_recurring_detection(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $dates = [
+            Carbon::parse('2025-11-01'),
+            Carbon::parse('2025-12-01'),
+            Carbon::parse('2026-01-01'),
+        ];
+        foreach ($dates as $i => $date) {
+            Transaction::factory()->create([
+                'account_id' => $account->id,
+                'transaction_id' => 'TRANSFER-'.$user->id.'-'.$i,
+                'description' => 'To savings',
+                'amount' => -100.00,
+                'booked_date' => $date,
+                'processed_date' => $date,
+                'type' => Transaction::TYPE_TRANSFER,
+            ]);
+        }
+
+        $repo = $this->app->make(TransactionRepositoryInterface::class);
+        $from = Carbon::now()->subMonths(12);
+        $to = Carbon::now();
+        $txs = $repo->getForRecurringDetection((int) $user->id, $from, $to, (int) $account->id);
+
+        $this->assertSame(0, $txs->count(), 'TYPE_TRANSFER transactions must be excluded from recurring detection');
+
+        $service = $this->app->make(RecurringDetectionService::class);
+        $service->runForUser((int) $user->id, null);
+
+        $suggested = RecurringGroup::where('user_id', $user->id)->where('status', RecurringGroup::STATUS_SUGGESTED)->get();
+        $transferGroup = $suggested->first(fn (RecurringGroup $g) => stripos($g->name, 'savings') !== false || stripos($g->name, 'transfer') !== false);
+        $this->assertNull($transferGroup, 'Transfers must not be suggested as recurring');
     }
 }

@@ -158,7 +158,8 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
         $query = $this->model
             ->with(['merchant', 'account'])
             ->whereHas('account', fn ($q) => $q->where('user_id', $userId))
-            ->whereBetween('booked_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
+            ->whereBetween('booked_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
+            ->where('type', '!=', Transaction::TYPE_TRANSFER);
 
         if ($accountId !== null) {
             $query->where('account_id', $accountId);
@@ -174,5 +175,25 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
             ->where('fingerprint', $fingerprint)
             ->whereNotNull('fingerprint')
             ->exists();
+    }
+
+    /**
+     * Find an existing transaction that looks like a CSV import with same account, date and amount.
+     * Used to attach GoCardless sync to an existing CSV-imported row (cross-source deduplication).
+     */
+    public function findExistingImportByAmountAndDate(int $accountId, Carbon $bookedDate, float $amount): ?Transaction
+    {
+        $dateStr = $bookedDate->format('Y-m-d');
+        $tolerance = 0.01;
+
+        return $this->model
+            ->where('account_id', $accountId)
+            ->whereDate('booked_date', $dateStr)
+            ->whereRaw('ABS(amount - ?) <= ?', [$amount, $tolerance])
+            ->where(function ($q) {
+                $q->where('transaction_id', 'like', 'IMP-%')
+                    ->orWhereNotNull('import_data');
+            })
+            ->first();
     }
 }
