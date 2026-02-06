@@ -103,6 +103,24 @@ class RecurringGroupController extends Controller
     }
 
     /**
+     * Trigger manual recurring detection for the authenticated user.
+     */
+    public function detect(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if ($user === null) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $created = $this->recurringDetectionService->runForUser($user->id);
+
+        return response()->json([
+            'message' => "Detection complete. Found {$created} new suggested group(s).",
+            'count' => $created,
+        ]);
+    }
+
+    /**
      * Analytics: monthly recurring total (sum of transactions linked to confirmed groups in the given month).
      */
     public function analytics(Request $request): JsonResponse

@@ -18,6 +18,31 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     private const string MOCK_INSTITUTION = 'MOCK_INSTITUTION';
 
+    private const array MOCK_ACCOUNTS = [
+        self::MOCK_ACCOUNT_1 => [
+            'institution_id' => 'Revolut',
+            'bank_name' => 'Revolut',
+            'name' => 'Mock Revolut Account',
+            'iban' => 'LT11MOCK000000000001',
+            'currency' => 'EUR',
+            'ownerName' => 'Mock User',
+            'cashAccountType' => 'CACC',
+            'type' => 'checking',
+            'bic' => 'REVOGB21',
+        ],
+        self::MOCK_ACCOUNT_2 => [
+            'institution_id' => 'SLSP',
+            'bank_name' => 'Slovenská sporiteľňa',
+            'name' => 'Mock SLSP Account',
+            'iban' => 'SK11MOCK000000000002',
+            'currency' => 'EUR',
+            'ownerName' => 'Mock User',
+            'cashAccountType' => 'CACC',
+            'type' => 'checking',
+            'bic' => 'GIBASKBX',
+        ],
+    ];
+
     public function __construct(
         private User $user,
         private MockGoCardlessFixtureRepository $fixtureRepository
@@ -65,15 +90,21 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             return $payload;
         }
 
+        $profile = $this->getMockAccountProfile($accountId);
+
         return [
             'account' => [
                 'id' => $accountId,
                 'resourceId' => $accountId,
-                'iban' => 'GB99MOCK' . substr(md5($accountId), 0, 8),
-                'name' => 'Mock Account ' . substr($accountId, -4),
-                'currency' => 'EUR',
-                'ownerName' => 'Mock User',
-                'type' => 'checking',
+                'iban' => $profile['iban'],
+                'name' => $profile['name'],
+                'currency' => $profile['currency'],
+                'ownerName' => $profile['ownerName'],
+                'cashAccountType' => $profile['cashAccountType'],
+                'type' => $profile['type'],
+                'institution_id' => $profile['institution_id'],
+                'bank_name' => $profile['bank_name'],
+                'bic' => $profile['bic'],
             ],
         ];
     }
@@ -86,37 +117,10 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
         }
 
         $transactions = [
-            'booked' => [],
-            'pending' => [],
+            'booked' => $this->buildMockBookedTransactions($accountId),
+            'pending' => $this->buildMockPendingTransactions($accountId),
         ];
-
-        for ($i = 0; $i < 5; $i++) {
-            $transactions['booked'][] = [
-                'transactionId' => 'mock_tx_booked_' . $accountId . '_' . $i,
-                'bookingDate' => now()->subDays($i)->format('Y-m-d'),
-                'valueDate' => now()->subDays($i)->format('Y-m-d'),
-                'transactionAmount' => [
-                    'amount' => (string) rand(-100, -10),
-                    'currency' => 'EUR',
-                ],
-                'remittanceInformationUnstructured' => 'Mock Transaction ' . $i,
-                'remittanceInformationUnstructuredArray' => ['Mock Transaction ' . $i],
-            ];
-        }
-
-        $transactions['pending'][] = [
-            'transactionId' => 'mock_tx_pending_' . $accountId,
-            'valueDate' => now()->addDays(1)->format('Y-m-d'),
-            'transactionAmount' => [
-                'amount' => '-15.50',
-                'currency' => 'EUR',
-            ],
-            'remittanceInformationUnstructured' => 'Pending Mock Transaction',
-        ];
-
-        return [
-            'transactions' => $transactions,
-        ];
+        return ['transactions' => $transactions];
     }
 
     public function getBalances(string $accountId): array
@@ -319,5 +323,180 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             fn (array $req): bool => ($req['id'] ?? '') !== $requisitionId
         ));
         $this->setCachedRequisitions($list);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function getMockAccountProfile(string $accountId): array
+    {
+        $profile = self::MOCK_ACCOUNTS[$accountId] ?? null;
+        if ($profile !== null) {
+            return $profile;
+        }
+
+        return [
+            'institution_id' => self::MOCK_INSTITUTION,
+            'bank_name' => 'Mock Bank',
+            'name' => 'Mock Account ' . substr($accountId, -4),
+            'iban' => 'GB99MOCK' . substr(md5($accountId), 0, 8),
+            'currency' => 'EUR',
+            'ownerName' => 'Mock User',
+            'cashAccountType' => 'CACC',
+            'type' => 'checking',
+            'bic' => 'MOCKGB2L',
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildMockBookedTransactions(string $accountId): array
+    {
+        $profile = $this->getMockAccountProfile($accountId);
+        $iban = $profile['iban'];
+        $otherAccountId = $accountId === self::MOCK_ACCOUNT_1 ? self::MOCK_ACCOUNT_2 : self::MOCK_ACCOUNT_1;
+        $otherIban = $this->getMockAccountProfile($otherAccountId)['iban'];
+
+        if ($accountId === self::MOCK_ACCOUNT_1) {
+            $booked = [];
+            $recurringOffsets = [90, 60, 30, 0];
+            foreach ($recurringOffsets as $idx => $daysAgo) {
+                $date = $this->daysAgo($daysAgo);
+                $booked[] = [
+                    'transactionId' => 'mock_tx_recurring_' . $accountId . '_' . $idx,
+                    'bookingDate' => $date,
+                    'valueDate' => $date,
+                    'transactionAmount' => [
+                        'amount' => '-9.99',
+                        'currency' => 'EUR',
+                    ],
+                    'remittanceInformationUnstructuredArray' => ['Netflix'],
+                    'creditorName' => 'Netflix',
+                    'debtorAccount' => ['iban' => $iban],
+                    'creditorAccount' => ['iban' => 'GB12MOCKNETFLIX01'],
+                    'proprietaryBankTransactionCode' => 'CARD_PAYMENT',
+                    'bankTransactionCode' => 'MCRD',
+                ];
+            }
+
+            $dupDate = $this->daysAgo(10);
+            $duplicateBase = [
+                'bookingDate' => $dupDate,
+                'valueDate' => $dupDate,
+                'transactionAmount' => [
+                    'amount' => '-12.34',
+                    'currency' => 'EUR',
+                ],
+                'remittanceInformationUnstructuredArray' => ['Mock Cafe'],
+                'creditorName' => 'Mock Cafe',
+                'debtorAccount' => ['iban' => $iban],
+                'creditorAccount' => ['iban' => 'GB12MOCKCAFE0001'],
+                'proprietaryBankTransactionCode' => 'CARD_PAYMENT',
+                'bankTransactionCode' => 'MCRD',
+            ];
+            $booked[] = array_merge($duplicateBase, ['transactionId' => 'mock_tx_duplicate_' . $accountId . '_a']);
+
+            $transferDate = $this->daysAgo(20);
+            $booked[] = [
+                'transactionId' => 'mock_tx_transfer_out_' . $accountId,
+                'bookingDate' => $transferDate,
+                'valueDate' => $transferDate,
+                'transactionAmount' => [
+                    'amount' => '-250.00',
+                    'currency' => 'EUR',
+                ],
+                'remittanceInformationUnstructured' => 'Transfer to savings',
+                'creditorName' => 'Savings Account',
+                'debtorAccount' => ['iban' => $iban],
+                'creditorAccount' => ['iban' => $otherIban],
+                'proprietaryBankTransactionCode' => 'CARD_PAYMENT',
+                'bankTransactionCode' => 'PMNT',
+            ];
+
+            return $booked;
+        }
+
+        if ($accountId === self::MOCK_ACCOUNT_2) {
+            $transferDate = $this->daysAgo(20);
+
+            return [
+                [
+                    'transactionId' => 'mock_tx_transfer_in_' . $accountId,
+                    'bookingDate' => $transferDate,
+                    'valueDate' => $transferDate,
+                    'transactionAmount' => [
+                        'amount' => '250.00',
+                        'currency' => 'EUR',
+                    ],
+                    'remittanceInformationUnstructured' => 'Transfer from main',
+                    'debtorName' => 'Main Account',
+                    'debtorAccount' => ['iban' => $otherIban],
+                    'creditorAccount' => ['iban' => $iban],
+                    'proprietaryBankTransactionCode' => 'MANUAL',
+                    'bankTransactionCode' => 'PMNT',
+                ],
+                [
+                    'transactionId' => 'mock_tx_slsp_card_' . $accountId,
+                    'bookingDate' => $this->daysAgo(5),
+                    'valueDate' => $this->daysAgo(5),
+                    'transactionAmount' => [
+                        'amount' => '-45.60',
+                        'currency' => 'EUR',
+                    ],
+                    'remittanceInformationUnstructured' => 'MCC-5411',
+                    'creditorName' => 'Local Grocery',
+                    'debtorAccount' => ['iban' => $iban],
+                    'creditorAccount' => ['iban' => 'SK99MOCKGROCERY01'],
+                    'proprietaryBankTransactionCode' => 'POSPAYMENT',
+                    'bankTransactionCode' => 'MCRD',
+                ],
+            ];
+        }
+
+        $fallbackDate = $this->daysAgo(1);
+
+        return [
+            [
+                'transactionId' => 'mock_tx_booked_' . $accountId,
+                'bookingDate' => $fallbackDate,
+                'valueDate' => $fallbackDate,
+                'transactionAmount' => [
+                    'amount' => '-25.00',
+                    'currency' => 'EUR',
+                ],
+                'remittanceInformationUnstructured' => 'Mock Transaction',
+                'debtorAccount' => ['iban' => $iban],
+                'creditorAccount' => ['iban' => 'GB12MOCKFALLBACK01'],
+                'proprietaryBankTransactionCode' => 'CARD_PAYMENT',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildMockPendingTransactions(string $accountId): array
+    {
+        if ($accountId !== self::MOCK_ACCOUNT_1) {
+            return [];
+        }
+
+        return [
+            [
+                'transactionId' => 'mock_tx_pending_' . $accountId,
+                'valueDate' => now()->addDays(1)->format('Y-m-d'),
+                'transactionAmount' => [
+                    'amount' => '-15.50',
+                    'currency' => 'EUR',
+                ],
+                'remittanceInformationUnstructured' => 'Pending Mock Transaction',
+            ],
+        ];
+    }
+
+    private function daysAgo(int $days): string
+    {
+        return now()->subDays($days)->format('Y-m-d');
     }
 }

@@ -83,6 +83,7 @@ Route::middleware(['web', 'auth'])->prefix('recurring')->group(function () {
     Route::get('/analytics', [RecurringGroupController::class, 'analytics'])->name('api.recurring.analytics');
     Route::get('/settings', [RecurringGroupController::class, 'getSettings'])->name('api.recurring.settings');
     Route::put('/settings', [RecurringGroupController::class, 'updateSettings'])->name('api.recurring.settings.update');
+    Route::post('/detect', [RecurringGroupController::class, 'detect'])->name('api.recurring.detect');
     Route::post('/groups/{recurringGroup}/confirm', [RecurringGroupController::class, 'confirm'])->name('api.recurring.confirm');
     Route::post('/groups/{recurringGroup}/dismiss', [RecurringGroupController::class, 'dismiss'])->name('api.recurring.dismiss');
     Route::post('/groups/{recurringGroup}/unlink', [RecurringGroupController::class, 'unlink'])->name('api.recurring.unlink');

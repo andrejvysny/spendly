@@ -190,14 +190,34 @@ class RecurringDetectionService
                 return 'm'.$tx->merchant_id;
             }
 
-            return 'd:'.$this->normalizeDescription((string) ($tx->description ?? ''));
+            return 'd:'.$this->normalizeDescriptionForPayee((string) ($tx->description ?? ''));
         }
 
         if ($tx->merchant_id !== null) {
             return 'm'.$tx->merchant_id;
         }
 
-        return 'd:'.$this->normalizeDescription((string) ($tx->description ?? ''));
+        return 'd:'.$this->normalizeDescriptionForPayee((string) ($tx->description ?? ''));
+    }
+
+    /**
+     * Normalize description for payee grouping only (not for display).
+     * Strips common recurring/suffix words so e.g. "Netflix Subscription" and "Netflix" yield the same key.
+     */
+    private function normalizeDescriptionForPayee(string $description): string
+    {
+        $s = $this->normalizeDescription($description);
+
+        $recurringSuffixWords = [
+            'subscription', 'payment', 'monthly', 'recurring', 'direct debit', 'dd',
+            'standing order', 'so', 'preauthorized', 'preauth', 'autopay', 'auto pay',
+        ];
+        foreach ($recurringSuffixWords as $word) {
+            $s = preg_replace('/\s*'.preg_quote($word, '/').'\s*/iu', ' ', $s);
+        }
+        $s = preg_replace('/\s+/u', ' ', trim($s));
+
+        return $s === '' ? $this->normalizeDescription($description) : $s;
     }
 
     private function normalizeDescription(string $description): string
@@ -220,7 +240,7 @@ class RecurringDetectionService
 
         $deltas = [];
         for ($i = 1; $i < count($dates); $i++) {
-            $deltas[] = $dates[$i]->diffInDays($dates[$i - 1]);
+            $deltas[] = (int) abs($dates[$i]->diffInDays($dates[$i - 1]));
         }
 
         if (count($deltas) === 0) {
@@ -246,16 +266,21 @@ class RecurringDetectionService
 
         if ($settings->amount_variance_type === RecurringDetectionSetting::AMOUNT_VARIANCE_PERCENT) {
             $pct = (float) $settings->amount_variance_value / 100;
-            $amountMin = $medianAmount * (1 - $pct);
-            $amountMax = $medianAmount * (1 + $pct);
+            $low = $medianAmount * (1 - $pct);
+            $high = $medianAmount * (1 + $pct);
+            $amountMin = min($low, $high);
+            $amountMax = max($low, $high);
         } else {
             $fixed = (float) $settings->amount_variance_value;
             $amountMin = $medianAmount - $fixed;
             $amountMax = $medianAmount + $fixed;
         }
 
+        $amountMinR = round($amountMin, 2);
+        $amountMaxR = round($amountMax, 2);
         foreach ($amounts as $a) {
-            if ($a < $amountMin || $a > $amountMax) {
+            $ar = round((float) $a, 2);
+            if ($ar < $amountMinR || $ar > $amountMaxR) {
                 return null;
             }
         }
