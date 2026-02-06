@@ -31,6 +31,7 @@ Failure handling requirements:
 Testing and verification:
 - Backend: run targeted tests when possible (e.g. import feature tests) and ensure failures are persisted and queryable.
 - Frontend: keep wizard flows testable; ensure types compile and no broken navigation between steps.
+- **CLI import**: Agents can run `php artisan import:csv <file> --account=<id|name>` (optionally `--mapping=Name`, `--user=`) with a file from `sample_data/csv/` to verify import behaviour end-to-end without the UI. See AGENTS.md for full options.
 
 Security and policy:
 - Enforce authorization (`ImportPolicy`) for all import and failure access; never allow cross-user access.

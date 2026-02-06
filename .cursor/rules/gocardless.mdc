@@ -10,3 +10,4 @@ alwaysApply: false
 - Controllers: GoCardlessController (routes under settings/bank). BankDataController for settings UI.
 - Use BankDataClientInterface; production vs mock via client factories (GoCardlessClientFactoryInterface, ProductionClientFactory, MockClientFactory).
 - Token/requisition flow: TokenManager, requisition creation and callback handling. Do not hardcode secrets.
+- **CLI**: All flows can be tested via terminal. Commands: `gocardless:institutions`, `gocardless:requisitions`, `gocardless:connect`, `gocardless:import-account`, `gocardless:sync`, `gocardless:sync-all`, `gocardless:delete-requisition`, `gocardless:refresh-balance`, `gocardless:retry-failures`. See AGENTS.md (GoCardless CLI) and docs/ai/GoCardless_Architecture.md.

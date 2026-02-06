@@ -10,3 +10,4 @@ alwaysApply: false
 - Key services: TransactionImportService, CsvProcessor, TransactionRowProcessor; mapping and persistence in app/Services/TransactionImport/, app/Services/Csv/.
 - When changing steps or mappings: keep backend step APIs and frontend wizard state in sync. Frontend: resources/js/pages/import/ (ImportWizard, wizard-steps/).
 - Reference: app/Http/Controllers/Import/ImportWizardController.php, resources/js/pages/import/components/ImportWizard.tsx.
+- **CLI import**: CSV can be imported from the terminal via `php artisan import:csv <file> --account=...`. See AGENTS.md (section "CLI and AI agent usage") for options and examples.
