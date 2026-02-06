@@ -185,6 +185,66 @@ npm run lint
 npm run format:check
 ```
 
+### CLI and AI agent usage (CSV import)
+
+CSV can be imported from the terminal without the web wizard. Useful for testing, verification, and automation.
+
+**Command:**
+```bash
+php artisan import:csv <file> --account=<id|name> [--user=] [--mapping=] [--delimiter=] [--currency=]
+```
+
+- **file**: Path to CSV (absolute or relative to project root).
+- **--account=**: Required. Account ID or account name for the chosen user.
+- **--user=**: User ID or email. Default: first user (convenient for single-user dev).
+- **--mapping=**: Name of a saved import mapping for this user. If omitted, column mapping and date/amount formats are auto-detected.
+- **--delimiter=**: Override delimiter (e.g. `;`). If omitted, detected from the file.
+- **--currency=**: Default `EUR` if not provided and not from mapping.
+- **--date-format=**: Override date format (e.g. `d.m.Y` for DD.MM.YYYY, or `Y-m-d H:i:s` for Revolut-style datetimes).
+
+**Examples:**
+```bash
+# Minimal: first user, account 1, auto-detect mapping
+php artisan import:csv sample_data/csv/SLSP/SK9009000000005124514591_2025-01-01_2026-02-06.csv --account=1
+
+# With saved mapping and explicit user
+php artisan import:csv sample_data/csv/SLSP/SK9009000000005124514591_2025-01-01_2026-02-06.csv --account=1 --mapping="SLSP Main" --user=1
+
+# SLSP (semicolon, DD.MM.YYYY dates) – use date-format if auto-detect is wrong
+php artisan import:csv sample_data/csv/SLSP/SK9009000000005124514591_2025-01-01_2026-02-06.csv --account="Main Checking" --user=3 --delimiter=";" --date-format=d.m.Y
+
+# Revolut (comma, datetime) – use date-format for Started/Completed Date columns
+php artisan import:csv sample_data/csv/Revolut/LT683250013083708433_2025-01-16_2026-02-06_USD.csv --account="Main Checking" --user=3 --date-format="Y-m-d H:i:s"
+```
+
+AI agents can use this command for import testing and regression checks without the UI. Sample CSVs live under `sample_data/csv/` (e.g. Revolut, SLSP). With seeded DB use `--user=3` for the demo user (who has accounts); omit `--mapping` to use auto-detect.
+
+### GoCardless CLI (bank data and sync)
+
+All GoCardless flows can be driven from the terminal for testing and AI agents. When `GOCARDLESS_USE_MOCK` is true (default in local/development), the mock client and fixtures under `gocardless_bank_account_data/` (or `GOCARDLESS_MOCK_DATA_PATH`) are used. Use `--user=` for user ID or email; default is first user.
+
+| Command | Purpose |
+|--------|--------|
+| `php artisan gocardless:institutions --country=gb` | List institutions for a country (mock: Revolut, SLSP, etc. from fixtures). |
+| `php artisan gocardless:requisitions` | List requisitions and their linked accounts. |
+| `php artisan gocardless:connect --institution=Revolut` | Create requisition and import all linked accounts (simulates callback flow). |
+| `php artisan gocardless:import-account LT683250013083708433` | Import a single account by GoCardless account ID (e.g. from fixtures). |
+| `php artisan gocardless:sync --account=1` | Sync transactions for one linked account. Options: `--no-update-existing`, `--force-max-date-range`. |
+| `php artisan gocardless:sync-all` | Sync all GoCardless-linked accounts for the user. |
+| `php artisan gocardless:delete-requisition {id}` | Delete a requisition by ID. |
+| `php artisan gocardless:refresh-balance --account=1` | Refresh balance from GoCardless for one linked account. |
+| `php artisan gocardless:retry-failures` | Retry unresolved GoCardless sync failures (existing command). |
+
+**Example (mock, full flow):**
+```bash
+php artisan gocardless:institutions --country=sk
+php artisan gocardless:connect --institution=SLSP --user=3
+php artisan gocardless:requisitions --user=3
+php artisan gocardless:sync --account=1 --user=3
+```
+
+Fixture data lives under `sample_data/gocardless_bank_account_data/` (Revolut, SLSP). Point `GOCARDLESS_MOCK_DATA_PATH` at that directory to use it.
+
 ## API Development Guidelines
 
 ### RESTful Endpoints

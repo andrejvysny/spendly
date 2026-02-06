@@ -217,6 +217,11 @@ class TransactionDataParser
             $desc = is_string($data['description']) ? $data['description'] : (string) $data['description'];
             $data['partner'] = strlen($desc) > 255 ? substr($desc, 0, 252).'...' : $desc;
         }
+        // If partner still empty (e.g. description was empty string), use type or default
+        $partnerEmpty = ! isset($data['partner']) || $data['partner'] === null || trim((string) $data['partner']) === '';
+        if ($partnerEmpty) {
+            $data['partner'] = trim((string) ($data['type'] ?? '')) !== '' ? ($data['type'] ?? '') : 'Imported transaction';
+        }
 
         // Validate required fields
         $requiredFields = ['booked_date', 'amount', 'partner'];
@@ -236,6 +241,11 @@ class TransactionDataParser
         // Generate transaction ID if not provided
         if (empty($data['transaction_id'])) {
             $data['transaction_id'] = 'IMP-'.uniqid();
+        }
+
+        // CSV imports may not map balance; DB column is NOT NULL
+        if (! isset($data['balance_after_transaction'])) {
+            $data['balance_after_transaction'] = 0;
         }
     }
 

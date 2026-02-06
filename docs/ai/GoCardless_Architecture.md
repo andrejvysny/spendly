@@ -51,7 +51,23 @@ The integration uses **GoCardless Bank Account Data API v2** (base URL: `https:/
   - `GET /api/bank-data/gocardless/institutions`, `GET/POST /api/bank-data/gocardless/requisitions`, `DELETE .../requisitions/{id}`.  
   - `GET /api/bank-data/gocardless/requisition/callback` (no auth).  
   - `POST /api/bank-data/gocardless/import/account`.  
-  - `POST /api/bank-data/gocardless/accounts/{account}/sync-transactions`, `POST .../accounts/sync-all`.
+  - `POST /api/bank-data/gocardless/accounts/{account}/sync-transactions`, `POST .../accounts/sync-all`, `POST .../accounts/{account}/refresh-balance`.
+
+### CLI commands (terminal / AI agents)
+
+All Bank Data operations can be run from the terminal. Use `--user=` for user ID or email; default is first user. See AGENTS.md for a short reference.
+
+| Command | Description |
+|--------|--------------|
+| `gocardless:institutions --country=` | List institutions (mock uses fixtures when `gocardless_bank_account_data/` or `GOCARDLESS_MOCK_DATA_PATH` is set). |
+| `gocardless:requisitions` | List requisitions and enriched accounts. |
+| `gocardless:connect --institution=` | Create requisition and import all linked accounts (simulates callback; no browser). |
+| `gocardless:import-account {id}` | Import one account by GoCardless account ID. |
+| `gocardless:sync --account=` | Sync transactions for one account. Options: `--no-update-existing`, `--force-max-date-range`. |
+| `gocardless:sync-all` | Sync all GoCardless-linked accounts. |
+| `gocardless:delete-requisition {id}` | Delete a requisition. |
+| `gocardless:refresh-balance --account=` | Refresh balance from API for one account. |
+| `gocardless:retry-failures` | Retry unresolved sync failures (existing). |
 
 ## 6. Security and errors
 

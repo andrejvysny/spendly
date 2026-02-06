@@ -38,4 +38,5 @@ When changing API/data shapes:
 Verification:
 - Prefer targeted backend tests around token refresh, requisition callback/import, and transaction sync idempotency.
 - Confirm mock mode (`GOCARDLESS_USE_MOCK=true`) still exercises the entire connect → callback → import → sync flow.
+- **CLI**: AI agents can run the full flow from terminal via `gocardless:institutions`, `gocardless:connect --institution=Revolut`, `gocardless:sync --account=1`, etc. See AGENTS.md and docs/ai/GoCardless_Architecture.md.
 

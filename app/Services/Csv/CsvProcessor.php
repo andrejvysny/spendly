@@ -113,6 +113,53 @@ class CsvProcessor
         return $tempFile;
     }
 
+    /**
+     * Preprocess CSV from a local filesystem path (e.g. for CLI import).
+     * Same encoding/BOM logic as preprocessCSV; returns path to temp file.
+     */
+    public function preprocessCSVFromPath(string $absolutePath, string $delimiter = ',', string $quoteChar = '"'): false|string
+    {
+        if (! is_file($absolutePath) || ! is_readable($absolutePath)) {
+            Log::error('CSV file not found or not readable', ['path' => $absolutePath]);
+
+            return false;
+        }
+
+        Log::debug('Starting CSV preprocessing from path', [
+            'path' => $absolutePath,
+            'delimiter' => $delimiter,
+            'quote_char' => $quoteChar,
+        ]);
+
+        $content = file_get_contents($absolutePath, false, null, 0, 10000);
+        $encoding = $this->detectEncoding($content, 10000);
+        Log::debug('Detected file encoding', ['encoding' => $encoding]);
+
+        $fullContent = file_get_contents($absolutePath);
+        if ($encoding != 'UTF-8') {
+            $fullContent = mb_convert_encoding($fullContent, 'UTF-8', $encoding);
+            Log::debug('Converted file from detected encoding to UTF-8');
+        }
+
+        $fullContent = str_replace("\0", '', $fullContent);
+        Log::debug('Removed null bytes from content');
+        $fullContent = preg_replace('/^\xEF\xBB\xBF/', '', $fullContent);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'csv_');
+        $handle = fopen($tempFile, 'w');
+        if (! $handle) {
+            Log::error('Failed to create temp file for CSV preprocessing');
+
+            return false;
+        }
+        fwrite($handle, $fullContent);
+        fclose($handle);
+
+        Log::debug('CSV preprocessing from path completed', ['temp_file' => $tempFile]);
+
+        return $tempFile;
+    }
+
     public function processRows(string $path, string $delimiter, string $quoteChar, CsvRowProcessor $callback, bool $skip_header = true, ?int $num_rows = null, int $offset = 0): ?CsvBatchResult
     {
 
