@@ -30,4 +30,5 @@ yarn-error.log
 .phpunit.cache/
 
 
-/gocardless_bank_account_data
+
+/sample_data

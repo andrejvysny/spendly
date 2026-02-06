@@ -450,7 +450,7 @@ class RecurringDetectionService
     }
 
     /**
-     * Remove recurring group link from transactions and optionally remove Recurring tag.
+     * Remove recurring group link from transactions, optionally remove Recurring tag, then delete the group.
      */
     public function unlinkGroup(RecurringGroup $group, bool $removeRecurringTag = true): void
     {
@@ -463,5 +463,100 @@ class RecurringDetectionService
                 $tag->transactions()->detach($transactionIds);
             }
         }
+
+        $group->delete();
+    }
+
+    /**
+     * Detach specific transactions from a confirmed recurring group (do not delete the group).
+     */
+    public function detachTransactionsFromGroup(RecurringGroup $group, array $transactionIds, bool $removeRecurringTag = true): void
+    {
+        if ($group->status !== RecurringGroup::STATUS_CONFIRMED) {
+            return;
+        }
+
+        $transactionIds = array_map('intval', array_values(array_unique($transactionIds)));
+        if ($transactionIds === []) {
+            return;
+        }
+
+        $userId = $group->getUserId();
+        $belongToGroup = $group->transactions()
+            ->whereIn('transactions.id', $transactionIds)
+            ->pluck('transactions.id')
+            ->all();
+
+        $toDetach = array_values(array_intersect($transactionIds, $belongToGroup));
+        if ($toDetach === []) {
+            return;
+        }
+
+        Transaction::whereIn('id', $toDetach)->update(['recurring_group_id' => null]);
+
+        if ($removeRecurringTag) {
+            $tag = \App\Models\Tag::where('user_id', $userId)->where('name', 'Recurring')->first();
+            if ($tag !== null) {
+                $tag->transactions()->detach($toDetach);
+            }
+        }
+    }
+
+    /**
+     * Attach existing transactions to a confirmed recurring group (e.g. missed by detection).
+     * Only attaches transactions that belong to the user, respect scope (per_account/per_user), and are unlinked or already in this group.
+     *
+     * @return array{attached: array<int>, ineligible: array<int>} attached IDs and ineligible IDs (wrong account or already in another group)
+     */
+    public function attachTransactionsToGroup(RecurringGroup $group, array $transactionIds, bool $addRecurringTag = true): array
+    {
+        $result = ['attached' => [], 'ineligible' => []];
+
+        if ($group->status !== RecurringGroup::STATUS_CONFIRMED) {
+            return $result;
+        }
+
+        $transactionIds = array_map('intval', array_values(array_unique($transactionIds)));
+        if ($transactionIds === []) {
+            return $result;
+        }
+
+        $userId = $group->getUserId();
+        $transactions = Transaction::with('account')->whereIn('id', $transactionIds)->get();
+
+        $toAttach = [];
+        $ineligible = [];
+
+        foreach ($transactions as $tx) {
+            $account = $tx->account;
+            if ($account === null || (int) $account->user_id !== $userId) {
+                $ineligible[] = $tx->id;
+                continue;
+            }
+            if ($group->scope === RecurringGroup::SCOPE_PER_ACCOUNT && $group->account_id !== null && (int) $tx->account_id !== (int) $group->account_id) {
+                $ineligible[] = $tx->id;
+                continue;
+            }
+            if ($tx->recurring_group_id !== null && (int) $tx->recurring_group_id !== (int) $group->id) {
+                $ineligible[] = $tx->id;
+                continue;
+            }
+            $toAttach[] = $tx->id;
+        }
+
+        $result['ineligible'] = $ineligible;
+
+        if ($toAttach === []) {
+            return $result;
+        }
+
+        Transaction::whereIn('id', $toAttach)->update(['recurring_group_id' => $group->id]);
+        $result['attached'] = $toAttach;
+
+        if ($addRecurringTag) {
+            $this->attachRecurringTagToTransactionIds($userId, $toAttach);
+        }
+
+        return $result;
     }
 }

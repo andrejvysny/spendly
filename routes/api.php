@@ -87,6 +87,8 @@ Route::middleware(['web', 'auth'])->prefix('recurring')->group(function () {
     Route::post('/groups/{recurringGroup}/confirm', [RecurringGroupController::class, 'confirm'])->name('api.recurring.confirm');
     Route::post('/groups/{recurringGroup}/dismiss', [RecurringGroupController::class, 'dismiss'])->name('api.recurring.dismiss');
     Route::post('/groups/{recurringGroup}/unlink', [RecurringGroupController::class, 'unlink'])->name('api.recurring.unlink');
+    Route::post('/groups/{recurringGroup}/detach-transactions', [RecurringGroupController::class, 'detachTransactions'])->name('api.recurring.detach-transactions');
+    Route::post('/groups/{recurringGroup}/attach-transactions', [RecurringGroupController::class, 'attachTransactions'])->name('api.recurring.attach-transactions');
 });
 
 // Import failure management routes

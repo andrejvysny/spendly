@@ -29,6 +29,11 @@ const mainNavItems: NavItem[] = [
         icon: Coins,
     },
     {
+        title: 'Recurring',
+        href: '/recurring',
+        icon: Repeat,
+    },
+    {
         title: 'Categories',
         href: '/categories',
         icon: TagIcon,
@@ -42,11 +47,6 @@ const mainNavItems: NavItem[] = [
         title: 'Merchants',
         href: '/merchants',
         icon: ShoppingBag,
-    },
-    {
-        title: 'Recurring',
-        href: '/recurring',
-        icon: Repeat,
     },
     {
         title: 'Rules',

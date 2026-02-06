@@ -152,4 +152,214 @@ class RecurringDetectionTest extends TestCase
         $netflixGroup = $suggested->first(fn (RecurringGroup $g) => stripos($g->name, 'netflix') !== false);
         $this->assertNotNull($netflixGroup, 'Expected a suggested group whose name contains "netflix" so subscriptions are recognized and added to Recurring payments');
     }
+
+    public function test_unlink_detaches_transactions_removes_tag_and_deletes_group(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $group = RecurringGroup::create([
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+            'name' => 'Test Subscription',
+            'interval' => RecurringGroup::INTERVAL_MONTHLY,
+            'scope' => RecurringGroup::SCOPE_PER_ACCOUNT,
+            'amount_min' => -9.99,
+            'amount_max' => -9.99,
+        ]);
+
+        $tx1 = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => $group->id,
+            'description' => 'Test payment',
+            'amount' => -9.99,
+        ]);
+        $tx2 = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => $group->id,
+            'description' => 'Test payment 2',
+            'amount' => -9.99,
+        ]);
+
+        $groupId = $group->id;
+        $service = $this->app->make(RecurringDetectionService::class);
+        $service->unlinkGroup($group, true);
+
+        $this->assertNull(RecurringGroup::find($groupId), 'RecurringGroup should be deleted after unlink');
+        $this->assertNull($tx1->fresh()->recurring_group_id, 'Transaction 1 should have recurring_group_id cleared');
+        $this->assertNull($tx2->fresh()->recurring_group_id, 'Transaction 2 should have recurring_group_id cleared');
+    }
+
+    public function test_detach_transactions_removes_only_given_transactions_group_remains(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $group = RecurringGroup::create([
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+            'name' => 'Test Subscription',
+            'interval' => RecurringGroup::INTERVAL_MONTHLY,
+            'scope' => RecurringGroup::SCOPE_PER_ACCOUNT,
+            'amount_min' => -9.99,
+            'amount_max' => -9.99,
+        ]);
+
+        $tx1 = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => $group->id,
+            'description' => 'Payment 1',
+            'amount' => -9.99,
+        ]);
+        $tx2 = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => $group->id,
+            'description' => 'Payment 2',
+            'amount' => -9.99,
+        ]);
+        $tx3 = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => $group->id,
+            'description' => 'Payment 3',
+            'amount' => -9.99,
+        ]);
+
+        $service = $this->app->make(RecurringDetectionService::class);
+        $service->detachTransactionsFromGroup($group, [$tx1->id, $tx3->id], true);
+
+        $this->assertNotNull(RecurringGroup::find($group->id), 'Group should still exist');
+        $this->assertNull($tx1->fresh()->recurring_group_id, 'Transaction 1 should be detached');
+        $this->assertSame($group->id, $tx2->fresh()->recurring_group_id, 'Transaction 2 should remain linked');
+        $this->assertNull($tx3->fresh()->recurring_group_id, 'Transaction 3 should be detached');
+    }
+
+    public function test_attach_transactions_links_eligible_transactions_scope_aware(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $group = RecurringGroup::create([
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+            'name' => 'Test Subscription',
+            'interval' => RecurringGroup::INTERVAL_MONTHLY,
+            'scope' => RecurringGroup::SCOPE_PER_ACCOUNT,
+            'amount_min' => -9.99,
+            'amount_max' => -9.99,
+        ]);
+
+        $txUnlinked = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => null,
+            'description' => 'Netflix',
+            'amount' => -9.99,
+        ]);
+
+        $service = $this->app->make(RecurringDetectionService::class);
+        $result = $service->attachTransactionsToGroup($group, [$txUnlinked->id], true);
+
+        $this->assertSame([$txUnlinked->id], $result['attached']);
+        $this->assertSame([], $result['ineligible']);
+        $this->assertSame($group->id, $txUnlinked->fresh()->recurring_group_id);
+    }
+
+    public function test_attach_transactions_reports_ineligible_when_already_in_another_group(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $group1 = RecurringGroup::create([
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+            'name' => 'Group 1',
+            'interval' => RecurringGroup::INTERVAL_MONTHLY,
+            'scope' => RecurringGroup::SCOPE_PER_ACCOUNT,
+            'amount_min' => -10,
+            'amount_max' => -10,
+        ]);
+        $group2 = RecurringGroup::create([
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+            'name' => 'Group 2',
+            'interval' => RecurringGroup::INTERVAL_MONTHLY,
+            'scope' => RecurringGroup::SCOPE_PER_ACCOUNT,
+            'amount_min' => -5,
+            'amount_max' => -5,
+        ]);
+
+        $txInGroup1 = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => $group1->id,
+            'description' => 'Payment',
+            'amount' => -10,
+        ]);
+        $txUnlinked = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => null,
+            'description' => 'Other',
+            'amount' => -5,
+        ]);
+
+        $service = $this->app->make(RecurringDetectionService::class);
+        $result = $service->attachTransactionsToGroup($group2, [$txInGroup1->id, $txUnlinked->id], false);
+
+        $this->assertSame([$txUnlinked->id], $result['attached']);
+        $this->assertSame([$txInGroup1->id], $result['ineligible']);
+        $this->assertSame($group1->id, $txInGroup1->fresh()->recurring_group_id);
+        $this->assertSame($group2->id, $txUnlinked->fresh()->recurring_group_id);
+    }
+
+    public function test_index_includes_stats_for_confirmed_groups(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $group = RecurringGroup::create([
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+            'name' => 'Stats Test',
+            'interval' => RecurringGroup::INTERVAL_MONTHLY,
+            'scope' => RecurringGroup::SCOPE_PER_ACCOUNT,
+            'amount_min' => -10,
+            'amount_max' => -10,
+        ]);
+
+        Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => $group->id,
+            'description' => 'Pay 1',
+            'amount' => -10,
+            'booked_date' => '2025-01-15',
+        ]);
+        Transaction::factory()->create([
+            'account_id' => $account->id,
+            'recurring_group_id' => $group->id,
+            'description' => 'Pay 2',
+            'amount' => -10,
+            'booked_date' => '2025-02-15',
+        ]);
+
+        $response = $this->actingAs($user)->getJson('/api/recurring');
+
+        $response->assertOk();
+        $confirmed = $response->json('data.confirmed');
+        $this->assertNotEmpty($confirmed);
+        $first = collect($confirmed)->firstWhere('id', $group->id);
+        $this->assertNotNull($first, 'Confirmed group should be in response');
+        $this->assertArrayHasKey('stats', $first);
+        $stats = $first['stats'];
+        $this->assertSame(2, $stats['transactions_count']);
+        $this->assertSame(-20.0, (float) $stats['total_paid']);
+        $this->assertSame('2025-01-15', $stats['first_payment_date']);
+        $this->assertSame('2025-02-15', $stats['last_payment_date']);
+        $this->assertSame(-10.0, (float) $stats['average_amount']);
+        $this->assertLessThan(0, (float) $stats['projected_yearly_cost'], 'Projected yearly should be negative for expenses');
+        $this->assertNotNull($stats['next_expected_payment']);
+    }
 }
