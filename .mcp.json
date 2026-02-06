@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sqlite": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-sqlite",
+        "--db-path",
+        "/Users/andrejvysny/andrejvysny/spendly/database/database.sqlite"
+      ]
+    }
+  }
+}

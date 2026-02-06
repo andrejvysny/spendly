@@ -39,7 +39,7 @@ return [
 
             return in_array(env('APP_ENV', 'production'), ['local', 'development'], true);
         })(),
-        'mock_data_path' => env('GOCARDLESS_MOCK_DATA_PATH', base_path('gocardless_bank_account_data')),
+        'mock_data_path' => env('GOCARDLESS_MOCK_DATA_PATH', base_path('sample_data/gocardless_bank_account_data')),
     ],
     'slack' => [
         'notifications' => [
