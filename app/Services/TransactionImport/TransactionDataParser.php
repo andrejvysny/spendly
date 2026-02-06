@@ -166,15 +166,23 @@ class TransactionDataParser
             return null;
         }
 
+        // Normalize format aliases (AmountParser returns 'eu'/'us'/'simple', UI uses format strings)
+        $normalizedFormat = match ($format) {
+            'eu', '1.234,56' => 'eu',
+            'us', '1,234.56' => 'us',
+            'simple', '1234,56' => 'simple',
+            default => $format,
+        };
+
         // Convert to standard decimal format based on format
-        if ($format === '1,234.56') {
+        if ($normalizedFormat === 'us') {
             // US format: commas as thousand separators, period as decimal
             $amountString = str_replace(',', '', $amountString);
-        } elseif ($format === '1.234,56') {
+        } elseif ($normalizedFormat === 'eu') {
             // EU format: periods as thousand separators, comma as decimal
             $amountString = str_replace('.', '', $amountString);
             $amountString = str_replace(',', '.', $amountString);
-        } elseif ($format === '1234,56') {
+        } elseif ($normalizedFormat === 'simple') {
             // No thousand separator, comma as decimal
             $amountString = str_replace(',', '.', $amountString);
         }

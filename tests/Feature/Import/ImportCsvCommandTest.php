@@ -28,6 +28,7 @@ class ImportCsvCommandTest extends TestCase
         $this->artisan('import:csv', [
             'file' => $fixturePath,
             '--account' => (string) $account->id,
+            '--date-format' => 'd.m.Y',
         ])->assertSuccessful();
 
         $this->assertDatabaseCount('transactions', 1);
@@ -50,6 +51,7 @@ class ImportCsvCommandTest extends TestCase
         $this->artisan('import:csv', [
             'file' => $fixturePath,
             '--account' => 'ByName Account',
+            '--date-format' => 'd.m.Y',
         ])->assertSuccessful();
 
         $this->assertGreaterThanOrEqual(1, Transaction::where('account_id', $account->id)->count());
@@ -60,5 +62,47 @@ class ImportCsvCommandTest extends TestCase
         $this->artisan('import:csv', [
             'file' => 'tests/fixtures/minimal_import.csv',
         ])->assertFailed();
+    }
+
+    public function test_import_csv_command_detects_processed_date(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create([
+            'user_id' => $user->id,
+            'name' => 'Processed Date Test',
+        ]);
+
+        $this->artisan('import:csv', [
+            'file' => 'tests/fixtures/import_with_processed_date.csv',
+            '--account' => (string) $account->id,
+            '--date-format' => 'd.m.Y',
+        ])->assertSuccessful();
+
+        $tx = Transaction::where('account_id', $account->id)->first();
+        $this->assertNotNull($tx);
+        // processed_date should differ from booked_date (17.01 vs 15.01)
+        $this->assertNotEquals($tx->booked_date->format('Y-m-d'), $tx->processed_date->format('Y-m-d'));
+        $this->assertSame('2025-01-17', $tx->processed_date->format('Y-m-d'));
+    }
+
+    public function test_import_csv_command_tiebreak_prefers_first_column(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create([
+            'user_id' => $user->id,
+            'name' => 'Tiebreak Test',
+        ]);
+
+        // Both "Date" and "Booking Date" match booked_date — first column (index 0) should win
+        $this->artisan('import:csv', [
+            'file' => 'tests/fixtures/import_tiebreak.csv',
+            '--account' => (string) $account->id,
+            '--date-format' => 'd.m.Y',
+        ])->assertSuccessful();
+
+        $tx = Transaction::where('account_id', $account->id)->first();
+        $this->assertNotNull($tx);
+        // Column 0 "Date" = 15.01.2025 should be the booked_date (first column wins tie)
+        $this->assertSame('2025-01-15', $tx->booked_date->format('Y-m-d'));
     }
 }

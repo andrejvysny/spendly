@@ -270,9 +270,9 @@ class ImportCsvCommand extends Command
     private function convertDetectedMappingsToFieldIndex(array $mappings): array
     {
         $transactionFields = [
-            'transaction_id', 'booked_date', 'amount', 'description', 'partner',
+            'transaction_id', 'booked_date', 'processed_date', 'amount', 'description', 'partner',
             'type', 'target_iban', 'source_iban', 'category', 'tags', 'notes',
-            'balance_after_transaction',
+            'balance_after_transaction', 'currency',
         ];
         $columnMapping = array_fill_keys($transactionFields, null);
 
@@ -281,15 +281,24 @@ class ImportCsvCommand extends Command
             if ($field === null || $field === '') {
                 continue;
             }
+            // Alias 'date' from pattern matcher to 'booked_date'
+            if ($field === 'date') {
+                $field = 'booked_date';
+            }
+            // Skip fields not in transaction fields list
+            if (! array_key_exists($field, $columnMapping)) {
+                continue;
+            }
             $existingIndex = $columnMapping[$field] ?? null;
             if ($existingIndex === null) {
                 $columnMapping[$field] = $colIndex;
+
                 continue;
             }
             $existingConfidence = isset($mappings[$existingIndex]['confidence'])
                 ? (float) $mappings[$existingIndex]['confidence'] : 0.0;
             $confidence = (float) ($m['confidence'] ?? 0);
-            if ($confidence >= $existingConfidence) {
+            if ($confidence > $existingConfidence) {
                 $columnMapping[$field] = $colIndex;
             }
         }

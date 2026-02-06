@@ -8,9 +8,14 @@ class HeaderAnalyzer
 {
     private const array FIELD_SYNONYMS = [
         'booked_date' => [
-            'high' => ['datum', 'date', 'booking date', 'transaction date', 'posted', 'dátum', 'dátum transakcie'],
-            'medium' => ['valuta', 'value date', 'effective date'],
+            'high' => ['dátum splatnosti', 'datum', 'date', 'booking date', 'transaction date', 'posted', 'dátum', 'dátum transakcie'],
+            'medium' => [],
             'low' => ['time', 'timestamp', 'when'],
+        ],
+        'processed_date' => [
+            'high' => ['dátum valuty', 'valuta', 'value date', 'effective date'],
+            'medium' => ['settlement date', 'clearing date'],
+            'low' => [],
         ],
         'amount' => [
             'high' => ['amount', 'betrag', 'suma', 'částka', 'sum', 'total', 'suma transakcie'],
@@ -44,18 +49,20 @@ class HeaderAnalyzer
         $header = trim($header);
         $headerLower = mb_strtolower($header);
 
+        $best = null;
+
         foreach (self::FIELD_SYNONYMS as $field => $groups) {
             foreach ($groups as $level => $synonyms) {
                 foreach ($synonyms as $synonym) {
                     $similarity = $this->jaroWinklerSimilarity($headerLower, mb_strtolower($synonym));
-                    if ($similarity >= 0.85) {
-                        return new HeaderAnalysisResult($field, $similarity, $level);
+                    if ($similarity >= 0.85 && ($best === null || $similarity > $best->similarity)) {
+                        $best = new HeaderAnalysisResult($field, $similarity, $level);
                     }
                 }
             }
         }
 
-        return HeaderAnalysisResult::noMatch();
+        return $best ?? HeaderAnalysisResult::noMatch();
     }
 
     /**
@@ -66,8 +73,8 @@ class HeaderAnalyzer
         if ($s1 === $s2) {
             return 1.0;
         }
-        $len1 = strlen($s1);
-        $len2 = strlen($s2);
+        $len1 = mb_strlen($s1);
+        $len2 = mb_strlen($s2);
         if ($len1 === 0 || $len2 === 0) {
             return 0.0;
         }
@@ -82,7 +89,7 @@ class HeaderAnalyzer
             $start = max(0, $i - $matchDistance);
             $end = min($i + $matchDistance + 1, $len2);
             for ($j = $start; $j < $end; $j++) {
-                if ($s2Matches[$j] || $s1[$i] !== $s2[$j]) {
+                if ($s2Matches[$j] || mb_substr($s1, $i, 1) !== mb_substr($s2, $j, 1)) {
                     continue;
                 }
                 $s1Matches[$i] = true;
@@ -102,7 +109,7 @@ class HeaderAnalyzer
             while (! $s2Matches[$k]) {
                 $k++;
             }
-            if ($s1[$i] !== $s2[$k]) {
+            if (mb_substr($s1, $i, 1) !== mb_substr($s2, $k, 1)) {
                 $transpositions++;
             }
             $k++;
@@ -110,9 +117,10 @@ class HeaderAnalyzer
         $jaro = ($matches / $len1 + $matches / $len2 + ($matches - $transpositions / 2) / $matches) / 3;
         $prefix = 0;
         $prefixScale = min(4, min($len1, $len2));
-        for ($i = 0; $i < $prefixScale && $s1[$i] === $s2[$i]; $i++) {
+        for ($i = 0; $i < $prefixScale && mb_substr($s1, $i, 1) === mb_substr($s2, $i, 1); $i++) {
             $prefix++;
         }
+
         return $jaro + $prefix * 0.1 * (1 - $jaro);
     }
 }
