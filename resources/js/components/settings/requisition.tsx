@@ -36,7 +36,7 @@ export interface RequisitionDto {
     redirect_immediate: boolean;
 }
 
-interface RequisitionsResponse {
+export interface RequisitionsResponse {
     count: number;
     next: string | null;
     previous: string | null;
@@ -63,17 +63,27 @@ function Requisition({
     const [requisitionToDelete, setRequisitionToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    const accounts = requisition.accounts ?? [];
+    const accountList = accounts.map((acc) =>
+        isEnrichedAccount(acc) ? acc : ({ id: acc, local_id: null, name: 'Account', iban: null, currency: null, owner_name: null, status: 'Ready to import' as const, last_synced_at: null })
+    );
+    const importedCount = accountList.filter((a) => a.status === 'Imported' && a.local_id).length;
+
     const confirmDelete = (requisitionId: string) => {
         setRequisitionToDelete(requisitionId);
         setDeleteDialogOpen(true);
     };
 
-    const deleteRequisition = async () => {
+    const deleteRequisition = async (deleteImportedAccounts: boolean) => {
         if (!requisitionToDelete) return;
 
         setIsDeleting(true);
         try {
-            await axios.delete(`/api/bank-data/gocardless/requisitions/${requisitionToDelete}`);
+            const url =
+                deleteImportedAccounts ?
+                    `/api/bank-data/gocardless/requisitions/${requisitionToDelete}?delete_imported_accounts=1`
+                :   `/api/bank-data/gocardless/requisitions/${requisitionToDelete}`;
+            await axios.delete(url);
 
             setRequisitions((prev) => ({
                 ...prev,
@@ -83,7 +93,8 @@ function Requisition({
 
             setDeleteDialogOpen(false);
             setRequisitionToDelete(null);
-            toast.success('Bank connection removed.');
+            toast.success(deleteImportedAccounts ? 'Bank connection and imported accounts removed.' : 'Bank connection removed.');
+            onRefresh?.();
         } catch (error) {
             console.error('Error deleting requisition:', error);
             toast.error('Failed to remove bank connection.');
@@ -92,10 +103,12 @@ function Requisition({
         }
     };
 
-    const accounts = requisition.accounts ?? [];
-    const accountList = accounts.map((acc) =>
-        isEnrichedAccount(acc) ? acc : ({ id: acc, local_id: null, name: 'Account', iban: null, currency: null, owner_name: null, status: 'Ready to import' as const, last_synced_at: null })
-    );
+    const handleCloseDeleteDialog = () => {
+        if (!isDeleting) {
+            setDeleteDialogOpen(false);
+            setRequisitionToDelete(null);
+        }
+    };
 
     return (
         <>
@@ -159,21 +172,50 @@ function Requisition({
                     </div>
                 </CardContent>
             </Card>
-            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <Dialog open={deleteDialogOpen} onOpenChange={(open) => !open && handleCloseDeleteDialog()}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Delete Bank Connection</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete this bank connection? This action cannot be undone.
+                            {importedCount > 0 ? (
+                                <>
+                                    This bank connection has {importedCount} imported account{importedCount !== 1 ? 's' : ''}. Do you want to delete
+                                    {importedCount !== 1 ? ' those accounts and all their data' : ' that account and all its data'} (transactions, etc.)
+                                    or keep {importedCount !== 1 ? 'them' : 'it'}?
+                                </>
+                            ) : (
+                                <>Are you sure you want to delete this bank connection? This action cannot be undone.</>
+                            )}
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
+                    <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                        <Button variant="outline" onClick={handleCloseDeleteDialog} disabled={isDeleting} className="order-3 sm:order-1">
                             Cancel
                         </Button>
-                        <Button variant="destructive" onClick={deleteRequisition} disabled={isDeleting}>
-                            {isDeleting ? 'Deleting...' : 'Delete'}
-                        </Button>
+                        {importedCount > 0 ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => deleteRequisition(false)}
+                                    disabled={isDeleting}
+                                    className="order-2"
+                                >
+                                    {isDeleting ? 'Deleting...' : 'Keep accounts, remove connection only'}
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    onClick={() => deleteRequisition(true)}
+                                    disabled={isDeleting}
+                                    className="order-1 sm:order-3"
+                                >
+                                    {isDeleting ? 'Deleting...' : `Delete ${importedCount} account${importedCount !== 1 ? 's' : ''} and all data`}
+                                </Button>
+                            </>
+                        ) : (
+                            <Button variant="destructive" onClick={() => deleteRequisition(false)} disabled={isDeleting}>
+                                {isDeleting ? 'Deleting...' : 'Delete'}
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

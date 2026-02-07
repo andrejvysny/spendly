@@ -34,7 +34,9 @@ abstract class BaseRepository implements BaseRepositoryContract
     public function delete(int|Model $id): bool
     {
         if ($id instanceof Model) {
-            return $id->delete();
+            $result = $id->delete();
+
+            return $result === true;
         }
 
         return $this->model->destroy($id) > 0;

@@ -7,10 +7,6 @@
 services:
   app:
     image: ghcr.io/andrejvysny/spendly:main
-    build:
-      context: .
-      dockerfile: .docker/Dockerfile
-      target: production
     container_name: spendly
     restart: unless-stopped
     ports:
@@ -18,9 +14,9 @@ services:
     environment:
       APP_NAME: Spendly
       APP_ENV: production
-      APP_KEY: ${APP_KEY}
+      APP_KEY: base64:IB12q1igS62sx8L4c79ZtH8eoWnJKlt5+AUYrjwlvbY=
       APP_DEBUG: "false"
-      APP_URL: ${APP_URL:-http://localhost}
+      APP_URL: http://andrejvysny.vps.wbsprt.com/
       APP_LOCALE: en
       APP_FALLBACK_LOCALE: en
       LOG_CHANNEL: stderr

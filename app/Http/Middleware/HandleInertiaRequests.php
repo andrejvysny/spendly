@@ -43,6 +43,11 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'flash' => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+                'open_go_cardless_modal' => $request->session()->get('open_go_cardless_modal'),
+            ],
         ];
 
         // Only add facade-dependent data if the application is bootstrapped

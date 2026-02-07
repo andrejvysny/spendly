@@ -32,8 +32,15 @@ class AccountController extends Controller
             ]);
         }
 
+        $user = auth()->user();
+        $gocardlessConfigured = $user
+            && filled($user->gocardless_secret_id)
+            && filled($user->gocardless_secret_key);
+
         return Inertia::render('accounts/index', [
             'accounts' => $accounts,
+            'gocardless_use_mock' => config('services.gocardless.use_mock'),
+            'gocardless_configured' => $gocardlessConfigured,
         ]);
     }
 
@@ -122,22 +129,20 @@ class AccountController extends Controller
         ]);
     }
 
-    public function destroy(int $id): \Illuminate\Http\RedirectResponse
+    public function destroy(int $id): \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse
     {
-
         $account = Account::where('user_id', auth()->id())->findOrFail($id);
 
         // Delete all associated transactions first
         $account->transactions()->delete();
 
-        // Delete the account
-        $account->delete();
-
+        // Delete the account via repository (single delete; repository returns bool)
         $this->accountRepository->delete($account);
 
-        return redirect()->route('accounts.index')
-            ->with('success', 'Account and all associated transactions have been deleted successfully');
+        session()->flash('success', 'Account and all associated transactions have been deleted successfully');
 
+        // Force full page load so the accounts list is refreshed (avoids Inertia reusing cached props)
+        return Inertia::location(route('accounts.index'));
     }
 
     /**
