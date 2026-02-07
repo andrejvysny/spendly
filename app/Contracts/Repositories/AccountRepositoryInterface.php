@@ -1,0 +1,40 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Contracts\Repositories;
+
+use App\Models\Account;
+use Illuminate\Support\Collection;
+
+/**
+ * @extends UserScopedRepositoryInterface<Account>
+ */
+interface AccountRepositoryInterface extends UserScopedRepositoryInterface
+{
+    public function findByIdForUser(int $accountId, int $userId): ?Account;
+
+    public function findByGocardlessId(string $gocardlessAccountId, int $userId): ?Account;
+
+    /**
+     * @return Collection<int, Account>
+     */
+    public function getGocardlessSyncedAccounts(int $userId): Collection;
+
+    public function updateSyncTimestamp(Account $account): bool;
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function create(array $data): Account;
+
+    public function gocardlessAccountExists(string $gocardlessAccountId, int $userId): bool;
+
+    /**
+     * Update the balance of an account.
+     *
+     * @param  Account  $account  The account to update
+     * @param  float|string  $balance  The new balance value
+     */
+    public function updateBalance(Account $account, float|string $balance): bool;
+}

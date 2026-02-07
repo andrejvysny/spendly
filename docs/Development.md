@@ -52,6 +52,10 @@ Run the test suites:
 npm test
 ```
 
+## Cursor IDE – SQLite MCP
+
+If you use Cursor, the project includes a project-level MCP config (`.cursor/mcp.json`) for the SQLite MCP server so the agent can query the app database. See [docs/ai/CURSOR_MCP.md](ai/CURSOR_MCP.md) for setup and custom DB paths.
+
 ## 📚 Documentation
 
 - [API Documentation](api.md)

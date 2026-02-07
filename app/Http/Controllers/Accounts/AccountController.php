@@ -2,23 +2,29 @@
 
 namespace App\Http\Controllers\Accounts;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Contracts\Repositories\AnalyticsRepositoryInterface;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AccountRequest;
 use App\Models\Account;
+use App\Models\Transaction;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class AccountController extends Controller
 {
-    /**
-     * Retrieves all accounts belonging to the authenticated user.
-     *
-     * Returns the accounts as a JSON response if requested, or renders the accounts index view with the accounts data.
-     */
-    public function index()
+    public function __construct(
+        private AccountRepositoryInterface $accountRepository,
+        private AnalyticsRepositoryInterface $analyticsRepository
+    ) {}
+
+    public function index(): JsonResponse|Response
     {
-        $accounts = Account::where('user_id', auth()->id())->get();
+        $accounts = $this->accountRepository->findByUser(auth()->id());
 
         if (request()->wantsJson()) {
             return response()->json([
@@ -31,35 +37,24 @@ class AccountController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(AccountRequest $request): RedirectResponse
     {
         try {
-            if (! auth()->id()) {
-                throw new \Exception('User not authenticated');
-            }
+            $validated = $request->validated();
 
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'bank_name' => 'nullable|string|max:255',
-                'iban' => 'nullable|string|max:255',
-                'type' => 'required|string|max:255',
-                'currency' => 'required|string|max:3',
-                'balance' => 'required|numeric',
-                'is_gocardless_synced' => 'boolean',
-                'gocardless_account_id' => 'nullable|string|max:255',
-            ]);
-
-            $account = Account::create([
-                'name' => $validated['name'],
-                'bank_name' => $validated['bank_name'] ?? null,
-                'iban' => $validated['iban'] ?? null,
-                'type' => $validated['type'],
-                'currency' => $validated['currency'],
-                'balance' => $validated['balance'],
-                'is_gocardless_synced' => $validated['is_gocardless_synced'] ?? false,
-                'gocardless_account_id' => $validated['gocardless_account_id'] ?? null,
-                'user_id' => auth()->id(),
-            ]);
+            $this->accountRepository->create(
+                [
+                    'name' => $validated['name'],
+                    'bank_name' => $validated['bank_name'] ?? null,
+                    'iban' => $validated['iban'] ?? null,
+                    'type' => $validated['type'],
+                    'currency' => $validated['currency'],
+                    'balance' => $validated['balance'],
+                    'is_gocardless_synced' => $validated['is_gocardless_synced'] ?? false,
+                    'gocardless_account_id' => $validated['gocardless_account_id'] ?? null,
+                    'user_id' => auth()->id(),
+                ]
+            );
 
             return redirect()->back()->with('success', 'Account created successfully');
 
@@ -70,13 +65,8 @@ class AccountController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Account $account): Response|RedirectResponse
     {
-        $account = Account::all()->find($id);
-
-        if (! $account) {
-            return redirect()->route('accounts.index')->with('error', 'Account not found');
-        }
 
         // Get initial paginated transactions for this account (first page only)
         $transactions = $account->transactions()
@@ -86,7 +76,7 @@ class AccountController extends Controller
 
         $total_transactions = $account->transactions()->count();
 
-        // Calculate monthly summaries for the current page only
+        // Calculate monthly summaries for the current page only (exclude transfers from income/expense)
         $monthlySummaries = [];
         foreach ($transactions->items() as $transaction) {
             $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
@@ -97,10 +87,12 @@ class AccountController extends Controller
                     'balance' => 0,
                 ];
             }
-            if ($transaction->amount > 0) {
-                $monthlySummaries[$month]['income'] += $transaction->amount;
-            } else {
-                $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+            if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+                if ($transaction->amount > 0) {
+                    $monthlySummaries[$month]['income'] += $transaction->amount;
+                } else {
+                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                }
             }
             $monthlySummaries[$month]['balance'] += $transaction->amount;
         }
@@ -130,7 +122,7 @@ class AccountController extends Controller
         ]);
     }
 
-    public function destroy($id)
+    public function destroy(int $id): \Illuminate\Http\RedirectResponse
     {
 
         $account = Account::where('user_id', auth()->id())->findOrFail($id);
@@ -141,40 +133,20 @@ class AccountController extends Controller
         // Delete the account
         $account->delete();
 
+        $this->accountRepository->delete($account);
+
         return redirect()->route('accounts.index')
             ->with('success', 'Account and all associated transactions have been deleted successfully');
 
     }
 
-    public function getCashflowOfMonth($accountIds, $before_month = 0)
+    /**
+     * @param  array<int>  $accountIds
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    public function getCashflowOfMonth(array $accountIds, int $before_month = 0): \Illuminate\Support\Collection
     {
-        $startDate = now()->subMonths($before_month)->startOfMonth();
-        $endDate = now()->subMonths($before_month)->endOfMonth();
-
-        $cashflow = \DB::table('transactions')
-            ->select(
-                \DB::raw('CAST(strftime("%Y", processed_date) AS INTEGER) as year'),
-                \DB::raw('CAST(strftime("%m", processed_date) AS INTEGER) as month'),
-                \DB::raw('CAST(strftime("%d", processed_date) AS INTEGER) as day'),
-                \DB::raw('COUNT(*) as transaction_count'),
-                \DB::raw('SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as daily_spending'),
-                \DB::raw('SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as daily_income'),
-                \DB::raw('SUM(amount) as daily_balance')
-            )
-            ->whereIn('account_id', $accountIds)
-            ->where('processed_date', '>=', $startDate)
-            ->where('processed_date', '<=', $endDate)
-            ->groupBy(
-                \DB::raw('strftime("%Y", processed_date)'),
-                \DB::raw('strftime("%m", processed_date)'),
-                \DB::raw('strftime("%d", processed_date)')
-            )
-            ->orderBy('year')
-            ->orderBy('month')
-            ->orderBy('day')
-            ->get();
-
-        return $cashflow;
+        return $this->analyticsRepository->getMonthlyCashflow($accountIds, $before_month);
     }
 
     /**

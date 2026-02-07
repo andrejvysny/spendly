@@ -1,20 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
-use App\Models\ConditionGroup;
-use App\Models\Rule;
-use App\Models\RuleAction;
-use App\Models\RuleCondition;
-use App\Models\RuleGroup;
+use App\Contracts\Repositories\RuleRepositoryInterface;
+use App\Models\RuleEngine\ConditionGroup;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleAction;
+use App\Models\RuleEngine\RuleCondition;
+use App\Models\RuleEngine\RuleGroup;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 
-class RuleRepository
+class RuleRepository extends BaseRepository implements RuleRepositoryInterface
 {
+    public function __construct(Rule $model)
+    {
+        parent::__construct($model);
+    }
+
     /**
-     * Create a new rule group.
+     * @param  array<string, mixed>  $data
      */
     public function createRuleGroup(User $user, array $data): RuleGroup
     {
@@ -28,7 +35,7 @@ class RuleRepository
     }
 
     /**
-     * Update a rule group.
+     * @param  array<string, mixed>  $data
      */
     public function updateRuleGroup(RuleGroup $ruleGroup, array $data): RuleGroup
     {
@@ -38,13 +45,12 @@ class RuleRepository
     }
 
     /**
-     * Create a new rule with conditions and actions.
+     * @param  array<string, mixed>  $data
      */
     public function createRule(User $user, array $data): Rule
     {
-        return DB::transaction(function () use ($user, $data) {
-            // Create the rule
-            $rule = Rule::create([
+        return $this->transaction(function () use ($user, $data) {
+            $rule = $this->model->create([
                 'user_id' => $user->id,
                 'rule_group_id' => $data['rule_group_id'],
                 'name' => $data['name'],
@@ -55,7 +61,6 @@ class RuleRepository
                 'is_active' => $data['is_active'] ?? true,
             ]);
 
-            // Create condition groups and conditions
             if (isset($data['condition_groups'])) {
                 foreach ($data['condition_groups'] as $groupIndex => $groupData) {
                     $conditionGroup = ConditionGroup::create([
@@ -80,7 +85,6 @@ class RuleRepository
                 }
             }
 
-            // Create actions
             if (isset($data['actions'])) {
                 foreach ($data['actions'] as $actionIndex => $actionData) {
                     $action = new RuleAction([
@@ -94,17 +98,18 @@ class RuleRepository
                 }
             }
 
-            return $rule->load(['conditionGroups.conditions', 'actions']);
+            $loaded = $rule->load(['conditionGroups.conditions', 'actions']);
+
+            return $loaded instanceof Rule ? $loaded : $this->model->find($rule->getKey());
         });
     }
 
     /**
-     * Update a rule with conditions and actions.
+     * @param  array<string, mixed>  $data
      */
     public function updateRule(Rule $rule, array $data): Rule
     {
-        return DB::transaction(function () use ($rule, $data) {
-            // Update the rule
+        return $this->transaction(function () use ($rule, $data) {
             $rule->update([
                 'name' => $data['name'] ?? $rule->name,
                 'description' => $data['description'] ?? $rule->description,
@@ -114,12 +119,9 @@ class RuleRepository
                 'is_active' => $data['is_active'] ?? $rule->is_active,
             ]);
 
-            // Handle condition groups if provided
             if (isset($data['condition_groups'])) {
-                // Delete existing condition groups
                 $rule->conditionGroups()->delete();
 
-                // Create new condition groups
                 foreach ($data['condition_groups'] as $groupIndex => $groupData) {
                     $conditionGroup = ConditionGroup::create([
                         'rule_id' => $rule->id,
@@ -143,12 +145,9 @@ class RuleRepository
                 }
             }
 
-            // Handle actions if provided
             if (isset($data['actions'])) {
-                // Delete existing actions
                 $rule->actions()->delete();
 
-                // Create new actions
                 foreach ($data['actions'] as $actionIndex => $actionData) {
                     $action = new RuleAction([
                         'rule_id' => $rule->id,
@@ -161,20 +160,19 @@ class RuleRepository
                 }
             }
 
-            return $rule->fresh(['conditionGroups.conditions', 'actions']);
+            $fresh = $rule->fresh(['conditionGroups.conditions', 'actions']);
+
+            return $fresh instanceof Rule ? $fresh : $this->model->find($rule->getKey());
         });
     }
 
-    /**
-     * Delete a rule.
-     */
     public function deleteRule(Rule $rule): bool
     {
         return $rule->delete();
     }
 
     /**
-     * Get all rule groups for a user.
+     * @return Collection<int, RuleGroup>
      */
     public function getRuleGroups(User $user, bool $activeOnly = false): Collection
     {
@@ -190,23 +188,22 @@ class RuleRepository
         return $query->ordered()->get();
     }
 
-    /**
-     * Get a single rule with all relationships.
-     */
     public function getRule(int $ruleId, User $user): ?Rule
     {
-        return Rule::with(['ruleGroup', 'conditionGroups.conditions', 'actions'])
+        $rule = $this->model->with(['ruleGroup', 'conditionGroups.conditions', 'actions'])
             ->where('id', $ruleId)
             ->where('user_id', $user->id)
             ->first();
+
+        return $rule instanceof Rule ? $rule : null;
     }
 
     /**
-     * Get rules by trigger type.
+     * @return Collection<int, Rule>
      */
     public function getRulesByTrigger(User $user, string $triggerType, bool $activeOnly = true): Collection
     {
-        $query = Rule::with(['conditionGroups.conditions', 'actions'])
+        $query = $this->model->with(['conditionGroups.conditions', 'actions'])
             ->where('user_id', $user->id)
             ->where('trigger_type', $triggerType);
 
@@ -217,17 +214,13 @@ class RuleRepository
         return $query->orderBy('order')->get();
     }
 
-    /**
-     * Duplicate a rule.
-     */
     public function duplicateRule(Rule $rule, ?string $newName = null): Rule
     {
-        return DB::transaction(function () use ($rule, $newName) {
+        return $this->transaction(function () use ($rule, $newName) {
             $newRule = $rule->replicate();
             $newRule->name = $newName ?? $rule->name.' (Copy)';
             $newRule->save();
 
-            // Duplicate condition groups and conditions
             foreach ($rule->conditionGroups as $group) {
                 $newGroup = $group->replicate();
                 $newGroup->rule_id = $newRule->id;
@@ -240,29 +233,30 @@ class RuleRepository
                 }
             }
 
-            // Duplicate actions
             foreach ($rule->actions as $action) {
                 $newAction = $action->replicate();
                 $newAction->rule_id = $newRule->id;
                 $newAction->save();
             }
 
-            return $newRule->load(['conditionGroups.conditions', 'actions']);
+            $loaded = $newRule->load(['conditionGroups.conditions', 'actions']);
+
+            return $loaded instanceof Rule ? $loaded : $this->model->find($newRule->getKey());
         });
     }
 
     /**
-     * Reorder rules within a group.
+     * @param  array<int>  $ruleIds
      */
     public function reorderRules(array $ruleIds): void
     {
         foreach ($ruleIds as $order => $ruleId) {
-            Rule::where('id', $ruleId)->update(['order' => $order]);
+            $this->model->where('id', $ruleId)->update(['order' => $order]);
         }
     }
 
     /**
-     * Get rule execution statistics.
+     * @return array<string, mixed>
      */
     public function getRuleStatistics(Rule $rule, ?int $days = 30): array
     {

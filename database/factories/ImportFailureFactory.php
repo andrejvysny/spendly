@@ -2,13 +2,13 @@
 
 namespace Database\Factories;
 
-use App\Models\Import;
-use App\Models\ImportFailure;
+use App\Models\Import\Import;
+use App\Models\Import\ImportFailure;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\ImportFailure>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Import\ImportFailure>
  */
 class ImportFailureFactory extends Factory
 {

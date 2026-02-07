@@ -24,7 +24,7 @@ on:
       - 'composer.lock'
       - 'package.json'
       - 'package-lock.json'
-      - 'vite.config.js'
+      - 'vite.config.ts'
 
 
 concurrency:
@@ -75,6 +75,7 @@ jobs:
         with:
           context: .
           file: .docker/Dockerfile
+          target: production
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

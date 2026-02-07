@@ -18,9 +18,9 @@ class TransactionController extends Controller
      *
      * Applies filters for search, transaction type, account, amount (with multiple filter types), merchant, category, and date range. Calculates total and monthly summaries for the filtered transactions. Provides related categories, merchants, tags, and accounts for filter dropdowns. Returns an Inertia.js response rendering the transactions index view.
      */
-    const PAGINATION_COUNT = 100; // Define a constant for pagination count
+    const int PAGINATION_COUNT = 100; // Define a constant for pagination count
 
-    public function index(Request $request)
+    public function index(Request $request): \Inertia\Response
     {
         [$query, $isFiltered] = $this->buildTransactionQuery($request);
 
@@ -40,8 +40,8 @@ class TransactionController extends Controller
 
             $totalSummary = [
                 'count' => $countClone->count(),
-                'income' => $incomeSum->where('amount', '>', 0)->sum('amount'),
-                'expense' => abs($expenseSum->where('amount', '<', 0)->sum('amount')),
+                'income' => $incomeSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '>', 0)->sum('amount'),
+                'expense' => abs($expenseSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '<', 0)->sum('amount')),
                 'balance' => $balanceSum->sum('amount'),
                 'categoriesCount' => $categoriesCount->whereNotNull('category_id')->distinct('category_id')->count('category_id'),
                 'merchantsCount' => $merchantsCount->whereNotNull('merchant_id')->distinct('merchant_id')->count('merchant_id'),
@@ -53,7 +53,7 @@ class TransactionController extends Controller
         // Get paginated transactions
         $transactions = $query->paginate(self::PAGINATION_COUNT);
 
-        // Calculate monthly summaries for the current page
+        // Calculate monthly summaries for the current page (exclude transfers from income/expense)
         $monthlySummaries = [];
         foreach ($transactions->items() as $transaction) {
             $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
@@ -64,10 +64,12 @@ class TransactionController extends Controller
                     'balance' => 0,
                 ];
             }
-            if ($transaction->amount > 0) {
-                $monthlySummaries[$month]['income'] += $transaction->amount;
-            } else {
-                $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+            if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+                if ($transaction->amount > 0) {
+                    $monthlySummaries[$month]['income'] += $transaction->amount;
+                } else {
+                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                }
             }
             $monthlySummaries[$month]['balance'] += $transaction->amount;
         }
@@ -98,8 +100,33 @@ class TransactionController extends Controller
                 'amountFilterType', 'amountMin', 'amountMax',
                 'amountExact', 'amountAbove', 'amountBelow',
                 'dateFrom', 'dateTo', 'merchant_id', 'category_id',
+                'recurring_only',
             ]),
             'totalCount' => $totalCount,
+        ]);
+    }
+
+    /**
+     * Display transactions that need manual review (e.g. flagged during import).
+     */
+    public function reviewQueue(Request $request): \Inertia\Response
+    {
+        $query = Transaction::whereHas('account', function (Builder $q) {
+            $q->where('user_id', Auth::id());
+        })
+            ->where('needs_manual_review', true)
+            ->with(['account'])
+            ->orderByDesc('booked_date');
+
+        if ($request->filled('review_reason')) {
+            $query->where('review_reason', 'like', '%' . $request->review_reason . '%');
+        }
+
+        $transactions = $query->paginate(50);
+
+        return Inertia::render('transactions/review', [
+            'transactions' => $transactions,
+            'filters' => $request->only('review_reason'),
         ]);
     }
 
@@ -117,7 +144,7 @@ class TransactionController extends Controller
 
             $transactions = $query->paginate(self::PAGINATION_COUNT, ['*'], 'page', $request->page);
 
-            // Calculate monthly summaries for the current page
+            // Calculate monthly summaries for the current page (exclude transfers from income/expense)
             $monthlySummaries = [];
             foreach ($transactions->items() as $transaction) {
                 $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
@@ -128,10 +155,12 @@ class TransactionController extends Controller
                         'balance' => 0,
                     ];
                 }
-                if ($transaction->amount > 0) {
-                    $monthlySummaries[$month]['income'] += $transaction->amount;
-                } else {
-                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+                    if ($transaction->amount > 0) {
+                        $monthlySummaries[$month]['income'] += $transaction->amount;
+                    } else {
+                        $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                    }
                 }
                 $monthlySummaries[$month]['balance'] += $transaction->amount;
             }
@@ -180,8 +209,8 @@ class TransactionController extends Controller
 
             $totalSummary = [
                 'count' => $totalCount->count(),
-                'income' => $incomeSum->where('amount', '>', 0)->sum('amount'),
-                'expense' => abs($expenseSum->where('amount', '<', 0)->sum('amount')),
+                'income' => $incomeSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '>', 0)->sum('amount'),
+                'expense' => abs($expenseSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '<', 0)->sum('amount')),
                 'balance' => $balanceSum->sum('amount'),
                 'categoriesCount' => $categoriesCount->whereNotNull('category_id')->distinct('category_id')->count('category_id'),
                 'merchantsCount' => $merchantsCount->whereNotNull('merchant_id')->distinct('merchant_id')->count('merchant_id'),
@@ -194,7 +223,7 @@ class TransactionController extends Controller
 
             Log::info('Filtered transactions count: '.$transactions->count().', isFiltered: '.($isFiltered ? 'true' : 'false'));
 
-            // Calculate monthly summaries for the current page
+            // Calculate monthly summaries for the current page (exclude transfers from income/expense)
             $monthlySummaries = [];
             foreach ($transactions->items() as $transaction) {
                 $month = \Carbon\Carbon::parse($transaction->booked_date)->translatedFormat('F Y');
@@ -205,10 +234,12 @@ class TransactionController extends Controller
                         'balance' => 0,
                     ];
                 }
-                if ($transaction->amount > 0) {
-                    $monthlySummaries[$month]['income'] += $transaction->amount;
-                } else {
-                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+                    if ($transaction->amount > 0) {
+                        $monthlySummaries[$month]['income'] += $transaction->amount;
+                    } else {
+                        $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                    }
                 }
                 $monthlySummaries[$month]['balance'] += $transaction->amount;
             }
@@ -240,75 +271,11 @@ class TransactionController extends Controller
     }
 
     /**
-     * Creates a new transaction with validated data and optional tags.
-     *
-     * Validates the request data, creates a transaction record, attaches tags if provided, and redirects back with a success or error message.
-     */
-    public function store(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'transaction_id' => 'required|string|max:255',
-                'amount' => 'required|numeric',
-                'currency' => 'required|string|max:3',
-                'booked_date' => 'required|date',
-                'processed_date' => 'required|date',
-                'description' => 'required|string|max:255',
-                'target_iban' => 'nullable|string|max:255',
-                'source_iban' => 'nullable|string|max:255',
-                'partner' => 'nullable|string|max:255',
-                'type' => 'required|string|max:255',
-                'metadata' => 'nullable|array',
-                'balance_after_transaction' => 'required|numeric',
-                'account_id' => 'required|exists:accounts,id',
-                'merchant_id' => 'nullable|exists:merchants,id',
-                'category_id' => 'nullable|exists:categories,id',
-                'tags' => 'nullable|array',
-                'tags.*' => 'exists:tags,id',
-                'note' => 'nullable|string',
-                'recipient_note' => 'nullable|string',
-                'place' => 'nullable|string|max:255',
-            ]);
-
-            $tagIds = $validated['tags'] ?? [];
-            unset($validated['tags']);
-
-            $transaction = Transaction::create($validated);
-
-            if (! empty($tagIds)) {
-                $transaction->tags()->attach($tagIds);
-            }
-
-            // Check if this is an API request
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Transaction created successfully',
-                    'transaction' => $transaction->load(['account', 'merchant', 'category', 'tags']),
-                ], 201);
-            }
-
-            return redirect()->back()->with('success', 'Transaction created successfully');
-        } catch (\Exception $e) {
-            Log::error('Transaction creation failed: '.$e->getMessage());
-
-            // Check if this is an API request
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'error' => 'Failed to create transaction',
-                    'message' => $e->getMessage(),
-                ], 500);
-            }
-
-            return redirect()->back()->with('error', 'Failed to create transaction: '.$e->getMessage());
-        }
-    }
-
-    /**
      * Updates the merchant, category, and tags of a transaction.
      *
      * Validates and applies updates to the specified transaction, including synchronizing associated tags. Redirects back with a success or error message based on the outcome.
      */
-    public function update(Request $request, Transaction $transaction)
+    public function update(Request $request, Transaction $transaction): \Illuminate\Http\RedirectResponse
     {
         try {
             $validated = $request->validate([
@@ -342,7 +309,7 @@ class TransactionController extends Controller
      *
      * @return JsonResponse JSON response with a success message or error details.
      */
-    public function bulkUpdate(Request $request)
+    public function bulkUpdate(Request $request): JsonResponse
     {
         try {
             $validated = $request->validate([
@@ -374,13 +341,63 @@ class TransactionController extends Controller
     }
 
     /**
+     * Updates notes for multiple transactions in bulk.
+     *
+     * Validates the request for transaction IDs, note content, and method (replace or append).
+     * Updates the note field for each transaction according to the specified method.
+     *
+     * @return JsonResponse JSON response with a success message or error details.
+     */
+    public function bulkNoteUpdate(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_ids' => 'required|array',
+                'transaction_ids.*' => 'exists:transactions,id',
+                'note' => 'required|string',
+                'method' => 'required|string|in:replace,append',
+            ]);
+
+            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])->get();
+            $updatedTransactions = [];
+
+            foreach ($transactions as $transaction) {
+                if ($validated['method'] === 'replace') {
+                    $transaction->update(['note' => $validated['note']]);
+                } elseif ($validated['method'] === 'append') {
+                    $existingNote = $transaction->note ?? '';
+                    $newNote = $existingNote ? $existingNote."\n".$validated['note'] : $validated['note'];
+                    $transaction->update(['note' => $newNote]);
+                }
+
+                // Refresh the transaction to get the updated note
+                $transaction->refresh();
+                $updatedTransactions[] = [
+                    'id' => $transaction->id,
+                    'note' => $transaction->note,
+                ];
+            }
+
+            return response()->json([
+                'message' => 'Transaction notes updated successfully',
+                'updated_count' => $transactions->count(),
+                'updated_transactions' => $updatedTransactions,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Bulk transaction note update failed: '.$e->getMessage());
+
+            return response()->json(['error' => 'Failed to update transaction notes'], 500);
+        }
+    }
+
+    /**
      * Updates specific fields of a transaction and returns a JSON response.
      *
      * Validates and updates the transaction's description, note, partner, and place fields if provided.
      *
      * @return JsonResponse JSON response indicating success or failure.
      */
-    public function updateTransaction(Request $request, Transaction $transaction)
+    public function updateTransaction(Request $request, Transaction $transaction): JsonResponse
     {
 
         $validated = $request->validate([
@@ -388,6 +405,7 @@ class TransactionController extends Controller
             'note' => 'nullable|string',
             'partner' => 'nullable|string',
             'place' => 'nullable|string',
+            'needs_manual_review' => 'nullable|boolean',
         ]);
 
         try {
@@ -619,6 +637,18 @@ class TransactionController extends Controller
 
         if ($request->has('dateTo') && ! empty($request->dateTo)) {
             $query->whereDate('booked_date', '<=', $request->dateTo);
+            $isFiltered = true;
+        }
+
+        // Recurring only (has recurring_group_id)
+        if ($request->boolean('recurring_only')) {
+            $query->whereNotNull('recurring_group_id');
+            $isFiltered = true;
+        }
+
+        // Unlinked only (no recurring group) – for "Add transaction" picker on recurring page
+        if ($request->boolean('unlinked_only')) {
+            $query->whereNull('recurring_group_id');
             $isFiltered = true;
         }
 

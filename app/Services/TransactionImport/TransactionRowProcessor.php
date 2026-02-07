@@ -50,7 +50,14 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
                 return CsvProcessResult::skipped('Empty row '.$rowNumber, data: $row, metadata: $metadata);
             }
 
-            $parsedData = $this->parser->parse($row, $this->configuration);
+            $configWithRow = array_merge($this->configuration, ['_row_number' => $rowNumber]);
+            $parsedData = $this->parser->parse($row, $configWithRow);
+
+            // Apply overrides if present
+            if (isset($this->configuration['overrides'][$rowNumber])) {
+                $parsedData = array_merge($parsedData, $this->configuration['overrides'][$rowNumber]);
+                Log::debug('Applied overrides for row '.$rowNumber, ['overrides' => $this->configuration['overrides'][$rowNumber]]);
+            }
 
             $transactionDto = new TransactionDto(
                 $parsedData,

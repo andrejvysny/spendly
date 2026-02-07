@@ -2,7 +2,8 @@
 
 namespace App\Contracts\RuleEngine;
 
-use App\Models\RuleAction;
+use App\Models\RuleEngine\ActionType;
+use App\Models\RuleEngine\RuleAction;
 use App\Models\Transaction;
 
 interface ActionExecutorInterface
@@ -17,12 +18,12 @@ interface ActionExecutorInterface
     /**
      * Check if the executor supports a given action type.
      */
-    public function supportsAction(string $actionType): bool;
+    public function supportsAction(ActionType $actionType): bool;
 
     /**
      * Validate that the action value is valid for the action type.
      */
-    public function validateActionValue(string $actionType, mixed $value): bool;
+    public function validateActionValue(ActionType $actionType, mixed $value): bool;
 
     /**
      * Get a description of what the action will do.

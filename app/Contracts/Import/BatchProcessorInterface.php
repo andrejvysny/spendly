@@ -11,8 +11,8 @@ interface BatchProcessorInterface
     /**
      * Process multiple rows in a batch.
      *
-     * @param  array  $rows  Array of rows to process
-     * @param  array  $configuration  Processing configuration
+     * @param  array<mixed>  $rows  Array of rows to process
+     * @param  array<string, mixed>  $configuration  Processing configuration
      */
     public function processBatch(array $rows, array $configuration = []): BatchResultInterface;
 

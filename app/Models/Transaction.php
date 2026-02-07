@@ -3,11 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Arr;
 
-class Transaction extends Model
+class Transaction extends BaseModel
 {
     use HasFactory;
 
@@ -28,6 +28,8 @@ class Transaction extends Model
         'import_data',
         'merchant_id',
         'category_id',
+        'recurring_group_id',
+        'transfer_pair_transaction_id',
         'note',
         'recipient_note',
         'place',
@@ -35,7 +37,53 @@ class Transaction extends Model
         'gocardless_synced_at',
         'gocardless_account_id',
         'is_reconciled',
+        'reconciled_at',
+        'reconciled_note',
+        'fingerprint',
+        'needs_manual_review',
+        'review_reason',
+        'original_currency',
+        'original_amount',
+        'exchange_rate',
+        'internal_transaction_id',
+        'entry_reference',
+        'bank_transaction_code',
     ];
+
+    public static function getFingerprintAttributes(): array
+    {
+        return [
+            'amount',
+            'currency',
+            'processed_date',
+            'description',
+            'target_iban',
+            'source_iban',
+            'partner',
+            'type',
+            'account_id',
+        ];
+    }
+
+    public static function generateFingerprint(array $model): string
+    {
+        $attributes = Arr::sort(Transaction::getFingerprintAttributes());
+        $data = [];
+
+        foreach ($attributes as $attribute) {
+
+            if ($attribute === 'processed_date' && isset($model[$attribute])) {
+                // Normalize date to Y-m-d format for fingerprinting
+                $data[$attribute] = date('Y-m-d', strtotime($model[$attribute]));
+
+                continue;
+            }
+
+            $data[$attribute] = $model[$attribute] ?? null;
+        }
+
+        return hash('sha256', json_encode($data));
+    }
 
     /**
      * The attributes that should be cast.
@@ -55,6 +103,11 @@ class Transaction extends Model
         'gocardless_synced_at' => 'datetime',
         'gocardless_account_id' => 'string',
         'is_reconciled' => 'boolean',
+        'reconciled_at' => 'datetime',
+        'fingerprint' => 'string',
+        'needs_manual_review' => 'boolean',
+        'original_amount' => 'decimal:2',
+        'exchange_rate' => 'decimal:6',
     ];
 
     /**
@@ -97,11 +150,27 @@ class Transaction extends Model
     }
 
     /**
+     * Get the recurring group this transaction belongs to (when confirmed).
+     */
+    public function recurringGroup(): BelongsTo
+    {
+        return $this->belongsTo(RecurringGroup::class);
+    }
+
+    /**
      * Get the tags associated with the transaction.
      */
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class);
+    }
+
+    /**
+     * Get the counterpart transaction when this is one leg of a transfer pair.
+     */
+    public function pairTransaction(): BelongsTo
+    {
+        return $this->belongsTo(Transaction::class, 'transfer_pair_transaction_id');
     }
 
     /**
@@ -140,5 +209,27 @@ class Transaction extends Model
                     $q->where('name', 'LIKE', "%{$term}%");
                 });
         });
+    }
+
+    public function setCategory(Category $category): void
+    {
+        $this->category_id = $category->id;
+        $this->save();
+    }
+
+    public function setMerchant(Merchant $merchant): void
+    {
+        $this->merchant_id = $merchant->id;
+        $this->save();
+    }
+
+    public function markReconciled(?string $note = null): void
+    {
+        $this->is_reconciled = true;
+        $this->reconciled_at = now();
+        if ($note) {
+            $this->reconciled_note = $note;
+        }
+        $this->save();
     }
 }

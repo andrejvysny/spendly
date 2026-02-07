@@ -5,9 +5,6 @@ namespace App\Services\Csv;
 use App\Contracts\Import\BatchResultInterface;
 use App\Contracts\Import\ProcessResultInterface;
 
-/**
- * Implementation of BatchResultInterface for CSV batch processing.
- */
 class CsvBatchResult implements \Iterator, BatchResultInterface
 {
     private array $results = [];
@@ -20,7 +17,7 @@ class CsvBatchResult implements \Iterator, BatchResultInterface
 
     private int $currentIndex = 0;
 
-    public function addResult(ProcessResultInterface $result): void
+    public function addResult(CsvProcessResult $result): void
     {
         $this->results[] = $result;
 

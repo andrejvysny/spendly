@@ -3,19 +3,19 @@
 namespace App\Http\Controllers\Import;
 
 use App\Http\Controllers\Controller;
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Models\Transaction;
-use App\Models\TransactionFingerprint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class ImportController extends Controller
 {
-    public function index()
+    public function index(): Response
     {
         Log::debug('Fetching imports for user', ['user_id' => Auth::id()]);
         $imports = Import::where('user_id', Auth::id())

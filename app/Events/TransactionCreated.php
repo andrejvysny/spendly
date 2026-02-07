@@ -11,16 +11,17 @@ class TransactionCreated
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public Transaction $transaction;
-
-    public bool $applyRules;
-
-    /**
-     * Create a new event instance.
-     */
-    public function __construct(Transaction $transaction, bool $applyRules = true)
+    public function getTransaction(): Transaction
     {
-        $this->transaction = $transaction;
-        $this->applyRules = $applyRules;
+        return $this->transaction;
     }
+
+    public function shouldApplyRules(): bool
+    {
+        return $this->applyRules;
+    }
+
+    public function __construct(
+        private readonly Transaction $transaction,
+        private readonly bool $applyRules = true) {}
 }

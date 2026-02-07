@@ -11,13 +11,15 @@ interface RowProcessorInterface
     /**
      * Process a single row of data.
      *
-     * @param  array  $row  The row data to process
-     * @param  array  $configuration  Additional configuration for processing
+     * @param  array<string, mixed>  $row  The row data to process
+     * @param  array<string, mixed>  $configuration  Additional configuration for processing
      */
     public function processRow(array $row, array $configuration = []): ProcessResultInterface;
 
     /**
      * Validate if the processor can handle the given configuration.
+     *
+     * @param  array<string, mixed>  $configuration
      */
     public function canProcess(array $configuration): bool;
 }

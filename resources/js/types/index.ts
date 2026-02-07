@@ -52,6 +52,8 @@ export interface Transaction {
     import_data?: Record<string, unknown> | undefined;
     merchant_id?: number;
     category_id?: number;
+    recurring_group_id?: number | null;
+    transfer_pair_transaction_id?: number | null;
     note?: string;
     recipient_note?: string;
     place?: string;
@@ -59,21 +61,6 @@ export interface Transaction {
     merchant?: Merchant;
     category?: Category;
     tags?: Tag[];
-}
-
-export interface TransactionRule {
-    id: number;
-    user_id: number;
-    name: string;
-    condition_type: 'amount' | 'iban' | 'description';
-    condition_operator: 'equals' | 'contains' | 'greater_than' | 'less_than';
-    condition_value: string;
-    action_type: 'add_tag' | 'set_category' | 'set_type';
-    action_value: string;
-    is_active: boolean;
-    order: number;
-    created_at: string;
-    updated_at: string;
 }
 
 export interface NavItem {
@@ -127,6 +114,7 @@ export interface ImportFailure {
         field?: string;
         validation_errors?: string[];
         duplicate_fingerprint?: string;
+        fingerprint?: string;
         exception?: string;
     };
     parsed_data: {

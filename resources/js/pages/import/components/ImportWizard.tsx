@@ -84,8 +84,8 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
         [],
     );
 
-    const handleCleanComplete = useCallback((cleanedData: Partial<Transaction>[]) => {
-        setPreviewData(cleanedData);
+    const handleCleanComplete = useCallback(() => {
+        // setPreviewData(cleanedData); // No longer needed as data is persisted on backend
         setCurrentStep('map');
     }, []);
 
@@ -128,7 +128,7 @@ export default function ImportWizard({ onComplete, onCancel }: ImportWizardProps
                     />
                 ) : null;
             case 'clean':
-                return configuredData ? <CleanStep data={previewData} onComplete={handleCleanComplete} /> : null;
+                return configuredData ? <CleanStep importId={uploadedData!.importId} onComplete={() => handleCleanComplete()} /> : null;
             case 'map':
                 return <MapStep data={previewData} categories={categories} onComplete={handleMapComplete} />;
             case 'confirm':
@@ -220,8 +220,8 @@ function StepIndicator({ number, title, isActive, isCompleted, onClick }: StepIn
     const bgColor = isActive
         ? 'bg-foreground text-current font-semibold'
         : isCompleted
-          ? 'bg-green-500 text-current font-semibold'
-          : ' text-foreground border font-semibold border-foreground';
+            ? 'bg-green-500 text-current font-semibold'
+            : ' text-foreground border font-semibold border-foreground';
 
     return (
         <div className="flex cursor-pointer flex-col items-center" onClick={onClick}>

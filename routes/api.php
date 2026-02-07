@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Http\Controllers\Import\ImportFailureController;
+use App\Http\Controllers\RecurringGroupController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\RuleEngine\RuleExecutionController;
 use App\Http\Controllers\Transactions\TransactionController;
@@ -26,6 +29,20 @@ Route::middleware('auth')->get('/user', function (Request $request) {
 Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/transactions', [TransactionController::class, 'store'])->name('api.transactions.store');
     Route::get('/transactions/field-definitions', [TransactionController::class, 'getFieldDefinitions'])->name('api.transactions.field-definitions');
+});
+
+// Analytics endpoints
+Route::middleware(['web', 'auth'])->prefix('analytics')->group(function () {
+    Route::get('/balance-history', [AnalyticsController::class, 'balanceHistory'])->name('api.analytics.balance-history');
+    Route::get('/monthly-comparison', [AnalyticsController::class, 'monthlyComparison'])->name('api.analytics.monthly-comparison');
+});
+
+// GoCardless sync endpoints
+Route::middleware(['web', 'auth'])->prefix('gocardless')->name('gocardless.')->group(function () {
+    Route::post('/accounts/{accountId}/sync', [GoCardlessController::class, 'syncTransactions'])
+        ->name('accounts.sync');
+    Route::post('/accounts/sync-all', [GoCardlessController::class, 'syncAllAccounts'])
+        ->name('accounts.sync-all');
 });
 
 // Rule Engine API Routes - JSON responses for CRUD operations
@@ -58,6 +75,20 @@ Route::middleware(['web', 'auth'])->prefix('rules')->group(function () {
         ->name('rules.execute.rule');
     Route::post('/groups/{id}/execute', [RuleExecutionController::class, 'executeRuleGroup'])
         ->name('rules.execute.group');
+});
+
+// Recurring groups (subscriptions) API
+Route::middleware(['web', 'auth'])->prefix('recurring')->group(function () {
+    Route::get('/', [RecurringGroupController::class, 'index'])->name('api.recurring.index');
+    Route::get('/analytics', [RecurringGroupController::class, 'analytics'])->name('api.recurring.analytics');
+    Route::get('/settings', [RecurringGroupController::class, 'getSettings'])->name('api.recurring.settings');
+    Route::put('/settings', [RecurringGroupController::class, 'updateSettings'])->name('api.recurring.settings.update');
+    Route::post('/detect', [RecurringGroupController::class, 'detect'])->name('api.recurring.detect');
+    Route::post('/groups/{recurringGroup}/confirm', [RecurringGroupController::class, 'confirm'])->name('api.recurring.confirm');
+    Route::post('/groups/{recurringGroup}/dismiss', [RecurringGroupController::class, 'dismiss'])->name('api.recurring.dismiss');
+    Route::post('/groups/{recurringGroup}/unlink', [RecurringGroupController::class, 'unlink'])->name('api.recurring.unlink');
+    Route::post('/groups/{recurringGroup}/detach-transactions', [RecurringGroupController::class, 'detachTransactions'])->name('api.recurring.detach-transactions');
+    Route::post('/groups/{recurringGroup}/attach-transactions', [RecurringGroupController::class, 'attachTransactions'])->name('api.recurring.attach-transactions');
 });
 
 // Import failure management routes

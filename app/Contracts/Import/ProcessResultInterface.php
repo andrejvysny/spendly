@@ -25,11 +25,15 @@ interface ProcessResultInterface
 
     /**
      * Get the processed data.
+     *
+     * @return array<string, mixed>|object|null
      */
     public function getData(): array|object|null;
 
     /**
      * Get any errors that occurred during processing.
+     *
+     * @return array<string, mixed>
      */
     public function getErrors(): array;
 }

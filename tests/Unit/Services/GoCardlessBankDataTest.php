@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\GoCardless\GoCardlessBankData;
+use App\Services\GoCardless\GoCardlessBankDataClient;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -30,7 +30,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test successful token initialization with credentials
      */
-    public function test_constructor_initializes_with_credentials()
+    public function test_constructor_initializes_with_credentials(): void
     {
         Http::fake([
             '*/token/new/' => Http::response([
@@ -41,7 +41,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ], 200),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
         $tokens = $service->getSecretTokens();
 
         $this->assertEquals('new_access_token', $tokens['access']);
@@ -57,7 +57,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test token refresh when access token is expired
      */
-    public function test_token_refresh_when_expired()
+    public function test_token_refresh_when_expired(): void
     {
         Http::fake([
             '*/token/refresh/' => Http::response([
@@ -72,7 +72,7 @@ class GoCardlessBankDataTest extends UnitTestCase
         $expiredAccessToken = (new \DateTime)->sub(new \DateInterval('PT1H'));
         $validRefreshToken = (new \DateTime)->add(new \DateInterval('P1D'));
 
-        $service = new GoCardlessBankData(
+        $service = new GoCardlessBankDataClient(
             $this->secretId,
             $this->secretKey,
             'expired_access_token',
@@ -86,14 +86,14 @@ class GoCardlessBankDataTest extends UnitTestCase
 
         Http::assertSent(function (Request $request) {
             return str_contains($request->url(), '/token/refresh/') &&
-                   $request['refresh_token'] == 'valid_refresh_token';
+                   $request['refresh'] == 'valid_refresh_token';
         });
     }
 
     /**
      * Test fallback to new token when refresh token is expired
      */
-    public function test_fallback_to_new_token_when_refresh_expired()
+    public function test_fallback_to_new_token_when_refresh_expired(): void
     {
         Http::fake([
             '*/token/new/' => Http::response([
@@ -106,7 +106,7 @@ class GoCardlessBankDataTest extends UnitTestCase
 
         $expiredTokenTime = (new \DateTime)->sub(new \DateInterval('P1D'));
 
-        $service = new GoCardlessBankData(
+        $service = new GoCardlessBankDataClient(
             $this->secretId,
             $this->secretKey,
             'expired_access_token',
@@ -123,7 +123,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test invalid token response handling
      */
-    public function test_invalid_token_response_throws_exception()
+    public function test_invalid_token_response_throws_exception(): void
     {
         Http::fake([
             '*/token/new/' => Http::response([
@@ -134,14 +134,14 @@ class GoCardlessBankDataTest extends UnitTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid token response: missing required fields');
 
-        new GoCardlessBankData($this->secretId, $this->secretKey);
+        new GoCardlessBankDataClient($this->secretId, $this->secretKey);
     }
 
     /**
      * Test token response with invalid data types
      */
     #[DataProvider('invalidTokenResponseProvider')]
-    public function test_token_response_validation($response, $expectedMessage)
+    public function test_token_response_validation(array $response, string $expectedMessage): void
     {
         Http::fake([
             '*/token/new/' => Http::response($response, 200),
@@ -150,9 +150,12 @@ class GoCardlessBankDataTest extends UnitTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage($expectedMessage);
 
-        new GoCardlessBankData($this->secretId, $this->secretKey);
+        new GoCardlessBankDataClient($this->secretId, $this->secretKey);
     }
 
+    /**
+     * @return array<string, array{array<string, mixed>, string}>
+     */
     public static function invalidTokenResponseProvider(): array
     {
         return [
@@ -178,7 +181,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test createEndUserAgreement
      */
-    public function test_create_end_user_agreement_success()
+    public function test_create_end_user_agreement_success(): void
     {
         $this->setupSuccessfulTokenResponse();
         Http::fake([
@@ -190,7 +193,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ], 200),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
         $result = $service->createEndUserAgreement('SANDBOXFINANCE_SFIN0000', ['user_id' => '123']);
 
         $this->assertEquals('agreement_123', $result['id']);
@@ -207,7 +210,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test getAccounts with caching
      */
-    public function test_get_accounts_uses_cache()
+    public function test_get_accounts_uses_cache(): void
     {
         $this->setupSuccessfulTokenResponse();
         Http::fake([
@@ -217,7 +220,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ], 200),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
 
         // First call should hit the API
         $accounts1 = $service->getAccounts('req_123');
@@ -234,14 +237,14 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test getAccountDetails error handling
      */
-    public function test_get_account_details_error_handling()
+    public function test_get_account_details_error_handling(): void
     {
         $this->setupSuccessfulTokenResponse();
         Http::fake([
             '*/accounts/*/details/' => Http::response(['error' => 'Account not found'], 404),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
 
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('Failed to get account details');
@@ -252,7 +255,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test getTransactions with pagination
      */
-    public function test_get_transactions_handles_pagination()
+    public function test_get_transactions_handles_pagination(): void
     {
         $this->setupSuccessfulTokenResponse();
 
@@ -283,7 +286,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ]),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
         $result = $service->getTransactions('test_account', '2024-01-01', '2024-01-31');
 
         $this->assertCount(3, $result['transactions']['booked']);
@@ -295,7 +298,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test getTransactions without pagination - empty result
      */
-    public function test_get_transactions_empty_result()
+    public function test_get_transactions_empty_result(): void
     {
         $this->setupSuccessfulTokenResponse();
 
@@ -306,7 +309,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ], 200),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
         $result = $service->getTransactions('test_account');
 
         $this->assertArrayHasKey('transactions', $result);
@@ -317,7 +320,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test getBalances
      */
-    public function test_get_balances_success()
+    public function test_get_balances_success(): void
     {
         $this->setupSuccessfulTokenResponse();
         Http::fake([
@@ -331,7 +334,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ], 200),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
         $result = $service->getBalances('test_account');
 
         $this->assertEquals('1000.50', $result['balances'][0]['balanceAmount']['amount']);
@@ -340,7 +343,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test createRequisition
      */
-    public function test_create_requisition_success()
+    public function test_create_requisition_success(): void
     {
         $this->setupSuccessfulTokenResponse();
         Http::fake([
@@ -351,7 +354,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ], 200),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
         $result = $service->createRequisition('SANDBOXFINANCE_SFIN0000', 'https://example.com/callback');
 
         $this->assertEquals('req_new_123', $result['id']);
@@ -368,7 +371,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test deleteRequisition
      */
-    public function test_delete_requisition_clears_cache()
+    public function test_delete_requisition_clears_cache(): void
     {
         $this->setupSuccessfulTokenResponse();
         Http::fake([
@@ -379,7 +382,7 @@ class GoCardlessBankDataTest extends UnitTestCase
         Cache::put('gocardless_requisitions_req_123', ['id' => 'req_123'], 3600);
         Cache::put('gocardless_requisitions_all', ['results' => [['id' => 'req_123']]], 3600);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
         $result = $service->deleteRequisition('req_123');
 
         $this->assertTrue($result);
@@ -390,7 +393,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test getInstitutions with caching
      */
-    public function test_get_institutions_caches_results()
+    public function test_get_institutions_caches_results(): void
     {
         $this->setupSuccessfulTokenResponse();
         Http::fake([
@@ -403,7 +406,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ], 200),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey, null, null, null, null, true, 3600);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey, null, null, null, null, true, 3600);
 
         // First call
         $institutions1 = $service->getInstitutions('GB');
@@ -420,7 +423,7 @@ class GoCardlessBankDataTest extends UnitTestCase
     /**
      * Test disabling cache
      */
-    public function test_disable_cache_always_fetches_fresh_data()
+    public function test_disable_cache_always_fetches_fresh_data(): void
     {
         $this->setupSuccessfulTokenResponse();
         Http::fake([
@@ -429,7 +432,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             ], 200),
         ]);
 
-        $service = new GoCardlessBankData($this->secretId, $this->secretKey, null, null, null, null, false);
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey, null, null, null, null, false);
 
         // Make two calls
         $service->getInstitutions('GB');

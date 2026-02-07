@@ -5,11 +5,12 @@ namespace Tests\Unit\Services;
 use App\Models\Account;
 use App\Models\User;
 use App\Repositories\AccountRepository;
-use App\Services\GoCardless\GoCardlessBankData;
+use App\Services\GoCardless\GoCardlessBankDataClient;
 use App\Services\GoCardless\GocardlessMapper;
 use App\Services\GoCardless\GoCardlessService;
-use App\Services\TokenManager;
-use App\Services\TransactionSyncService;
+use App\Services\GoCardless\ClientFactory\GoCardlessClientFactoryInterface;
+use App\Services\GoCardless\TokenManager;
+use App\Services\GoCardless\TransactionSyncService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -26,9 +27,9 @@ class GoCardlessServiceTest extends UnitTestCase
 
     private GocardlessMapper $mapper;
 
-    private GoCardlessBankData $bankDataMock;
+    private GoCardlessBankDataClient $bankDataMock;
 
-    private TokenManager $tokenManagerMock;
+    private GoCardlessClientFactoryInterface $clientFactoryMock;
 
     private User $user;
 
@@ -52,8 +53,8 @@ class GoCardlessServiceTest extends UnitTestCase
         $this->accountRepository = Mockery::mock(AccountRepository::class);
         $this->transactionSyncService = Mockery::mock(TransactionSyncService::class);
         $this->mapper = Mockery::mock(GocardlessMapper::class);
-        $this->bankDataMock = Mockery::mock(GoCardlessBankData::class);
-        $this->tokenManagerMock = Mockery::mock(TokenManager::class);
+        $this->bankDataMock = Mockery::mock(GoCardlessBankDataClient::class);
+        $this->clientFactoryMock = Mockery::mock(GoCardlessClientFactoryInterface::class);
 
         // Create test user mock
         $this->user = Mockery::mock(User::class)->makePartial();
@@ -67,13 +68,13 @@ class GoCardlessServiceTest extends UnitTestCase
         $this->user->shouldReceive('setAttribute')->andReturnSelf();
         $this->user->shouldReceive('update')->andReturnSelf();
 
-        // Mock the service container to return our mocked dependencies
-        $this->app->instance(TokenManager::class, $this->tokenManagerMock);
+
 
         $this->service = new GoCardlessService(
             $this->accountRepository,
             $this->transactionSyncService,
-            $this->mapper
+            $this->mapper,
+            $this->clientFactoryMock
         );
     }
 
@@ -86,24 +87,23 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Helper method to inject mocked client and token manager
      */
-    private function injectMocks(): void
+    /**
+     * Helper method to setup factory mock
+     */
+    private function setupFactoryMock(): void
     {
-        $reflection = new \ReflectionClass($this->service);
-        $clientProperty = $reflection->getProperty('client');
-        $clientProperty->setAccessible(true);
-        $clientProperty->setValue($this->service, $this->bankDataMock);
-        $tokenManagerProperty = $reflection->getProperty('tokenManager');
-        $tokenManagerProperty->setAccessible(true);
-        $tokenManagerProperty->setValue($this->service, $this->tokenManagerMock);
+        $this->clientFactoryMock->shouldReceive('make')
+            ->with($this->user)
+            ->andReturn($this->bankDataMock);
     }
 
     /**
      * Test syncAccountTransactions with successful sync
      */
-    public function test_sync_account_transactions_success()
+    public function test_sync_account_transactions_success(): void
     {
-        // Inject mocks to bypass initialization
-        $this->injectMocks();
+        // Setup factory
+        $this->setupFactoryMock();
 
         $account = Mockery::mock(Account::class)->makePartial();
         $account->id = 1;
@@ -175,13 +175,18 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with missing user credentials
      */
-    public function test_sync_account_transactions_missing_credentials()
+    public function test_sync_account_transactions_missing_credentials(): void
     {
         $userWithoutCredentials = Mockery::mock(User::class)->makePartial();
         $userWithoutCredentials->id = 2;
         $userWithoutCredentials->gocardless_secret_id = null;
         $userWithoutCredentials->gocardless_secret_key = null;
         $userWithoutCredentials->shouldReceive('setAttribute')->andReturnSelf();
+
+        $this->clientFactoryMock->shouldReceive('make')
+            ->with($userWithoutCredentials)
+            ->once()
+            ->andThrow(new \InvalidArgumentException('GoCardless credentials not configured for user'));
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('GoCardless credentials not configured for user');
@@ -192,16 +197,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with account not found
      */
-    public function test_sync_account_transactions_account_not_found()
+    public function test_sync_account_transactions_account_not_found(): void
     {
-        // Mock the app() helper to return our mocked TokenManager
-        $this->app->bind(TokenManager::class, function ($app, $params) {
-            return $this->tokenManagerMock;
-        });
-
-        $this->tokenManagerMock->shouldReceive('getAccessToken')
-            ->once()
-            ->andReturn('test_access_token');
+        // Setup factory
+        $this->setupFactoryMock();
 
         $this->accountRepository->shouldReceive('findByIdForUser')
             ->with(999, $this->user->id)
@@ -217,12 +216,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with non-synced account
      */
-    public function test_sync_account_transactions_non_synced_account()
+    public function test_sync_account_transactions_non_synced_account(): void
     {
-        // Mock the app() helper to return our mocked TokenManager
-        $this->app->bind(TokenManager::class, function ($app, $params) {
-            return $this->tokenManagerMock;
-        });
+        // Setup factory
+        $this->setupFactoryMock();
 
         $account = Mockery::mock(Account::class)->makePartial();
         $account->id = 1;
@@ -233,9 +230,8 @@ class GoCardlessServiceTest extends UnitTestCase
         // Allow setAttribute calls on the account mock
         $account->shouldReceive('setAttribute')->andReturnSelf();
 
-        $this->tokenManagerMock->shouldReceive('getAccessToken')
-            ->once()
-            ->andReturn('test_access_token');
+        // Allow setAttribute calls on the account mock
+        $account->shouldReceive('setAttribute')->andReturnSelf();
 
         $this->accountRepository->shouldReceive('findByIdForUser')
             ->with($account->id, $this->user->id)
@@ -251,10 +247,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAccountTransactions with force max date range
      */
-    public function test_sync_account_transactions_force_max_date_range()
+    public function test_sync_account_transactions_force_max_date_range(): void
     {
-        // Inject mocks to bypass initialization
-        $this->injectMocks();
+        // Setup factory
+        $this->setupFactoryMock();
 
         $account = Mockery::mock(Account::class)->makePartial();
         $account->id = 1;
@@ -320,10 +316,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAllAccounts with successful sync
      */
-    public function test_sync_all_accounts_success()
+    public function test_sync_all_accounts_success(): void
     {
-        // Inject mocks to bypass initialization
-        $this->injectMocks();
+        // Setup factory
+        $this->setupFactoryMock();
 
         $account1 = Mockery::mock(Account::class)->makePartial();
         $account1->id = 1;
@@ -382,10 +378,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test syncAllAccounts with partial failure
      */
-    public function test_sync_all_accounts_partial_failure()
+    public function test_sync_all_accounts_partial_failure(): void
     {
-        // Inject mocks to bypass initialization
-        $this->injectMocks();
+        // Setup factory
+        $this->setupFactoryMock();
 
         $account1 = Mockery::mock(Account::class)->makePartial();
         $account1->id = 1;
@@ -450,10 +446,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test getInstitutions success
      */
-    public function test_get_institutions_success()
+    public function test_get_institutions_success(): void
     {
-        // Inject mocks to bypass initialization
-        $this->injectMocks();
+        // Setup factory
+        $this->setupFactoryMock();
 
         $countryCode = 'GB';
         $institutions = [
@@ -474,10 +470,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test createRequisition success
      */
-    public function test_create_requisition_success()
+    public function test_create_requisition_success(): void
     {
-        // Inject mocks to bypass initialization
-        $this->injectMocks();
+        // Setup factory
+        $this->setupFactoryMock();
 
         $institutionId = 'inst_123';
         $redirectUrl = 'https://example.com/callback';
@@ -499,10 +495,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test getRequisition success
      */
-    public function test_get_requisition_success()
+    public function test_get_requisition_success(): void
     {
-        // Inject mocks to bypass initialization
-        $this->injectMocks();
+        // Setup factory
+        $this->setupFactoryMock();
 
         $requisitionId = 'req_456';
         $requisitionData = [
@@ -524,10 +520,10 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test importAccount success
      */
-    public function test_import_account_success()
+    public function test_import_account_success(): void
     {
-        // Inject mocks to bypass initialization
-        $this->injectMocks();
+        // Setup factory
+        $this->setupFactoryMock();
 
         $gocardlessAccountId = 'gocardless_acc_123';
         $accountDetails = [
@@ -595,18 +591,12 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test importAccount with already existing account
      */
-    public function test_import_account_already_exists()
+    public function test_import_account_already_exists(): void
     {
-        // Mock the app() helper to return our mocked TokenManager
-        $this->app->bind(TokenManager::class, function ($app, $params) {
-            return $this->tokenManagerMock;
-        });
+        // Setup factory
+        $this->setupFactoryMock();
 
         $gocardlessAccountId = 'gocardless_acc_123';
-
-        $this->tokenManagerMock->shouldReceive('getAccessToken')
-            ->once()
-            ->andReturn('test_access_token');
 
         $this->accountRepository->shouldReceive('gocardlessAccountExists')
             ->with($gocardlessAccountId, $this->user->id)
@@ -622,14 +612,14 @@ class GoCardlessServiceTest extends UnitTestCase
     /**
      * Test client initialization failure
      */
-    public function test_client_initialization_failure()
+    public function test_client_initialization_failure(): void
     {
         $countryCode = 'GB';
 
-        // Mock the app() helper to return a TokenManager that throws
-        $this->app->bind(TokenManager::class, function ($app, $params) {
-            throw new \RuntimeException('Token error');
-        });
+        $this->clientFactoryMock->shouldReceive('make')
+            ->with($this->user)
+            ->once()
+            ->andThrow(new \RuntimeException('Token error'));
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Failed to initialize GoCardless client: Token error');

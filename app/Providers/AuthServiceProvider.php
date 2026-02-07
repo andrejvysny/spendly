@@ -3,13 +3,11 @@
 namespace App\Providers;
 
 use App\Models\Category;
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Models\Merchant;
+use App\Models\RecurringGroup;
 use App\Models\Tag;
-use App\Policies\CategoryPolicy;
-use App\Policies\ImportPolicy;
-use App\Policies\MerchantPolicy;
-use App\Policies\TagPolicy;
+use App\Policies\OwnedByUserPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider
@@ -20,10 +18,11 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        Category::class => CategoryPolicy::class,
-        Import::class => ImportPolicy::class,
-        Merchant::class => MerchantPolicy::class,
-        Tag::class => TagPolicy::class,
+        Category::class => OwnedByUserPolicy::class,
+        Import::class => OwnedByUserPolicy::class,
+        Merchant::class => OwnedByUserPolicy::class,
+        RecurringGroup::class => OwnedByUserPolicy::class,
+        Tag::class => OwnedByUserPolicy::class,
     ];
 
     /**

@@ -1,0 +1,11 @@
+---
+description: "When writing or modifying tests. Backend PHPUnit, frontend Jest + React Testing Library."
+alwaysApply: false
+---
+
+# Testing
+
+- **Backend:** PHPUnit in `tests/Feature` and `tests/Unit`; use factories and DB in Feature tests.
+- **Frontend:** Jest + React Testing Library; see docs/ai/REACT_TESTING.md, resources/js/components/DataTable.test.tsx.
+- Run targeted: `php artisan test --filter=TestName`, `npm test -- path/to/file`.
+- Prefer single-file or single-class test runs for speed.

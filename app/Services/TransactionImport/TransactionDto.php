@@ -2,7 +2,7 @@
 
 namespace App\Services\TransactionImport;
 
-use App\Services\TransactionImport\ValidationResult\ValidationResult;
+use App\Models\Transaction;
 
 class TransactionDto
 {
@@ -36,5 +36,13 @@ class TransactionDto
     public function isValid(): bool
     {
         return $this->validationResult->isValid();
+    }
+
+    public static function fromTransaction(Transaction $transaction): TransactionDto
+    {
+        return new self(
+            data: $transaction->toArray(),
+            validationResult: new ValidationResult(true)
+        );
     }
 }

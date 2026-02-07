@@ -13,7 +13,7 @@ class TransactionValidator
      * @param  array  $data  Transaction data to validate
      * @param  array  $configuration  Additional configuration
      */
-    public function validate(array $data, array $configuration = []): ValidationResult\ValidationResult
+    public function validate(array $data, array $configuration = []): ValidationResult
     {
         $errors = [];
 
@@ -26,7 +26,7 @@ class TransactionValidator
         // Validate business rules
         $this->validateBusinessRules($data, $configuration, $errors);
 
-        return new ValidationResult\ValidationResult(empty($errors), $errors);
+        return new ValidationResult(empty($errors), $errors);
     }
 
     /**

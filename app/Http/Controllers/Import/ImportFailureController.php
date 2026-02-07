@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Import;
 
 use App\Http\Controllers\Controller;
-use App\Models\Import;
-use App\Models\ImportFailure;
+use App\Models\Import\Import;
+use App\Models\Import\ImportFailure;
+use App\Policies\Ability;
+use App\Services\Import\ImportFailureResolutionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,12 +19,16 @@ use Inertia\Response;
 
 class ImportFailureController extends Controller
 {
+    public function __construct(
+        private readonly ImportFailureResolutionService $resolutionService
+    ) {}
+
     /**
      * Show the failure review page for an import.
      */
     public function failuresPage(Import $import, Request $request): Response
     {
-        Gate::authorize('view', $import);
+        Gate::authorize(Ability::view, $import);
 
         $query = $import->failures();
 
@@ -69,7 +75,7 @@ class ImportFailureController extends Controller
      */
     public function index(Import $import, Request $request): JsonResponse
     {
-        Gate::authorize('view', $import);
+        Gate::authorize(Ability::view, $import);
 
         $query = $import->failures();
 
@@ -127,7 +133,7 @@ class ImportFailureController extends Controller
      */
     public function show(Import $import, ImportFailure $failure): JsonResponse
     {
-        Gate::authorize('view', $import);
+        Gate::authorize(Ability::view, $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -147,7 +153,7 @@ class ImportFailureController extends Controller
      */
     public function markAsReviewed(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+        Gate::authorize(Ability::update, $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -182,7 +188,7 @@ class ImportFailureController extends Controller
      */
     public function markAsResolved(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+        Gate::authorize(Ability::update, $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -217,7 +223,7 @@ class ImportFailureController extends Controller
      */
     public function markAsIgnored(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+        Gate::authorize(Ability::update, $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -252,7 +258,7 @@ class ImportFailureController extends Controller
      */
     public function markAsPending(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+        Gate::authorize(Ability::update, $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
@@ -286,7 +292,7 @@ class ImportFailureController extends Controller
      */
     public function bulkUpdate(Import $import, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+        Gate::authorize(Ability::update, $import);
 
         $request->validate([
             'failure_ids' => 'required|array|min:1',
@@ -342,7 +348,7 @@ class ImportFailureController extends Controller
      */
     public function stats(Import $import): JsonResponse
     {
-        Gate::authorize('view', $import);
+        Gate::authorize(Ability::view, $import);
 
         $stats = $import->getFailureStats();
 
@@ -357,7 +363,7 @@ class ImportFailureController extends Controller
      */
     public function export(Import $import, Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        Gate::authorize('view', $import);
+        Gate::authorize(Ability::view, $import);
 
         $query = $import->failures();
 
@@ -417,14 +423,14 @@ class ImportFailureController extends Controller
      */
     public function createTransactionFromReview(Import $import, ImportFailure $failure, Request $request): JsonResponse
     {
-        Gate::authorize('update', $import);
+        Gate::authorize(Ability::update, $import);
 
         // Ensure the failure belongs to the import
         if ($failure->import_id !== $import->id) {
             return response()->json(['error' => 'Failure not found in this import'], 404);
         }
 
-        $request->validate([
+        $validated = $request->validate([
             'transaction_id' => 'required|string|max:255',
             'amount' => 'required|numeric',
             'currency' => 'required|string|max:3',
@@ -448,56 +454,45 @@ class ImportFailureController extends Controller
         ]);
 
         try {
-            DB::beginTransaction();
-
-            // Create the transaction
-            $transaction = \App\Models\Transaction::create([
-                'transaction_id' => $request->input('transaction_id'),
-                'amount' => $request->input('amount'),
-                'currency' => $request->input('currency'),
-                'booked_date' => $request->input('booked_date'),
-                'processed_date' => $request->input('processed_date'),
-                'description' => $request->input('description'),
-                'target_iban' => $request->input('target_iban'),
-                'source_iban' => $request->input('source_iban'),
-                'partner' => $request->input('partner'),
-                'type' => $request->input('type'),
-                'balance_after_transaction' => $request->input('balance_after_transaction'),
-                'account_id' => $request->input('account_id'),
-                'merchant_id' => $request->input('merchant_id'),
-                'category_id' => $request->input('category_id'),
-                'note' => $request->input('note'),
-                'recipient_note' => $request->input('recipient_note'),
-                'place' => $request->input('place'),
+            $transactionData = [
+                'transaction_id' => $validated['transaction_id'],
+                'amount' => $validated['amount'],
+                'currency' => $validated['currency'],
+                'booked_date' => $validated['booked_date'],
+                'processed_date' => $validated['processed_date'],
+                'description' => $validated['description'],
+                'target_iban' => $validated['target_iban'] ?? null,
+                'source_iban' => $validated['source_iban'] ?? null,
+                'partner' => $validated['partner'] ?? null,
+                'type' => $validated['type'],
+                'balance_after_transaction' => $validated['balance_after_transaction'],
+                'account_id' => $validated['account_id'],
+                'merchant_id' => $validated['merchant_id'] ?? null,
+                'category_id' => $validated['category_id'] ?? null,
+                'note' => $validated['note'] ?? null,
+                'recipient_note' => $validated['recipient_note'] ?? null,
+                'place' => $validated['place'] ?? null,
                 'import_data' => [
                     'import_id' => $import->id,
                     'failure_id' => $failure->id,
                     'created_from_review' => true,
                     'raw_data' => $failure->raw_data,
                 ],
-            ]);
+            ];
 
-            // Mark failure as resolved
             $user = Auth::user();
-            $failure->markAsResolved($user, 'Transaction created from review');
+            $transaction = $this->resolutionService->createTransactionFromFailure($failure, $transactionData, $user);
 
-            DB::commit();
-
-            Log::info('Transaction created from import failure review', [
-                'transaction_id' => $transaction->id,
-                'failure_id' => $failure->id,
-                'import_id' => $import->id,
-                'created_by' => $user->id,
-            ]);
+            if (! empty($validated['tags'])) {
+                $transaction->tags()->sync($validated['tags']);
+            }
 
             return response()->json([
                 'message' => 'Transaction created successfully',
                 'transaction' => $transaction->load(['account', 'merchant', 'category']),
                 'failure' => $failure->fresh()->load('reviewer'),
             ], 201);
-
         } catch (\Exception $e) {
-            DB::rollBack();
             Log::error('Failed to create transaction from import failure review', [
                 'failure_id' => $failure->id,
                 'import_id' => $import->id,
