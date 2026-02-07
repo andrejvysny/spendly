@@ -38,10 +38,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy PHP extension installer and install extensions
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
-RUN install-php-extensions pdo_pgsql pdo_sqlite pdo_mysql mbstring bcmath zip xdebug openssl
-
-# Install Xdebug for code coverage (optional, can be enabled via environment variable)
-RUN pecl install xdebug && docker-php-ext-enable xdebug
+RUN install-php-extensions pdo_pgsql pdo_sqlite pdo_mysql mbstring bcmath zip openssl
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
@@ -59,10 +56,6 @@ RUN mkdir -p /var/www/html/storage/logs && \
 RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini && \
     echo "log_errors = On" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini && \
     echo "error_reporting = E_ALL" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini
-
-# Configure Xdebug (disabled by default, enabled via environment variable)
-RUN echo "xdebug.mode=off" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
-    echo "xdebug.start_with_request=no" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
 # Set up logging to stdout/stderr
 RUN touch /var/www/html/storage/logs/laravel.log && \

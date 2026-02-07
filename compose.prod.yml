@@ -1,11 +1,35 @@
+# One-click production deploy: set APP_KEY (required) and optionally APP_URL, then:
+#   export APP_KEY=$(php artisan key:generate --show)
+#   export APP_URL=https://your-domain.example.com  # optional
+#   docker compose -f compose.prod.yml up -d
+# No .env file required; all variables are defined below.
+
 services:
   app:
-    image: ghcr.io/andrejvysny/spendly:main #For development version use ghcr.io/andrejvysny/spendly:develop
+    image: ghcr.io/andrejvysny/spendly:main # For development use ghcr.io/andrejvysny/spendly:develop
     container_name: spendly
     restart: unless-stopped
     ports:
       - "80:80"
-    env_file: .env
+    environment:
+      APP_NAME: Spendly
+      APP_ENV: production
+      APP_KEY: ${APP_KEY}
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL:-http://localhost}
+      APP_LOCALE: en
+      APP_FALLBACK_LOCALE: en
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: warning
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/www/html/database/database.sqlite
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      GOCARDLESS_USE_MOCK: "false"
+      SESSION_SECURE_COOKIE: "false"
+      SESSION_LIFETIME: "120"
+      FILESYSTEM_DISK: local
     volumes:
       - app_storage:/var/www/html/storage
       - app_bootstrap:/var/www/html/bootstrap/cache
