@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 

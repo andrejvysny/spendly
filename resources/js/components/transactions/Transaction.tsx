@@ -8,6 +8,7 @@ import { icons } from '../ui/icon-picker';
 import TransactionDetails from './TransactionDetails';
 
 interface Props extends TransactionType {
+    compact: boolean;
     isSelected?: boolean;
     onSelect?: (id: string, selected: boolean) => void;
 }
@@ -17,11 +18,16 @@ interface Props extends TransactionType {
  *
  * Displays transaction information including partner, merchant, account, type, date, and amount. Allows selection via a checkbox and toggling of detailed view.
  *
+ * @param compact
  * @param isSelected - Whether the transaction is currently selected.
  * @param onSelect - Callback invoked when the selection state changes, receiving the transaction ID and new checked state.
+ * @param transaction
  */
-export default function Transaction({ isSelected = false, onSelect, ...transaction }: Props) {
+const TYPE_TRANSFER = 'TRANSFER';
+
+export default function Transaction({ compact = false, isSelected = false, onSelect, ...transaction }: Props) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const isTransfer = transaction.type === TYPE_TRANSFER;
 
     return (
         <div className="flex flex-col">
@@ -32,14 +38,40 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                 </div>
 
                 {/* Transaction Card */}
-                <div className="bg-card rounded-xl border-1 p-2 shadow-xs transition-colors hover:border-current">
+                <div
+                    className={
+                        'rounded-xl border-1 shadow-xs transition-colors ' +
+                        (isTransfer ? 'bg-muted/50 text-muted-foreground' : 'bg-card') +
+                        (isSelected ? ' border-current' : ' hover:border-current') +
+                        (compact ? 'px-2 py-1' : ' p-2')
+                    }
+                >
                     <div className="flex w-full cursor-pointer items-center gap-4" onClick={() => setIsExpanded(!isExpanded)}>
                         <div
-                            className="flex h-14 w-14 items-center justify-center rounded-full p-3"
-                            style={{ backgroundColor: transaction.category?.color || '#333333' }}
-                            title={transaction.category?.name || 'Uncategorized'}
+                            className={
+                                'flex items-center justify-center rounded-full ' +
+                                (compact ? ' h-8 w-8 p-1' : 'h-12 w-12 p-2') +
+                                (isTransfer ? ' bg-muted' : '')
+                            }
+                            style={!isTransfer ? { backgroundColor: transaction.category?.color || '#333333' } : undefined}
+                            title={isTransfer ? 'Transfer' : (transaction.category?.name || 'Uncategorized')}
                         >
-                            {transaction.category?.icon ? (
+                            {isTransfer ? (
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth={1.5}
+                                    stroke="currentColor"
+                                    className={compact ? 'h-5 w-5 text-muted-foreground' : 'h-8 w-8 text-muted-foreground'}
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
+                                    />
+                                </svg>
+                            ) : transaction.category?.icon ? (
                                 <Icon iconNode={icons[transaction.category.icon || '']} className="h-8 w-8 text-white" />
                             ) : (
                                 <svg
@@ -58,43 +90,66 @@ export default function Transaction({ isSelected = false, onSelect, ...transacti
                                 </svg>
                             )}
                         </div>
+
                         <div className="flex-1">
-                            <div className="font-medium">{transaction.partner || transaction.merchant?.name || transaction.type}</div>
-                            <small className="text-gray-500">{formatDate(transaction.processed_date)}</small>
-                            <div className="mt-1 flex gap-2">
-                                {transaction.account && (
-                                    <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
-                                        {transaction.account?.name}
-                                    </span>
-                                )}
-
-                                <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
-                                    {transaction.type}
-                                </span>
-
-                                {transaction.merchant?.name && (
-                                    <span
-                                        className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.merchant.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
-                                    >
-                                        {transaction.merchant.logo ? (
-                                            <img
-                                                src={transaction.merchant.logo}
-                                                alt={transaction.merchant.name}
-                                                className="h-5 w-auto rounded-full object-contain"
-                                            />
-                                        ) : (
-                                            <span className="text-xs font-bold">{transaction.merchant.name}</span>
-                                        )}
-                                    </span>
-                                )}
+                            <div className={!compact ? 'font-medium' : 'text-sm font-medium'}>
+                                {transaction.partner || transaction.merchant?.name || transaction.type}
                             </div>
+                            <small className="text-gray-500">{formatDate(transaction.processed_date)}</small>
+                            {!compact && (
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                    {transaction.recurring_group_id != null && (
+                                        <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs font-medium">
+                                            Recurring
+                                        </span>
+                                    )}
+                                    {transaction.account && (
+                                        <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
+                                            {transaction.account?.name}
+                                        </span>
+                                    )}
+
+                                    <span
+                                        className={
+                                            isTransfer
+                                                ? 'bg-muted rounded-full border-1 border-border px-2 py-1 text-base text-xs'
+                                                : 'bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs'
+                                        }
+                                    >
+                                        {transaction.type}
+                                    </span>
+
+                                    {transaction.merchant?.name && (
+                                        <span
+                                            className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.merchant.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
+                                        >
+                                            {transaction.merchant.logo ? (
+                                                <img
+                                                    src={transaction.merchant.logo}
+                                                    alt={transaction.merchant.name}
+                                                    className="h-5 w-auto rounded-full object-contain"
+                                                />
+                                            ) : (
+                                                <span className="text-xs font-bold">{transaction.merchant.name}</span>
+                                            )}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                        {transaction.amount < 0 ? (
-                            <div className="text-destructive-foreground text-lg font-semibold">
+
+                        {isTransfer ? (
+                            <div className={'text-muted-foreground font-semibold' + (compact ? ' text-md' : ' text-lg')}>
+                                ⇄ {formatAmount(transaction.amount, transaction.currency)}
+                            </div>
+                        ) : transaction.amount < 0 ? (
+                            <div className={'text-destructive-foreground font-semibold' + (compact ? ' text-md' : ' text-lg')}>
                                 ▼ {formatAmount(transaction.amount, transaction.currency)}
                             </div>
                         ) : (
-                            <div className="text-lg font-semibold text-green-500">▲ {formatAmount(transaction.amount, transaction.currency)}</div>
+                            <div className={'font-semibold text-green-500' + (compact ? ' text-md' : ' text-lg')}>
+                                ▲ {formatAmount(transaction.amount, transaction.currency)}
+                            </div>
                         )}
                     </div>
 

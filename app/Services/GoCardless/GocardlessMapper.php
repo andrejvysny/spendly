@@ -4,14 +4,14 @@ namespace App\Services\GoCardless;
 
 use App\Models\Account;
 use App\Models\Transaction;
+use App\Services\GoCardless\FieldExtractors\FieldExtractorFactory;
 use Carbon\Carbon;
 
 class GocardlessMapper
 {
-    /**
-     * Initializes a new instance of the GocardlessMapper class.
-     */
-    public function __construct() {}
+    public function __construct(
+        private readonly FieldExtractorFactory $extractorFactory
+    ) {}
 
     /**
      * Maps GoCardless account data into a structured array for application use.
@@ -23,16 +23,35 @@ class GocardlessMapper
     {
         return [
             'gocardless_account_id' => $data['id'] ?? null,
+            'gocardless_institution_id' => $data['institution_id'] ?? null,
             'name' => $data['name'] ?? null,
             'bank_name' => $data['bank_name'] ?? null,
             'iban' => $data['iban'] ?? null,
-            'type' => $data['type'] ?? null,
+            'type' => $this->mapAccountType($data),
             'currency' => $data['currency'] ?? null,
             'balance' => $data['balance'] ?? 0.00,
             'is_gocardless_synced' => true,
             'gocardless_last_synced_at' => now(),
             'import_data' => json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
         ];
+    }
+
+    /**
+     * Map GoCardless account type/cashAccountType to application account type.
+     * accounts.type is NOT NULL; GoCardless uses cashAccountType (CACC, SVGS, etc.).
+     */
+    private function mapAccountType(array $data): string
+    {
+        $raw = $data['type'] ?? $data['cashAccountType'] ?? null;
+        if ($raw === null || $raw === '') {
+            return 'checking';
+        }
+        $upper = strtoupper((string) $raw);
+        return match ($upper) {
+            'SVGS' => 'savings',
+            'CACC' => 'checking',
+            default => in_array($upper, ['CHECKING', 'SAVINGS'], true) ? strtolower($upper) : 'checking',
+        };
     }
 
     /**
@@ -141,39 +160,60 @@ class GocardlessMapper
      *
      * @param  array  $transaction  Raw transaction data from GoCardless.
      * @param  Account  $account  The associated account model.
+     * @param  Carbon  $syncDate  Date of sync (used when dates are missing).
      * @return array Structured transaction data suitable for application processing.
      */
-    public function mapTransactionData(array $transaction, Account $account): array
+    public function mapTransactionData(array $transaction, Account $account, Carbon $syncDate): array
     {
-        // Parse dates
+        $extractor = $this->extractorFactory->make($account);
+
         $bookedRaw = $this->get($transaction, 'bookingDateTime', $this->get($transaction, 'bookingDate'));
         $bookedDateTime = $this->parseDate($bookedRaw);
-
         $valueRaw = $this->get($transaction, 'valueDateTime', $this->get($transaction, 'valueDate', $bookedRaw));
         $valueDateTime = $this->parseDate($valueRaw);
 
-        // Extract amount and currency
-        $amount = $this->get($transaction, 'transactionAmount.amount', 0);
+        $amountRaw = $this->get($transaction, 'transactionAmount.amount', 0);
+        $amount = is_numeric($amountRaw) ? (float) $amountRaw : 0.0;
         $currency = $this->get($transaction, 'transactionAmount.currency', 'EUR');
 
-        // Extract IBANs
         $sourceIban = $this->get($transaction, 'debtorAccount.iban');
         $targetIban = $this->get($transaction, 'creditorAccount.iban');
 
-        // Extract partner name
-        $partner = $this->extractPartnerName($transaction);
+        $description = $extractor->extractDescription($transaction);
+        if (trim($description) === '') {
+            $partner = $extractor->extractPartner($transaction);
+            $description = $partner ?: 'Transaction ' . ($this->get($transaction, 'transactionId') ?? 'unknown');
+        }
+        $partner = $extractor->extractPartner($transaction);
+        $type = $extractor->extractTransactionType($transaction, $amount);
+        $metadata = $extractor->extractMetadata($transaction);
 
-        // Format description
-        $description = $this->formatDescription($transaction);
+        $currencyExchange = $extractor->extractCurrencyExchange($transaction);
+        $originalCurrency = null;
+        $originalAmount = null;
+        $exchangeRate = null;
+        if ($currencyExchange !== null) {
+            $metadata['currency_exchange'] = $currencyExchange;
+            $originalCurrency = $currencyExchange['sourceCurrency'] ?? null;
+            $instructed = $currencyExchange['instructedAmount'] ?? [];
+            $originalAmount = isset($instructed['amount']) ? (float) $instructed['amount'] : null;
+            $exchangeRate = isset($currencyExchange['exchangeRate']) ? (float) $currencyExchange['exchangeRate'] : null;
+        }
 
-        // Determine transaction type
-        $type = $this->determineTransactionType($transaction);
+        $transactionId = $this->get($transaction, 'transactionId');
+        $internalTransactionId = $this->get($transaction, 'internalTransactionId');
+        $entryReference = $this->get($transaction, 'entryReference');
+        $bankTransactionCode = $this->get($transaction, 'bankTransactionCode');
 
-        // Extract metadata
-        $metadata = $this->extractMetadata($transaction);
+        $importDataJson = $transaction;
+        try {
+            $importDataEncoded = json_encode($importDataJson, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException) {
+            $importDataEncoded = '{}';
+        }
 
         return [
-            'transaction_id' => $this->get($transaction, 'transactionId'),
+            'transaction_id' => $transactionId,
             'account_id' => $account->id,
             'gocardless_account_id' => $account->gocardless_account_id,
             'is_gocardless_synced' => true,
@@ -192,9 +232,31 @@ class GocardlessMapper
 
             'balance_after_transaction' => $this->get($transaction, 'balanceAfterTransaction.balanceAmount.amount', 0),
             'metadata' => $metadata,
-            'import_data' => json_encode($transaction, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'import_data' => $importDataEncoded,
+
+            'original_currency' => $originalCurrency,
+            'original_amount' => $originalAmount,
+            'exchange_rate' => $exchangeRate,
+            'internal_transaction_id' => $internalTransactionId,
+            'entry_reference' => $entryReference,
+            'bank_transaction_code' => $bankTransactionCode,
         ];
     }
+
+    /**
+     * Bank/purpose codes that indicate an internal or external transfer (PSD2/Open Banking).
+     * Normalized to uppercase for comparison; extend as needed for your banks.
+     */
+    private const TRANSFER_CODES = [
+        'TRFD',      // Transfer (common abbreviation)
+        'TRF',       // Transfer
+        'TRANSFER',
+        'DMCT',      // Domestic credit transfer
+        'CDCB',      // Credit transfer
+        'PMNT.RCDT', // ISO 20022: received credit transfer
+        'PMNT.RCDT.OTHR',
+        'IDDT',      // Instant domestic transfer
+    ];
 
     /**
      * Determines the transaction type based on the transaction data.
@@ -206,13 +268,23 @@ class GocardlessMapper
     {
         // Try to get the bank's proprietary code
         $bankCode = $this->get($transaction, 'proprietaryBankTransactionCode');
-        if ($bankCode) {
+        if ($bankCode !== null && $bankCode !== '') {
+            $code = strtoupper(trim((string) $bankCode));
+            if ($this->isTransferCode($code)) {
+                return Transaction::TYPE_TRANSFER;
+            }
+
             return (string) $bankCode;
         }
 
         // Try to get the purpose code
         $purposeCode = $this->get($transaction, 'purposeCode');
-        if ($purposeCode) {
+        if ($purposeCode !== null && $purposeCode !== '') {
+            $code = strtoupper(trim((string) $purposeCode));
+            if ($this->isTransferCode($code)) {
+                return Transaction::TYPE_TRANSFER;
+            }
+
             return (string) $purposeCode;
         }
 
@@ -225,6 +297,21 @@ class GocardlessMapper
         }
 
         return Transaction::TYPE_PAYMENT;
+    }
+
+    private function isTransferCode(string $code): bool
+    {
+        if ($code === '') {
+            return false;
+        }
+
+        foreach (self::TRANSFER_CODES as $transferCode) {
+            if ($code === $transferCode || str_starts_with($code, $transferCode.'.')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

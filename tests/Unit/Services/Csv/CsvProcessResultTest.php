@@ -7,7 +7,7 @@ use Tests\Unit\UnitTestCase;
 
 class CsvProcessResultTest extends UnitTestCase
 {
-    public function test_success_result_creation()
+    public function test_success_result_creation(): void
     {
         $data = ['id' => 1, 'name' => 'Test'];
         $metadata = ['row_number' => 1];
@@ -22,10 +22,10 @@ class CsvProcessResultTest extends UnitTestCase
         $this->assertEmpty($result->getErrors());
     }
 
-    public function test_failure_result_creation()
+    public function test_failure_result_creation(): void
     {
         $data = ['id' => 1, 'name' => 'Test'];
-        $errors = ['Field validation failed'];
+        $errors = ['ConditionField validation failed'];
         $metadata = ['row_number' => 1];
 
         $result = CsvProcessResult::failure('Failure message', $data, $metadata, $errors);
@@ -37,7 +37,7 @@ class CsvProcessResultTest extends UnitTestCase
         $this->assertEquals($errors, $result->getErrors());
     }
 
-    public function test_skipped_result_creation()
+    public function test_skipped_result_creation(): void
     {
         $data = ['id' => 1, 'name' => 'Test'];
         $metadata = ['row_number' => 1];
@@ -52,7 +52,7 @@ class CsvProcessResultTest extends UnitTestCase
         $this->assertEmpty($result->getErrors());
     }
 
-    public function test_empty_message_throws_exception()
+    public function test_empty_message_throws_exception(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Message cannot be empty');
@@ -60,7 +60,7 @@ class CsvProcessResultTest extends UnitTestCase
         new CsvProcessResult(true, '', ['data']);
     }
 
-    public function test_constructor_with_all_parameters()
+    public function test_constructor_with_all_parameters(): void
     {
         $result = new CsvProcessResult(
             success: true,
@@ -79,7 +79,7 @@ class CsvProcessResultTest extends UnitTestCase
         $this->assertEquals(['meta' => 'data'], $result->getMetadata());
     }
 
-    public function test_result_with_object_data()
+    public function test_result_with_object_data(): void
     {
         $object = (object) ['id' => 1, 'name' => 'Test'];
 

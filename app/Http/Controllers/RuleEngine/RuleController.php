@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\RuleEngine;
 
 use App\Http\Controllers\Controller;
-use App\Models\Rule;
-use App\Models\RuleAction;
-use App\Models\RuleCondition;
-use App\Models\RuleGroup;
+use App\Models\RuleEngine\ActionType;
+use App\Models\RuleEngine\ConditionField;
+use App\Models\RuleEngine\ConditionOperator;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleGroup;
+use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use App\Repositories\RuleRepository;
 use Illuminate\Http\JsonResponse;
@@ -42,74 +44,74 @@ class RuleController extends Controller
         $merchants = $user->merchants()->select('id', 'name')->get();
         $tags = $user->tags()->select('id', 'name')->get();
 
-        // Action input configuration
+        // ActionType input configuration
         $actionInputConfig = [
-            RuleAction::ACTION_SET_CATEGORY => [
+            ActionType::ACTION_SET_CATEGORY->value => [
                 'type' => 'select',
                 'model' => 'categories',
                 'placeholder' => 'Select a category',
             ],
-            RuleAction::ACTION_SET_MERCHANT => [
+            ActionType::ACTION_SET_MERCHANT->value => [
                 'type' => 'select',
                 'model' => 'merchants',
                 'placeholder' => 'Select a merchant',
             ],
-            RuleAction::ACTION_ADD_TAG => [
+            ActionType::ACTION_ADD_TAG->value => [
                 'type' => 'select',
                 'model' => 'tags',
                 'placeholder' => 'Select a tag',
             ],
-            RuleAction::ACTION_REMOVE_TAG => [
+            ActionType::ACTION_REMOVE_TAG->value => [
                 'type' => 'select',
                 'model' => 'tags',
                 'placeholder' => 'Select a tag',
             ],
-            RuleAction::ACTION_REMOVE_ALL_TAGS => [
+            ActionType::ACTION_REMOVE_ALL_TAGS->value => [
                 'type' => 'none',
                 'placeholder' => 'No value needed',
             ],
-            RuleAction::ACTION_SET_DESCRIPTION => [
+            ActionType::ACTION_SET_DESCRIPTION->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter description',
             ],
-            RuleAction::ACTION_APPEND_DESCRIPTION => [
+            ActionType::ACTION_APPEND_DESCRIPTION->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter text to append',
             ],
-            RuleAction::ACTION_PREPEND_DESCRIPTION => [
+            ActionType::ACTION_PREPEND_DESCRIPTION->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter text to prepend',
             ],
-            RuleAction::ACTION_SET_NOTE => [
+            ActionType::ACTION_SET_NOTE->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter note',
             ],
-            RuleAction::ACTION_APPEND_NOTE => [
+            ActionType::ACTION_APPEND_NOTE->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter text to append',
             ],
-            RuleAction::ACTION_SET_TYPE => [
+            ActionType::ACTION_SET_TYPE->value => [
                 'type' => 'select',
                 'model' => 'transaction_types',
                 'placeholder' => 'Select transaction type',
             ],
-            RuleAction::ACTION_MARK_RECONCILED => [
+            ActionType::ACTION_MARK_RECONCILED->value => [
                 'type' => 'none',
                 'placeholder' => 'No value needed',
             ],
-            RuleAction::ACTION_SEND_NOTIFICATION => [
+            ActionType::ACTION_SEND_NOTIFICATION->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter notification message',
             ],
-            RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS => [
+            ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter tag name',
             ],
-            RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => [
+            ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter category name',
             ],
-            RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => [
+            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS->value => [
                 'type' => 'text',
                 'placeholder' => 'Enter merchant name',
             ],
@@ -118,14 +120,14 @@ class RuleController extends Controller
         return Inertia::render('rules/index', [
             'initialRuleGroups' => $ruleGroups,
             'ruleOptions' => [
-                'trigger_types' => Rule::getTriggerTypes(),
-                'fields' => RuleCondition::getFields(),
-                'operators' => RuleCondition::getOperators(),
+                'trigger_types' => Trigger::cases(),
+                'fields' => ConditionField::cases(),
+                'operators' => ConditionOperator::cases(),
                 'logic_operators' => ['AND', 'OR'],
-                'action_types' => RuleAction::getActionTypes(),
+                'action_types' => ActionType::cases(),
                 'field_operators' => [
-                    'numeric' => RuleCondition::getNumericOperators(),
-                    'string' => RuleCondition::getStringOperators(),
+                    'numeric' => ConditionOperator::numeric(),
+                    'string' => ConditionOperator::string(),
                 ],
                 'categories' => $categories,
                 'merchants' => $merchants,
@@ -245,20 +247,20 @@ class RuleController extends Controller
             'rule_group_id' => 'required|exists:rule_groups,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'trigger_type' => 'required|in:'.implode(',', Rule::getTriggerTypes()),
+            'trigger_type' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, Trigger::cases())),
             'stop_processing' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
             'condition_groups' => 'required|array|min:1',
             'condition_groups.*.logic_operator' => 'required|in:AND,OR',
             'condition_groups.*.conditions' => 'required|array|min:1',
-            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', RuleCondition::getFields()),
-            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', RuleCondition::getOperators()),
+            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionField::cases())),
+            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionOperator::cases())),
             'condition_groups.*.conditions.*.value' => 'required|string',
             'condition_groups.*.conditions.*.is_case_sensitive' => 'nullable|boolean',
             'condition_groups.*.conditions.*.is_negated' => 'nullable|boolean',
             'actions' => 'required|array|min:1',
-            'actions.*.action_type' => 'required|in:'.implode(',', RuleAction::getActionTypes()),
+            'actions.*.action_type' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ActionType::cases())),
             'actions.*.action_value' => 'nullable',
             'actions.*.stop_processing' => 'nullable|boolean',
         ]);
@@ -314,20 +316,20 @@ class RuleController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'trigger_type' => 'nullable|in:'.implode(',', Rule::getTriggerTypes()),
+            'trigger_type' => 'nullable|in:'.implode(',', array_map(fn ($case) => $case->value, Trigger::cases())),
             'stop_processing' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
             'condition_groups' => 'nullable|array',
             'condition_groups.*.logic_operator' => 'required_with:condition_groups|in:AND,OR',
             'condition_groups.*.conditions' => 'required_with:condition_groups|array|min:1',
-            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', RuleCondition::getFields()),
-            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', RuleCondition::getOperators()),
+            'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionField::cases())),
+            'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionOperator::cases())),
             'condition_groups.*.conditions.*.value' => 'required|string',
             'condition_groups.*.conditions.*.is_case_sensitive' => 'nullable|boolean',
             'condition_groups.*.conditions.*.is_negated' => 'nullable|boolean',
             'actions' => 'nullable|array',
-            'actions.*.action_type' => 'required|in:'.implode(',', RuleAction::getActionTypes()),
+            'actions.*.action_type' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ActionType::cases())),
             'actions.*.action_value' => 'nullable',
             'actions.*.stop_processing' => 'nullable|boolean',
         ]);
@@ -473,14 +475,14 @@ class RuleController extends Controller
 
         return response()->json([
             'data' => [
-                'trigger_types' => Rule::getTriggerTypes(),
-                'fields' => RuleCondition::getFields(),
-                'operators' => RuleCondition::getOperators(),
+                'trigger_types' => Trigger::cases(),
+                'fields' => ConditionField::cases(),
+                'operators' => ConditionOperator::cases(),
                 'logic_operators' => ['AND', 'OR'],
-                'action_types' => RuleAction::getActionTypes(),
+                'action_types' => ActionType::cases(),
                 'field_operators' => [
-                    'numeric' => RuleCondition::getNumericOperators(),
-                    'string' => RuleCondition::getStringOperators(),
+                    'numeric' => ConditionOperator::numeric(),
+                    'string' => ConditionOperator::string(),
                 ],
                 // Add data for select inputs
                 'categories' => $user->categories()->select('id', 'name')->get(),
@@ -506,72 +508,72 @@ class RuleController extends Controller
         return response()->json([
             'data' => [
                 'action_input_types' => [
-                    RuleAction::ACTION_SET_CATEGORY => [
+                    ActionType::ACTION_SET_CATEGORY->value => [
                         'type' => 'select',
                         'model' => 'categories',
                         'placeholder' => 'Select a category',
                     ],
-                    RuleAction::ACTION_SET_MERCHANT => [
+                    ActionType::ACTION_SET_MERCHANT->value => [
                         'type' => 'select',
                         'model' => 'merchants',
                         'placeholder' => 'Select a merchant',
                     ],
-                    RuleAction::ACTION_ADD_TAG => [
+                    ActionType::ACTION_ADD_TAG->value => [
                         'type' => 'select',
                         'model' => 'tags',
                         'placeholder' => 'Select a tag',
                     ],
-                    RuleAction::ACTION_REMOVE_TAG => [
+                    ActionType::ACTION_REMOVE_TAG->value => [
                         'type' => 'select',
                         'model' => 'tags',
                         'placeholder' => 'Select a tag',
                     ],
-                    RuleAction::ACTION_REMOVE_ALL_TAGS => [
+                    ActionType::ACTION_REMOVE_ALL_TAGS->value => [
                         'type' => 'none',
                         'placeholder' => 'No value needed',
                     ],
-                    RuleAction::ACTION_SET_DESCRIPTION => [
+                    ActionType::ACTION_SET_DESCRIPTION->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter description',
                     ],
-                    RuleAction::ACTION_APPEND_DESCRIPTION => [
+                    ActionType::ACTION_APPEND_DESCRIPTION->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter text to append',
                     ],
-                    RuleAction::ACTION_PREPEND_DESCRIPTION => [
+                    ActionType::ACTION_PREPEND_DESCRIPTION->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter text to prepend',
                     ],
-                    RuleAction::ACTION_SET_NOTE => [
+                    ActionType::ACTION_SET_NOTE->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter note',
                     ],
-                    RuleAction::ACTION_APPEND_NOTE => [
+                    ActionType::ACTION_APPEND_NOTE->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter text to append',
                     ],
-                    RuleAction::ACTION_SET_TYPE => [
+                    ActionType::ACTION_SET_TYPE->value => [
                         'type' => 'select',
                         'model' => 'transaction_types',
                         'placeholder' => 'Select transaction type',
                     ],
-                    RuleAction::ACTION_MARK_RECONCILED => [
+                    ActionType::ACTION_MARK_RECONCILED->value => [
                         'type' => 'none',
                         'placeholder' => 'No value needed',
                     ],
-                    RuleAction::ACTION_SEND_NOTIFICATION => [
+                    ActionType::ACTION_SEND_NOTIFICATION->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter notification message',
                     ],
-                    RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS => [
+                    ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter tag name',
                     ],
-                    RuleAction::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => [
+                    ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter category name',
                     ],
-                    RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => [
+                    ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS->value => [
                         'type' => 'text',
                         'placeholder' => 'Enter merchant name',
                     ],

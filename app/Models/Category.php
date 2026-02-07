@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use App\Contracts\OwnedByUserContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Category extends Model
+class Category extends BaseModel implements OwnedByUserContract
 {
     /** @use HasFactory<\Database\Factories\CategoryFactory> */
     use HasFactory;
@@ -51,5 +51,10 @@ class Category extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function getUserId(): int
+    {
+        return $this->getAttribute('user_id');
     }
 }

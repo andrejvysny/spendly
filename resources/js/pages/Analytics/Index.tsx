@@ -8,6 +8,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Account, Category, PageProps } from '@/types';
 import { formatAmount } from '@/utils/currency';
 import { Head, router } from '@inertiajs/react';
+import axios from 'axios';
 import {
     ArcElement,
     BarElement,
@@ -21,14 +22,16 @@ import {
     PointElement,
     Title,
     Tooltip,
+    Filler,
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { format } from 'date-fns';
-import React, { useEffect, useState } from 'react';
-import { Bar, Chart, Doughnut } from 'react-chartjs-2';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from '@inertiajs/react';
+import { Bar, Chart, Doughnut, Line } from 'react-chartjs-2';
 
 // Register ChartJS components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, ChartDataLabels);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, ChartDataLabels, Filler);
 
 interface CashflowData {
     year: number;
@@ -62,6 +65,28 @@ interface MerchantSpending {
     merchant: string;
     total: number;
     count: number;
+}
+
+interface BalanceHistoryData {
+    balanceHistory: Record<number, Record<string, number>>; // accountId -> period -> balance
+    netWorthHistory: Record<string, number>; // period -> totalBalance
+}
+
+interface RecurringGroupStats {
+    first_payment_date: string | null;
+    last_payment_date: string | null;
+    transactions_count: number;
+    total_paid: number;
+    average_amount: number | null;
+    projected_yearly_cost: number;
+    next_expected_payment: string | null;
+}
+
+interface RecurringGroupItem {
+    id: number;
+    name: string;
+    interval: string;
+    stats?: RecurringGroupStats | null;
 }
 
 interface AnalyticsProps extends PageProps {
@@ -106,6 +131,53 @@ export default function Index({
     const [selectedAccounts, setSelectedAccounts] = useState<number[]>(selectedAccountIds);
     const [specificMonth, setSpecificMonth] = useState<string>('');
     const noAccountsSelected = selectedAccounts.length === 0;
+
+    // Balance history state
+    const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryData | null>(null);
+    const [loadingBalanceHistory, setLoadingBalanceHistory] = useState(false);
+
+    // Recurring overview state
+    const [recurringGroups, setRecurringGroups] = useState<RecurringGroupItem[]>([]);
+    const [loadingRecurring, setLoadingRecurring] = useState(true);
+
+    // Fetch recurring confirmed groups for overview card
+    useEffect(() => {
+        setLoadingRecurring(true);
+        axios
+            .get<{ data: { confirmed: RecurringGroupItem[] } }>('/api/recurring?status=confirmed')
+            .then((res) => setRecurringGroups(res.data.data.confirmed ?? []))
+            .catch(() => setRecurringGroups([]))
+            .finally(() => setLoadingRecurring(false));
+    }, []);
+
+    // Fetch balance history when accounts or date range changes
+    const fetchBalanceHistory = useCallback(async () => {
+        if (selectedAccounts.length === 0) {
+            setBalanceHistory(null);
+            return;
+        }
+
+        setLoadingBalanceHistory(true);
+        try {
+            const params = new URLSearchParams();
+            selectedAccounts.forEach((id) => params.append('account_ids[]', id.toString()));
+            params.append('start_date', dateRange.start);
+            params.append('end_date', dateRange.end);
+            params.append('granularity', periodType === 'specific_month' ? 'day' : 'month');
+
+            const response = await axios.get(`/api/analytics/balance-history?${params.toString()}`);
+            setBalanceHistory(response.data);
+        } catch (error) {
+            console.error('Failed to fetch balance history:', error);
+            setBalanceHistory(null);
+        } finally {
+            setLoadingBalanceHistory(false);
+        }
+    }, [selectedAccounts, dateRange.start, dateRange.end, periodType]);
+
+    useEffect(() => {
+        fetchBalanceHistory();
+    }, [fetchBalanceHistory]);
 
     useEffect(() => {
         // When period changes to specific_month, set initial value
@@ -549,6 +621,153 @@ export default function Index({
     const netBalance = totalIncome - totalExpenses;
     const totalTransactions = cashflow.reduce((sum, item) => sum + item.transaction_count, 0);
 
+    // Format balance history for chart
+    const formatBalanceHistoryForChart = (): ChartData<'line'> => {
+        if (!balanceHistory || !balanceHistory.netWorthHistory) {
+            return {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Net Worth',
+                        data: [],
+                        borderColor: 'rgb(99, 102, 241)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    },
+                ],
+            };
+        }
+
+        // Sort periods chronologically
+        const periods = Object.keys(balanceHistory.netWorthHistory).sort();
+        const datasets: ChartData<'line'>['datasets'] = [];
+
+        // Add net worth line (primary)
+        datasets.push({
+            label: 'Total Net Worth',
+            data: periods.map((period) => balanceHistory.netWorthHistory[period]),
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+        });
+
+        // Add individual account lines (secondary, if more than one account)
+        if (selectedAccounts.length > 1 && balanceHistory.balanceHistory) {
+            const colors = [
+                { border: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.1)' },
+                { border: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.1)' },
+                { border: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.1)' },
+                { border: 'rgb(168, 85, 247)', bg: 'rgba(168, 85, 247, 0.1)' },
+                { border: 'rgb(245, 158, 11)', bg: 'rgba(245, 158, 11, 0.1)' },
+            ];
+
+            Object.entries(balanceHistory.balanceHistory).forEach(([accountId, history], index) => {
+                const account = accounts.find((a) => a.id === parseInt(accountId));
+                const color = colors[index % colors.length];
+                datasets.push({
+                    label: account?.name || `Account ${accountId}`,
+                    data: periods.map((period) => history[period] || 0),
+                    borderColor: color.border,
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                });
+            });
+        }
+
+        return {
+            labels: periods,
+            datasets,
+        };
+    };
+
+    // Balance history chart options
+    const balanceHistoryChartOptions: ChartOptions<'line'> = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                    color: '#9CA3AF',
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                },
+            },
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                    label: function (context) {
+                        const value = Number(context.raw);
+                        return `${context.dataset.label}: ${formatAmount(value)}`;
+                    },
+                },
+            },
+            title: {
+                display: true,
+                text: 'Balance Over Time',
+                color: '#9CA3AF',
+                font: {
+                    size: 16,
+                },
+            },
+            datalabels: {
+                display: false,
+            },
+        },
+        scales: {
+            y: {
+                type: 'linear',
+                grid: {
+                    color: 'rgba(75, 85, 99, 0.2)',
+                },
+                ticks: {
+                    color: '#9CA3AF',
+                    callback: function (value) {
+                        return `$${Number(value).toFixed(0)}`;
+                    },
+                },
+                title: {
+                    display: true,
+                    text: 'Balance ($)',
+                    color: '#9CA3AF',
+                },
+            },
+            x: {
+                grid: {
+                    color: 'rgba(75, 85, 99, 0.2)',
+                },
+                ticks: {
+                    color: '#9CA3AF',
+                },
+                title: {
+                    display: true,
+                    text: periodType === 'specific_month' ? 'Day' : 'Month',
+                    color: '#9CA3AF',
+                },
+            },
+        },
+        interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false,
+        },
+    };
+
     // Format the cashflow chart title based on period
     const getChartTitle = () => {
         if (periodType === 'specific_month' && specificMonth) {
@@ -725,6 +944,69 @@ export default function Index({
                     )}
                 </div>
 
+                {/* Recurring overview */}
+                <div className="bg-card rounded-xl border-1 p-6 shadow-xs">
+                    <h3 className="mb-4 text-lg font-semibold">Recurring overview</h3>
+                    {loadingRecurring ? (
+                        <div className="text-muted-foreground text-sm">Loading…</div>
+                    ) : recurringGroups.length === 0 ? (
+                        <div className="text-muted-foreground flex flex-col gap-2 text-sm">
+                            <p>No recurring subscriptions.</p>
+                            <Link href="/recurring" className="text-primary hover:underline">
+                                Go to Recurring payments →
+                            </Link>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-4">
+                            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-gray-400">Projected yearly</span>
+                                    <span className="text-base font-medium">
+                                        {formatAmount(
+                                            recurringGroups.reduce((sum, g) => sum + (g.stats?.projected_yearly_cost ?? 0), 0)
+                                        )}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-gray-400">Total paid (all time)</span>
+                                    <span className="text-base font-medium">
+                                        {formatAmount(
+                                            recurringGroups.reduce((sum, g) => sum + (g.stats?.total_paid ?? 0), 0)
+                                        )}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-gray-400">Subscriptions</span>
+                                    <span className="text-base font-medium">{recurringGroups.length}</span>
+                                </div>
+                            </div>
+                            {recurringGroups.length > 0 && (
+                                <div>
+                                    <p className="text-muted-foreground mb-2 text-xs">Top by projected yearly</p>
+                                    <ul className="space-y-1 text-sm">
+                                        {[...recurringGroups]
+                                            .sort((a, b) => (b.stats?.projected_yearly_cost ?? 0) - (a.stats?.projected_yearly_cost ?? 0))
+                                            .slice(0, 5)
+                                            .map((g) => (
+                                                <li key={g.id} className="flex justify-between gap-2">
+                                                    <Link href="/recurring" className="min-w-0 truncate hover:underline">
+                                                        {g.name}
+                                                    </Link>
+                                                    <span className="shrink-0 tabular-nums">
+                                                        {formatAmount(g.stats?.projected_yearly_cost ?? 0)}
+                                                    </span>
+                                                </li>
+                                            ))}
+                                    </ul>
+                                    <Link href="/recurring" className="text-muted-foreground mt-2 inline-block text-xs hover:underline">
+                                        View all →
+                                    </Link>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
                 {/* Cashflow Chart */}
                 <div className="bg-card rounded-xl border-1 p-6 shadow-xs">
                     <h3 className="mb-4 text-lg font-semibold">Income & Expenses Over Time</h3>
@@ -748,6 +1030,33 @@ export default function Index({
                             <span className="mr-1 inline-block h-3 w-3 rounded-sm bg-blue-500"></span>
                             Resulting Balance (line)
                         </span>
+                    </div>
+                </div>
+
+                {/* Balance History / Net Worth Chart */}
+                <div className="bg-card rounded-xl border-1 p-6 shadow-xs">
+                    <h3 className="mb-4 text-lg font-semibold">Net Worth Over Time</h3>
+                    <div className="h-80 w-full">
+                        {loadingBalanceHistory ? (
+                            <div className="flex h-full items-center justify-center">
+                                <span className="text-muted-foreground">Loading balance history...</span>
+                            </div>
+                        ) : noAccountsSelected ? (
+                            <div className="flex h-full items-center justify-center">
+                                <span className="text-muted-foreground">Select accounts to view balance history</span>
+                            </div>
+                        ) : (
+                            <Line data={formatBalanceHistoryForChart()} options={balanceHistoryChartOptions} />
+                        )}
+                    </div>
+                    <div className="text-muted-foreground mt-2 text-center text-xs">
+                        <span className="mx-2 inline-block">
+                            <span className="mr-1 inline-block h-3 w-3 rounded-sm bg-indigo-500"></span>
+                            Total Net Worth
+                        </span>
+                        {selectedAccounts.length > 1 && (
+                            <span className="text-muted-foreground text-xs italic"> (Individual account balances shown with dashed lines)</span>
+                        )}
                     </div>
                 </div>
 

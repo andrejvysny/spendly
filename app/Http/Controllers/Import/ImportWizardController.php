@@ -5,26 +5,35 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Import;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\ImportConfigureRequest;
-use App\Http\Requests\ImportUploadRequest;
+use App\Http\Requests\Import\ImportConfigureRequest;
+use App\Http\Requests\Import\ImportUploadRequest;
 use App\Models\Account;
 use App\Models\Category;
-use App\Models\Import;
+use App\Models\Import\Import;
 use App\Services\Csv\CsvProcessor;
-use App\Services\ImportMappingService;
+use App\Services\TransactionImport\FieldDetection\AutoDetectionService;
+use App\Services\TransactionImport\ImportMappingService;
+use App\Services\TransactionImport\Parsers\AmountParser;
+use App\Services\TransactionImport\Parsers\DateParser;
+use App\Jobs\RecurringDetectionJob;
+use App\Models\RecurringDetectionSetting;
+use App\Services\TransferDetectionService;
 use App\Services\TransactionImport\TransactionImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Http\Request;
 
 class ImportWizardController extends Controller
 {
     public function __construct(
         private readonly CsvProcessor $csvProcessor,
         private readonly TransactionImportService $importService,
-        private readonly ImportMappingService $mappingService
+        private readonly ImportMappingService $mappingService,
+        private readonly AutoDetectionService $autoDetectionService,
+        private readonly TransferDetectionService $transferDetectionService
     ) {}
 
     public function upload(ImportUploadRequest $request): JsonResponse
@@ -76,10 +85,10 @@ class ImportWizardController extends Controller
             $request->getSampleRowsCount()
         );
 
-        // Count total rows
-        // Count total rows efficiently
+        // Count total rows and compute file signature for re-import detection
         $totalRows = 0;
-        $handle = fopen(Storage::path($path), 'r');
+        $fullPath = Storage::path($path);
+        $handle = fopen($fullPath, 'r');
         if ($handle) {
             while (! feof($handle)) {
                 fgets($handle);
@@ -87,6 +96,21 @@ class ImportWizardController extends Controller
             }
             fclose($handle);
             $totalRows--; // Subtract 1 for header
+        }
+        $fileSignature = hash_file('sha256', $fullPath);
+
+        // Create new account if requested
+        $accountId = $request->getAccountId();
+        if (! $accountId && $request->getNewAccountName()) {
+            $account = Account::create([
+                'user_id' => Auth::id(),
+                'name' => $request->getNewAccountName(),
+                'currency' => $request->getNewAccountCurrency(),
+                'type' => 'cash', // Default type
+                'balance' => 0,
+            ]);
+            $accountId = $account->id;
+            Log::info('Created new account during import', ['account_id' => $accountId]);
         }
 
         // Create import record
@@ -99,9 +123,10 @@ class ImportWizardController extends Controller
             'metadata' => [
                 'headers' => $sampleData->getHeaders(),
                 'sample_rows' => $sampleData->getRows(),
-                'account_id' => $request->getAccountId(),
+                'account_id' => $accountId,
                 'delimiter' => $request->getDelimiter(),
                 'quote_char' => $request->getQuoteChar(),
+                'file_signature' => $fileSignature,
             ],
         ]);
 
@@ -112,6 +137,7 @@ class ImportWizardController extends Controller
             'headers' => $sampleData->getHeaders(),
             'sample_rows' => $sampleData->getRows(),
             'total_rows' => $totalRows,
+            'account_id' => $accountId, // Return the used account ID
         ]);
     }
 
@@ -182,13 +208,52 @@ class ImportWizardController extends Controller
         ]);
     }
 
-    public function clean(): JsonResponse
+    public function getRows(Request $request, Import $import): JsonResponse
     {
-        // TODO: implement functionality to clean data before importing
+        $limit = $request->input('limit', 50);
+        $offset = $request->input('offset', 0);
 
-        return response()->json([
-            'message' => 'Old imports cleaned',
-        ]);
+        try {
+            $rows = $this->importService->getRows($import, (int) $limit, (int) $offset);
+
+            return response()->json([
+                'rows' => $rows,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get rows', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Failed to get rows'], 500);
+        }
+    }
+
+    public function updateRow(Request $request, Import $import, int $rowNumber): JsonResponse
+    {
+        // $request->all() contains the edit data (e.g. ['description' => 'New Desc'])
+        try {
+            $data = $request->except(['_token', '_method']);
+            $this->importService->saveRowEdit($import, $rowNumber, $data);
+
+            return response()->json(['message' => 'Row updated']);
+        } catch (\Exception $e) {
+            Log::error('Failed to update row', ['row_number' => $rowNumber, 'error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Failed to update row'], 500);
+        }
+    }
+
+    public function getColumnStats(Request $request, Import $import, string $column): JsonResponse
+    {
+        try {
+            $stats = $this->importService->getColumnValues($import, $column);
+
+            return response()->json([
+                'stats' => $stats,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get column stats', ['column' => $column, 'error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Failed to get column stats'], 500);
+        }
     }
 
     public function map(): JsonResponse
@@ -197,6 +262,108 @@ class ImportWizardController extends Controller
 
         return response()->json([
             'message' => 'Columns mapped',
+        ]);
+    }
+
+    /**
+     * Auto-detect column mappings and date/amount formats from import sample data.
+     */
+    public function autoDetect(Import $import): JsonResponse
+    {
+        if ($import->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized access to import');
+        }
+
+        $path = "imports/{$import->filename}";
+        if (! Storage::exists($path)) {
+            return response()->json(['message' => 'Import file not found'], 404);
+        }
+
+        $delimiter = $import->metadata['delimiter'] ?? ',';
+        $quoteChar = $import->metadata['quote_char'] ?? '"';
+        $sampleSize = 100;
+
+        $csvData = $this->csvProcessor->getRows($path, $delimiter, $quoteChar, $sampleSize);
+        $headers = $csvData->getHeaders();
+        $rows = $csvData->getRows();
+
+        $result = $this->autoDetectionService->detectMappings($headers, $rows);
+
+        return response()->json([
+            'mappings' => $result['mappings'],
+            'overall_confidence' => $result['overall_confidence'],
+            'detected_formats' => [
+                'date' => $result['detected_date_format'],
+                'amount' => $result['detected_amount_format'],
+            ],
+        ]);
+    }
+
+    /**
+     * Detect date and amount formats from sample column values.
+     */
+    public function detectFormats(Request $request, Import $import): JsonResponse
+    {
+        if ($import->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized access to import');
+        }
+
+        $dateColumnIndex = $request->input('date_column_index');
+        $amountColumnIndex = $request->input('amount_column_index');
+
+        $path = "imports/{$import->filename}";
+        if (! Storage::exists($path)) {
+            return response()->json(['message' => 'Import file not found'], 404);
+        }
+
+        $delimiter = $import->metadata['delimiter'] ?? ',';
+        $quoteChar = $import->metadata['quote_char'] ?? '"';
+        $csvData = $this->csvProcessor->getRows($path, $delimiter, $quoteChar, 50);
+        $rows = $csvData->getRows();
+
+        $dateFormat = null;
+        $amountFormat = null;
+
+        if ($dateColumnIndex !== null && $dateColumnIndex !== '') {
+            $dateValues = array_map(fn ($row) => (string) ($row[(int) $dateColumnIndex] ?? ''), $rows);
+            $dateValues = array_filter($dateValues);
+            $dateParser = app(DateParser::class);
+            $dateFormat = $dateParser->detectFormatFromSamples($dateValues);
+        }
+
+        if ($amountColumnIndex !== null && $amountColumnIndex !== '') {
+            $amountValues = array_map(fn ($row) => (string) ($row[(int) $amountColumnIndex] ?? ''), $rows);
+            $amountValues = array_filter($amountValues);
+            $amountParser = app(AmountParser::class);
+            $amountFormat = $amountParser->detectFormatFromSamples($amountValues);
+        }
+
+        return response()->json([
+            'detected_formats' => [
+                'date' => $dateFormat,
+                'amount' => $amountFormat,
+            ],
+        ]);
+    }
+
+    /**
+     * Preview parsed rows with current mapping (for validation indicators).
+     */
+    public function previewMapping(Request $request, Import $import): JsonResponse
+    {
+        if ($import->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized access to import');
+        }
+
+        try {
+            $previewData = $this->importService->getPreview($import, (int) ($request->input('limit', 10)));
+        } catch (\Exception $e) {
+            Log::error('Failed to generate preview', ['import_id' => $import->id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Failed to generate preview'], 500);
+        }
+
+        return response()->json([
+            'preview_rows' => $previewData,
         ]);
     }
 
@@ -220,9 +387,47 @@ class ImportWizardController extends Controller
             ]);
         }
 
+        // Re-import detection: skip if this file was already imported for this user/account
+        $fileSignature = $import->metadata['file_signature'] ?? null;
+        $accountId = $import->metadata['account_id'] ?? $account->getKey();
+        if ($fileSignature !== null && $fileSignature !== '') {
+            $previousImport = Import::where('user_id', Auth::id())
+                ->where('id', '!=', $import->id)
+                ->whereIn('status', [Import::STATUS_COMPLETED, Import::STATUS_COMPLETED_SKIPPED_DUPLICATES])
+                ->whereJsonContains('metadata->file_signature', $fileSignature)
+                ->when($accountId, function ($q) use ($accountId) {
+                    $q->whereJsonContains('metadata->account_id', (int) $accountId);
+                })
+                ->first();
+            if ($previousImport !== null) {
+                return response()->json([
+                    'message' => 'This file was already imported. Re-importing the same file is skipped.',
+                    'import' => $import,
+                    'previous_import_id' => $previousImport->id,
+                ], 422);
+            }
+        }
+
         try {
             // Process the import
             $results = $this->importService->processImport($import, $account->getKey());
+
+            // Run transfer detection so same-day pairs across user accounts are marked as TRANSFER
+            try {
+                $this->transferDetectionService->detectAndMarkTransfersForUser((int) Auth::id());
+            } catch (\Throwable $e) {
+                Log::warning('Transfer detection after import failed', [
+                    'import_id' => $import->id,
+                    'user_id' => Auth::id(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Run recurring detection if user has it enabled (async)
+            $settings = RecurringDetectionSetting::forUser((int) Auth::id());
+            if ($settings->run_after_import) {
+                RecurringDetectionJob::dispatch(Auth::id(), $account->getKey());
+            }
 
             // Determine response message based on import status
             $message = match ($import->fresh()->status) {

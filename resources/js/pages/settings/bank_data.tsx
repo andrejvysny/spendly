@@ -2,6 +2,7 @@ import HeadingSmall from '@/components/app/heading-small';
 import InputError from '@/components/app/input-error';
 import GoCardlessImportWizard from '@/components/settings/GoCardlessImportWizard';
 import Requisition, { RequisitionDto } from '@/components/settings/requisition';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +12,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Transition } from '@headlessui/react';
 import { Head, useForm } from '@inertiajs/react';
 import axios from 'axios';
-import { FormEventHandler, useEffect, useState } from 'react';
+import { FormEventHandler, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -40,10 +41,19 @@ type BankDataForm = {
  *
  * @param gocardless_secret_id - Optional initial GoCardless Secret ID to prefill the form.
  * @param gocardless_secret_key - Optional initial GoCardless Secret Key to prefill the form.
+ * @param gocardless_use_mock - When true, sandbox (mock) is enabled; credentials are hidden and not required.
  *
  * @remark Reloads the page after clearing credentials or successfully connecting a new bank account.
  */
-export default function BankData({ gocardless_secret_id, gocardless_secret_key }: { gocardless_secret_id?: string; gocardless_secret_key?: string }) {
+export default function BankData({
+    gocardless_secret_id,
+    gocardless_secret_key,
+    gocardless_use_mock = false,
+}: {
+    gocardless_secret_id?: string;
+    gocardless_secret_key?: string;
+    gocardless_use_mock?: boolean;
+}) {
     const { data, setData, patch, errors, processing, recentlySuccessful } = useForm<BankDataForm>({
         gocardless_secret_id: gocardless_secret_id || '',
         gocardless_secret_key: gocardless_secret_key || '',
@@ -60,25 +70,38 @@ export default function BankData({ gocardless_secret_id, gocardless_secret_key }
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
     const [requisitions, setRequisitions] = useState<RequisitionsResponse>({ count: 0, next: null, previous: null, results: [] });
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const fetchRequisitions = useCallback(async () => {
+        try {
+            const response = await axios.get('/api/bank-data/gocardless/requisitions');
+            setRequisitions(response.data);
+        } catch (error) {
+            console.error('Error fetching requisitions:', error);
+            toast.error('Failed to load requisitions. Please try again.');
+        } finally {
+            setIsLoading(false);
+            setIsRefreshing(false);
+        }
+    }, []);
 
     useEffect(() => {
-        const fetchRequisitions = async () => {
-            try {
-                const response = await axios.get('/api/bank-data/gocardless/requisitions');
-                setRequisitions(response.data);
-            } catch (error) {
-                console.error('Error fetching requisitions:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
+        if (gocardless_use_mock) {
+            fetchRequisitions();
+            return;
+        }
         if (!gocardless_secret_id || !gocardless_secret_key) {
             setIsLoading(false);
             return;
         }
         fetchRequisitions();
-    }, [gocardless_secret_id, gocardless_secret_key]);
+    }, [gocardless_use_mock, gocardless_secret_id, gocardless_secret_key, fetchRequisitions]);
+
+    const handleRefreshRequisitions = () => {
+        if (!gocardless_use_mock && (!gocardless_secret_id || !gocardless_secret_key)) return;
+        setIsRefreshing(true);
+        fetchRequisitions();
+    };
 
     const handlePurgeCredentials = () => {
         if (!confirm('Are you sure you want to clear your GoCardless credentials? This action cannot be undone.')) {
@@ -105,74 +128,96 @@ export default function BankData({ gocardless_secret_id, gocardless_secret_key }
 
             <SettingsLayout>
                 <div className="space-y-6">
-                    <HeadingSmall title="GoCardless Bank Data Settings" description="Setup account sync from your bank" />
+                    <HeadingSmall
+                        title={gocardless_use_mock ? 'GoCardless Bank Data Settings (Sandbox)' : 'GoCardless Bank Data Settings'}
+                        description={gocardless_use_mock ? 'Sandbox mode: connect mock banks and sync fixture data without credentials.' : 'Setup account sync from your bank'}
+                    />
 
-                    <div>
-                        <p className="text-muted-foreground">
-                            Connect your bank account to automatically sync transactions and manage your finances more effectively. This integration
-                            allows you to view and manage your bank data directly within the app.
-                        </p>
+                    {gocardless_use_mock ? (
+                        <Alert variant="default">
+                            <AlertTitle title="Sandbox mode" />
+                            <AlertDescription>
+                                GoCardless sandbox (mock) is enabled. No credentials are required. You can connect mock banks (e.g. Revolut, SLSP) and
+                                sync fixture data for development and testing.
+                            </AlertDescription>
+                        </Alert>
+                    ) : (
+                        <div>
+                            <p className="text-muted-foreground">
+                                Connect your bank account to automatically sync transactions and manage your finances more effectively. This integration
+                                allows you to view and manage your bank data directly within the app.
+                            </p>
 
-                        <form onSubmit={submit} className="mt-6 space-y-6">
-                            <div className="grid gap-2">
-                                <Label htmlFor="gocardless_secret_id">GoCardless Secret ID</Label>
-                                <Input
-                                    id="gocardless_secret_id"
-                                    type="password"
-                                    className="mt-1 block w-full"
-                                    value={data.gocardless_secret_id || ''}
-                                    onChange={(e) => setData('gocardless_secret_id', e.target.value)}
-                                    autoComplete="off"
-                                    placeholder="Enter your GoCardless Secret ID"
-                                />
-                                <InputError className="mt-2" message={errors.gocardless_secret_id} />
-                            </div>
+                            <form onSubmit={submit} className="mt-6 space-y-6">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="gocardless_secret_id">GoCardless Secret ID</Label>
+                                    <Input
+                                        id="gocardless_secret_id"
+                                        type="password"
+                                        className="mt-1 block w-full"
+                                        value={data.gocardless_secret_id || ''}
+                                        onChange={(e) => setData('gocardless_secret_id', e.target.value)}
+                                        autoComplete="off"
+                                        placeholder="Enter your GoCardless Secret ID"
+                                    />
+                                    <InputError className="mt-2" message={errors.gocardless_secret_id} />
+                                </div>
 
-                            <div className="grid gap-2">
-                                <Label htmlFor="gocardless_secret_key">GoCardless Secret Key</Label>
-                                <Input
-                                    id="gocardless_secret_key"
-                                    type="password"
-                                    className="mt-1 block w-full"
-                                    value={data.gocardless_secret_key || ''}
-                                    onChange={(e) => setData('gocardless_secret_key', e.target.value)}
-                                    autoComplete="off"
-                                    placeholder="Enter your GoCardless Secret Key"
-                                />
-                                <InputError className="mt-2" message={errors.gocardless_secret_key} />
-                            </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="gocardless_secret_key">GoCardless Secret Key</Label>
+                                    <Input
+                                        id="gocardless_secret_key"
+                                        type="password"
+                                        className="mt-1 block w-full"
+                                        value={data.gocardless_secret_key || ''}
+                                        onChange={(e) => setData('gocardless_secret_key', e.target.value)}
+                                        autoComplete="off"
+                                        placeholder="Enter your GoCardless Secret Key"
+                                    />
+                                    <InputError className="mt-2" message={errors.gocardless_secret_key} />
+                                </div>
 
-                            <div className="flex items-center gap-4">
-                                <Button disabled={processing}>Save</Button>
-                                <Transition
-                                    show={recentlySuccessful}
-                                    enter="transition ease-in-out"
-                                    enterFrom="opacity-0"
-                                    leave="transition ease-in-out"
-                                    leaveTo="opacity-0"
-                                >
-                                    <p className="text-sm text-neutral-600">Saved</p>
-                                </Transition>
-                            </div>
-                        </form>
-                        {data.gocardless_secret_id &&
-                        data.gocardless_secret_key &&
-                        !processing &&
-                        !errors.gocardless_secret_id &&
-                        !errors.gocardless_secret_key ? (
-                            <Button variant="destructive" onClick={() => handlePurgeCredentials()}>
-                                Clear credentials
-                            </Button>
-                        ) : null}
-                    </div>
+                                <div className="flex items-center gap-4">
+                                    <Button disabled={processing}>Save</Button>
+                                    <Transition
+                                        show={recentlySuccessful}
+                                        enter="transition ease-in-out"
+                                        enterFrom="opacity-0"
+                                        leave="transition ease-in-out"
+                                        leaveTo="opacity-0"
+                                    >
+                                        <p className="text-sm text-neutral-600">Saved</p>
+                                    </Transition>
+                                </div>
+                            </form>
+                            {data.gocardless_secret_id &&
+                            data.gocardless_secret_key &&
+                            !processing &&
+                            !errors.gocardless_secret_id &&
+                            !errors.gocardless_secret_key ? (
+                                <Button variant="destructive" onClick={() => handlePurgeCredentials()}>
+                                    Clear credentials
+                                </Button>
+                            ) : null}
+                        </div>
+                    )}
 
-                    <Button onClick={() => setIsImportWizardOpen(true)} disabled={!gocardless_secret_key || !gocardless_secret_id}>
+                    <Button
+                        onClick={() => setIsImportWizardOpen(true)}
+                        disabled={!gocardless_use_mock && (!gocardless_secret_key || !gocardless_secret_id)}
+                    >
                         Connect Bank Account
                     </Button>
 
                     <div className="flex items-center justify-between">
-                        <span>Last updated: {new Date().toLocaleDateString()}</span>
-                        <Button variant="outline">Refresh</Button>
+                        <span className="text-muted-foreground text-sm">Requisitions</span>
+                        <Button
+                            variant="outline"
+                            onClick={handleRefreshRequisitions}
+                            disabled={(!gocardless_use_mock && (!gocardless_secret_id || !gocardless_secret_key)) || isRefreshing}
+                        >
+                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                        </Button>
                     </div>
                 </div>
 
@@ -187,7 +232,12 @@ export default function BankData({ gocardless_secret_id, gocardless_secret_key }
                     ) : (
                         <div className="mt-4 grid grid-cols-1 gap-4">
                             {requisitions.results.map((req) => (
-                                <Requisition key={req.id} requisition={req} setRequisitions={setRequisitions} />
+                                <Requisition
+                                    key={req.id}
+                                    requisition={req}
+                                    setRequisitions={setRequisitions}
+                                    onRefresh={fetchRequisitions}
+                                />
                             ))}
                         </div>
                     )}

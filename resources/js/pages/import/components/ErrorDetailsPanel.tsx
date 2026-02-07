@@ -79,10 +79,10 @@ function ErrorDetailsPanel({ failure }: { failure: ImportFailure }) {
                                 </div>
                             )}
 
-                            {failure.error_details?.duplicate_fingerprint && (
+                            {failure.error_details?.fingerprint && (
                                 <div>
                                     <h4 className="mb-1 text-sm font-medium">Duplicate Info:</h4>
-                                    <p className="font-mono text-xs text-gray-500">{failure.error_details.duplicate_fingerprint}</p>
+                                    <p className="font-mono text-xs text-gray-500">{failure.error_details.fingerprint}</p>
                                 </div>
                             )}
                         </div>

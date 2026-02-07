@@ -1,5 +1,89 @@
 import { ImportFailure } from '@/types/index';
 
+/** Jaro-Winkler similarity (0–1). Prefer prefix matches. */
+export function jaroWinklerSimilarity(s1: string, s2: string): number {
+    if (s1 === s2) return 1;
+    const len1 = s1.length;
+    const len2 = s2.length;
+    if (len1 === 0 || len2 === 0) return 0;
+    const matchDistance = Math.max(0, Math.floor(Math.max(len1, len2) / 2) - 1);
+    const s1Matches: boolean[] = new Array(len1).fill(false);
+    const s2Matches: boolean[] = new Array(len2).fill(false);
+    let matches = 0;
+    let transpositions = 0;
+    for (let i = 0; i < len1; i++) {
+        const start = Math.max(0, i - matchDistance);
+        const end = Math.min(i + matchDistance + 1, len2);
+        for (let j = start; j < end; j++) {
+            if (s2Matches[j] || s1[i] !== s2[j]) continue;
+            s1Matches[i] = true;
+            s2Matches[j] = true;
+            matches++;
+            break;
+        }
+    }
+    if (matches === 0) return 0;
+    let k = 0;
+    for (let i = 0; i < len1; i++) {
+        if (!s1Matches[i]) continue;
+        while (!s2Matches[k]) k++;
+        if (s1[i] !== s2[k]) transpositions++;
+        k++;
+    }
+    const jaro = (matches / len1 + matches / len2 + (matches - transpositions / 2) / matches) / 3;
+    let prefix = 0;
+    const prefixScale = Math.min(4, Math.min(len1, len2));
+    for (let i = 0; i < prefixScale && s1[i] === s2[i]; i++) prefix++;
+    return jaro + prefix * 0.1 * (1 - jaro);
+}
+
+/** Header synonyms for multi-signal detection (field key -> high/medium similarity terms). */
+const HEADER_SYNONYMS: Record<string, { high: string[]; medium: string[] }> = {
+    booked_date: { high: ['datum', 'date', 'booking date', 'dátum'], medium: ['valuta', 'value date'] },
+    amount: { high: ['amount', 'betrag', 'suma', 'sum', 'total'], medium: ['value', 'price', 'cena'] },
+    description: { high: ['description', 'popis', 'note', 'memo'], medium: ['reference', 'details'] },
+    partner: { high: ['partner', 'name', 'counterparty', 'payee'], medium: ['merchant', 'creditor'] },
+    currency: { high: ['currency', 'mena', 'curr', 'ccy'], medium: ['currency code'] },
+};
+
+/**
+ * Suggest column-to-field mappings from headers and sample rows using header similarity + pattern signals.
+ * Returns array of { columnIndex, field, confidence, signals } for use in wizard when backend auto-detect is unavailable.
+ */
+export function suggestColumnMappings(
+    headers: string[],
+    sampleRows: string[][]
+): { columnIndex: number; field: string; confidence: number; signals: Record<string, number> }[] {
+    const result: { columnIndex: number; field: string; confidence: number; signals: Record<string, number> }[] = [];
+    for (let c = 0; c < headers.length; c++) {
+        const header = (headers[c] ?? '').trim().toLowerCase();
+        const values = sampleRows.map((row) => (row[c] ?? '')?.toString().trim()).filter(Boolean);
+        let bestField: string | null = null;
+        let bestConfidence = 0;
+        const signals: Record<string, number> = {};
+        for (const [field, groups] of Object.entries(HEADER_SYNONYMS)) {
+            for (const [level, synonyms] of Object.entries(groups)) {
+                for (const syn of synonyms) {
+                    const sim = jaroWinklerSimilarity(header, syn.toLowerCase());
+                    if (sim >= 0.85) {
+                        const score = level === 'high' ? sim * 1 : sim * 0.8;
+                        if (score > bestConfidence) {
+                            bestConfidence = score;
+                            bestField = field;
+                            signals.header = sim;
+                            signals.level = level === 'high' ? 1 : 0.8;
+                        }
+                    }
+                }
+            }
+        }
+        if (bestField != null && bestConfidence > 0) {
+            result.push({ columnIndex: c, field: bestField, confidence: Math.min(1, bestConfidence), signals });
+        }
+    }
+    return result;
+}
+
 class FieldMappingService {
     private static fieldPatterns = {
         amount: /^(amount|betrag|sum|total|wert|saldo|castka|hodnota|suma|kwota|montant|valor|importo|menge|price|cena)$/i,

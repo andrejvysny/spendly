@@ -2,6 +2,7 @@
 
 namespace App\Services\TransactionImport;
 
+use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -35,7 +36,7 @@ class TransactionDataParser
                 'import_id' => $configuration['import_id'] ?? null,
                 'imported_at' => now()->format('Y-m-d H:i:s'),
             ],
-            'balance_after_transaction' => 0, // Placeholder
+            // balance_after_transaction will be set from CSV if mapped, otherwise null
         ];
 
         // Map fields based on column mapping
@@ -61,6 +62,16 @@ class TransactionDataParser
         // Store original import data
         $data['import_data'] = $this->buildImportData($row, $headers);
 
+        $data['fingerprint'] = Transaction::generateFingerprint($data);
+
+        // CSV import: make fingerprint unique per row to avoid false-positive duplicate skips
+        // (multiple same amount/date/partner rows are distinct transactions)
+        $importId = $configuration['import_id'] ?? null;
+        $rowNumber = $configuration['_row_number'] ?? null;
+        if ($importId !== null && $rowNumber !== null) {
+            $data['fingerprint'] = hash('sha256', $data['fingerprint'].'|'.$importId.'|'.$rowNumber);
+        }
+
         return $data;
     }
 
@@ -79,6 +90,14 @@ class TransactionDataParser
                     $value,
                     $configuration['amount_format'] ?? '1,234.56',
                     $configuration['amount_type_strategy'] ?? 'signed_amount'
+                );
+
+            case 'balance_after_transaction':
+                // Parse balance as an amount but never negate it (balances are always signed as-is)
+                return $this->parseAmount(
+                    $value,
+                    $configuration['amount_format'] ?? '1,234.56',
+                    'signed_amount' // Always use signed_amount for balance
                 );
 
             default:
@@ -147,15 +166,23 @@ class TransactionDataParser
             return null;
         }
 
+        // Normalize format aliases (AmountParser returns 'eu'/'us'/'simple', UI uses format strings)
+        $normalizedFormat = match ($format) {
+            'eu', '1.234,56' => 'eu',
+            'us', '1,234.56' => 'us',
+            'simple', '1234,56' => 'simple',
+            default => $format,
+        };
+
         // Convert to standard decimal format based on format
-        if ($format === '1,234.56') {
+        if ($normalizedFormat === 'us') {
             // US format: commas as thousand separators, period as decimal
             $amountString = str_replace(',', '', $amountString);
-        } elseif ($format === '1.234,56') {
+        } elseif ($normalizedFormat === 'eu') {
             // EU format: periods as thousand separators, comma as decimal
             $amountString = str_replace('.', '', $amountString);
             $amountString = str_replace(',', '.', $amountString);
-        } elseif ($format === '1234,56') {
+        } elseif ($normalizedFormat === 'simple') {
             // No thousand separator, comma as decimal
             $amountString = str_replace(',', '.', $amountString);
         }
@@ -183,15 +210,7 @@ class TransactionDataParser
      */
     private function handleRequiredFields(array &$data): void
     {
-        // Validate required fields
-        $requiredFields = ['booked_date', 'amount', 'partner'];
-        foreach ($requiredFields as $field) {
-            if (! isset($data[$field]) || $data[$field] === null) {
-                throw new \Exception("Missing required field: {$field}");
-            }
-        }
-
-        // Set defaults for optional fields
+        // Set defaults for optional fields first (so partner can be derived)
         if (! isset($data['processed_date'])) {
             $data['processed_date'] = $data['booked_date'];
         }
@@ -200,15 +219,62 @@ class TransactionDataParser
             $data['description'] = $data['partner'] ?? $data['type'] ?? 'Imported transaction';
         }
 
+        // Partner fallback for CSVs without a partner column (e.g. Revolut: use description)
+        $partnerEmpty = ! isset($data['partner']) || $data['partner'] === null || trim((string) $data['partner']) === '';
+        if ($partnerEmpty && ! empty($data['description'])) {
+            $desc = is_string($data['description']) ? $data['description'] : (string) $data['description'];
+            $data['partner'] = strlen($desc) > 255 ? substr($desc, 0, 252).'...' : $desc;
+        }
+        // If partner still empty (e.g. description was empty string), use type or default
+        $partnerEmpty = ! isset($data['partner']) || $data['partner'] === null || trim((string) $data['partner']) === '';
+        if ($partnerEmpty) {
+            $data['partner'] = trim((string) ($data['type'] ?? '')) !== '' ? ($data['type'] ?? '') : 'Imported transaction';
+        }
+
+        // Validate required fields
+        $requiredFields = ['booked_date', 'amount', 'partner'];
+        foreach ($requiredFields as $field) {
+            if (! isset($data[$field]) || $data[$field] === null || trim((string) $data[$field]) === '') {
+                throw new \Exception("Missing required field: {$field}");
+            }
+        }
+
         // Ensure type is set
         if (empty($data['type'])) {
             $data['type'] = 'Imported';
+        } else {
+            $data['type'] = $this->normalizeTransactionType($data['type']);
         }
 
         // Generate transaction ID if not provided
         if (empty($data['transaction_id'])) {
             $data['transaction_id'] = 'IMP-'.uniqid();
         }
+
+        // CSV imports may not map balance; DB column is NOT NULL
+        if (! isset($data['balance_after_transaction'])) {
+            $data['balance_after_transaction'] = 0;
+        }
+    }
+
+    /**
+     * Normalize CSV-mapped type to standard TRANSFER when value indicates a transfer.
+     *
+     * @param  string  $type  Raw type value from CSV (e.g. "Transfer", "transfer", "TRANSFER").
+     * @return string Transaction::TYPE_TRANSFER or unchanged type.
+     */
+    private function normalizeTransactionType(string $type): string
+    {
+        $normalized = strtolower(trim($type));
+        $transferAliases = ['transfer', 'prevod', 'überweisung', 'virement', 'bonifico'];
+
+        foreach ($transferAliases as $alias) {
+            if ($normalized === $alias) {
+                return Transaction::TYPE_TRANSFER;
+            }
+        }
+
+        return $type;
     }
 
     /**

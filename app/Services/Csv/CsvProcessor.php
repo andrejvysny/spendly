@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Csv;
 
 use Illuminate\Http\UploadedFile;
@@ -84,7 +86,7 @@ class CsvProcessor
         $content = file_get_contents($file->getPathname(), false, null, 0, 10000);
 
         // Check for BOM and detect encoding
-        $encoding = $this->detectEncoding($content);
+        $encoding = $this->detectEncoding($content, 10000);
         Log::debug('Detected file encoding', ['encoding' => $encoding]);
 
         // Convert file content to UTF-8 based on detected encoding
@@ -107,6 +109,53 @@ class CsvProcessor
         fclose($handle);
 
         Log::debug('CSV preprocessing completed', ['temp_file' => $tempFile]);
+
+        return $tempFile;
+    }
+
+    /**
+     * Preprocess CSV from a local filesystem path (e.g. for CLI import).
+     * Same encoding/BOM logic as preprocessCSV; returns path to temp file.
+     */
+    public function preprocessCSVFromPath(string $absolutePath, string $delimiter = ',', string $quoteChar = '"'): false|string
+    {
+        if (! is_file($absolutePath) || ! is_readable($absolutePath)) {
+            Log::error('CSV file not found or not readable', ['path' => $absolutePath]);
+
+            return false;
+        }
+
+        Log::debug('Starting CSV preprocessing from path', [
+            'path' => $absolutePath,
+            'delimiter' => $delimiter,
+            'quote_char' => $quoteChar,
+        ]);
+
+        $content = file_get_contents($absolutePath, false, null, 0, 10000);
+        $encoding = $this->detectEncoding($content, 10000);
+        Log::debug('Detected file encoding', ['encoding' => $encoding]);
+
+        $fullContent = file_get_contents($absolutePath);
+        if ($encoding != 'UTF-8') {
+            $fullContent = mb_convert_encoding($fullContent, 'UTF-8', $encoding);
+            Log::debug('Converted file from detected encoding to UTF-8');
+        }
+
+        $fullContent = str_replace("\0", '', $fullContent);
+        Log::debug('Removed null bytes from content');
+        $fullContent = preg_replace('/^\xEF\xBB\xBF/', '', $fullContent);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'csv_');
+        $handle = fopen($tempFile, 'w');
+        if (! $handle) {
+            Log::error('Failed to create temp file for CSV preprocessing');
+
+            return false;
+        }
+        fwrite($handle, $fullContent);
+        fclose($handle);
+
+        Log::debug('CSV preprocessing from path completed', ['temp_file' => $tempFile]);
 
         return $tempFile;
     }
@@ -143,6 +192,12 @@ class CsvProcessor
                 if ($row === null || (is_array($row) && count($row) === 0)) {
                     Log::warning('Skipping empty line', ['row_number' => $skip_header ? $totalRows : $totalRows + 1]);
 
+                    continue;
+                }
+
+                // Handle offset
+                if ($batch->getSkippedCount() + $batch->getSuccessCount() + $batch->getFailedCount() < $offset) {
+                    $batch->addResult(CsvProcessResult::skipped('Offset skip', $row));
                     continue;
                 }
 
@@ -195,42 +250,134 @@ class CsvProcessor
     }
 
     /**
-     * Detect file encoding with additional checks for UTF-16 variants
+     * Detect the most likely CSV delimiter from the first lines of a file.
+     * Uses storage path (e.g. imports/xxx.csv). Candidates: comma, semicolon, tab, pipe.
      */
-    private function detectEncoding($content)
+    public function detectDelimiter(string $path, int $sampleLines = 10): string
     {
-        // Check for UTF-16LE BOM (FF FE)
-        if (substr($content, 0, 2) === "\xFF\xFE") {
-            return 'UTF-16LE';
+        $content = $this->readSampleLines($path, $sampleLines);
+        $candidates = [',', ';', "\t", '|'];
+        $lines = preg_split('/\r\n|\r|\n/', $content);
+        $lines = array_slice(array_filter($lines), 0, $sampleLines);
+
+        if ($lines === []) {
+            return ',';
         }
 
-        // Check for UTF-16BE BOM (FE FF)
-        if (substr($content, 0, 2) === "\xFE\xFF") {
+        $scores = [];
+        foreach ($candidates as $delimiter) {
+            $counts = [];
+            foreach ($lines as $line) {
+                $count = substr_count($line, $delimiter);
+                $counts[] = $count;
+            }
+            $consistent = count($counts) > 0 && min($counts) === max($counts) && $counts[0] > 0;
+            $total = array_sum($counts);
+            $scores[$delimiter] = $consistent ? $total : 0;
+        }
+
+        arsort($scores, SORT_NUMERIC);
+        $winner = array_key_first($scores);
+
+        return $scores[$winner] > 0 ? $winner : ',';
+    }
+
+    /**
+     * Read the first N lines from a stored file (used for delimiter/encoding detection).
+     */
+    public function readSampleLines(string $path, int $maxLines = 10): string
+    {
+        if (! Storage::exists($path)) {
+            return '';
+        }
+        $fullPath = Storage::path($path);
+        $handle = fopen($fullPath, 'r');
+        if (! $handle) {
+            return '';
+        }
+        $lines = [];
+        $count = 0;
+        while ($count < $maxLines && ($line = fgets($handle)) !== false) {
+            $lines[] = $line;
+            $count++;
+        }
+        fclose($handle);
+
+        return implode('', $lines);
+    }
+
+    /**
+     * Detect file encoding from content. Prefers BOM, then mb_detect_encoding with strict mode.
+     *
+     * @param  string  $content  Raw file content (or sample)
+     * @param  int  $sampleSize  If content is large, only first N bytes are used for detection
+     */
+    public function detectEncoding(string $content, int $sampleSize = 8192): string
+    {
+        $sample = strlen($content) > $sampleSize ? substr($content, 0, $sampleSize) : $content;
+
+        if (str_starts_with($sample, "\xEF\xBB\xBF")) {
+            return 'UTF-8';
+        }
+        if (str_starts_with($sample, "\xFF\xFE")) {
+            return 'UTF-16LE';
+        }
+        if (str_starts_with($sample, "\xFE\xFF")) {
             return 'UTF-16BE';
         }
 
-        // Check for UTF-8 BOM (EF BB BF)
-        if (substr($content, 0, 3) === "\xEF\xBB\xBF") {
-            return 'UTF-8';
+        $detected = mb_detect_encoding($sample, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true);
+
+        return $detected ?: 'UTF-8';
+    }
+
+    /**
+     * Parse CSV with row-level error isolation. Each line is parsed independently;
+     * failures are collected and returned without aborting.
+     */
+    public function parseWithErrorIsolation(string $path, string $delimiter, string $quoteChar = '"'): CsvParseResult
+    {
+        $rows = [];
+        $errors = [];
+        $headers = [];
+
+        if (! Storage::exists($path)) {
+            throw new \RuntimeException('CSV file not found: ' . $path);
         }
 
-        // No BOM found, try to detect encoding based on content
-        // Check for null bytes which might indicate UTF-16
-        if (strpos($content, "\0") !== false) {
-            // Detect if it's UTF-16LE or UTF-16BE based on pattern
-            if (preg_match('/[\x20-\x7E]\x00[\x20-\x7E]\x00/', $content)) {
-                return 'UTF-16LE';
-            } elseif (preg_match('/\x00[\x20-\x7E]\x00[\x20-\x7E]/', $content)) {
-                return 'UTF-16BE';
+        $fullPath = Storage::path($path);
+        $handle = fopen($fullPath, 'r');
+        if (! $handle) {
+            throw new \RuntimeException('Unable to open CSV file: ' . $path);
+        }
+
+        $lineNumber = 0;
+        $headerRead = false;
+
+        while (($rawLine = fgets($handle)) !== false) {
+            $lineNumber++;
+            $rawLine = rtrim($rawLine, "\r\n");
+
+            try {
+                $parsed = str_getcsv($rawLine, $delimiter, $quoteChar);
+                if (! $headerRead) {
+                    $headers = $parsed;
+                    $headerRead = true;
+                    continue;
+                }
+                $rows[] = ['line' => $lineNumber, 'data' => $parsed];
+            } catch (\Throwable $e) {
+                $errors[] = [
+                    'line' => $lineNumber,
+                    'error' => $e->getMessage(),
+                    'raw' => $rawLine,
+                ];
             }
         }
 
-        // Try to detect encoding using mb_detect_encoding
-        $detectedEncoding = mb_detect_encoding($content, [
-            'UTF-8', 'UTF-16LE', 'UTF-16BE', 'ASCII', 'ISO-8859-1', 'ISO-8859-15', 'Windows-1252',
-        ], true);
+        fclose($handle);
 
-        return $detectedEncoding ?: 'UTF-8'; // Default to UTF-8 if detection fails
+        return new CsvParseResult($rows, $errors, $headers);
     }
 
     /**

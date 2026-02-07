@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\TagRequest;
 use App\Models\Tag;
+use App\Repositories\TagRepository;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -14,9 +15,13 @@ class TagController extends Controller
 {
     use AuthorizesRequests;
 
+    public function __construct(
+        private readonly TagRepository $tagRepository
+    ) {}
+
     public function index(): Response
     {
-        $tags = Auth::user()->tags()->get();
+        $tags = $this->tagRepository->findByUser($this->getAuthUserId());
 
         return Inertia::render('tags/index', [
             'tags' => $tags,

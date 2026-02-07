@@ -3,10 +3,10 @@
 namespace App\Services\TransactionImport;
 
 use App\Contracts\Import\BatchResultInterface;
-use App\Models\Import;
-use App\Models\ImportFailure;
+use App\Contracts\Repositories\ImportFailureRepositoryInterface;
+use App\Models\Import\Import;
+use App\Models\Import\ImportFailure;
 use App\Services\Csv\CsvProcessResult;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -18,6 +18,8 @@ class ImportFailurePersister
     private array $failureBatch = [];
 
     private int $batchSize = 100;
+
+    public function __construct(private readonly ImportFailureRepositoryInterface $failures) {}
 
     /**
      * Persist all failed and skipped results from a batch.
@@ -100,31 +102,11 @@ class ImportFailurePersister
         $this->failureBatch = []; // Clear the queue
 
         try {
-            DB::transaction(function () use ($batch) {
-                // Prepare data for bulk insert
-                $insertData = array_map(function ($failure) {
-                    // Ensure JSON fields are properly encoded
-                    if (isset($failure['raw_data']) && is_array($failure['raw_data'])) {
-                        $failure['raw_data'] = json_encode($failure['raw_data']);
-                    }
-                    if (isset($failure['error_details']) && is_array($failure['error_details'])) {
-                        $failure['error_details'] = json_encode($failure['error_details']);
-                    }
-                    if (isset($failure['parsed_data']) && is_array($failure['parsed_data'])) {
-                        $failure['parsed_data'] = json_encode($failure['parsed_data']);
-                    }
-                    if (isset($failure['metadata']) && is_array($failure['metadata'])) {
-                        $failure['metadata'] = json_encode($failure['metadata']);
-                    }
-
-                    return $failure;
-                }, $batch);
-
-                // Bulk insert
-                DB::table('import_failures')->insert($insertData);
+            $this->failures->transaction(function () use ($batch) {
+                $inserted = $this->failures->createBatch($batch);
 
                 Log::debug('Failure batch processed successfully', [
-                    'batch_size' => count($batch),
+                    'batch_size' => $inserted,
                 ]);
             });
         } catch (\Exception $e) {
@@ -136,7 +118,7 @@ class ImportFailurePersister
             // Fall back to individual inserts
             foreach ($batch as $failureData) {
                 try {
-                    ImportFailure::create($failureData);
+                    $this->failures->createOne($failureData);
                 } catch (\Exception $individualError) {
                     Log::error('Individual failure insert failed', [
                         'error' => $individualError->getMessage(),
@@ -215,6 +197,65 @@ class ImportFailurePersister
     }
 
     /**
+     * Persist SQL failures from the transaction persistence layer.
+     */
+    public function persistSqlFailures(TransactionPersistenceResult $persistenceResult, Import $import): array
+    {
+        $stats = [
+            'sql_failures_stored' => 0,
+        ];
+
+        if (! $persistenceResult->hasSqlFailures()) {
+            return $stats;
+        }
+
+        foreach ($persistenceResult->getSqlFailures() as $failure) {
+            $transactionDto = $failure['transaction_dto'];
+            $exception = $failure['exception'];
+            $metadata = $failure['metadata'];
+
+            $metadata['headers'] = array_keys($this->extractRawDataFromDto($transactionDto));
+            // Determine error type based on exception
+            $errorType = TransactionPersistenceResult::isFingerprintConstraintViolation($exception)
+                ? ImportFailure::ERROR_TYPE_DUPLICATE
+                : ImportFailure::ERROR_TYPE_PROCESSING_ERROR;
+
+            // Create failure data
+            $failureData = [
+                'import_id' => $import->id,
+                'row_number' => $metadata['row_number'] ?? null,
+                'raw_data' => array_values($this->extractRawDataFromDto($transactionDto)),
+                'error_type' => $errorType,
+                'error_message' => $this->formatSqlErrorMessage($exception, $errorType),
+                'error_details' => $this->formatSqlErrorDetails($exception, $metadata),
+                'parsed_data' => $transactionDto->toArray(),
+                'metadata' => $this->formatSqlFailureMetadata($metadata, $exception),
+                'status' => ImportFailure::STATUS_PENDING,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+
+            $this->failureBatch[] = $failureData;
+            $stats['sql_failures_stored']++;
+
+            // Process batch if it's full
+            if (count($this->failureBatch) >= $this->batchSize) {
+                $this->processBatch();
+            }
+        }
+
+        // Process any remaining failures in the batch
+        $this->processBatch();
+
+        Log::info('SQL failures persisted', [
+            'import_id' => $import->id,
+            'stats' => $stats,
+        ]);
+
+        return $stats;
+    }
+
+    /**
      * Force process any remaining failures in the batch.
      */
     public function flush(): void
@@ -222,5 +263,74 @@ class ImportFailurePersister
         if (! empty($this->failureBatch)) {
             $this->processBatch();
         }
+    }
+
+    /**
+     * Extract raw data from TransactionDto for storage.
+     */
+    private function extractRawDataFromDto(TransactionDto $dto): array
+    {
+        // Try to get original import data if available
+        $importData = $dto->get('import_data', []);
+        if (is_array($importData) && ! empty($importData)) {
+
+            if (is_string($importData)) {
+                // Attempt to decode JSON string if necessary
+                $decoded = json_decode($importData, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $decoded;
+                }
+            }
+
+            return $importData;
+        }
+
+        // Fallback to DTO array representation
+        return $dto->toArray();
+    }
+
+    /**
+     * Format SQL error message for user-friendly display.
+     */
+    private function formatSqlErrorMessage(\Exception $exception, string $errorType): string
+    {
+        if ($errorType === ImportFailure::ERROR_TYPE_DUPLICATE) {
+            return 'Duplicate transaction detected - transaction with same fingerprint already exists';
+        }
+
+        return 'Database error occurred while saving transaction: '.$exception->getMessage();
+    }
+
+    /**
+     * Format SQL error details for storage.
+     */
+    private function formatSqlErrorDetails(\Exception $exception, array $metadata): array
+    {
+        $details = [
+            'message' => $exception->getMessage(),
+            'exception_type' => get_class($exception),
+            'sql_error' => true,
+        ];
+
+        // Add specific details for fingerprint violations
+        if (TransactionPersistenceResult::isFingerprintConstraintViolation($exception)) {
+            $details['constraint_violation'] = 'fingerprint';
+            $details['duplicate_detection'] = 'Fingerprint collision detected';
+            $details['fingerprint'] = $metadata['fingerprint'] ?? 'unknown';
+        }
+
+        return $details;
+    }
+
+    /**
+     * Format metadata for SQL failures.
+     */
+    private function formatSqlFailureMetadata(array $metadata, \Exception $exception): array
+    {
+        return array_merge($metadata, [
+            'sql_failure' => true,
+            'error_type' => TransactionPersistenceResult::determineErrorType($exception),
+            'failure_timestamp' => now()->toISOString(),
+        ]);
     }
 }

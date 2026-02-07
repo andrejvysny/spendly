@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Contracts\RuleEngine\RuleEngineInterface;
-use App\Models\Rule;
+use App\Models\RuleEngine\Trigger;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -34,18 +34,27 @@ class ProcessRulesJob implements ShouldQueue
 
     private User $user;
 
+    /**
+     * @var array<int>
+     */
     private array $ruleIds;
 
     private ?Carbon $startDate;
 
     private ?Carbon $endDate;
 
+    /**
+     * @var array<int>
+     */
     private array $transactionIds;
 
     private bool $dryRun;
 
     /**
      * Create a new job instance.
+     *
+     * @param  array<int>  $ruleIds
+     * @param  array<int>  $transactionIds
      */
     public function __construct(
         User $user,
@@ -92,7 +101,7 @@ class ProcessRulesJob implements ShouldQueue
                 if (! empty($this->ruleIds)) {
                     $ruleEngine->processTransactionsForRules($transactions, collect($this->ruleIds));
                 } else {
-                    $ruleEngine->processTransactions($transactions, Rule::TRIGGER_MANUAL);
+                    $ruleEngine->processTransactions($transactions, Trigger::MANUAL);
                 }
             }
             // Process date range if provided

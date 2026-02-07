@@ -2,47 +2,28 @@
 
 namespace App\Policies;
 
+use App\Contracts\OwnedByUserContract;
 use App\Models\User;
 
-abstract class OwnedByUserPolicy
+class OwnedByUserPolicy
 {
-    /**
-     * Determine whether the user can view any models.
-     */
-    public function viewAny(User $user): bool
+    public function view(User $user, OwnedByUserContract $import): bool
     {
-        return true;
+        return $user->getId() === $import->getUserId();
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
-    public function view(User $user, $model): bool
-    {
-        return $user->id === $model->user_id;
-    }
-
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
         return true;
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
-    public function update(User $user, $model): bool
+    public function update(User $user, OwnedByUserContract $import): bool
     {
-        return $user->id === $model->user_id;
+        return $user->getId() === $import->getUserId();
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
-    public function delete(User $user, $model): bool
+    public function delete(User $user, OwnedByUserContract $import): bool
     {
-        return $user->id === $model->user_id;
+        return $user->getId() === $import->getUserId();
     }
 }

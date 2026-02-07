@@ -1,0 +1,12 @@
+---
+description: "Use when building or changing UI. Reuse shadcn/ui primitives and follow design system."
+alwaysApply: false
+---
+
+# UI / shadcn
+
+- Prefer delegating to the `frontend` subagent for shadcn/Tailwind UI work.
+- Reuse primitives from `resources/js/components/ui`. Do not duplicate; compose or extend.
+- New components: build from ui (Button, Card, Dialog, Input, etc.); use `cn()` and CVA where appropriate.
+- Icons: lucide-react.
+- Reference: components.json (aliases), resources/js/components/ui/button.tsx (CVA + cn pattern).

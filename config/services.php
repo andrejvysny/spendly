@@ -31,6 +31,15 @@ return [
         'access_token' => env('GOCARDLESS_ACCESS_TOKEN'),
         'secret_id' => env('GOCARDLESS_SECRET_ID'),
         'secret_key' => env('GOCARDLESS_SECRET_KEY'),
+        'use_mock' => (function () {
+            $value = env('GOCARDLESS_USE_MOCK');
+            if ($value !== null && $value !== '') {
+                return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+            }
+
+            return in_array(env('APP_ENV', 'production'), ['local', 'development'], true);
+        })(),
+        'mock_data_path' => env('GOCARDLESS_MOCK_DATA_PATH', base_path('sample_data/gocardless_bank_account_data')),
     ],
     'slack' => [
         'notifications' => [

@@ -20,6 +20,8 @@ Route::middleware('auth')->group(function () {
         return Inertia::render('settings/appearance');
     })->name('appearance');
 
+    Route::get('settings/recurring', fn () => \Inertia\Inertia::render('settings/recurring'))->name('recurring_settings.edit');
+
     Route::get('settings/bank_data', [BankDataController::class, 'edit'])->name('bank_data.edit');
     Route::patch('settings/bank_data', [BankDataController::class, 'update'])->name('bank_data.update');
     Route::delete('settings/bank_data/credentials', [BankDataController::class, 'purgeGoCardlessCredentials'])->name('bank_data.purgeGoCardlessCredentials');
@@ -39,6 +41,8 @@ Route::middleware('auth')->group(function () {
             ->name('bank_data.syncAccountTransactions');
         Route::post('/accounts/sync-all', [BankDataController::class, 'syncAllAccounts'])
             ->name('bank_data.syncAllAccounts');
+        Route::post('/accounts/{account}/refresh-balance', [BankDataController::class, 'refreshAccountBalance'])
+            ->name('bank_data.refreshAccountBalance');
     });
 
 });

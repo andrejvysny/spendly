@@ -62,7 +62,7 @@ class User extends Authenticatable
     /**
      * Get the accounts for the user.
      */
-    public function accounts()
+    public function accounts(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\Account::class);
     }
@@ -70,7 +70,7 @@ class User extends Authenticatable
     /**
      * Get the categories for the user.
      */
-    public function categories()
+    public function categories(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\Category::class);
     }
@@ -78,7 +78,7 @@ class User extends Authenticatable
     /**
      * Get the merchants for the user.
      */
-    public function merchants()
+    public function merchants(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\Merchant::class);
     }
@@ -86,7 +86,7 @@ class User extends Authenticatable
     /**
      * Get the tags for the user.
      */
-    public function tags()
+    public function tags(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\Tag::class);
     }
@@ -94,27 +94,48 @@ class User extends Authenticatable
     /**
      * Get the rule groups for the user.
      */
-    public function ruleGroups()
+    public function ruleGroups(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(\App\Models\RuleGroup::class);
+        return $this->hasMany(RuleEngine\RuleGroup::class);
     }
 
     /**
      * Get the rules for the user.
      */
-    public function rules()
+    public function rules(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(\App\Models\Rule::class);
+        return $this->hasMany(RuleEngine\Rule::class);
     }
 
     /**
      * Get all transactions for the user through their accounts.
      */
-    public function transactions()
+    public function transactions(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
     {
         return $this->hasManyThrough(
             \App\Models\Transaction::class,
             \App\Models\Account::class
         );
+    }
+
+    /**
+     * Get the recurring groups for the user.
+     */
+    public function recurringGroups(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\RecurringGroup::class);
+    }
+
+    /**
+     * Get the recurring detection settings for the user.
+     */
+    public function recurringDetectionSetting(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\RecurringDetectionSetting::class);
+    }
+
+    public function getId(): mixed
+    {
+        return $this->id;
     }
 }

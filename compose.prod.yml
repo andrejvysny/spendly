@@ -1,11 +1,39 @@
+# One-click production deploy (same image/target as .github/workflows/build.yml):
+#   export APP_KEY=$(php artisan key:generate --show)
+#   export APP_URL=https://your-domain.example.com   # optional, default http://localhost
+#   docker compose -f compose.prod.yml up -d --build
+# No .env file; all variables are inlined below. Image builds from .docker/Dockerfile target: production.
+
 services:
   app:
-    image: ghcr.io/andrejvysny/spendly:main #For development version use ghcr.io/andrejvysny/spendly:develop
+    image: ghcr.io/andrejvysny/spendly:main
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile
+      target: production
     container_name: spendly
     restart: unless-stopped
     ports:
       - "80:80"
-    env_file: .env
+    environment:
+      APP_NAME: Spendly
+      APP_ENV: production
+      APP_KEY: ${APP_KEY}
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL:-http://localhost}
+      APP_LOCALE: en
+      APP_FALLBACK_LOCALE: en
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: warning
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/www/html/database/database.sqlite
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      GOCARDLESS_USE_MOCK: "false"
+      SESSION_SECURE_COOKIE: "false"
+      SESSION_LIFETIME: "120"
+      FILESYSTEM_DISK: local
     volumes:
       - app_storage:/var/www/html/storage
       - app_bootstrap:/var/www/html/bootstrap/cache

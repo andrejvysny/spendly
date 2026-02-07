@@ -6,9 +6,12 @@ use App\Events\TransactionCreated;
 use App\Events\TransactionUpdated;
 use App\Models\Account;
 use App\Models\Category;
-use App\Models\Rule;
-use App\Models\RuleAction;
-use App\Models\RuleCondition;
+use App\Models\RuleEngine\ActionType;
+use App\Models\RuleEngine\ConditionField;
+use App\Models\RuleEngine\ConditionOperator;
+use App\Models\RuleEngine\Rule;
+use App\Models\RuleEngine\RuleAction;
+use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Repositories\RuleRepository;
@@ -32,13 +35,10 @@ class EventDrivenRulesTest extends TestCase
 
         $this->user = User::factory()->create();
         $this->account = Account::factory()->create(['user_id' => $this->user->id]);
-        $this->ruleRepository = new RuleRepository;
+        $this->ruleRepository = app(\App\Contracts\Repositories\RuleRepositoryInterface::class);
     }
 
-    /**
-     * @test
-     */
-    public function it_processes_rules_when_transaction_is_created()
+    public function it_processes_rules_when_transaction_is_created(): void
     {
         // Create a category
         $groceryCategory = Category::factory()->create([
@@ -47,20 +47,20 @@ class EventDrivenRulesTest extends TestCase
         ]);
 
         // Create a rule that triggers on transaction creation
-        $rule = $this->createRule(Rule::TRIGGER_TRANSACTION_CREATED, [
+        $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [
                 'logic_operator' => 'AND',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_DESCRIPTION,
-                        'operator' => RuleCondition::OPERATOR_CONTAINS,
+                        'field' => ConditionField::FIELD_DESCRIPTION,
+                        'operator' => ConditionOperator::OPERATOR_CONTAINS,
                         'value' => 'SUPERMARKET',
                     ],
                 ],
             ],
         ], [
             [
-                'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                'action_type' => ActionType::ACTION_SET_CATEGORY,
                 'action_value' => $groceryCategory->id,
             ],
         ]);
@@ -83,25 +83,22 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($groceryCategory->id, $transaction->category_id);
     }
 
-    /**
-     * @test
-     */
-    public function it_does_not_process_rules_when_apply_rules_is_false()
+    public function it_does_not_process_rules_when_apply_rules_is_false(): void
     {
-        $rule = $this->createRule(Rule::TRIGGER_TRANSACTION_CREATED, [
+        $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [
                 'logic_operator' => 'AND',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_AMOUNT,
-                        'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+                        'field' => ConditionField::FIELD_AMOUNT,
+                        'operator' => ConditionOperator::OPERATOR_GREATER_THAN,
                         'value' => '0',
                     ],
                 ],
             ],
         ], [
             [
-                'action_type' => RuleAction::ACTION_SET_NOTE,
+                'action_type' => ActionType::ACTION_SET_NOTE,
                 'action_value' => 'Processed by rule',
             ],
         ]);
@@ -119,32 +116,29 @@ class EventDrivenRulesTest extends TestCase
         $this->assertNull($transaction->note);
     }
 
-    /**
-     * @test
-     */
-    public function it_processes_rules_when_transaction_is_updated()
+    public function it_processes_rules_when_transaction_is_updated(): void
     {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
 
         // Create a rule that triggers on transaction update
-        $rule = $this->createRule(Rule::TRIGGER_TRANSACTION_UPDATED, [
+        $rule = $this->createRule(Trigger::TRANSACTION_UPDATED, [
             [
                 'logic_operator' => 'AND',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_AMOUNT,
-                        'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+                        'field' => ConditionField::FIELD_AMOUNT,
+                        'operator' => ConditionOperator::OPERATOR_GREATER_THAN,
                         'value' => '500',
                     ],
                 ],
             ],
         ], [
             [
-                'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                'action_type' => ActionType::ACTION_SET_CATEGORY,
                 'action_value' => $category->id,
             ],
             [
-                'action_type' => RuleAction::ACTION_CREATE_TAG_IF_NOT_EXISTS,
+                'action_type' => ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS,
                 'action_value' => 'Large Transaction',
             ],
         ]);
@@ -170,48 +164,45 @@ class EventDrivenRulesTest extends TestCase
         $this->assertTrue($transaction->tags()->where('name', 'Large Transaction')->exists());
     }
 
-    /**
-     * @test
-     */
-    public function it_respects_stop_processing_flag_on_rules()
+    public function it_respects_stop_processing_flag_on_rules(): void
     {
         $category1 = Category::factory()->create(['user_id' => $this->user->id, 'name' => 'Category 1']);
         $category2 = Category::factory()->create(['user_id' => $this->user->id, 'name' => 'Category 2']);
 
         // Create first rule with stop_processing = true
-        $rule1 = $this->createRule(Rule::TRIGGER_TRANSACTION_CREATED, [
+        $rule1 = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [
                 'logic_operator' => 'AND',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_AMOUNT,
-                        'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+                        'field' => ConditionField::FIELD_AMOUNT,
+                        'operator' => ConditionOperator::OPERATOR_GREATER_THAN,
                         'value' => '50',
                     ],
                 ],
             ],
         ], [
             [
-                'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                'action_type' => ActionType::ACTION_SET_CATEGORY,
                 'action_value' => $category1->id,
             ],
         ], true); // stop_processing = true
 
         // Create second rule
-        $rule2 = $this->createRule(Rule::TRIGGER_TRANSACTION_CREATED, [
+        $rule2 = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [
                 'logic_operator' => 'AND',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_AMOUNT,
-                        'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+                        'field' => ConditionField::FIELD_AMOUNT,
+                        'operator' => ConditionOperator::OPERATOR_GREATER_THAN,
                         'value' => '10',
                     ],
                 ],
             ],
         ], [
             [
-                'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                'action_type' => ActionType::ACTION_SET_CATEGORY,
                 'action_value' => $category2->id,
             ],
         ]);
@@ -236,20 +227,17 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($category1->id, $transaction->category_id);
     }
 
-    /**
-     * @test
-     */
-    public function it_processes_multiple_actions_in_order()
+    public function it_processes_multiple_actions_in_order(): void
     {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
 
-        $rule = $this->createRule(Rule::TRIGGER_TRANSACTION_CREATED, [
+        $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [
                 'logic_operator' => 'AND',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_DESCRIPTION,
-                        'operator' => RuleCondition::OPERATOR_WILDCARD,
+                        'field' => ConditionField::FIELD_DESCRIPTION,
+                        'operator' => ConditionOperator::OPERATOR_WILDCARD,
                         'value' => '*COFFEE*',
                         'is_case_sensitive' => false,
                     ],
@@ -257,17 +245,17 @@ class EventDrivenRulesTest extends TestCase
             ],
         ], [
             [
-                'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                'action_type' => ActionType::ACTION_SET_CATEGORY,
                 'action_value' => $category->id,
                 'order' => 1,
             ],
             [
-                'action_type' => RuleAction::ACTION_PREPEND_DESCRIPTION,
+                'action_type' => ActionType::ACTION_PREPEND_DESCRIPTION,
                 'action_value' => '[COFFEE] ',
                 'order' => 2,
             ],
             [
-                'action_type' => RuleAction::ACTION_SET_NOTE,
+                'action_type' => ActionType::ACTION_SET_NOTE,
                 'action_value' => 'Categorized as coffee expense',
                 'order' => 3,
             ],
@@ -290,10 +278,7 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals('Categorized as coffee expense', $transaction->note);
     }
 
-    /**
-     * @test
-     */
-    public function it_handles_complex_condition_groups_with_or_logic()
+    public function it_handles_complex_condition_groups_with_or_logic(): void
     {
         $travelCategory = Category::factory()->create([
             'user_id' => $this->user->id,
@@ -301,19 +286,19 @@ class EventDrivenRulesTest extends TestCase
         ]);
 
         // Create rule with multiple OR condition groups
-        $rule = $this->createRule(Rule::TRIGGER_TRANSACTION_CREATED, [
+        $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
             // First group: Airlines
             [
                 'logic_operator' => 'OR',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_DESCRIPTION,
-                        'operator' => RuleCondition::OPERATOR_REGEX,
+                        'field' => ConditionField::FIELD_DESCRIPTION,
+                        'operator' => ConditionOperator::OPERATOR_REGEX,
                         'value' => '/(AIRLINE|AIRWAYS)/i',
                     ],
                     [
-                        'field' => RuleCondition::FIELD_PARTNER,
-                        'operator' => RuleCondition::OPERATOR_IN,
+                        'field' => ConditionField::FIELD_PARTNER,
+                        'operator' => ConditionOperator::OPERATOR_IN,
                         'value' => 'Delta,United,American Airlines',
                     ],
                 ],
@@ -323,20 +308,20 @@ class EventDrivenRulesTest extends TestCase
                 'logic_operator' => 'OR',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_DESCRIPTION,
-                        'operator' => RuleCondition::OPERATOR_CONTAINS,
+                        'field' => ConditionField::FIELD_DESCRIPTION,
+                        'operator' => ConditionOperator::OPERATOR_CONTAINS,
                         'value' => 'HOTEL',
                     ],
                     [
-                        'field' => RuleCondition::FIELD_DESCRIPTION,
-                        'operator' => RuleCondition::OPERATOR_REGEX,
+                        'field' => ConditionField::FIELD_DESCRIPTION,
+                        'operator' => ConditionOperator::OPERATOR_REGEX,
                         'value' => '/(MARRIOTT|HILTON|HYATT)/i',
                     ],
                 ],
             ],
         ], [
             [
-                'action_type' => RuleAction::ACTION_SET_CATEGORY,
+                'action_type' => ActionType::ACTION_SET_CATEGORY,
                 'action_value' => $travelCategory->id,
             ],
         ]);
@@ -372,18 +357,15 @@ class EventDrivenRulesTest extends TestCase
         $this->assertEquals($travelCategory->id, $hotelTransaction->category_id);
     }
 
-    /**
-     * @test
-     */
-    public function it_logs_rule_execution()
+    public function it_logs_rule_execution(): void
     {
-        $rule = $this->createRule(Rule::TRIGGER_TRANSACTION_CREATED, [
+        $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [
                 'logic_operator' => 'AND',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_AMOUNT,
-                        'operator' => RuleCondition::OPERATOR_BETWEEN,
+                        'field' => ConditionField::FIELD_AMOUNT,
+                        'operator' => ConditionOperator::OPERATOR_BETWEEN,
                         'value' => '10,100',
                     ],
                 ],
@@ -412,26 +394,23 @@ class EventDrivenRulesTest extends TestCase
         ]);
     }
 
-    /**
-     * @test
-     */
-    public function it_handles_inactive_rules()
+    public function it_handles_inactive_rules(): void
     {
         // Create inactive rule
-        $rule = $this->createRule(Rule::TRIGGER_TRANSACTION_CREATED, [
+        $rule = $this->createRule(Trigger::TRANSACTION_CREATED, [
             [
                 'logic_operator' => 'AND',
                 'conditions' => [
                     [
-                        'field' => RuleCondition::FIELD_AMOUNT,
-                        'operator' => RuleCondition::OPERATOR_GREATER_THAN,
+                        'field' => ConditionField::FIELD_AMOUNT,
+                        'operator' => ConditionOperator::OPERATOR_GREATER_THAN,
                         'value' => '0',
                     ],
                 ],
             ],
         ], [
             [
-                'action_type' => RuleAction::ACTION_SET_NOTE,
+                'action_type' => ActionType::ACTION_SET_NOTE,
                 'action_value' => 'Should not be set',
             ],
         ]);
@@ -454,10 +433,7 @@ class EventDrivenRulesTest extends TestCase
         $this->assertNull($transaction->note);
     }
 
-    /**
-     * @test
-     */
-    public function it_queues_rule_processing()
+    public function it_queues_rule_processing(): void
     {
         Event::fake();
 
@@ -473,7 +449,7 @@ class EventDrivenRulesTest extends TestCase
     /**
      * Helper method to create a rule
      */
-    private function createRule(string $triggerType, array $conditionGroups, array $actions, bool $stopProcessing = false)
+    private function createRule(Trigger $triggerType, array $conditionGroups, array $actions, bool $stopProcessing = false): Rule
     {
         $ruleGroup = $this->ruleRepository->createRuleGroup($this->user, [
             'name' => 'Test Rule Group',
@@ -483,7 +459,7 @@ class EventDrivenRulesTest extends TestCase
         return $this->ruleRepository->createRule($this->user, [
             'rule_group_id' => $ruleGroup->id,
             'name' => 'Test Rule',
-            'trigger_type' => $triggerType,
+            'trigger_type' => $triggerType->value,
             'stop_processing' => $stopProcessing,
             'is_active' => true,
             'condition_groups' => $conditionGroups,

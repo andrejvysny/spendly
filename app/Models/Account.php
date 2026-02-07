@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use App\Contracts\OwnedByUserContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Account extends Model
+class Account extends BaseModel implements OwnedByUserContract
 {
     use HasFactory;
 
@@ -24,7 +24,10 @@ class Account extends Model
         'type',
         'currency',
         'balance',
+        'opening_balance',
         'gocardless_account_id',
+        'gocardless_institution_id',
+        'bic',
         'is_gocardless_synced',
         'gocardless_last_synced_at',
         'import_data',
@@ -38,6 +41,7 @@ class Account extends Model
      */
     protected $casts = [
         'balance' => 'decimal:2',
+        'opening_balance' => 'decimal:2',
         'is_gocardless_synced' => 'boolean',
         'gocardless_last_synced_at' => 'datetime',
         'import_data' => 'json',
@@ -58,5 +62,10 @@ class Account extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function getUserId(): int
+    {
+        return $this->getAttribute('user_id');
     }
 }
