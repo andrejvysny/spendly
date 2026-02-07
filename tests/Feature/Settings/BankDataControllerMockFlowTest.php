@@ -38,12 +38,12 @@ class BankDataControllerMockFlowTest extends TestCase
         $this->assertStringContainsString($callbackUrl, $link);
         $this->assertStringContainsString('mock=1', $link);
 
-        // 2. Simulate user following the link (callback) – same session so requisition_id is in session
+        // 2. Simulate user following the link (callback) – same session so requisition_id is in session. No auto-import.
         $callbackResponse = $this->get($link);
         $callbackResponse->assertRedirect(route('bank_data.edit'));
         $callbackResponse->assertSessionHas('success');
 
-        // 3. Callback auto-imports all accounts; list requisitions to get account ids
+        // 3. List requisitions to get linked account ids (accounts are not auto-imported)
         $listResponse = $this->actingAs($this->user)
             ->getJson('/api/bank-data/gocardless/requisitions');
         $listResponse->assertOk();
@@ -52,17 +52,21 @@ class BankDataControllerMockFlowTest extends TestCase
         $this->assertIsArray($results);
         $this->assertCount(1, $results);
         $this->assertArrayHasKey('accounts', $results[0]);
-        $accountIds = $results[0]['accounts'];
-        $this->assertNotEmpty($accountIds);
+        $accountList = $results[0]['accounts'];
+        $this->assertNotEmpty($accountList);
+        $firstAccountId = is_array($accountList[0]) ? ($accountList[0]['id'] ?? null) : $accountList[0];
+        $this->assertNotNull($firstAccountId);
 
-        // 4. Accounts were auto-imported in callback; find first linked account
+        // 4. Import first account via "Import" button (no auto-import in callback)
+        $importResponse = $this->actingAs($this->user)
+            ->postJson('/api/bank-data/gocardless/import/account', ['account_id' => $firstAccountId]);
+        $importResponse->assertOk();
         $account = Account::where('user_id', $this->user->id)
-            ->where('gocardless_account_id', $accountIds[0])
+            ->where('gocardless_account_id', $firstAccountId)
             ->first();
-        $this->assertNotNull($account, 'Callback should have auto-imported at least one account');
+        $this->assertNotNull($account, 'Account should exist after manual import');
 
         // 5. Sync transactions for the imported account
-
         $syncResponse = $this->actingAs($this->user)
             ->postJson("/api/bank-data/gocardless/accounts/{$account->id}/sync-transactions", [
                 'update_existing' => true,
@@ -96,10 +100,22 @@ class BankDataControllerMockFlowTest extends TestCase
         $callbackResponse->assertRedirect(route('bank_data.edit'));
         $callbackResponse->assertSessionHas('success');
 
-        $accounts = Account::where('user_id', $this->user->id)->get();
-        $this->assertGreaterThan(0, $accounts->count(), 'At least one Revolut account should be imported');
+        // Accounts are not auto-imported; get first linked account id and import it
+        $listResponse = $this->actingAs($this->user)->getJson('/api/bank-data/gocardless/requisitions');
+        $listResponse->assertOk();
+        $results = $listResponse->json('results');
+        $this->assertNotEmpty($results);
+        $accountList = $results[0]['accounts'] ?? [];
+        $this->assertNotEmpty($accountList);
+        $firstAccountId = is_array($accountList[0]) ? ($accountList[0]['id'] ?? null) : $accountList[0];
+        $this->assertNotNull($firstAccountId);
 
-        $account = $accounts->first();
+        $importResponse = $this->actingAs($this->user)
+            ->postJson('/api/bank-data/gocardless/import/account', ['account_id' => $firstAccountId]);
+        $importResponse->assertOk();
+
+        $account = Account::where('user_id', $this->user->id)->where('gocardless_account_id', $firstAccountId)->first();
+        $this->assertNotNull($account, 'Revolut account should exist after manual import');
         $this->assertSame('Revolut', $account->gocardless_institution_id);
 
         $syncResponse = $this->actingAs($this->user)

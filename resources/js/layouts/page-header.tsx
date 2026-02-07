@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 function PageHeader({
     title,
@@ -7,7 +8,13 @@ function PageHeader({
 }: {
     title: string;
     subtitle?: string;
-    buttons?: { onClick: () => void; label: string; icon?: React.ComponentType<any>; disabled?: boolean }[];
+    buttons?: {
+        onClick: () => void;
+        label: string;
+        icon?: React.ComponentType<any>;
+        disabled?: boolean;
+        tooltipContent?: string;
+    }[];
 }) {
     return (
         <div className="mb-6 flex items-center justify-between">
@@ -19,7 +26,7 @@ function PageHeader({
                 <div>
                     {buttons.map((button, index) => {
                         const Icon = button.icon;
-                        return (
+                        const btn = (
                             <Button
                                 key={button.label}
                                 onClick={button.onClick}
@@ -30,6 +37,17 @@ function PageHeader({
                                 {button.label}
                             </Button>
                         );
+                        if (button.disabled && button.tooltipContent) {
+                            return (
+                                <Tooltip key={button.label}>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-block">{btn}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{button.tooltipContent}</TooltipContent>
+                                </Tooltip>
+                            );
+                        }
+                        return btn;
                     })}
                 </div>
             )}

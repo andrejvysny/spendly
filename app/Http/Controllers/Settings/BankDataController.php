@@ -219,7 +219,8 @@ class BankDataController extends Controller
     /**
      * Deletes a GoCardless requisition by its ID.
      *
-     * Attempts to remove the specified requisition using the GoCardless client. Returns a JSON response indicating success or failure.
+     * Optionally deletes all local accounts that were imported from this requisition (and their transactions and related data).
+     * When delete_imported_accounts=1, finds accounts by requisition's linked GoCardless account IDs, deletes their transactions then the accounts, then deletes the requisition from GoCardless.
      *
      * @param  string  $id  The ID of the requisition to delete.
      * @return \Illuminate\Http\JsonResponse JSON response with a success message or error details.
@@ -232,6 +233,27 @@ class BankDataController extends Controller
             if (! $user instanceof User) {
                 return response()->json(['error' => 'Unauthenticated'], 401);
             }
+
+            $deleteImportedAccounts = $request->boolean('delete_imported_accounts', false);
+
+            if ($deleteImportedAccounts) {
+                $goCardlessAccountIds = $this->gocardlessService->getAccounts($id, $user);
+                if ($goCardlessAccountIds !== []) {
+                    $accounts = Account::where('user_id', $user->id)
+                        ->whereIn('gocardless_account_id', $goCardlessAccountIds)
+                        ->get();
+
+                    foreach ($accounts as $account) {
+                        $account->transactions()->delete();
+                        $this->accountRepository->delete($account);
+                    }
+                    Log::info('Deleted imported accounts for requisition', [
+                        'requisition_id' => $id,
+                        'account_count' => $accounts->count(),
+                    ]);
+                }
+            }
+
             $this->gocardlessService->deleteRequisition($id, $user);
             Log::info('Requisition deleted successfully', ['id' => $id]);
 
@@ -258,7 +280,10 @@ class BankDataController extends Controller
      */
     public function createRequisition(Request $request): JsonResponse
     {
-        $request->validate(['institution_id' => 'required|string']);
+        $request->validate([
+            'institution_id' => 'required|string',
+            'return_to' => 'nullable|string|in:accounts,bank_data',
+        ]);
         Log::info('Importing account from GoCardless', ['institution_id' => $request->institution_id]);
 
         try {
@@ -278,6 +303,12 @@ class BankDataController extends Controller
 
             Log::info('Requisition created', ['requisition' => $requisition]);
             session(['gocardless_requisition_id' => $requisition['id']]);
+            $returnTo = $request->input('return_to');
+            if ($returnTo === 'accounts') {
+                session(['gocardless_return_to' => 'accounts']);
+            } else {
+                session()->forget('gocardless_return_to');
+            }
 
             return response()->json(['link' => $requisition['link']]);
         } catch (\RuntimeException $e) {
@@ -296,6 +327,8 @@ class BankDataController extends Controller
      */
     public function handleRequisitionCallback(Request $request): RedirectResponse
     {
+        $redirectToAccounts = session('gocardless_return_to') === 'accounts';
+
         if ($request->get('error') === 'ConsentLinkReused') {
             Log::error('GoCardless callback error', [
                 'error' => $request->get('error'),
@@ -303,27 +336,35 @@ class BankDataController extends Controller
             ]);
 
             $detail = $request->get('error_description');
+            session()->forget('gocardless_return_to');
+            $route = $redirectToAccounts ? route('accounts.index') : route('bank_data.edit');
 
-            return redirect()->route('bank_data.edit')->with('error', 'Error during authentication: '.(is_string($detail) ? $detail : ''));
+            return redirect($route)->with('error', 'Error during authentication: '.(is_string($detail) ? $detail : ''));
         }
 
         if ($request->get('error') === 'UserCancelledSession') {
             Log::info('User cancelled the session');
             session()->forget('gocardless_requisition_id');
+            session()->forget('gocardless_return_to');
+            $route = $redirectToAccounts ? route('accounts.index') : route('bank_data.edit');
 
-            return redirect()->route('bank_data.edit')->with('error', 'User cancelled the session');
+            return redirect($route)->with('error', 'User cancelled the session');
         }
 
         Log::info('Handling GoCardless callback');
         $requisitionId = session('gocardless_requisition_id');
 
         if (! $requisitionId) {
-            return redirect()->route('bank_data.edit')->with('error', 'Invalid session');
+            session()->forget('gocardless_return_to');
+
+            return redirect()->route($redirectToAccounts ? 'accounts.index' : 'bank_data.edit')->with('error', 'Invalid session');
         }
 
         $user = auth()->user();
         if (! $user instanceof User) {
-            return redirect()->route('bank_data.edit')->with('error', 'Session expired. Please sign in again.');
+            session()->forget('gocardless_return_to');
+
+            return redirect()->route($redirectToAccounts ? 'accounts.index' : 'bank_data.edit')->with('error', 'Session expired. Please sign in again.');
         }
 
         $requisitionIdStr = is_string($requisitionId) ? $requisitionId : '';
@@ -333,37 +374,32 @@ class BankDataController extends Controller
 
             Log::info('Retrieved accounts', ['account_ids' => $accountIds]);
             session()->forget('gocardless_requisition_id');
+            session()->forget('gocardless_return_to');
 
-            $imported = 0;
-            foreach ($accountIds as $goCardlessAccountId) {
-                try {
-                    $this->gocardlessService->importAccount($goCardlessAccountId, $user);
-                    $imported++;
-                } catch (AccountAlreadyExistsException) {
-                    // Already linked, skip
-                } catch (\Exception $e) {
-                    Log::warning('Callback: failed to import account', [
-                        'account_id' => $goCardlessAccountId,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+            // Do not auto-import: accounts are imported only when the user clicks "Import" on each account in the requisition list.
+            $count = is_array($accountIds) ? count($accountIds) : 0;
+            $route = $redirectToAccounts ? route('accounts.index') : route('bank_data.edit');
+            $message = $count > 0
+                ? "Bank connected. {$count} account(s) are available—import them from the list below."
+                : 'Bank connected. Import accounts from the list below when ready.';
+
+            if ($redirectToAccounts) {
+                return redirect($route)->with('success', $message)->with('open_go_cardless_modal', true);
             }
 
-            return redirect()->route('bank_data.edit')->with(
-                'success',
-                $imported > 0
-                    ? "Requisition completed. {$imported} account(s) linked."
-                    : 'Requisition completed successfully. Accounts available to import.'
-            );
+            return redirect($route)->with('success', $message);
         } catch (\RuntimeException $e) {
-            return redirect()->route('bank_data.edit')->with('error', $e->getMessage());
+            session()->forget('gocardless_return_to');
+
+            return redirect()->route($redirectToAccounts ? 'accounts.index' : 'bank_data.edit')->with('error', $e->getMessage());
         } catch (\Exception $e) {
             Log::error('GoCardless callback error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+            session()->forget('gocardless_return_to');
 
-            return redirect()->route('bank_data.edit')->with('error', 'Failed to get accounts: '.$e->getMessage());
+            return redirect()->route($redirectToAccounts ? 'accounts.index' : 'bank_data.edit')->with('error', 'Failed to get accounts: '.$e->getMessage());
         }
     }
 
