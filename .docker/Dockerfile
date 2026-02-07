@@ -6,8 +6,8 @@ COPY resources ./resources
 RUN npm ci --production
 RUN npm run build
 
-# Final image using official PHP-Apache
-FROM php:8.4-apache
+# Final image using official PHP-Apache (production stage)
+FROM php:8.4-apache AS production
 
 # Set Apache document root
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
@@ -76,12 +76,9 @@ RUN composer install --no-dev --no-interaction --no-plugins --no-progress --no-s
 COPY . .
 COPY --from=assets /app/public/build ./public/build
 
-# Set permissions
+# Set permissions (run as root so entrypoint can chown; Apache binds to 80 and runs workers as www-data)
 RUN chown -R www-data:www-data /var/www/html && \
     chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
-
-# Switch to www-data user
-USER www-data
 
 # Expose port 80
 EXPOSE 80

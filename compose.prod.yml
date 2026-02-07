@@ -1,12 +1,16 @@
-# One-click production deploy: set APP_KEY (required) and optionally APP_URL, then:
+# One-click production deploy (same image/target as .github/workflows/build.yml):
 #   export APP_KEY=$(php artisan key:generate --show)
-#   export APP_URL=https://your-domain.example.com  # optional
-#   docker compose -f compose.prod.yml up -d
-# No .env file required; all variables are defined below.
+#   export APP_URL=https://your-domain.example.com   # optional, default http://localhost
+#   docker compose -f compose.prod.yml up -d --build
+# No .env file; all variables are inlined below. Image builds from .docker/Dockerfile target: production.
 
 services:
   app:
-    image: ghcr.io/andrejvysny/spendly:main # For development use ghcr.io/andrejvysny/spendly:develop
+    image: ghcr.io/andrejvysny/spendly:main
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile
+      target: production
     container_name: spendly
     restart: unless-stopped
     ports:
