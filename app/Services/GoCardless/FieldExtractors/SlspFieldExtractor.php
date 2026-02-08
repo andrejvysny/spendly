@@ -88,9 +88,10 @@ class SlspFieldExtractor implements BankFieldExtractorInterface
         if (str_starts_with($propCode, 'POSPAYMENT') || str_contains($bankCode, 'MCRD')) {
             return Transaction::TYPE_CARD_PAYMENT;
         }
-        if (str_starts_with($propCode, 'STANDINGORDER')) {
-            return Transaction::TYPE_TRANSFER;
-        }
+        // TRANSFER is set only when counterparty is own account (see GocardlessMapper)
+        // if (str_starts_with($propCode, 'STANDINGORDER')) {
+        //     return Transaction::TYPE_TRANSFER;
+        // }
         if ($propCode === 'MANUAL' && $amount > 0) {
             return Transaction::TYPE_DEPOSIT;
         }

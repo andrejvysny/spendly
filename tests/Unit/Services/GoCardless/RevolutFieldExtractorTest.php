@@ -101,14 +101,15 @@ class RevolutFieldExtractorTest extends TestCase
         $this->assertNull($this->extractor->extractCurrencyExchange($tx));
     }
 
-    public function test_extract_transaction_type_maps_transfer(): void
+    public function test_extract_transaction_type_maps_transfer_code_to_payment(): void
     {
+        // TRANSFER type is set in GocardlessMapper only when counterparty is own account; extractor returns PAYMENT
         $tx = [
             'transactionAmount' => ['amount' => '-0.06', 'currency' => 'EUR'],
             'proprietaryBankTransactionCode' => 'TRANSFER',
         ];
         $type = $this->extractor->extractTransactionType($tx, -0.06);
-        $this->assertSame(Transaction::TYPE_TRANSFER, $type);
+        $this->assertSame(Transaction::TYPE_PAYMENT, $type);
     }
 
     public function test_extract_transaction_type_maps_card_payment(): void

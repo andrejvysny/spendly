@@ -100,6 +100,18 @@ class SlspFieldExtractorTest extends TestCase
         $this->assertSame(Transaction::TYPE_DEPOSIT, $type);
     }
 
+    public function test_extract_transaction_type_maps_standing_order_to_payment(): void
+    {
+        // STANDINGORDER no longer maps to TRANSFER; type is set in GocardlessMapper only when counterparty is own account
+        $tx = [
+            'transactionAmount' => ['amount' => '-150.00', 'currency' => 'EUR'],
+            'proprietaryBankTransactionCode' => 'STANDINGORDER',
+            'creditorName' => 'Finax',
+        ];
+        $type = $this->extractor->extractTransactionType($tx, -150.0);
+        $this->assertSame(Transaction::TYPE_PAYMENT, $type);
+    }
+
     public function test_slsp_fixture_transactions_extract_correctly(): void
     {
         $transactions = GoCardlessFixtureLoader::loadSlspTransactions();

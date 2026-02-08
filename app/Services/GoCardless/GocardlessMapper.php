@@ -2,6 +2,7 @@
 
 namespace App\Services\GoCardless;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Services\GoCardless\FieldExtractors\FieldExtractorFactory;
@@ -10,7 +11,8 @@ use Carbon\Carbon;
 class GocardlessMapper
 {
     public function __construct(
-        private readonly FieldExtractorFactory $extractorFactory
+        private readonly FieldExtractorFactory $extractorFactory,
+        private readonly AccountRepositoryInterface $accountRepository
     ) {}
 
     /**
@@ -186,6 +188,14 @@ class GocardlessMapper
         }
         $partner = $extractor->extractPartner($transaction);
         $type = $extractor->extractTransactionType($transaction, $amount);
+
+        // Mark as TRANSFER only when counterparty (debtor or creditor) is one of the user's own accounts
+        $ownIbanNormalized = $this->getOwnAccountIbansNormalized((int) $account->user_id);
+        $counterpartyIban = $this->getCounterpartyIban($sourceIban, $targetIban, $account->iban);
+        if ($counterpartyIban !== null && $ownIbanNormalized !== [] && isset($ownIbanNormalized[$this->normalizeIban($counterpartyIban)])) {
+            $type = Transaction::TYPE_TRANSFER;
+        }
+
         $metadata = $extractor->extractMetadata($transaction);
 
         $currencyExchange = $extractor->extractCurrencyExchange($transaction);
@@ -244,74 +254,45 @@ class GocardlessMapper
     }
 
     /**
-     * Bank/purpose codes that indicate an internal or external transfer (PSD2/Open Banking).
-     * Normalized to uppercase for comparison; extend as needed for your banks.
+     * Get counterparty IBAN for this transaction: the one of debtor/creditor that is not the current account's IBAN.
      */
-    private const TRANSFER_CODES = [
-        'TRFD',      // Transfer (common abbreviation)
-        'TRF',       // Transfer
-        'TRANSFER',
-        'DMCT',      // Domestic credit transfer
-        'CDCB',      // Credit transfer
-        'PMNT.RCDT', // ISO 20022: received credit transfer
-        'PMNT.RCDT.OTHR',
-        'IDDT',      // Instant domestic transfer
-    ];
-
-    /**
-     * Determines the transaction type based on the transaction data.
-     *
-     * @param  array  $transaction  The transaction data.
-     * @return string The determined transaction type.
-     */
-    private function determineTransactionType(array $transaction): string
+    private function getCounterpartyIban(?string $sourceIban, ?string $targetIban, ?string $accountIban): ?string
     {
-        // Try to get the bank's proprietary code
-        $bankCode = $this->get($transaction, 'proprietaryBankTransactionCode');
-        if ($bankCode !== null && $bankCode !== '') {
-            $code = strtoupper(trim((string) $bankCode));
-            if ($this->isTransferCode($code)) {
-                return Transaction::TYPE_TRANSFER;
-            }
-
-            return (string) $bankCode;
+        if ($accountIban === null || $accountIban === '') {
+            return null;
         }
-
-        // Try to get the purpose code
-        $purposeCode = $this->get($transaction, 'purposeCode');
-        if ($purposeCode !== null && $purposeCode !== '') {
-            $code = strtoupper(trim((string) $purposeCode));
-            if ($this->isTransferCode($code)) {
-                return Transaction::TYPE_TRANSFER;
-            }
-
-            return (string) $purposeCode;
+        $accountNorm = $this->normalizeIban($accountIban);
+        if ($sourceIban !== null && $sourceIban !== '' && $this->normalizeIban($sourceIban) !== $accountNorm) {
+            return $sourceIban;
         }
-
-        // Try to determine from amount
-        $amount = $this->get($transaction, 'transactionAmount.amount', 0);
-        $amount = is_numeric($amount) ? (float) $amount : 0.0;
-
-        if ($amount > 0) {
-            return Transaction::TYPE_DEPOSIT;
+        if ($targetIban !== null && $targetIban !== '' && $this->normalizeIban($targetIban) !== $accountNorm) {
+            return $targetIban;
         }
-
-        return Transaction::TYPE_PAYMENT;
+        return null;
     }
 
-    private function isTransferCode(string $code): bool
+    /**
+     * Get user's account IBANs normalized (key = normalized IBAN) for lookup.
+     *
+     * @return array<string, true>
+     */
+    private function getOwnAccountIbansNormalized(int $userId): array
     {
-        if ($code === '') {
-            return false;
-        }
-
-        foreach (self::TRANSFER_CODES as $transferCode) {
-            if ($code === $transferCode || str_starts_with($code, $transferCode.'.')) {
-                return true;
+        $accounts = $this->accountRepository->findByUser($userId);
+        $out = [];
+        foreach ($accounts as $acc) {
+            $iban = $acc->iban;
+            if ($iban !== null && trim((string) $iban) !== '') {
+                $out[$this->normalizeIban((string) $iban)] = true;
             }
         }
+        return $out;
+    }
 
-        return false;
+    private function normalizeIban(string $iban): string
+    {
+        $s = strtoupper(trim(preg_replace('/\s+/', '', $iban)));
+        return $s;
     }
 
     /**

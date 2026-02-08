@@ -116,7 +116,8 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
 
         return match (true) {
             $code === 'CARD_PAYMENT' => Transaction::TYPE_CARD_PAYMENT,
-            $code === 'TRANSFER' => Transaction::TYPE_TRANSFER,
+            // TRANSFER is set only when counterparty is own account (see GocardlessMapper)
+            // $code === 'TRANSFER' => Transaction::TYPE_TRANSFER,
             $code === 'TOPUP' => Transaction::TYPE_DEPOSIT,
             $code === 'EXCHANGE' => Transaction::TYPE_EXCHANGE,
             $amount > 0 => Transaction::TYPE_DEPOSIT,
