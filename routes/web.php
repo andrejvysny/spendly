@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Accounts\AccountController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Import\ImportController;
@@ -62,6 +63,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/tags', [TagController::class, 'store'])->name('tags.store');
     Route::put('/tags/{tag}', [TagController::class, 'update'])->name('tags.update');
     Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
+
+    // Budget routes
+    Route::get('/budgets', [BudgetController::class, 'index'])->name('budgets.index');
+    Route::post('/budgets', [BudgetController::class, 'store'])->name('budgets.store');
+    Route::put('/budgets/{budget}', [BudgetController::class, 'update'])->name('budgets.update');
+    Route::delete('/budgets/{budget}', [BudgetController::class, 'destroy'])->name('budgets.destroy');
 
     // Import routes
     Route::group(['prefix' => 'imports', 'as' => 'imports.'], function () {

@@ -76,6 +76,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the budgets for the user.
+     */
+    public function budgets(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\Budget::class);
+    }
+
+    /**
      * Get the merchants for the user.
      */
     public function merchants(): \Illuminate\Database\Eloquent\Relations\HasMany
