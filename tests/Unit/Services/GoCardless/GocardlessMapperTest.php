@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\GoCardless;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Models\Account;
+use App\Models\Transaction;
+use App\Models\User;
 use App\Services\GoCardless\FieldExtractors\FieldExtractorFactory;
 use App\Services\GoCardless\GocardlessMapper;
 use Carbon\Carbon;
@@ -21,7 +24,10 @@ class GocardlessMapperTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->mapper = new GocardlessMapper(new FieldExtractorFactory);
+        $this->mapper = new GocardlessMapper(
+            $this->app->make(FieldExtractorFactory::class),
+            $this->app->make(AccountRepositoryInterface::class)
+        );
         if (! GoCardlessFixtureLoader::fixturesAvailable()) {
             $this->markTestSkipped('GoCardless fixture directory not available.');
         }
@@ -119,5 +125,28 @@ class GocardlessMapperTest extends TestCase
         $this->assertIsArray($mapped['metadata']);
         $this->assertArrayHasKey('mcc', $mapped['metadata']);
         $this->assertMatchesRegularExpression('/^\d{4}$/', (string) $mapped['metadata']['mcc']);
+    }
+
+    public function test_map_transaction_data_does_not_set_transfer_when_counterparty_iban_is_external(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create([
+            'user_id' => $user->id,
+            'iban' => 'SK9009000000005124514591',
+            'gocardless_institution_id' => 'SLSP_GIBASKBX',
+            'bank_name' => 'Slovenská sporiteľňa',
+        ]);
+        $tx = [
+            'transactionId' => 'TRN13214381157',
+            'bookingDate' => '2026-02-02',
+            'valueDate' => '2026-02-02',
+            'transactionAmount' => ['amount' => '-150.00', 'currency' => 'EUR'],
+            'creditorName' => 'Finax',
+            'creditorAccount' => ['iban' => 'SK4211000000002948050714'],
+            'proprietaryBankTransactionCode' => 'STANDINGORDER',
+            'bankTransactionCode' => 'PMNT-ICDT-STDO',
+        ];
+        $mapped = $this->mapper->mapTransactionData($tx, $account, Carbon::now());
+        $this->assertSame(Transaction::TYPE_PAYMENT, $mapped['type'], 'External counterparty (Finax) must not be marked TRANSFER');
     }
 }

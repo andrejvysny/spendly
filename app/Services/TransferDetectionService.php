@@ -28,6 +28,7 @@ class TransferDetectionService
     {
         $accounts = $this->accountRepository->findByUser($userId);
         $accountIds = $accounts->pluck('id')->all();
+        $accountIdToIban = $this->buildAccountIdToIbanMap($accounts);
 
         if (count($accountIds) < 2) {
             return 0;
@@ -62,7 +63,7 @@ class TransferDetectionService
             $usedCreditIds = [];
 
             foreach ($debits as $debit) {
-                $match = $this->findMatchingCredit($debit, $credits, $usedCreditIds);
+                $match = $this->findMatchingCredit($debit, $credits, $usedCreditIds, $accountIdToIban);
                 if ($match === null) {
                     continue;
                 }
@@ -88,13 +89,18 @@ class TransferDetectionService
 
     /**
      * Find a credit transaction that matches the debit (same amount, different account).
+     * Only pairs when IBANs show money moved between the two accounts: debit's target_iban
+     * must equal the credit account's IBAN, and credit's source_iban must equal the debit account's IBAN.
      *
      * @param  \Illuminate\Support\Collection<int, Transaction>  $credits
      * @param  array<int>  $usedCreditIds
+     * @param  array<int, string>  $accountIdToIban  Map account_id -> normalized IBAN
      */
-    private function findMatchingCredit(Transaction $debit, $credits, array $usedCreditIds): ?Transaction
+    private function findMatchingCredit(Transaction $debit, $credits, array $usedCreditIds, array $accountIdToIban): ?Transaction
     {
         $amount = abs((float) $debit->amount);
+        $debitAccountIban = $accountIdToIban[$debit->account_id] ?? null;
+        $debitTargetIban = $this->normalizeIbanNullable($debit->target_iban);
 
         foreach ($credits as $credit) {
             if (in_array($credit->id, $usedCreditIds, true)) {
@@ -104,11 +110,52 @@ class TransferDetectionService
                 continue;
             }
             $creditAmount = (float) $credit->amount;
-            if (abs($creditAmount - $amount) <= self::AMOUNT_TOLERANCE) {
-                return $credit;
+            if (abs($creditAmount - $amount) > self::AMOUNT_TOLERANCE) {
+                continue;
             }
+
+            // Only pair when both legs show the other account's IBAN (real transfer between own accounts)
+            $creditAccountIban = $accountIdToIban[$credit->account_id] ?? null;
+            $creditSourceIban = $this->normalizeIbanNullable($credit->source_iban);
+            if ($debitTargetIban === null || $creditSourceIban === null || $debitAccountIban === null || $creditAccountIban === null) {
+                continue;
+            }
+            if ($debitTargetIban !== $creditAccountIban || $creditSourceIban !== $debitAccountIban) {
+                continue;
+            }
+
+            return $credit;
         }
 
         return null;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\Account>  $accounts
+     * @return array<int, string>
+     */
+    private function buildAccountIdToIbanMap($accounts): array
+    {
+        $map = [];
+        foreach ($accounts as $account) {
+            $iban = $account->iban;
+            if ($iban !== null && trim((string) $iban) !== '') {
+                $map[$account->id] = $this->normalizeIban((string) $iban);
+            }
+        }
+        return $map;
+    }
+
+    private function normalizeIban(string $iban): string
+    {
+        return strtoupper(trim(preg_replace('/\s+/', '', $iban)));
+    }
+
+    private function normalizeIbanNullable(?string $iban): ?string
+    {
+        if ($iban === null || trim($iban) === '') {
+            return null;
+        }
+        return $this->normalizeIban($iban);
     }
 }

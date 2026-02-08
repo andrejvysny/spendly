@@ -27,8 +27,8 @@ class TransferDetectionTest extends TestCase
     public function test_marks_same_day_debit_credit_pair_as_transfer(): void
     {
         $user = User::factory()->create();
-        $accountA = Account::factory()->create(['user_id' => $user->id]);
-        $accountB = Account::factory()->create(['user_id' => $user->id]);
+        $accountA = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK1111000000001111111111']);
+        $accountB = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK2222000000002222222222']);
 
         $date = Carbon::parse('2025-01-15');
         $debit = Transaction::factory()->create([
@@ -42,6 +42,8 @@ class TransferDetectionTest extends TestCase
             'description' => 'To savings',
             'type' => 'PAYMENT',
             'transfer_pair_transaction_id' => null,
+            'target_iban' => $accountB->iban,
+            'source_iban' => null,
         ]);
         $credit = Transaction::factory()->create([
             'account_id' => $accountB->id,
@@ -54,6 +56,8 @@ class TransferDetectionTest extends TestCase
             'description' => 'From current',
             'type' => 'DEPOSIT',
             'transfer_pair_transaction_id' => null,
+            'source_iban' => $accountA->iban,
+            'target_iban' => null,
         ]);
 
         $service = $this->app->make(TransferDetectionService::class);
@@ -110,8 +114,8 @@ class TransferDetectionTest extends TestCase
     public function test_uses_amount_tolerance_for_matching(): void
     {
         $user = User::factory()->create();
-        $accountA = Account::factory()->create(['user_id' => $user->id]);
-        $accountB = Account::factory()->create(['user_id' => $user->id]);
+        $accountA = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK3333000000003333333333']);
+        $accountB = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK4444000000004444444444']);
 
         $date = Carbon::parse('2025-01-15');
         $debit = Transaction::factory()->create([
@@ -125,6 +129,8 @@ class TransferDetectionTest extends TestCase
             'description' => 'Out',
             'type' => 'PAYMENT',
             'transfer_pair_transaction_id' => null,
+            'target_iban' => $accountB->iban,
+            'source_iban' => null,
         ]);
         $credit = Transaction::factory()->create([
             'account_id' => $accountB->id,
@@ -137,6 +143,8 @@ class TransferDetectionTest extends TestCase
             'description' => 'In',
             'type' => 'DEPOSIT',
             'transfer_pair_transaction_id' => null,
+            'source_iban' => $accountA->iban,
+            'target_iban' => null,
         ]);
 
         $service = $this->app->make(TransferDetectionService::class);
@@ -191,6 +199,48 @@ class TransferDetectionTest extends TestCase
         $credit->refresh();
         $this->assertSame($credit->id, $debit->transfer_pair_transaction_id);
         $this->assertSame($debit->id, $credit->transfer_pair_transaction_id);
+    }
+
+    public function test_does_not_pair_when_credit_source_iban_is_not_debit_account(): void
+    {
+        $user = User::factory()->create();
+        $accountA = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK6809000000005183172536']);
+        $accountB = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK9009000000005124514591']);
+
+        $date = Carbon::parse('2026-01-29');
+        Transaction::factory()->create([
+            'account_id' => $accountA->id,
+            'transaction_id' => 'T-IN-EXT',
+            'amount' => 10.00,
+            'currency' => 'EUR',
+            'booked_date' => $date,
+            'processed_date' => $date,
+            'partner' => 'Lejková Rebeka',
+            'description' => 'From external',
+            'type' => 'DEPOSIT',
+            'transfer_pair_transaction_id' => null,
+            'source_iban' => 'SK9109000000005182762200',
+            'target_iban' => null,
+        ]);
+        Transaction::factory()->create([
+            'account_id' => $accountB->id,
+            'transaction_id' => 'T-OUT-CARD',
+            'amount' => -10.00,
+            'currency' => 'EUR',
+            'booked_date' => $date,
+            'processed_date' => $date,
+            'partner' => 'TP636911114',
+            'description' => 'Card payment',
+            'type' => 'PAYMENT',
+            'transfer_pair_transaction_id' => null,
+            'target_iban' => null,
+            'source_iban' => null,
+        ]);
+
+        $service = $this->app->make(TransferDetectionService::class);
+        $updated = $service->detectAndMarkTransfersForUser((int) $user->id);
+
+        $this->assertSame(0, $updated, 'Must not pair when credit is from external (source_iban) and debit has no target_iban');
     }
 
     public function test_respects_date_range_filter(): void

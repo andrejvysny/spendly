@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Contracts\Repositories\GoCardlessSyncFailureRepositoryInterface;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Account;
@@ -39,7 +40,10 @@ class GoCardlessServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(GocardlessMapper::class, function ($app) {
-            return new GocardlessMapper($app->make(FieldExtractorFactory::class));
+            return new GocardlessMapper(
+                $app->make(FieldExtractorFactory::class),
+                $app->make(AccountRepositoryInterface::class)
+            );
         });
 
         $this->app->singleton(TransactionSyncService::class, function ($app) {

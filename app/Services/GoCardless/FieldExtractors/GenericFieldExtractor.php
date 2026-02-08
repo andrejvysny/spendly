@@ -88,9 +88,10 @@ class GenericFieldExtractor implements BankFieldExtractorInterface
     {
         $code = (string) self::get($transaction, 'proprietaryBankTransactionCode');
         $code = strtoupper(trim($code));
-        if ($code !== '' && ($code === 'TRANSFER' || str_starts_with($code, 'TRF'))) {
-            return Transaction::TYPE_TRANSFER;
-        }
+        // TRANSFER is set only when counterparty is own account (see GocardlessMapper)
+        // if ($code !== '' && ($code === 'TRANSFER' || str_starts_with($code, 'TRF'))) {
+        //     return Transaction::TYPE_TRANSFER;
+        // }
         if ($amount > 0) {
             return Transaction::TYPE_DEPOSIT;
         }
