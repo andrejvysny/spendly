@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Budget;
 use App\Models\Category;
 use App\Models\Import\Import;
 use App\Models\Merchant;
 use App\Models\RecurringGroup;
 use App\Models\Tag;
+use App\Policies\BudgetPolicy;
 use App\Policies\OwnedByUserPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
@@ -18,6 +20,7 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
+        Budget::class => BudgetPolicy::class,
         Category::class => OwnedByUserPolicy::class,
         Import::class => OwnedByUserPolicy::class,
         Merchant::class => OwnedByUserPolicy::class,

@@ -155,6 +155,26 @@ export interface Category {
     updated_at: string;
 }
 
+export interface Budget {
+    id: number;
+    user_id: number;
+    category_id: number;
+    amount: number;
+    currency: string;
+    period_type: 'monthly' | 'yearly';
+    year: number;
+    month: number;
+    name: string | null;
+}
+
+export interface BudgetWithProgress extends Budget {
+    category: { id: number; name: string; color: string | null; icon: string | null } | null;
+    spent: number;
+    remaining: number;
+    percentage_used: number;
+    is_exceeded: boolean;
+}
+
 export interface ImportMapping {
     id: number;
     user_id: number;
