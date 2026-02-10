@@ -3,25 +3,6 @@ name: tests
 on:
   workflow_dispatch:
 
-  pull_request:
-    branches:
-      - develop
-      - main
-    paths:
-        - '.github/workflows/tests.yml'
-        - 'app/**'
-        - 'bootstrap/**'
-        - 'config/**'
-        - 'database/**'
-        - 'public/**'
-        - 'resources/**'
-        - 'routes/**'
-        - 'storage/**'
-        - 'composer.json'
-        - 'composer.lock'
-        - 'package.json'
-        - 'package-lock.json'
-        - 'vite.config.js'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

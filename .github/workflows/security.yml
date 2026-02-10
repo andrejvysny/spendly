@@ -3,9 +3,6 @@ name: Security Checks
 on:
   workflow_dispatch:
 
-  schedule:
-    # Run security checks weekly at 2 AM UTC every Monday
-    - cron: '0 2 * * 1'
 
 permissions:
   contents: read
