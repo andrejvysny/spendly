@@ -164,44 +164,50 @@ class TransactionPersister
             // Fall back to individual inserts but still apply rules synchronously, all within a transaction
             $this->transactions->transaction(function () use ($batch) {
                 $created = collect();
-                foreach ($batch as $data) {
-                    assert($data instanceof TransactionDto, 'Expected TransactionDto in batch results');
-                    try {
-                        $transaction = $this->transactions->createOne(
-                            $this->prepareForInsert($data->toArray())
-                        );
-                        // Eager load needed relations for rule processing
-                        $transaction->load(['account.user', 'tags', 'category', 'merchant']);
-                        $created->push($transaction);
-                    } catch (\Exception $individualError) {
-                        Log::error('Individual transaction insert failed', [
-                            'error' => $individualError->getMessage(),
-                            'transaction_id' => $data->get('transaction_id', 'unknown'),
-                        ]);
+                // Silence model-level rule events since we process rules directly below
+                Transaction::$fireRuleEvents = false;
+                try {
+                    foreach ($batch as $data) {
+                        assert($data instanceof TransactionDto, 'Expected TransactionDto in batch results');
+                        try {
+                            $transaction = $this->transactions->createOne(
+                                $this->prepareForInsert($data->toArray())
+                            );
+                            // Eager load needed relations for rule processing
+                            $transaction->load(['account.user', 'tags', 'category', 'merchant']);
+                            $created->push($transaction);
+                        } catch (\Exception $individualError) {
+                            Log::error('Individual transaction insert failed', [
+                                'error' => $individualError->getMessage(),
+                                'transaction_id' => $data->get('transaction_id', 'unknown'),
+                            ]);
 
-                        // Collect SQL failure for later processing
-                        $this->persistenceResult->addSqlFailure($data, $individualError, [
-                            'transaction_id' => $data->get('transaction_id', 'unknown'),
-                            'account_id' => $data->get('account_id', 'unknown'),
-                            'fingerprint' => $data->get('fingerprint', 'unknown'),
-                        ]);
+                            // Collect SQL failure for later processing
+                            $this->persistenceResult->addSqlFailure($data, $individualError, [
+                                'transaction_id' => $data->get('transaction_id', 'unknown'),
+                                'account_id' => $data->get('account_id', 'unknown'),
+                                'fingerprint' => $data->get('fingerprint', 'unknown'),
+                            ]);
+                        }
                     }
-                }
 
-                // Update success count
-                $this->persistenceResult->setSuccessCount(
-                    $this->persistenceResult->getSuccessCount() + $created->count()
-                );
+                    // Update success count
+                    $this->persistenceResult->setSuccessCount(
+                        $this->persistenceResult->getSuccessCount() + $created->count()
+                    );
 
-                if ($created->isNotEmpty()) {
-                    $user = $created->first()->account->user;
-                    $this->ruleEngine
-                        ->setUser($user)
-                        ->processTransactions($created, Trigger::TRANSACTION_CREATED);
+                    if ($created->isNotEmpty()) {
+                        $user = $created->first()->account->user;
+                        $this->ruleEngine
+                            ->setUser($user)
+                            ->processTransactions($created, Trigger::TRANSACTION_CREATED);
 
-                    foreach ($created as $t) {
-                        event(new TransactionCreated($t, false));
+                        foreach ($created as $t) {
+                            event(new TransactionCreated($t, false));
+                        }
                     }
+                } finally {
+                    Transaction::$fireRuleEvents = true;
                 }
             });
         }

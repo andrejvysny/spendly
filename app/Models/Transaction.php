@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Events\TransactionCreated;
+use App\Events\TransactionDeleted;
+use App\Events\TransactionUpdated;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -10,6 +13,54 @@ use Illuminate\Support\Arr;
 class Transaction extends BaseModel
 {
     use HasFactory;
+
+    /**
+     * Controls whether rule engine events are dispatched on model changes.
+     * Set to false when the rule engine's ActionExecutor modifies transactions
+     * to prevent infinite loops (rule modifies transaction -> event -> rule again).
+     */
+    public static bool $fireRuleEvents = true;
+
+    /**
+     * Boot the model and register event listeners for rule engine integration.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Transaction $transaction) {
+            if (static::$fireRuleEvents) {
+                event(new TransactionCreated($transaction));
+            }
+        });
+
+        static::updated(function (Transaction $transaction) {
+            if (static::$fireRuleEvents) {
+                $changedAttributes = $transaction->getChanges();
+                event(new TransactionUpdated($transaction, $changedAttributes));
+            }
+        });
+
+        static::deleted(function (Transaction $transaction) {
+            if (static::$fireRuleEvents) {
+                event(new TransactionDeleted($transaction));
+            }
+        });
+    }
+
+    /**
+     * Execute a callback with rule events silenced.
+     * Used by the ActionExecutor to prevent infinite loops.
+     */
+    public static function withoutRuleEvents(callable $callback): mixed
+    {
+        $previous = static::$fireRuleEvents;
+        static::$fireRuleEvents = false;
+
+        try {
+            return $callback();
+        } finally {
+            static::$fireRuleEvents = $previous;
+        }
+    }
 
     protected $fillable = [
         'transaction_id',

@@ -40,6 +40,9 @@ interface CreateRuleModalProps {
     editingRule?: Rule;
 }
 
+// Boolean condition fields that use is_true/is_false operators
+const BOOLEAN_FIELDS: ConditionField[] = ['is_reconciled', 'has_category', 'has_merchant'];
+
 // Field display names
 const FIELD_LABELS: Record<ConditionField, string> = {
     amount: 'Amount',
@@ -56,6 +59,10 @@ const FIELD_LABELS: Record<ConditionField, string> = {
     source_iban: 'Source IBAN',
     date: 'Date',
     tags: 'Tags',
+    currency: 'Currency',
+    is_reconciled: 'Is reconciled',
+    has_category: 'Has category',
+    has_merchant: 'Has merchant',
 };
 
 // Operator display names
@@ -77,6 +84,8 @@ const OPERATOR_LABELS: Record<ConditionOperator, string> = {
     in: 'Is one of',
     not_in: 'Is not one of',
     between: 'Between',
+    is_true: 'Yes',
+    is_false: 'No',
 };
 
 // Action display names
@@ -97,6 +106,11 @@ const ACTION_LABELS: Record<ActionType, string> = {
     create_tag_if_not_exists: 'Create tag if not exists',
     create_category_if_not_exists: 'Create category if not exists',
     create_merchant_if_not_exists: 'Create merchant if not exists',
+    set_partner: 'Set partner',
+    set_place: 'Set place',
+    mark_reviewed: 'Mark as reviewed',
+    clear_category: 'Clear category',
+    clear_merchant: 'Clear merchant',
 };
 
 // Trigger type display names
@@ -104,6 +118,7 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
     manual: 'Manual',
     transaction_created: 'When transaction is created',
     transaction_updated: 'When transaction is updated',
+    transaction_deleted: 'When transaction is deleted',
 };
 
 export function CreateRuleModal({
@@ -215,6 +230,10 @@ export function CreateRuleModal({
 
     const getOperatorsForField = (field: ConditionField): ConditionOperator[] => {
         if (!ruleOptions) return [];
+
+        if (BOOLEAN_FIELDS.includes(field)) {
+            return ruleOptions.field_operators.boolean || ['is_true', 'is_false'];
+        }
 
         const numericFields: ConditionField[] = ['amount'];
         const isNumeric = numericFields.includes(field);
@@ -431,6 +450,7 @@ export function CreateRuleModal({
                                 {triggerType === 'manual' && 'Rule will only run when manually triggered'}
                                 {triggerType === 'transaction_created' && 'Rule will automatically run when new transactions are created'}
                                 {triggerType === 'transaction_updated' && 'Rule will automatically run when transactions are modified'}
+                                {triggerType === 'transaction_deleted' && 'Rule will automatically run when transactions are deleted'}
                             </p>
                         </div>
                     </div>
@@ -529,11 +549,17 @@ export function CreateRuleModal({
                                             </Select>
                                         </div>
                                         <div className="col-span-5">
-                                            <Input
-                                                value={condition.value}
-                                                onChange={(e) => updateCondition(groupIndex, conditionIndex, { value: e.target.value })}
-                                                placeholder="Enter a value"
-                                            />
+                                            {BOOLEAN_FIELDS.includes(condition.field) ? (
+                                                <div className="text-muted-foreground bg-muted flex h-10 items-center rounded-md px-3 text-sm">
+                                                    No value needed
+                                                </div>
+                                            ) : (
+                                                <Input
+                                                    value={condition.value}
+                                                    onChange={(e) => updateCondition(groupIndex, conditionIndex, { value: e.target.value })}
+                                                    placeholder="Enter a value"
+                                                />
+                                            )}
                                         </div>
                                         <div className="col-span-1">
                                             <Button

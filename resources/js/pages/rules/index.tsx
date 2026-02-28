@@ -35,6 +35,7 @@ interface RulesIndexProps {
         field_operators: {
             numeric: string[];
             string: string[];
+            boolean: string[];
         };
         categories: Array<{ id: number; name: string }>;
         merchants: Array<{ id: number; name: string }>;
