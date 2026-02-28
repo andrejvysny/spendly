@@ -17,17 +17,21 @@ php artisan test                          # all tests
 php artisan test --filter=ClassName       # single test class
 ./vendor/bin/phpstan analyse              # static analysis (level 9)
 ./vendor/bin/pint                         # code formatting
+php artisan migrate:fresh --seed          # reset DB with demo data
 
 # Frontend
 npm run dev                               # vite dev server
+npm run build                             # production build
 npm run test                              # jest (watch mode)
 npm test -- path/to/file                  # single test file
 npm run types                             # tsc --noEmit
 npm run lint                              # eslint + auto-fix
 npm run format:check                      # prettier check
 
-# Docker
+# Docker (prefix PHP/Composer commands when using Docker)
 docker compose up -d
+docker compose run cli php artisan [command]
+docker compose run cli ./vendor/bin/phpstan analyse
 ./scripts/test.sh                         # full test suite in container
 ```
 
@@ -43,12 +47,12 @@ Prefer targeted test runs for speed.
 
 - `Controllers/` — thin, delegate to services. Inertia pages via `Inertia::render('page/name', [...])` where page name matches `resources/js/pages/` path.
 - `Services/` — business logic. Key subsystems:
-  - `GoCardless/` (14 services) — bank sync, token management, mock/production client factories via `BankDataClientInterface`
-  - `RuleEngine/` — `RuleEngine`, `ConditionEvaluator`, `ActionExecutor` with enums for conditions/actions/triggers
-  - `TransactionImport/` — CSV import pipeline: parse → validate → deduplicate → persist
-  - `RecurringDetectionService` — pattern matching for recurring transactions
+    - `GoCardless/` (14 services) — bank sync, token management, mock/production client factories via `BankDataClientInterface`
+    - `RuleEngine/` — `RuleEngine`, `ConditionEvaluator`, `ActionExecutor` with enums for conditions/actions/triggers
+    - `TransactionImport/` — CSV import pipeline: parse → validate → deduplicate → persist
+    - `RecurringDetectionService` — pattern matching for recurring transactions
 - `Repositories/` — 21 repos implementing interfaces from `Contracts/Repositories/`. Concerns: `WithUserScope`, `WithOrdering`, `Paginating`.
-- `Models/` — 26 Eloquent models. `BelongsToUser` trait for soft multi-tenancy. Transaction fingerprinting (SHA256) for deduplication.
+- `Models/` — 26 Eloquent models. `BelongsToUser` trait for soft multi-tenancy (all user-facing tables have `user_id`). Transaction fingerprinting (SHA256) for deduplication.
 - `Policies/` — authorization via `$this->authorize()`.
 - `Providers/` — DI bindings: `RepositoryServiceProvider`, `GoCardlessServiceProvider`, `RuleEngineServiceProvider`.
 
@@ -67,11 +71,34 @@ Prefer targeted test runs for speed.
 
 **Rule Engine**: Models in `app/Models/RuleEngine/` (Rule, RuleGroup, ConditionGroup, RuleCondition, RuleAction). Enums: `ConditionField`, `ConditionOperator`, `ActionType`, `Trigger`. Events: `TransactionCreated`/`TransactionUpdated` → listener `ProcessTransactionRules`.
 
-**GoCardless**: Production vs mock via client factories. Mock enabled by `GOCARDLESS_USE_MOCK=true`. CLI commands for all flows (see AGENTS.md). Fixture data in `sample_data/gocardless_bank_account_data/`.
+**Rule Engine pipeline**: Rules processed via Laravel Pipeline pattern by priority order, respecting stop conditions. Jobs process rules asynchronously via queues. Audit logging tracks all executions in `rule_execution_logs`.
+
+**GoCardless**: Production vs mock via client factories. Mock enabled by `GOCARDLESS_USE_MOCK=true`. Fixture data in `sample_data/gocardless_bank_account_data/`.
+
+### CLI Commands (for testing/automation)
+
+```bash
+# CSV Import (without web wizard)
+php artisan import:csv <file> --account=<id|name> [--user=] [--mapping=] [--delimiter=] [--currency=] [--date-format=]
+# Example: php artisan import:csv sample_data/csv/SLSP/file.csv --account=1 --delimiter=";" --date-format=d.m.Y
+
+# GoCardless (mock mode by default in dev)
+php artisan gocardless:institutions --country=sk
+php artisan gocardless:connect --institution=SLSP --user=3
+php artisan gocardless:sync --account=1 --user=3
+php artisan gocardless:sync-all
+php artisan gocardless:requisitions
+php artisan gocardless:import-account <gc_account_id>
+php artisan gocardless:refresh-balance --account=1
+php artisan gocardless:retry-failures
+```
+
+Sample data: `sample_data/csv/` (Revolut, SLSP), `sample_data/gocardless_bank_account_data/`. With seeded DB use `--user=3` for demo user.
 
 ## Conventions
 
 ### PHP/Laravel
+
 - `declare(strict_types=1)` in all PHP files
 - PSR-12 coding standards
 - Form Requests for validation, keep controllers thin
@@ -79,12 +106,14 @@ Prefer targeted test runs for speed.
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
 
 ### React/TypeScript
+
 - Functional components with TypeScript interfaces for props
 - Prettier: single quotes, tabWidth 4, printWidth 150, plugins: organize-imports + tailwindcss
 - shadcn/ui + Radix UI for components, Tailwind CSS for styling
 - React Hook Form + Zod for forms
 
 ### Branching
+
 - `main` — production, `develop` — integration
 - Feature branches from `develop`: `feature/github-issue-id`, `fix/github-issue-id`
 - PRs target `develop`
@@ -102,3 +131,10 @@ Do NOT modify: `vendor/`, `node_modules/`, `public/`, `storage/`, `bootstrap/`, 
 ## Environment
 
 Key env vars: `DB_CONNECTION=sqlite`, `GOCARDLESS_USE_MOCK=true` (dev), `QUEUE_CONNECTION=database`, `SESSION_DRIVER=database`. See `.env.example` for full list. GoCardless credentials stored on User model (tokens, secret keys).
+
+## Data Conventions
+
+- Monetary values: `decimal(15, 2)` in DB. Use appropriate precision in calculations.
+- Currency codes: ISO 4217 (3-char string, e.g. `EUR`, `USD`).
+- All user-facing resources scoped by `user_id` — use `BelongsToUser` trait on models, `WithUserScope` concern on repositories.
+- `ml/` — Python ML engine (transaction classification). Separate `requirements.txt`, runs independently.
