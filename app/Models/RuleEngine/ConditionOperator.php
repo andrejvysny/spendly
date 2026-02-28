@@ -2,8 +2,6 @@
 
 namespace App\Models\RuleEngine;
 
-use League\Uri\UriTemplate\Operator;
-
 enum ConditionOperator: string
 {
     case OPERATOR_EQUALS = 'equals';
@@ -40,6 +38,10 @@ enum ConditionOperator: string
 
     case OPERATOR_BETWEEN = 'between';
 
+    case OPERATOR_IS_TRUE = 'is_true';
+
+    case OPERATOR_IS_FALSE = 'is_false';
+
     public static function string(): array
     {
         return [
@@ -71,7 +73,15 @@ enum ConditionOperator: string
         ];
     }
 
-    public static function validateOperator(Operator|string $operator): bool
+    public static function boolean(): array
+    {
+        return [
+            self::OPERATOR_IS_TRUE,
+            self::OPERATOR_IS_FALSE,
+        ];
+    }
+
+    public static function validateOperator(string $operator): bool
     {
         return in_array($operator, array_column(self::cases(), 'value'));
     }

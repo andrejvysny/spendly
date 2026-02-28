@@ -69,7 +69,7 @@ export interface RuleAction {
 }
 
 // Enums and Union Types
-export type TriggerType = 'transaction_created' | 'transaction_updated' | 'manual';
+export type TriggerType = 'transaction_created' | 'transaction_updated' | 'transaction_deleted' | 'manual';
 
 export type LogicOperator = 'AND' | 'OR';
 
@@ -87,7 +87,11 @@ export type ConditionField =
     | 'target_iban'
     | 'source_iban'
     | 'date'
-    | 'tags';
+    | 'tags'
+    | 'currency'
+    | 'is_reconciled'
+    | 'has_category'
+    | 'has_merchant';
 
 export type ConditionOperator =
     | 'equals'
@@ -106,7 +110,9 @@ export type ConditionOperator =
     | 'is_not_empty'
     | 'in'
     | 'not_in'
-    | 'between';
+    | 'between'
+    | 'is_true'
+    | 'is_false';
 
 export type ActionType =
     | 'set_category'
@@ -124,7 +130,12 @@ export type ActionType =
     | 'send_notification'
     | 'create_tag_if_not_exists'
     | 'create_category_if_not_exists'
-    | 'create_merchant_if_not_exists';
+    | 'create_merchant_if_not_exists'
+    | 'set_partner'
+    | 'set_place'
+    | 'mark_reviewed'
+    | 'clear_category'
+    | 'clear_merchant';
 
 // API Response Types
 export interface RuleGroupsResponse {
@@ -151,6 +162,7 @@ export interface RuleOptionsResponse {
         field_operators: {
             numeric: ConditionOperator[];
             string: ConditionOperator[];
+            boolean: ConditionOperator[];
         };
         // Data for select inputs
         categories: Array<{ id: number; name: string }>;

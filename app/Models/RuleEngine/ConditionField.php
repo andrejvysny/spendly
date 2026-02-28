@@ -32,4 +32,23 @@ enum ConditionField: string
 
     case FIELD_TAGS = 'tags';
 
+    case FIELD_CURRENCY = 'currency';
+
+    case FIELD_IS_RECONCILED = 'is_reconciled';
+
+    case FIELD_HAS_CATEGORY = 'has_category';
+
+    case FIELD_HAS_MERCHANT = 'has_merchant';
+
+    /**
+     * Fields that use boolean-style operators (is_empty/is_not_empty only).
+     */
+    public static function booleanFields(): array
+    {
+        return [
+            self::FIELD_IS_RECONCILED,
+            self::FIELD_HAS_CATEGORY,
+            self::FIELD_HAS_MERCHANT,
+        ];
+    }
 }
