@@ -1,0 +1,19 @@
+services:
+  ml:
+    build: ./ml
+    ports:
+      - '8001:8001'
+    volumes:
+      - ./database:/app/database:ro
+      - ml-models:/app/models
+    environment:
+      - DB_DATABASE=/app/database/database.sqlite
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8001/api/v1/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ml-models:
