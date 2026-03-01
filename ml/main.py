@@ -5,6 +5,8 @@ Usage:
     python main.py predict-categories --user_id=3
     python main.py detect-merchants --user_id=3
     python main.py detect-recurring --user_id=3
+    python main.py detect-transfers --user_id=3
+    python main.py train-transfer-detector --user_id=3
     python main.py discover-merchants --user_id=3
     python main.py serve [--host=0.0.0.0] [--port=8001]
 """
@@ -27,6 +29,8 @@ def main() -> None:
             "detect-merchants",
             "detect-recurring",
             "detect-duplicates",
+            "detect-transfers",
+            "train-transfer-detector",
             "discover-merchants",
             "serve",
         ],
@@ -132,6 +136,29 @@ def _dispatch(args: argparse.Namespace, loader) -> object:
         if result_df.empty:
             return []
         return result_df.to_dict("records")
+
+    if args.task == "detect-transfers":
+        from ml_engine.transfer_detector import TransferDetector
+        candidates = loader.load_transfer_candidates(user_id, limit=limit)
+        all_txns = loader.load_transactions(user_id, limit=5000)
+        detector = TransferDetector(user_id)
+        predictions = detector.detect(candidates, all_txns)
+        return [
+            {
+                "transaction_id": p.transaction_id,
+                "is_transfer": p.is_transfer,
+                "confidence": round(p.confidence, 3),
+                "method": p.method,
+                "suggested_pair_id": p.suggested_pair_id,
+            }
+            for p in predictions
+        ]
+
+    if args.task == "train-transfer-detector":
+        from ml_engine.transfer_detector import TransferDetector
+        df = loader.load_labeled_transactions(user_id)
+        detector = TransferDetector(user_id)
+        return detector.train(df)
 
     if args.task == "discover-merchants":
         if embedding_svc is None:

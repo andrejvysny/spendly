@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
 class MlPredictCommand extends Command
 {
     protected $signature = 'ml:predict
-        {task : Prediction task (categories, merchants, recurring)}
+        {task : Prediction task (categories, merchants, recurring, transfers)}
         {--user= : User ID}
         {--apply : Apply predictions to database}
         {--limit=100 : Max transactions to process}
@@ -41,6 +41,7 @@ class MlPredictCommand extends Command
             'categories' => $this->predictCategories($ml, $userId, $apply, $limit, $minConfidence),
             'merchants' => $this->predictMerchants($ml, $userId, $apply, $limit, $minConfidence),
             'recurring' => $this->predictRecurring($ml, $userId),
+            'transfers' => $this->predictTransfers($ml, $userId, $apply, $limit, $minConfidence),
             default => $this->invalidTask($task),
         };
     }
@@ -159,9 +160,52 @@ class MlPredictCommand extends Command
         }
     }
 
+    private function predictTransfers(MlService $ml, int $userId, bool $apply, int $limit, float $minConfidence): int
+    {
+        $this->info("Detecting transfers for user #{$userId}...");
+        $predictions = $ml->detectTransfers($userId, $limit);
+
+        if (empty($predictions)) {
+            $this->warn('No transfer predictions returned.');
+            return self::SUCCESS;
+        }
+
+        $this->displayPredictions($predictions, ['transaction_id', 'is_transfer', 'confidence', 'method', 'suggested_pair_id']);
+
+        if ($apply) {
+            $applied = 0;
+            foreach ($predictions as $p) {
+                if (($p['is_transfer'] ?? false) && ($p['confidence'] ?? 0) >= $minConfidence) {
+                    Transaction::where('id', $p['transaction_id'])
+                        ->where('type', '!=', 'TRANSFER')
+                        ->update(['type' => 'TRANSFER']);
+                    $applied++;
+
+                    $pairId = $p['suggested_pair_id'] ?? null;
+                    if ($pairId !== null) {
+                        Transaction::where('id', $pairId)
+                            ->where('type', '!=', 'TRANSFER')
+                            ->update([
+                                'type' => 'TRANSFER',
+                                'transfer_pair_transaction_id' => $p['transaction_id'],
+                            ]);
+                        Transaction::where('id', $p['transaction_id'])
+                            ->update(['transfer_pair_transaction_id' => $pairId]);
+                        $applied++;
+                    }
+                }
+            }
+            $this->info("Applied {$applied} transfer marking(s) (min confidence: {$minConfidence}).");
+        } else {
+            $this->info('Dry run. Use --apply to write predictions to DB.');
+        }
+
+        return self::SUCCESS;
+    }
+
     private function invalidTask(string $task): int
     {
-        $this->error("Unknown task: {$task}. Valid: categories, merchants, recurring");
+        $this->error("Unknown task: {$task}. Valid: categories, merchants, recurring, transfers");
         return self::FAILURE;
     }
 }

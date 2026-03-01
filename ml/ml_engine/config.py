@@ -25,6 +25,12 @@ class Thresholds:
     duplicate_window_days: int = 3
     min_training_samples: int = 20
     min_embedding_samples: int = 3
+    transfer_regex_high: float = 0.85
+    transfer_regex_low: float = 0.65
+    transfer_ml_auto: float = 0.70
+    transfer_cross_account_window_days: int = 3
+    transfer_amount_tolerance: float = 0.01
+    transfer_min_training_samples: int = 10
 
 
 @dataclass(frozen=True)

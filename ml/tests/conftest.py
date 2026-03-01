@@ -147,3 +147,55 @@ def uncategorized_transactions(sample_transactions: pd.DataFrame) -> pd.DataFram
     df = sample_transactions.copy()
     df["category_id"] = pd.NA
     return df
+
+
+@pytest.fixture
+def transfer_candidates() -> pd.DataFrame:
+    """Non-transfer transactions for ML transfer detection testing."""
+    return pd.DataFrame(
+        {
+            "id": [101, 102, 103, 104],
+            "amount": [-200.00, -50.00, -15.00, 100.00],
+            "currency": ["EUR"] * 4,
+            "booked_date": pd.to_datetime(["2026-01-10", "2026-01-10", "2026-01-10", "2026-01-10"]),
+            "description": [
+                "PREVOD NA UCET sporenie",
+                "Vlastny prevod na druhy ucet",
+                "Platba kartou LIDL dakuje 165",
+                "Internal transfer from savings",
+            ],
+            "partner": ["", "", "LIDL", ""],
+            "type": ["CARD_PAYMENT", "CARD_PAYMENT", "CARD_PAYMENT", "CARD_PAYMENT"],
+            "place": [None, None, "Bratislava", None],
+            "account_id": [1, 1, 1, 2],
+            "source_iban": [None, None, None, None],
+            "target_iban": [None, None, None, None],
+            "account_name": ["Main", "Main", "Main", "Savings"],
+            "account_iban": ["SK1234", "SK1234", "SK1234", "SK5678"],
+            "fingerprint": [f"fp{i}" for i in range(101, 105)],
+        }
+    )
+
+
+@pytest.fixture
+def all_user_transactions() -> pd.DataFrame:
+    """All transactions for cross-account matching."""
+    return pd.DataFrame(
+        {
+            "id": [101, 102, 103, 104, 201, 202],
+            "amount": [-200.00, -50.00, -15.00, 100.00, 200.00, 50.00],
+            "booked_date": pd.to_datetime([
+                "2026-01-10", "2026-01-10", "2026-01-10", "2026-01-10",
+                "2026-01-10", "2026-01-11",
+            ]),
+            "account_id": [1, 1, 1, 2, 2, 2],
+            "description": [
+                "PREVOD NA UCET sporenie",
+                "Vlastny prevod",
+                "Platba kartou LIDL",
+                "Internal transfer",
+                "Prijem prevod",
+                "Prijem prevod 2",
+            ],
+        }
+    )

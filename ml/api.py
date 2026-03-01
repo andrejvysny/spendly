@@ -203,6 +203,47 @@ def train_merchant_detector(req: TrainRequest) -> dict[str, Any]:
     }
 
 
+@app.post("/api/v1/detect-transfers")
+def detect_transfers(req: PredictRequest) -> list[dict]:
+    loader = _get_loader()
+    candidates = loader.load_transfer_candidates(req.user_id, limit=req.limit)
+
+    if candidates.empty:
+        return []
+
+    # Load all user transactions for cross-account matching
+    all_txns = loader.load_transactions(user_id=req.user_id, limit=5000)
+
+    from ml_engine.transfer_detector import TransferDetector
+    detector = TransferDetector(req.user_id)
+    predictions = detector.detect(candidates, all_txns)
+
+    return [
+        {
+            "transaction_id": p.transaction_id,
+            "is_transfer": p.is_transfer,
+            "confidence": round(p.confidence, 3),
+            "method": p.method,
+            "suggested_pair_id": p.suggested_pair_id,
+        }
+        for p in predictions
+    ]
+
+
+@app.post("/api/v1/train/transfer-detector")
+def train_transfer_detector(req: TrainRequest) -> dict[str, Any]:
+    loader = _get_loader()
+    df = loader.load_labeled_transactions(req.user_id)
+
+    if df.empty:
+        raise HTTPException(400, "No transactions found for this user")
+
+    from ml_engine.transfer_detector import TransferDetector
+    detector = TransferDetector(req.user_id)
+    result = detector.train(df)
+    return result
+
+
 @app.post("/api/v1/discover-merchants")
 def discover_merchants(req: DiscoverRequest) -> list[dict]:
     embedding_svc = _get_embedding_service()
