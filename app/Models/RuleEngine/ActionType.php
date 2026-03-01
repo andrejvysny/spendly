@@ -36,6 +36,16 @@ enum ActionType: string
 
     case ACTION_CREATE_MERCHANT_IF_NOT_EXISTS = 'create_merchant_if_not_exists';
 
+    case ACTION_SET_PARTNER = 'set_partner';
+
+    case ACTION_SET_PLACE = 'set_place';
+
+    case ACTION_MARK_REVIEWED = 'mark_reviewed';
+
+    case ACTION_CLEAR_CATEGORY = 'clear_category';
+
+    case ACTION_CLEAR_MERCHANT = 'clear_merchant';
+
     public static function value(): string
     {
         return self::class;
@@ -63,6 +73,8 @@ enum ActionType: string
             self::ACTION_CREATE_TAG_IF_NOT_EXISTS,
             self::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS,
             self::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS,
+            self::ACTION_SET_PARTNER,
+            self::ACTION_SET_PLACE,
         ];
     }
 
@@ -71,6 +83,9 @@ enum ActionType: string
         return [
             self::ACTION_REMOVE_ALL_TAGS,
             self::ACTION_MARK_RECONCILED,
+            self::ACTION_MARK_REVIEWED,
+            self::ACTION_CLEAR_CATEGORY,
+            self::ACTION_CLEAR_MERCHANT,
         ];
     }
 }
