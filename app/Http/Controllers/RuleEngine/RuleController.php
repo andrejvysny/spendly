@@ -44,103 +44,11 @@ class RuleController extends Controller
         $merchants = $user->merchants()->select('id', 'name')->get();
         $tags = $user->tags()->select('id', 'name')->get();
 
-        // ActionType input configuration
-        $actionInputConfig = [
-            ActionType::ACTION_SET_CATEGORY->value => [
-                'type' => 'select',
-                'model' => 'categories',
-                'placeholder' => 'Select a category',
-            ],
-            ActionType::ACTION_SET_MERCHANT->value => [
-                'type' => 'select',
-                'model' => 'merchants',
-                'placeholder' => 'Select a merchant',
-            ],
-            ActionType::ACTION_ADD_TAG->value => [
-                'type' => 'select',
-                'model' => 'tags',
-                'placeholder' => 'Select a tag',
-            ],
-            ActionType::ACTION_REMOVE_TAG->value => [
-                'type' => 'select',
-                'model' => 'tags',
-                'placeholder' => 'Select a tag',
-            ],
-            ActionType::ACTION_REMOVE_ALL_TAGS->value => [
-                'type' => 'none',
-                'placeholder' => 'No value needed',
-            ],
-            ActionType::ACTION_SET_DESCRIPTION->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter description',
-            ],
-            ActionType::ACTION_APPEND_DESCRIPTION->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter text to append',
-            ],
-            ActionType::ACTION_PREPEND_DESCRIPTION->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter text to prepend',
-            ],
-            ActionType::ACTION_SET_NOTE->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter note',
-            ],
-            ActionType::ACTION_APPEND_NOTE->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter text to append',
-            ],
-            ActionType::ACTION_SET_TYPE->value => [
-                'type' => 'select',
-                'model' => 'transaction_types',
-                'placeholder' => 'Select transaction type',
-            ],
-            ActionType::ACTION_MARK_RECONCILED->value => [
-                'type' => 'none',
-                'placeholder' => 'No value needed',
-            ],
-            ActionType::ACTION_SEND_NOTIFICATION->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter notification message',
-            ],
-            ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter tag name',
-            ],
-            ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter category name',
-            ],
-            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS->value => [
-                'type' => 'text',
-                'placeholder' => 'Enter merchant name',
-            ],
-        ];
+        $actionInputConfig = self::buildActionInputConfig();
 
         return Inertia::render('rules/index', [
             'initialRuleGroups' => $ruleGroups,
-            'ruleOptions' => [
-                'trigger_types' => Trigger::cases(),
-                'fields' => ConditionField::cases(),
-                'operators' => ConditionOperator::cases(),
-                'logic_operators' => ['AND', 'OR'],
-                'action_types' => ActionType::cases(),
-                'field_operators' => [
-                    'numeric' => ConditionOperator::numeric(),
-                    'string' => ConditionOperator::string(),
-                ],
-                'categories' => $categories,
-                'merchants' => $merchants,
-                'tags' => $tags,
-                'transaction_types' => [
-                    Transaction::TYPE_TRANSFER => 'Transfer',
-                    Transaction::TYPE_CARD_PAYMENT => 'Card Payment',
-                    Transaction::TYPE_EXCHANGE => 'Exchange',
-                    Transaction::TYPE_PAYMENT => 'Payment',
-                    Transaction::TYPE_WITHDRAWAL => 'Withdrawal',
-                    Transaction::TYPE_DEPOSIT => 'Deposit',
-                ],
-            ],
+            'ruleOptions' => self::buildRuleOptions($categories, $merchants, $tags),
             'actionInputConfig' => $actionInputConfig,
         ]);
     }
@@ -256,7 +164,7 @@ class RuleController extends Controller
             'condition_groups.*.conditions' => 'required|array|min:1',
             'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionField::cases())),
             'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionOperator::cases())),
-            'condition_groups.*.conditions.*.value' => 'required|string',
+            'condition_groups.*.conditions.*.value' => 'nullable|string',
             'condition_groups.*.conditions.*.is_case_sensitive' => 'nullable|boolean',
             'condition_groups.*.conditions.*.is_negated' => 'nullable|boolean',
             'actions' => 'required|array|min:1',
@@ -325,7 +233,7 @@ class RuleController extends Controller
             'condition_groups.*.conditions' => 'required_with:condition_groups|array|min:1',
             'condition_groups.*.conditions.*.field' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionField::cases())),
             'condition_groups.*.conditions.*.operator' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, ConditionOperator::cases())),
-            'condition_groups.*.conditions.*.value' => 'required|string',
+            'condition_groups.*.conditions.*.value' => 'nullable|string',
             'condition_groups.*.conditions.*.is_case_sensitive' => 'nullable|boolean',
             'condition_groups.*.conditions.*.is_negated' => 'nullable|boolean',
             'actions' => 'nullable|array',
@@ -473,30 +381,12 @@ class RuleController extends Controller
     {
         $user = auth()->user();
 
+        $categories = $user->categories()->select('id', 'name')->get();
+        $merchants = $user->merchants()->select('id', 'name')->get();
+        $tags = $user->tags()->select('id', 'name')->get();
+
         return response()->json([
-            'data' => [
-                'trigger_types' => Trigger::cases(),
-                'fields' => ConditionField::cases(),
-                'operators' => ConditionOperator::cases(),
-                'logic_operators' => ['AND', 'OR'],
-                'action_types' => ActionType::cases(),
-                'field_operators' => [
-                    'numeric' => ConditionOperator::numeric(),
-                    'string' => ConditionOperator::string(),
-                ],
-                // Add data for select inputs
-                'categories' => $user->categories()->select('id', 'name')->get(),
-                'merchants' => $user->merchants()->select('id', 'name')->get(),
-                'tags' => $user->tags()->select('id', 'name')->get(),
-                'transaction_types' => [
-                    Transaction::TYPE_TRANSFER => 'Transfer',
-                    Transaction::TYPE_CARD_PAYMENT => 'Card Payment',
-                    Transaction::TYPE_EXCHANGE => 'Exchange',
-                    Transaction::TYPE_PAYMENT => 'Payment',
-                    Transaction::TYPE_WITHDRAWAL => 'Withdrawal',
-                    Transaction::TYPE_DEPOSIT => 'Deposit',
-                ],
-            ],
+            'data' => self::buildRuleOptions($categories, $merchants, $tags),
         ]);
     }
 
@@ -507,78 +397,136 @@ class RuleController extends Controller
     {
         return response()->json([
             'data' => [
-                'action_input_types' => [
-                    ActionType::ACTION_SET_CATEGORY->value => [
-                        'type' => 'select',
-                        'model' => 'categories',
-                        'placeholder' => 'Select a category',
-                    ],
-                    ActionType::ACTION_SET_MERCHANT->value => [
-                        'type' => 'select',
-                        'model' => 'merchants',
-                        'placeholder' => 'Select a merchant',
-                    ],
-                    ActionType::ACTION_ADD_TAG->value => [
-                        'type' => 'select',
-                        'model' => 'tags',
-                        'placeholder' => 'Select a tag',
-                    ],
-                    ActionType::ACTION_REMOVE_TAG->value => [
-                        'type' => 'select',
-                        'model' => 'tags',
-                        'placeholder' => 'Select a tag',
-                    ],
-                    ActionType::ACTION_REMOVE_ALL_TAGS->value => [
-                        'type' => 'none',
-                        'placeholder' => 'No value needed',
-                    ],
-                    ActionType::ACTION_SET_DESCRIPTION->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter description',
-                    ],
-                    ActionType::ACTION_APPEND_DESCRIPTION->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter text to append',
-                    ],
-                    ActionType::ACTION_PREPEND_DESCRIPTION->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter text to prepend',
-                    ],
-                    ActionType::ACTION_SET_NOTE->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter note',
-                    ],
-                    ActionType::ACTION_APPEND_NOTE->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter text to append',
-                    ],
-                    ActionType::ACTION_SET_TYPE->value => [
-                        'type' => 'select',
-                        'model' => 'transaction_types',
-                        'placeholder' => 'Select transaction type',
-                    ],
-                    ActionType::ACTION_MARK_RECONCILED->value => [
-                        'type' => 'none',
-                        'placeholder' => 'No value needed',
-                    ],
-                    ActionType::ACTION_SEND_NOTIFICATION->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter notification message',
-                    ],
-                    ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter tag name',
-                    ],
-                    ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter category name',
-                    ],
-                    ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS->value => [
-                        'type' => 'text',
-                        'placeholder' => 'Enter merchant name',
-                    ],
-                ],
+                'action_input_types' => self::buildActionInputConfig(),
             ],
         ]);
+    }
+
+    /**
+     * Build the shared rule options array used by both Inertia and API responses.
+     */
+    private static function buildRuleOptions($categories, $merchants, $tags): array
+    {
+        return [
+            'trigger_types' => Trigger::cases(),
+            'fields' => ConditionField::cases(),
+            'operators' => ConditionOperator::cases(),
+            'logic_operators' => ['AND', 'OR'],
+            'action_types' => ActionType::cases(),
+            'field_operators' => [
+                'numeric' => ConditionOperator::numeric(),
+                'string' => ConditionOperator::string(),
+                'boolean' => ConditionOperator::boolean(),
+            ],
+            'categories' => $categories,
+            'merchants' => $merchants,
+            'tags' => $tags,
+            'transaction_types' => [
+                Transaction::TYPE_TRANSFER => 'Transfer',
+                Transaction::TYPE_CARD_PAYMENT => 'Card Payment',
+                Transaction::TYPE_EXCHANGE => 'Exchange',
+                Transaction::TYPE_PAYMENT => 'Payment',
+                Transaction::TYPE_WITHDRAWAL => 'Withdrawal',
+                Transaction::TYPE_DEPOSIT => 'Deposit',
+            ],
+        ];
+    }
+
+    /**
+     * Build the shared action input config used by both Inertia and API responses.
+     */
+    private static function buildActionInputConfig(): array
+    {
+        return [
+            ActionType::ACTION_SET_CATEGORY->value => [
+                'type' => 'select',
+                'model' => 'categories',
+                'placeholder' => 'Select a category',
+            ],
+            ActionType::ACTION_SET_MERCHANT->value => [
+                'type' => 'select',
+                'model' => 'merchants',
+                'placeholder' => 'Select a merchant',
+            ],
+            ActionType::ACTION_ADD_TAG->value => [
+                'type' => 'select',
+                'model' => 'tags',
+                'placeholder' => 'Select a tag',
+            ],
+            ActionType::ACTION_REMOVE_TAG->value => [
+                'type' => 'select',
+                'model' => 'tags',
+                'placeholder' => 'Select a tag',
+            ],
+            ActionType::ACTION_REMOVE_ALL_TAGS->value => [
+                'type' => 'none',
+                'placeholder' => 'No value needed',
+            ],
+            ActionType::ACTION_SET_DESCRIPTION->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter description',
+            ],
+            ActionType::ACTION_APPEND_DESCRIPTION->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter text to append',
+            ],
+            ActionType::ACTION_PREPEND_DESCRIPTION->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter text to prepend',
+            ],
+            ActionType::ACTION_SET_NOTE->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter note',
+            ],
+            ActionType::ACTION_APPEND_NOTE->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter text to append',
+            ],
+            ActionType::ACTION_SET_TYPE->value => [
+                'type' => 'select',
+                'model' => 'transaction_types',
+                'placeholder' => 'Select transaction type',
+            ],
+            ActionType::ACTION_MARK_RECONCILED->value => [
+                'type' => 'none',
+                'placeholder' => 'No value needed',
+            ],
+            ActionType::ACTION_SEND_NOTIFICATION->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter notification message',
+            ],
+            ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter tag name',
+            ],
+            ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter category name',
+            ],
+            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter merchant name',
+            ],
+            ActionType::ACTION_SET_PARTNER->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter partner name',
+            ],
+            ActionType::ACTION_SET_PLACE->value => [
+                'type' => 'text',
+                'placeholder' => 'Enter place',
+            ],
+            ActionType::ACTION_MARK_REVIEWED->value => [
+                'type' => 'none',
+                'placeholder' => 'No value needed',
+            ],
+            ActionType::ACTION_CLEAR_CATEGORY->value => [
+                'type' => 'none',
+                'placeholder' => 'No value needed',
+            ],
+            ActionType::ACTION_CLEAR_MERCHANT->value => [
+                'type' => 'none',
+                'placeholder' => 'No value needed',
+            ],
+        ];
     }
 }

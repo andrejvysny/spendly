@@ -6,8 +6,11 @@ namespace App\Services\GoCardless;
 
 use App\Contracts\Repositories\GoCardlessSyncFailureRepositoryInterface;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
+use App\Contracts\RuleEngine\RuleEngineInterface;
+use App\Events\TransactionCreated;
 use App\Models\Account;
 use App\Models\GoCardlessSyncFailure;
+use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
 use App\Services\TransferDetectionService;
 use Carbon\Carbon;
@@ -22,7 +25,8 @@ class TransactionSyncService
         private readonly GocardlessMapper $mapper,
         private readonly TransferDetectionService $transferDetectionService,
         private readonly TransactionDataValidator $validator,
-        private readonly GoCardlessSyncFailureRepositoryInterface $failureRepository
+        private readonly GoCardlessSyncFailureRepositoryInterface $failureRepository,
+        private readonly RuleEngineInterface $ruleEngine
     ) {}
 
     /**
@@ -119,6 +123,7 @@ class TransactionSyncService
                         'validation_errors' => $validation->errors,
                     ]);
                     $stats['errors']++;
+
                     continue;
                 }
 
@@ -142,6 +147,7 @@ class TransactionSyncService
                 );
                 if ($fingerprintExists && ! $existingIds->contains($transactionId)) {
                     $stats['skipped']++;
+
                     continue;
                 }
 
@@ -206,6 +212,35 @@ class TransactionSyncService
                 $stats['updated'] = $updated;
             }
         });
+
+        // Process rules on newly created transactions after the DB transaction commits
+        if (! empty($toCreate)) {
+            try {
+                $transactionIds = array_column($toCreate, 'transaction_id');
+                $createdTransactions = Transaction::where('account_id', $account->id)
+                    ->whereIn('transaction_id', $transactionIds)
+                    ->with(['account.user', 'tags', 'category', 'merchant'])
+                    ->get();
+
+                if ($createdTransactions->isNotEmpty()) {
+                    /** @var \App\Models\User $user */
+                    $user = $createdTransactions->first()->account->user;
+                    $this->ruleEngine
+                        ->setUser($user)
+                        ->processTransactions($createdTransactions, Trigger::TRANSACTION_CREATED);
+
+                    // Fire events for other subscribers without re-running rules
+                    foreach ($createdTransactions as $t) {
+                        event(new TransactionCreated($t, false));
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Rule processing after GoCardless sync failed', [
+                    'account_id' => $account->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return $stats;
     }

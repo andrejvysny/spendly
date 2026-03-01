@@ -30,6 +30,15 @@ class ActionExecutor implements ActionExecutorInterface
 
     public function execute(RuleAction $action, Transaction $transaction): bool
     {
+        // Silence rule events during action execution to prevent infinite loops:
+        // action modifies transaction -> triggers event -> runs rules -> action modifies again
+        return (bool) Transaction::withoutRuleEvents(function () use ($action, $transaction): bool {
+            return $this->doExecute($action, $transaction);
+        });
+    }
+
+    private function doExecute(RuleAction $action, Transaction $transaction): bool
+    {
         try {
             return match (ActionType::from($action->action_type)) {
                 ActionType::ACTION_SET_CATEGORY => $this->setCategory($action, $transaction),
@@ -48,7 +57,11 @@ class ActionExecutor implements ActionExecutorInterface
                 ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS => $this->createTagIfNotExists($action, $transaction),
                 ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => $this->createCategoryIfNotExists($action, $transaction),
                 ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => $this->createMerchantIfNotExists($action, $transaction),
-                default => false,
+                ActionType::ACTION_SET_PARTNER => $this->setPartner($action, $transaction),
+                ActionType::ACTION_SET_PLACE => $this->setPlace($action, $transaction),
+                ActionType::ACTION_MARK_REVIEWED => $this->markReviewed($transaction),
+                ActionType::ACTION_CLEAR_CATEGORY => $this->clearCategory($transaction),
+                ActionType::ACTION_CLEAR_MERCHANT => $this->clearMerchant($transaction),
             };
         } catch (\Exception $e) {
             Log::error('Rule action execution failed', [
@@ -106,6 +119,11 @@ class ActionExecutor implements ActionExecutorInterface
             ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS => "Create tag if not exists: {$value}",
             ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => "Create category if not exists: {$value}",
             ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => "Create merchant if not exists: {$value}",
+            ActionType::ACTION_SET_PARTNER => "Set partner to: {$value}",
+            ActionType::ACTION_SET_PLACE => "Set place to: {$value}",
+            ActionType::ACTION_MARK_REVIEWED => 'Mark as reviewed',
+            ActionType::ACTION_CLEAR_CATEGORY => 'Clear category',
+            ActionType::ACTION_CLEAR_MERCHANT => 'Clear merchant',
             default => 'Unknown action',
         };
     }
@@ -244,8 +262,9 @@ class ActionExecutor implements ActionExecutorInterface
 
     private function markReconciled(Transaction $transaction): bool
     {
-        // Assuming there's a reconciled field - adjust based on actual schema
-        $transaction->markReconciled('Marked reconciled by rule engine');
+        $transaction->is_reconciled = true;
+        $transaction->reconciled_at = now();
+        $transaction->reconciled_note = 'Marked reconciled by rule engine';
         $transaction->save();
 
         return true;
@@ -294,7 +313,7 @@ class ActionExecutor implements ActionExecutorInterface
             ['description' => 'Created by rule engine', 'color' => '#'.dechex(rand(0x000000, 0xFFFFFF))]
         );
 
-        $transaction->setCategory($category);
+        $transaction->category_id = $category->id;
         $transaction->save();
 
         return true;
@@ -310,7 +329,48 @@ class ActionExecutor implements ActionExecutorInterface
             ['description' => 'Created by rule engine']
         );
 
-        $transaction->setMerchant($merchant);
+        $transaction->merchant_id = $merchant->id;
+        $transaction->save();
+
+        return true;
+    }
+
+    private function setPartner(RuleAction $action, Transaction $transaction): bool
+    {
+        $transaction->partner = $action->getDecodedValue();
+        $transaction->save();
+
+        return true;
+    }
+
+    private function setPlace(RuleAction $action, Transaction $transaction): bool
+    {
+        $transaction->place = $action->getDecodedValue();
+        $transaction->save();
+
+        return true;
+    }
+
+    private function markReviewed(Transaction $transaction): bool
+    {
+        $transaction->needs_manual_review = false;
+        $transaction->review_reason = null;
+        $transaction->save();
+
+        return true;
+    }
+
+    private function clearCategory(Transaction $transaction): bool
+    {
+        $transaction->category_id = null;
+        $transaction->save();
+
+        return true;
+    }
+
+    private function clearMerchant(Transaction $transaction): bool
+    {
+        $transaction->merchant_id = null;
         $transaction->save();
 
         return true;

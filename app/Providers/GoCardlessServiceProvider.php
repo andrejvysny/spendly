@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Contracts\Repositories\GoCardlessSyncFailureRepositoryInterface;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
+use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Repositories\AccountRepository;
@@ -52,7 +53,8 @@ class GoCardlessServiceProvider extends ServiceProvider
                 $app->make(GocardlessMapper::class),
                 $app->make(TransferDetectionService::class),
                 $app->make(TransactionDataValidator::class),
-                $app->make(GoCardlessSyncFailureRepositoryInterface::class)
+                $app->make(GoCardlessSyncFailureRepositoryInterface::class),
+                $app->make(RuleEngineInterface::class)
             );
         });
 

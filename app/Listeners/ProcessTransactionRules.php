@@ -4,8 +4,8 @@ namespace App\Listeners;
 
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Events\TransactionCreated;
+use App\Events\TransactionDeleted;
 use App\Events\TransactionUpdated;
-use App\Models\RuleEngine\Rule;
 use App\Models\RuleEngine\Trigger;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
@@ -67,6 +67,23 @@ class ProcessTransactionRules implements ShouldQueue
     }
 
     /**
+     * Handle the TransactionDeleted event.
+     */
+    public function handleTransactionDeleted(TransactionDeleted $event): void
+    {
+        if (! $event->shouldApplyRules()) {
+            return;
+        }
+
+        $transaction = $event->getTransaction();
+        $user = $transaction->account->user;
+
+        $this->ruleEngine
+            ->setUser($user)
+            ->processTransaction($transaction, Trigger::TRANSACTION_DELETED);
+    }
+
+    /**
      * Register the listeners for the subscriber.
      *
      * @param  mixed  $events
@@ -77,6 +94,7 @@ class ProcessTransactionRules implements ShouldQueue
         return [
             TransactionCreated::class => 'handleTransactionCreated',
             TransactionUpdated::class => 'handleTransactionUpdated',
+            TransactionDeleted::class => 'handleTransactionDeleted',
         ];
     }
 }

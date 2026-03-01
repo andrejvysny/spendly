@@ -49,6 +49,8 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
             ConditionOperator::OPERATOR_IN => $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
             ConditionOperator::OPERATOR_NOT_IN => ! $this->evaluateIn($fieldValue, $conditionValue, $caseSensitive),
             ConditionOperator::OPERATOR_BETWEEN => $this->evaluateBetween($fieldValue, $conditionValue),
+            ConditionOperator::OPERATOR_IS_TRUE => (bool) $fieldValue === true,
+            ConditionOperator::OPERATOR_IS_FALSE => (bool) $fieldValue === false,
             default => false,
         };
 
@@ -89,6 +91,10 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
             ConditionField::FIELD_SOURCE_IBAN => $transaction->source_iban,
             ConditionField::FIELD_DATE => $transaction->booked_date,
             ConditionField::FIELD_TAGS => $transaction->tags->pluck('name')->toArray(),
+            ConditionField::FIELD_CURRENCY => $transaction->currency,
+            ConditionField::FIELD_IS_RECONCILED => (bool) $transaction->is_reconciled,
+            ConditionField::FIELD_HAS_CATEGORY => $transaction->category_id !== null,
+            ConditionField::FIELD_HAS_MERCHANT => $transaction->merchant_id !== null,
             default => null,
         };
 
