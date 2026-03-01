@@ -16,7 +16,8 @@ class TransferDetectionService
 
     public function __construct(
         private readonly AccountRepositoryInterface $accountRepository,
-        private readonly TransactionRepositoryInterface $transactionRepository
+        private readonly TransactionRepositoryInterface $transactionRepository,
+        private readonly ?MlService $mlService = null
     ) {}
 
     /**
@@ -157,5 +158,63 @@ class TransferDetectionService
             return null;
         }
         return $this->normalizeIban($iban);
+    }
+
+    /**
+     * Hybrid detection: rule-based first, then ML fallback for remaining unpaired.
+     *
+     * @return array{rule_matched: int, ml_matched: int}
+     */
+    public function detectTransfersWithMlFallback(int $userId, ?Carbon $from = null, ?Carbon $to = null): array
+    {
+        $ruleMatched = $this->detectAndMarkTransfersForUser($userId, $from, $to);
+
+        $mlMatched = 0;
+
+        if ($this->mlService === null || ! $this->mlService->isAvailable()) {
+            return ['rule_matched' => $ruleMatched, 'ml_matched' => 0];
+        }
+
+        $predictions = $this->mlService->detectTransfers($userId);
+
+        if (empty($predictions)) {
+            return ['rule_matched' => $ruleMatched, 'ml_matched' => 0];
+        }
+
+        foreach ($predictions as $prediction) {
+            if (! ($prediction['is_transfer'] ?? false)) {
+                continue;
+            }
+            if (($prediction['confidence'] ?? 0) < 0.60) {
+                continue;
+            }
+
+            $transaction = Transaction::find($prediction['transaction_id']);
+            if ($transaction === null || $transaction->type === Transaction::TYPE_TRANSFER) {
+                continue;
+            }
+
+            $pairId = $prediction['suggested_pair_id'] ?? null;
+            $pair = $pairId !== null ? Transaction::find($pairId) : null;
+
+            if ($pair !== null && $pair->type !== Transaction::TYPE_TRANSFER) {
+                $this->transactionRepository->transaction(function () use ($transaction, $pair, &$mlMatched) {
+                    $transaction->update([
+                        'type' => Transaction::TYPE_TRANSFER,
+                        'transfer_pair_transaction_id' => $pair->id,
+                    ]);
+                    $pair->update([
+                        'type' => Transaction::TYPE_TRANSFER,
+                        'transfer_pair_transaction_id' => $transaction->id,
+                    ]);
+                    $mlMatched += 2;
+                });
+            } else {
+                $transaction->update(['type' => Transaction::TYPE_TRANSFER]);
+                $mlMatched++;
+            }
+        }
+
+        return ['rule_matched' => $ruleMatched, 'ml_matched' => $mlMatched];
     }
 }

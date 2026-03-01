@@ -91,6 +91,27 @@ class MlService
     }
 
     /**
+     * @return array<int, array{transaction_id: int, is_transfer: bool, confidence: float, method: string, suggested_pair_id: ?int}>
+     */
+    public function detectTransfers(int $userId, int $limit = 500): array
+    {
+        return $this->post('/api/v1/detect-transfers', [
+            'user_id' => $userId,
+            'limit' => $limit,
+        ]);
+    }
+
+    /**
+     * @return array{status: string, message: string, metrics?: array}
+     */
+    public function trainTransferDetector(int $userId): array
+    {
+        return $this->post('/api/v1/train/transfer-detector', [
+            'user_id' => $userId,
+        ]);
+    }
+
+    /**
      * @return array<int, array{cluster_id: int, suggested_name: string, transaction_ids: int[], confidence: float}>
      */
     public function discoverMerchants(int $userId): array

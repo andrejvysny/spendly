@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 class MlTrainCommand extends Command
 {
     protected $signature = 'ml:train
-        {task : Task to train (categorizer, merchant-detector)}
+        {task : Task to train (categorizer, merchant-detector, transfer-detector)}
         {--user= : User ID to train for}';
 
     protected $description = 'Train ML models via the ML service';
@@ -35,6 +35,7 @@ class MlTrainCommand extends Command
         $result = match ($task) {
             'categorizer' => $ml->trainCategorizer($userId),
             'merchant-detector' => $ml->trainMerchantDetector($userId),
+            'transfer-detector' => $ml->trainTransferDetector($userId),
             default => null,
         };
 

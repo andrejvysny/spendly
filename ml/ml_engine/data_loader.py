@@ -124,3 +124,45 @@ class DataLoader:
     def load_labeled_transactions(self, user_id: int) -> pd.DataFrame:
         """Load transactions that have category_id assigned (for training)."""
         return self.load_transactions(user_id, only_uncategorized=False)
+
+    def load_transfer_candidates(self, user_id: int, limit: int = 1000) -> pd.DataFrame:
+        """Load non-transfer, unpaired transactions with IBAN info for ML transfer detection."""
+        query = """
+            SELECT
+                t.id,
+                t.transaction_id,
+                t.amount,
+                t.currency,
+                t.booked_date,
+                t.description,
+                t.partner,
+                t.type,
+                t.place,
+                t.source_iban,
+                t.target_iban,
+                t.account_id,
+                t.fingerprint,
+                a.name AS account_name,
+                a.iban AS account_iban
+            FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE a.user_id = :user_id
+              AND t.type != 'TRANSFER'
+              AND t.transfer_pair_transaction_id IS NULL
+            ORDER BY t.booked_date DESC
+            LIMIT :limit
+        """
+        df = pd.read_sql(query, self.engine, params={"user_id": user_id, "limit": limit})
+        if "booked_date" in df.columns:
+            df["booked_date"] = pd.to_datetime(df["booked_date"])
+        return df
+
+    def load_user_accounts(self, user_id: int) -> list[dict]:
+        """Load user's accounts with IBANs for cross-account matching."""
+        query = """
+            SELECT id, name, iban
+            FROM accounts
+            WHERE user_id = :user_id
+        """
+        df = pd.read_sql(query, self.engine, params={"user_id": user_id})
+        return df.to_dict("records")
