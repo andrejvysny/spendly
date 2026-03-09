@@ -4,20 +4,26 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Models\User;
+use App\Console\Commands\Concerns\ResolvesUser;
+use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Models\Account;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
 class GocardlessDeleteRequisitionCommand extends Command
 {
+    use ResolvesUser;
+
     protected $signature = 'gocardless:delete-requisition
         {requisition_id : Requisition ID to delete.}
-        {--user= : User ID or email (default: first user)}';
+        {--user= : User ID or email (default: first user)}
+        {--delete-imported-accounts : Also delete local accounts and transactions imported from this requisition}';
 
     protected $description = 'Delete a GoCardless requisition by ID. For testing and AI agents.';
 
     public function __construct(
-        private readonly GoCardlessService $gocardlessService
+        private readonly GoCardlessService $gocardlessService,
+        private readonly AccountRepositoryInterface $accountRepository
     ) {
         parent::__construct();
     }
@@ -39,6 +45,22 @@ class GocardlessDeleteRequisitionCommand extends Command
         }
 
         try {
+            if ($this->option('delete-imported-accounts')) {
+                $goCardlessAccountIds = $this->gocardlessService->getAccounts($requisitionId, $user);
+                if ($goCardlessAccountIds !== []) {
+                    $accounts = Account::where('user_id', $user->id)
+                        ->whereIn('gocardless_account_id', $goCardlessAccountIds)
+                        ->get();
+
+                    foreach ($accounts as $account) {
+                        $account->transactions()->delete();
+                        $this->accountRepository->delete($account->id);
+                        $this->line("  Deleted account: {$account->name} ({$account->id})");
+                    }
+                    $this->info("Deleted {$accounts->count()} imported account(s).");
+                }
+            }
+
             $this->gocardlessService->deleteRequisition($requisitionId, $user);
         } catch (\Throwable $e) {
             $this->error('Failed to delete requisition: '.$e->getMessage());
@@ -49,17 +71,5 @@ class GocardlessDeleteRequisitionCommand extends Command
         $this->info('Requisition deleted successfully.');
 
         return self::SUCCESS;
-    }
-
-    private function resolveUser(?string $userInput): ?User
-    {
-        if ($userInput === null || $userInput === '') {
-            return User::query()->orderBy('id')->first();
-        }
-        if (is_numeric($userInput)) {
-            return User::find((int) $userInput);
-        }
-
-        return User::query()->where('email', $userInput)->first();
     }
 }

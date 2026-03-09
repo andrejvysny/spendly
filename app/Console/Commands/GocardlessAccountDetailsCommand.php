@@ -5,19 +5,18 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ResolvesUser;
-use App\Exceptions\AccountAlreadyExistsException;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
-class GocardlessImportAccountCommand extends Command
+class GocardlessAccountDetailsCommand extends Command
 {
     use ResolvesUser;
 
-    protected $signature = 'gocardless:import-account
-        {gocardless_account_id : GoCardless account ID (e.g. from fixtures: LT683250013083708433).}
+    protected $signature = 'gocardless:account-details
+        {gocardless_account_id : GoCardless account ID to fetch details for.}
         {--user= : User ID or email (default: first user)}';
 
-    protected $description = 'Import a single GoCardless account by its API account ID. For testing and AI agents.';
+    protected $description = 'Fetch raw account details and balances from GoCardless API. For debugging.';
 
     public function __construct(
         private readonly GoCardlessService $gocardlessService
@@ -42,22 +41,27 @@ class GocardlessImportAccountCommand extends Command
         }
 
         try {
-            $account = $this->gocardlessService->importAccount($accountId, $user);
-        } catch (AccountAlreadyExistsException) {
-            $this->warn('Account already exists for this user.');
-
-            return self::SUCCESS;
+            $details = $this->gocardlessService->getAccountDetailsRaw($accountId, $user);
         } catch (\Throwable $e) {
-            $this->error('Failed to import account: '.$e->getMessage());
+            $this->error('Failed to fetch account details: '.$e->getMessage());
 
             return self::FAILURE;
         }
 
-        $this->info('Account imported successfully.');
-        $this->line('  Local account ID: '.$account->id);
-        $this->line('  Name: '.$account->name);
-        $this->line('  IBAN: '.($account->iban ?? ''));
-        $this->line('  Currency: '.($account->currency ?? ''));
+        $this->info('Account Details:');
+        $this->line(json_encode($details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}');
+
+        try {
+            $balances = $this->gocardlessService->getAccountBalancesRaw($accountId, $user);
+        } catch (\Throwable $e) {
+            $this->warn('Failed to fetch balances: '.$e->getMessage());
+
+            return self::SUCCESS;
+        }
+
+        $this->line('');
+        $this->info('Balances:');
+        $this->line(json_encode($balances, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}');
 
         return self::SUCCESS;
     }

@@ -462,4 +462,20 @@ class GoCardlessService
 
         return $this->accountRepository->create($mappedData);
     }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getAccountDetailsRaw(string $goCardlessAccountId, User $user): array
+    {
+        return $this->getClient($user)->getAccountDetails($goCardlessAccountId);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getAccountBalancesRaw(string $goCardlessAccountId, User $user): array
+    {
+        return $this->getClient($user)->getBalances($goCardlessAccountId);
+    }
 }
