@@ -10,14 +10,14 @@ Spendly — open-source self-hosted personal finance tracker. Laravel 12 + React
 
 ```bash
 # Dev servers (concurrent: artisan serve + queue + logs + vite)
-composer dev
+docker compose run cli composer dev
 
 # Backend
-php artisan test                          # all tests
-php artisan test --filter=ClassName       # single test class
-./vendor/bin/phpstan analyse              # static analysis (level 9)
-./vendor/bin/pint                         # code formatting
-php artisan migrate:fresh --seed          # reset DB with demo data
+docker compose run cli php artisan test                          # all tests
+docker compose run cli php artisan test --filter=ClassName       # single test class
+docker compose run cli ./vendor/bin/phpstan analyse              # static analysis (level 9)
+docker compose run cli ./vendor/bin/pint                         # code formatting
+docker compose run cli php artisan migrate:fresh --seed          # reset DB with demo data
 
 # Frontend
 npm run dev                               # vite dev server
@@ -85,10 +85,10 @@ Quick reference (see AGENTS.md for full options, examples, and GoCardless CLI ta
 php artisan import:csv <file> --account=<id|name> [--user=] [--mapping=] [--delimiter=] [--currency=] [--date-format=]
 
 # GoCardless (mock mode by default in dev)
-php artisan gocardless:institutions --country=sk
-php artisan gocardless:connect --institution=SLSP --user=3
-php artisan gocardless:sync --account=1 --user=3
-php artisan gocardless:sync-all
+docker compose run cli php artisan gocardless:institutions --country=sk
+docker compose run cli php artisan gocardless:connect --institution=SLSP --user=3
+docker compose run cli php artisan gocardless:sync --account=1 --user=3
+docker compose run cli php artisan gocardless:sync-all
 ```
 
 Sample data: `sample_data/csv/` (Revolut, SLSP), `sample_data/gocardless_bank_account_data/`. With seeded DB use `--user=3` for demo user.

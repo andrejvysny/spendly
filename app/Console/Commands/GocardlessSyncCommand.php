@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Models\User;
+use App\Console\Commands\Concerns\ResolvesUser;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
 class GocardlessSyncCommand extends Command
 {
+    use ResolvesUser;
+
     protected $signature = 'gocardless:sync
         {--account= : Local account ID to sync (required).}
         {--user= : User ID or email (default: first user)}
@@ -67,17 +69,5 @@ class GocardlessSyncCommand extends Command
         $this->line('  Balance updated: '.($result['balance_updated'] ? 'yes' : 'no'));
 
         return self::SUCCESS;
-    }
-
-    private function resolveUser(?string $userInput): ?User
-    {
-        if ($userInput === null || $userInput === '') {
-            return User::query()->orderBy('id')->first();
-        }
-        if (is_numeric($userInput)) {
-            return User::find((int) $userInput);
-        }
-
-        return User::query()->where('email', $userInput)->first();
     }
 }

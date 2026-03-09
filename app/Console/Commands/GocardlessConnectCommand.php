@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\ResolvesUser;
 use App\Exceptions\AccountAlreadyExistsException;
-use App\Models\User;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
 class GocardlessConnectCommand extends Command
 {
+    use ResolvesUser;
+
     protected $signature = 'gocardless:connect
         {--institution= : Institution ID (e.g. Revolut, SLSP). Required.}
         {--user= : User ID or email (default: first user)}';
@@ -91,17 +93,5 @@ class GocardlessConnectCommand extends Command
         $this->info("Done. Imported: {$imported}, skipped: {$skipped}.");
 
         return self::SUCCESS;
-    }
-
-    private function resolveUser(?string $userInput): ?User
-    {
-        if ($userInput === null || $userInput === '') {
-            return User::query()->orderBy('id')->first();
-        }
-        if (is_numeric($userInput)) {
-            return User::find((int) $userInput);
-        }
-
-        return User::query()->where('email', $userInput)->first();
     }
 }

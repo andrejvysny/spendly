@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Models\User;
+use App\Console\Commands\Concerns\ResolvesUser;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
 class GocardlessSyncAllCommand extends Command
 {
+    use ResolvesUser;
+
     protected $signature = 'gocardless:sync-all
         {--user= : User ID or email (default: first user)}
         {--no-update-existing : Do not update already imported transactions}
@@ -61,17 +63,5 @@ class GocardlessSyncAllCommand extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    private function resolveUser(?string $userInput): ?User
-    {
-        if ($userInput === null || $userInput === '') {
-            return User::query()->orderBy('id')->first();
-        }
-        if (is_numeric($userInput)) {
-            return User::find((int) $userInput);
-        }
-
-        return User::query()->where('email', $userInput)->first();
     }
 }

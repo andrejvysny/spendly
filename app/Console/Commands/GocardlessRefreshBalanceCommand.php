@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\ResolvesUser;
 use App\Contracts\Repositories\AccountRepositoryInterface;
-use App\Models\User;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
 class GocardlessRefreshBalanceCommand extends Command
 {
+    use ResolvesUser;
+
     protected $signature = 'gocardless:refresh-balance
         {--account= : Local account ID to refresh balance for (required).}
         {--user= : User ID or email (default: first user)}';
@@ -67,17 +69,5 @@ class GocardlessRefreshBalanceCommand extends Command
         $this->line('  Balance: '.$account->balance.' '.($account->currency ?? ''));
 
         return self::SUCCESS;
-    }
-
-    private function resolveUser(?string $userInput): ?User
-    {
-        if ($userInput === null || $userInput === '') {
-            return User::query()->orderBy('id')->first();
-        }
-        if (is_numeric($userInput)) {
-            return User::find((int) $userInput);
-        }
-
-        return User::query()->where('email', $userInput)->first();
     }
 }

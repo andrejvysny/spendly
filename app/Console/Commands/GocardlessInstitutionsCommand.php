@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Models\User;
+use App\Console\Commands\Concerns\ResolvesUser;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
 class GocardlessInstitutionsCommand extends Command
 {
+    use ResolvesUser;
+
     protected $signature = 'gocardless:institutions
         {--country= : Two-letter country code (e.g. gb, sk). Required.}
         {--user= : User ID or email (default: first user)}';
@@ -60,17 +62,5 @@ class GocardlessInstitutionsCommand extends Command
         $this->table(['ID', 'Name', 'BIC'], $rows);
 
         return self::SUCCESS;
-    }
-
-    private function resolveUser(?string $userInput): ?User
-    {
-        if ($userInput === null || $userInput === '') {
-            return User::query()->orderBy('id')->first();
-        }
-        if (is_numeric($userInput)) {
-            return User::find((int) $userInput);
-        }
-
-        return User::query()->where('email', $userInput)->first();
     }
 }
