@@ -7,7 +7,10 @@ namespace App\Contracts\Repositories;
 use App\Models\Budget;
 use Illuminate\Support\Collection;
 
-interface BudgetRepositoryInterface
+/**
+ * @extends BaseRepositoryContract<Budget>
+ */
+interface BudgetRepositoryInterface extends BaseRepositoryContract
 {
     /**
      * @return Collection<int, Budget>
@@ -23,11 +26,4 @@ interface BudgetRepositoryInterface
      * @param  array<string, mixed>  $data
      */
     public function create(array $data): Budget;
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function update(Budget $budget, array $data): Budget;
-
-    public function delete(Budget $budget): bool;
 }

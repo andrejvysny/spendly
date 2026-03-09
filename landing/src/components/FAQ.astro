@@ -1,0 +1,33 @@
+---
+const faqs = [
+    { q: 'Is Spendly production-ready?', a: 'Spendly is in active development and has not reached v1.0 yet. It is functional and used daily, but expect breaking changes between updates. Back up your data regularly.' },
+    { q: 'What banks are supported?', a: 'Spendly supports 2,500+ European banks via GoCardless (formerly Nordigen). For banks outside Europe, import transactions via CSV from any bank.' },
+    { q: 'What database does it use?', a: 'SQLite by default \u2014 zero configuration, no separate database server. MySQL and PostgreSQL are also supported.' },
+    { q: 'Is my financial data safe?', a: 'Your data is stored entirely on your own server. Nothing is sent to third parties except bank sync via GoCardless, which requires it.' },
+    { q: 'Can I import from other apps?', a: 'Yes. The CSV import wizard supports any bank export format with automatic field mapping. Save mappings for repeated imports.' },
+    { q: 'How do I update Spendly?', a: 'docker compose pull && docker compose up -d. Migrations run automatically on startup.' },
+];
+---
+
+<section class="relative py-24 lg:py-32">
+    <div class="mx-auto max-w-3xl px-6">
+        <div class="fade-up mb-16">
+            <span class="font-mono text-xs uppercase tracking-widest text-white/30">FAQ</span>
+            <h2 class="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">Questions & answers</h2>
+        </div>
+
+        <div class="fade-up space-y-2">
+            {faqs.map((faq) => (
+                <details class="group rounded-xl border border-white/10 transition-colors hover:border-white/25">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-left font-medium text-white">
+                        {faq.q}
+                        <svg class="ml-4 h-4 w-4 shrink-0 text-white/30 transition-transform group-open:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+                        </svg>
+                    </summary>
+                    <p class="px-6 pb-6 text-sm leading-relaxed text-white/50">{faq.a}</p>
+                </details>
+            ))}
+        </div>
+    </div>
+</section>

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Settings;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Exceptions\AccountAlreadyExistsException;
+use App\Exceptions\GoCardlessRateLimitException;
 use App\Http\Controllers\Controller;
 use App\Jobs\RecurringDetectionJob;
 use App\Models\Account;
@@ -17,7 +18,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -177,6 +180,11 @@ class BankDataController extends Controller
             }
 
             return response()->json($existingRequisitions);
+        } catch (GoCardlessRateLimitException $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'retry_after' => $e->retryAfterSeconds,
+            ], 429);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         } catch (\Exception $e) {
@@ -291,19 +299,31 @@ class BankDataController extends Controller
             if (! $user instanceof User) {
                 return response()->json(['error' => 'Unauthenticated'], 401);
             }
+
+            $ref = Str::uuid()->toString();
             $baseUrl = config('app.url');
-            $redirectUrl = (is_string($baseUrl) ? $baseUrl : '').'/api/bank-data/gocardless/requisition/callback';
+            $redirectUrl = (is_string($baseUrl) ? $baseUrl : '').'/api/bank-data/gocardless/requisition/callback?ref='.$ref;
             $institutionId = $request->input('institution_id');
             $institutionId = is_string($institutionId) ? $institutionId : '';
+            $returnTo = $request->input('return_to');
+
             $requisition = $this->gocardlessService->createRequisition(
                 $institutionId,
                 $redirectUrl,
                 $user
             );
 
-            Log::info('Requisition created', ['requisition' => $requisition]);
+            Log::info('Requisition created', ['requisition_id' => $requisition['id'], 'ref' => $ref]);
+
+            // Store ref → context in cache (1 hour TTL) as primary lookup
+            Cache::put("gocardless_ref:{$ref}", [
+                'user_id' => $user->id,
+                'requisition_id' => $requisition['id'],
+                'return_to' => $returnTo === 'accounts' ? 'accounts' : null,
+            ], 3600);
+
+            // Session as secondary fallback
             session(['gocardless_requisition_id' => $requisition['id']]);
-            $returnTo = $request->input('return_to');
             if ($returnTo === 'accounts') {
                 session(['gocardless_return_to' => 'accounts']);
             } else {
@@ -327,7 +347,17 @@ class BankDataController extends Controller
      */
     public function handleRequisitionCallback(Request $request): RedirectResponse
     {
-        $redirectToAccounts = session('gocardless_return_to') === 'accounts';
+        // Resolve context: cache ref is primary, session is fallback
+        $ref = $request->query('ref');
+        $ref = is_string($ref) ? $ref : null;
+        /** @var array{user_id: int, requisition_id: string, return_to: string|null}|null $cacheContext */
+        $cacheContext = $ref ? Cache::pull("gocardless_ref:{$ref}") : null;
+        $cacheContext = is_array($cacheContext) ? $cacheContext : null;
+
+        $requisitionId = $cacheContext['requisition_id'] ?? session('gocardless_requisition_id');
+        $userId = $cacheContext['user_id'] ?? null;
+        $returnTo = $cacheContext['return_to'] ?? session('gocardless_return_to');
+        $redirectToAccounts = $returnTo === 'accounts';
 
         if ($request->get('error') === 'ConsentLinkReused') {
             Log::error('GoCardless callback error', [
@@ -351,8 +381,7 @@ class BankDataController extends Controller
             return redirect($route)->with('error', 'User cancelled the session');
         }
 
-        Log::info('Handling GoCardless callback');
-        $requisitionId = session('gocardless_requisition_id');
+        Log::info('Handling GoCardless callback', ['ref' => $ref, 'has_cache_context' => $cacheContext !== null]);
 
         if (! $requisitionId) {
             session()->forget('gocardless_return_to');
@@ -360,7 +389,8 @@ class BankDataController extends Controller
             return redirect()->route($redirectToAccounts ? 'accounts.index' : 'bank_data.edit')->with('error', 'Invalid session');
         }
 
-        $user = auth()->user();
+        // Resolve user: from cache context (cross-domain safe) or auth session (fallback)
+        $user = $userId ? User::find($userId) : auth()->user();
         if (! $user instanceof User) {
             session()->forget('gocardless_return_to');
 
@@ -376,8 +406,7 @@ class BankDataController extends Controller
             session()->forget('gocardless_requisition_id');
             session()->forget('gocardless_return_to');
 
-            // Do not auto-import: accounts are imported only when the user clicks "Import" on each account in the requisition list.
-            $count = is_array($accountIds) ? count($accountIds) : 0;
+            $count = count($accountIds);
             $route = $redirectToAccounts ? route('accounts.index') : route('bank_data.edit');
             $message = $count > 0
                 ? "Bank connected. {$count} account(s) are available—import them from the list below."
@@ -428,6 +457,11 @@ class BankDataController extends Controller
             ]);
         } catch (AccountAlreadyExistsException) {
             return response()->json(['message' => 'Account already exists'], 400);
+        } catch (GoCardlessRateLimitException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'retry_after' => $e->retryAfterSeconds,
+            ], 429);
         } catch (\Exception $e) {
             Log::error('Failed to process account', [
                 'account_id' => $accountId,
@@ -491,6 +525,12 @@ class BankDataController extends Controller
                 'data' => $result,
             ]);
 
+        } catch (GoCardlessRateLimitException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'retry_after' => $e->retryAfterSeconds,
+            ], 429);
         } catch (\Exception $e) {
             $user = $request->user();
             $userId = $user ? $user->getKey() : 'unknown';
@@ -545,6 +585,12 @@ class BankDataController extends Controller
                 'data' => $results,
             ]);
 
+        } catch (GoCardlessRateLimitException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'retry_after' => $e->retryAfterSeconds,
+            ], 429);
         } catch (\Exception $e) {
             $user = $request->user();
             $userId = $user ? $user->getKey() : 'unknown';

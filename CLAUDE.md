@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Spendly — open-source self-hosted personal finance tracker. Laravel 12 + React 19/TypeScript + Inertia.js. SQLite default. Bank sync via GoCardless. Active development, no v1.0 yet.
+Spendly — open-source self-hosted personal finance tracker. Laravel 12 + React 19/TypeScript + Inertia.js. SQLite default. Bank sync via GoCardless. Active development, no v1.0 yet. PHP 8.3+.
 
 ## Commands
 
@@ -32,6 +32,7 @@ npm run format:check                      # prettier check
 docker compose up -d
 docker compose run cli php artisan [command]
 docker compose run cli ./vendor/bin/phpstan analyse
+./scripts/dev.sh                          # full Docker dev setup
 ./scripts/test.sh                         # full test suite in container
 ```
 
@@ -67,7 +68,7 @@ Prefer targeted test runs for speed.
 
 ### Key Subsystems
 
-**Import wizard**: upload → configure → map → clean → confirm/process. Controller: `ImportWizardController`. Frontend: `resources/js/pages/import/`. CLI: `php artisan import:csv <file> --account=<id|name> [--user=] [--mapping=] [--delimiter=] [--currency=] [--date-format=]`
+**Import wizard**: upload → configure → map → clean → confirm/process. Controller: `ImportWizardController`. Frontend: `resources/js/pages/import/`. Field auto-mapping via pattern matching in `FieldMappingService.ts`. CLI: `php artisan import:csv <file> --account=<id|name> [--user=] [--mapping=] [--delimiter=] [--currency=] [--date-format=]`
 
 **Rule Engine**: Models in `app/Models/RuleEngine/` (Rule, RuleGroup, ConditionGroup, RuleCondition, RuleAction). Enums: `ConditionField`, `ConditionOperator`, `ActionType`, `Trigger`. Events: `TransactionCreated`/`TransactionUpdated` → listener `ProcessTransactionRules`.
 
@@ -77,23 +78,24 @@ Prefer targeted test runs for speed.
 
 ### CLI Commands (for testing/automation)
 
+Quick reference (see AGENTS.md for full options, examples, and GoCardless CLI table):
+
 ```bash
 # CSV Import (without web wizard)
 php artisan import:csv <file> --account=<id|name> [--user=] [--mapping=] [--delimiter=] [--currency=] [--date-format=]
-# Example: php artisan import:csv sample_data/csv/SLSP/file.csv --account=1 --delimiter=";" --date-format=d.m.Y
 
 # GoCardless (mock mode by default in dev)
 php artisan gocardless:institutions --country=sk
 php artisan gocardless:connect --institution=SLSP --user=3
 php artisan gocardless:sync --account=1 --user=3
 php artisan gocardless:sync-all
-php artisan gocardless:requisitions
-php artisan gocardless:import-account <gc_account_id>
-php artisan gocardless:refresh-balance --account=1
-php artisan gocardless:retry-failures
 ```
 
 Sample data: `sample_data/csv/` (Revolut, SLSP), `sample_data/gocardless_bank_account_data/`. With seeded DB use `--user=3` for demo user.
+
+### Detailed Subsystem Docs
+
+`docs/ai/` contains architecture deep-dives: `GoCardless_Architecture.md`, `RULE_ENGINE.md`, `CSV_Service_Architecture.md`, `RECURRING_PAYMENTS.md`, `REACT_TESTING.md`, `LARAVEL_TESTING.md`. Consult these before making significant changes to a subsystem.
 
 ## Conventions
 

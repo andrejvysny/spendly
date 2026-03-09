@@ -1,0 +1,16 @@
+---
+const techs = ['Laravel', 'React', 'TypeScript', 'SQLite', 'Docker', 'Tailwind CSS'];
+---
+
+<section class="border-y border-white/10 py-12">
+    <div class="mx-auto max-w-6xl px-6">
+        <div class="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+            <span class="font-mono text-xs uppercase tracking-widest text-white/30">Built with</span>
+            <div class="flex flex-wrap items-center justify-center gap-8">
+                {techs.map((tech) => (
+                    <span class="text-sm text-white/50 transition-colors hover:text-white">{tech}</span>
+                ))}
+            </div>
+        </div>
+    </div>
+</section>

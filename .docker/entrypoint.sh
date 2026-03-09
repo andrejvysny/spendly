@@ -31,6 +31,13 @@ fi
 echo "Running database migrations..."
 php artisan migrate --force
 
+# Enable WAL for concurrent Apache + queue worker writes
+if [ "$DB_CONNECTION" = "sqlite" ] && [ -f "$DB_DATABASE" ]; then
+    echo "Enabling SQLite WAL mode..."
+    sqlite3 "$DB_DATABASE" "PRAGMA journal_mode=WAL;" > /dev/null 2>&1 || true
+    chown www-data:www-data "$DB_DATABASE"* 2>/dev/null || true
+fi
+
 # Clear and cache configs/routes/views
 echo "Caching configuration..."
 php artisan config:cache
@@ -40,6 +47,11 @@ php artisan view:cache
 # Optimize autoloader
 echo "Optimizing autoloader..."
 composer dump-autoload --optimize --no-dev
+
+# Start background queue worker as www-data
+echo "Starting queue worker..."
+su -s /bin/sh www-data -c \
+    "php /var/www/html/artisan queue:work --sleep=3 --tries=2 --queue=default" &
 
 # Execute main command
 echo "Starting Apache..."

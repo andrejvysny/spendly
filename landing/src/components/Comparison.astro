@@ -1,0 +1,44 @@
+---
+const rows = [
+    { label: 'Price', spendly: 'Free', ynab: '$109/yr', monarch: '$99/yr', firefly: 'Free' },
+    { label: 'Self-hosted', spendly: 'Yes', ynab: 'No', monarch: 'No', firefly: 'Yes' },
+    { label: 'Bank sync', spendly: 'GoCardless (EU)', ynab: 'Plaid (US)', monarch: 'Plaid (US)', firefly: 'Spectre/Plaid' },
+    { label: 'Rule engine', spendly: 'Yes', ynab: 'No', monarch: 'Limited', firefly: 'Yes' },
+    { label: 'Open source', spendly: 'GPL-3.0', ynab: 'No', monarch: 'No', firefly: 'AGPL-3.0' },
+    { label: 'Modern UI', spendly: 'React 19', ynab: 'Custom', monarch: 'Custom', firefly: 'Blade/jQuery' },
+];
+---
+
+<section class="relative py-24 lg:py-32">
+    <div class="mx-auto max-w-5xl px-6">
+        <div class="fade-up mb-16">
+            <span class="font-mono text-xs uppercase tracking-widest text-white/30">Compare</span>
+            <h2 class="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">How Spendly stacks up</h2>
+        </div>
+
+        <div class="fade-up overflow-x-auto rounded-2xl border border-white/10">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="border-b border-white/10">
+                        <th class="px-6 py-4 font-mono text-xs uppercase tracking-widest text-white/30">Feature</th>
+                        <th class="px-6 py-4 font-semibold text-white">Spendly</th>
+                        <th class="px-6 py-4 font-normal text-white/30">YNAB</th>
+                        <th class="px-6 py-4 font-normal text-white/30">Monarch</th>
+                        <th class="px-6 py-4 font-normal text-white/30">Firefly III</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows.map((row) => (
+                        <tr class="border-b border-white/5">
+                            <td class="px-6 py-4 text-white/50">{row.label}</td>
+                            <td class="px-6 py-4 font-medium text-white">{row.spendly}</td>
+                            <td class={`px-6 py-4 ${row.ynab === 'No' ? 'text-white/15' : 'text-white/40'}`}>{row.ynab}</td>
+                            <td class={`px-6 py-4 ${row.monarch === 'No' ? 'text-white/15' : 'text-white/40'}`}>{row.monarch}</td>
+                            <td class="px-6 py-4 text-white/40">{row.firefly}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>

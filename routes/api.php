@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AnalyticsController;
-use App\Http\Controllers\BankProviders\GoCardlessController;
 use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\RecurringGroupController;
 use App\Http\Controllers\RuleEngine\RuleController;
@@ -35,14 +34,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 Route::middleware(['web', 'auth'])->prefix('analytics')->group(function () {
     Route::get('/balance-history', [AnalyticsController::class, 'balanceHistory'])->name('api.analytics.balance-history');
     Route::get('/monthly-comparison', [AnalyticsController::class, 'monthlyComparison'])->name('api.analytics.monthly-comparison');
-});
-
-// GoCardless sync endpoints
-Route::middleware(['web', 'auth'])->prefix('gocardless')->name('gocardless.')->group(function () {
-    Route::post('/accounts/{accountId}/sync', [GoCardlessController::class, 'syncTransactions'])
-        ->name('accounts.sync');
-    Route::post('/accounts/sync-all', [GoCardlessController::class, 'syncAllAccounts'])
-        ->name('accounts.sync-all');
 });
 
 // Rule Engine API Routes - JSON responses for CRUD operations

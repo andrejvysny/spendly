@@ -28,7 +28,7 @@ trait BatchInsert
             return $record;
         }, $records);
 
-        DB::table($table)->insert($processed);
+        DB::table($table)->insertOrIgnore($processed);
 
         return count($processed);
     }

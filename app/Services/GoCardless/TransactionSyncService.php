@@ -178,7 +178,9 @@ class TransactionSyncService
                     } else {
                         $mappedData['created_at'] = now();
                         $mappedData['updated_at'] = now();
-                        $toCreate[] = $mappedData;
+                        // Key by fingerprint to prevent UNIQUE constraint violations
+                        // when two GoCardless transactions produce identical fingerprints
+                        $toCreate[$mappedData['fingerprint']] = $mappedData;
                     }
                 }
             } catch (\Throwable $e) {
@@ -200,9 +202,9 @@ class TransactionSyncService
 
         // Perform batch operations
         $this->transactionRepository->transaction(function () use ($toCreate, $toUpdate, &$stats, $account) {
-            // Batch create
+            // Batch create (array_values to re-index after dedup keying)
             if (! empty($toCreate)) {
-                $created = $this->transactionRepository->createBatch($toCreate);
+                $created = $this->transactionRepository->createBatch(array_values($toCreate));
                 $stats['created'] = $created;
             }
 

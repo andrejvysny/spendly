@@ -1,0 +1,48 @@
+---
+title: Spendly Documentation
+description: Documentation for Spendly — open-source self-hosted personal finance tracker.
+template: splash
+hero:
+  tagline: Open-source self-hosted personal finance tracker. Laravel 12 + React 19 + TypeScript.
+  actions:
+    - text: Get Started
+      link: /docs/getting-started/installation/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/andrejvysny/spendly
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Quick Links
+
+<CardGrid stagger>
+  <Card title="Installation" icon="rocket">
+    Get Spendly running with Docker or locally in minutes.
+    [Installation Guide →](/docs/getting-started/installation/)
+  </Card>
+  <Card title="Deployment" icon="setting">
+    Deploy to production with Docker, Kubernetes, or bare metal.
+    [Deployment Guide →](/docs/guides/deployment/)
+  </Card>
+  <Card title="Architecture" icon="document">
+    Understand how Spendly is built — backend, frontend, and key subsystems.
+    [Architecture Overview →](/docs/architecture/overview/)
+  </Card>
+  <Card title="API Reference" icon="list-format">
+    REST API documentation for programmatic access.
+    [API Docs →](/docs/api/)
+  </Card>
+</CardGrid>
+
+## Features
+
+- **Bank Sync** — Connect your bank accounts via GoCardless for automatic transaction import
+- **CSV Import** — Import transactions from any bank via CSV with smart field mapping
+- **Rule Engine** — Automatically categorize, tag, and process transactions with configurable rules
+- **Recurring Detection** — Automatically detect subscriptions and recurring payments
+- **Budgets** — Set spending limits per category and track progress
+- **Full-Text Search** — Fast transaction search powered by SQLite FTS5
+- **Self-Hosted** — Your data stays on your server, always under your control

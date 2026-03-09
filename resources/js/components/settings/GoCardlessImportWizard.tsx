@@ -22,7 +22,16 @@ interface GoCardlessImportWizardProps {
     returnTo?: 'accounts' | 'bank_data';
 }
 
+const SANDBOX_INSTITUTION: Institution = {
+    id: 'SANDBOXFINANCE_SFIN0000',
+    name: 'Sandbox Finance',
+    bic: 'SFIN0000',
+    logo: 'https://cdn-logos.gocardless.com/ais/SANDBOXFINANCE_SFIN0000.png',
+    countries: ['XX'],
+};
+
 const COUNTRIES = [
+    { code: 'SANDBOX', name: 'Sandbox (Testing)' },
     { code: 'GB', name: 'United Kingdom' },
     { code: 'DE', name: 'Germany' },
     { code: 'FR', name: 'France' },
@@ -59,6 +68,12 @@ export default function GoCardlessImportWizard({ isOpen, onClose, onSuccess, emb
     const [error, setError] = useState('');
 
     const handleCountrySelect = async (countryCode: string) => {
+        if (countryCode === 'SANDBOX') {
+            setInstitutions([SANDBOX_INSTITUTION]);
+            setStep(2);
+            return;
+        }
+
         setLoading(true);
         setError('');
 

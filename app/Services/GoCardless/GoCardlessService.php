@@ -2,17 +2,16 @@
 
 namespace App\Services\GoCardless;
 
+use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Exceptions\AccountAlreadyExistsException;
+use App\Exceptions\GoCardlessRateLimitException;
 use App\Models\Account;
 use App\Models\User;
-use App\Contracts\Repositories\AccountRepositoryInterface;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessService
 {
     private BankDataClientInterface $client;
-
-    private TokenManager $tokenManager;
 
     public function __construct(
         private AccountRepositoryInterface $accountRepository,
@@ -30,27 +29,8 @@ class GoCardlessService
     }
 
     /**
-     * Validate that the user has GoCardless credentials configured.
-     */
-    private function validateUserCredentials(User $user): void
-    {
-        if (! $user->gocardless_secret_id || ! $user->gocardless_secret_key) {
-            // For mock client, we might be lenient, but generally we still want some validation or just pass through.
-            // However, the factory is responsible for creating the client, so we can delegate validation or keep it here.
-            // If using mock, credentials might not be needed.
-            // Let's rely on the factory to handle specific needs, but existing code checks this.
-            // If we are using the mock factory, we might skip this validation?
-            // Actually, let's keep it simple. If referencing the factory, we just call make.
-            // BUT, the original code had validation here.
-            // Let's assume production needs it.
-        }
-        // Ideally we move this validation into the ProductionClientFactory.
-        // For now, let's keep it but maybe relax it if using mock?
-        // Or better, just call the factory.
-    }
-
-    /**
      * Initialize the GoCardless client with user credentials.
+     * Credential validation is handled by ProductionClientFactory::make().
      */
     private function initializeClient(User $user): void
     {
@@ -219,6 +199,7 @@ class GoCardlessService
                 Log::warning('Cannot refresh balance without account user', [
                     'account_id' => $account->id,
                 ]);
+
                 return false;
             }
             $this->getClient($user);
@@ -226,9 +207,15 @@ class GoCardlessService
             $balances = $this->client->getBalances($account->gocardless_account_id);
             $currentBalance = null;
 
+            // Prefer closingBooked, fall back to interimAvailable/expected/interimBooked
+            $preferredTypes = ['closingBooked', 'interimAvailable', 'expected', 'interimBooked'];
+            $balancesByType = [];
             foreach ($balances['balances'] ?? [] as $balance) {
-                if ($balance['balanceType'] === 'closingBooked') {
-                    $currentBalance = (float) ($balance['balanceAmount']['amount'] ?? 0);
+                $balancesByType[$balance['balanceType']] = (float) ($balance['balanceAmount']['amount'] ?? 0);
+            }
+            foreach ($preferredTypes as $type) {
+                if (isset($balancesByType[$type])) {
+                    $currentBalance = $balancesByType[$type];
                     break;
                 }
             }
@@ -273,12 +260,30 @@ class GoCardlessService
 
     /**
      * Create a requisition for bank account linking.
+     *
+     * Creates an End User Agreement first (90-day access) then links it to the requisition.
+     * Falls back to requisition without agreement if EUA creation fails.
      */
     public function createRequisition(string $institutionId, string $redirectUrl, User $user): array
     {
         $this->getClient($user);
 
-        return $this->client->createRequisition($institutionId, $redirectUrl);
+        $agreementId = null;
+        try {
+            $agreement = $this->client->createEndUserAgreement($institutionId, []);
+            $agreementId = $agreement['id'] ?? null;
+            Log::info('Created End User Agreement', [
+                'institution_id' => $institutionId,
+                'agreement_id' => $agreementId,
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Failed to create End User Agreement, proceeding without', [
+                'institution_id' => $institutionId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->client->createRequisition($institutionId, $redirectUrl, $agreementId);
     }
 
     /**
@@ -329,6 +334,7 @@ class GoCardlessService
                     'status' => 'Imported',
                     'last_synced_at' => $local->gocardless_last_synced_at?->toIso8601String(),
                 ];
+
                 continue;
             }
 
@@ -345,6 +351,28 @@ class GoCardlessService
                     'status' => 'Ready to import',
                     'last_synced_at' => null,
                 ];
+            } catch (GoCardlessRateLimitException $e) {
+                Log::warning('Rate limited during account enrichment, returning partial results', [
+                    'account_id' => $accountId,
+                    'retry_after' => $e->retryAfterSeconds,
+                    'enriched_so_far' => count($enriched),
+                    'remaining' => count($accountIds) - count($enriched),
+                ]);
+                // Add remaining accounts as stubs and stop
+                $remaining = array_slice($accountIds, count($enriched));
+                foreach ($remaining as $remainingId) {
+                    $enriched[] = [
+                        'id' => $remainingId,
+                        'local_id' => null,
+                        'name' => 'Account',
+                        'iban' => null,
+                        'currency' => null,
+                        'owner_name' => null,
+                        'status' => 'Ready to import',
+                        'last_synced_at' => null,
+                    ];
+                }
+                break;
             } catch (\Throwable $e) {
                 Log::warning('Failed to fetch account details for enrichment', [
                     'account_id' => $accountId,
@@ -407,13 +435,18 @@ class GoCardlessService
         $accountDetails = $this->client->getAccountDetails($goCardlessAccountId);
         $accountData = $accountDetails['account'] ?? [];
 
-        // Get account balances
+        // Get account balances (prefer closingBooked, fall back to interimAvailable/expected)
         $balances = $this->client->getBalances($goCardlessAccountId);
         $currentBalance = 0;
 
+        $preferredTypes = ['closingBooked', 'interimAvailable', 'expected', 'interimBooked'];
+        $balancesByType = [];
         foreach ($balances['balances'] ?? [] as $balance) {
-            if ($balance['balanceType'] === 'closingBooked') {
-                $currentBalance = $balance['balanceAmount']['amount'] ?? 0;
+            $balancesByType[$balance['balanceType']] = $balance['balanceAmount']['amount'] ?? 0;
+        }
+        foreach ($preferredTypes as $type) {
+            if (isset($balancesByType[$type])) {
+                $currentBalance = $balancesByType[$type];
                 break;
             }
         }

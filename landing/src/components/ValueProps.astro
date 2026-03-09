@@ -1,0 +1,21 @@
+---
+const props = [
+    { number: '01', title: 'Own Your Data', description: 'Your financial data stays on your server. No third-party access, no data selling, no surveillance.' },
+    { number: '02', title: 'Zero Subscription', description: 'No monthly fees. YNAB charges $109/yr, Monarch $99/yr. Spendly is free forever.' },
+    { number: '03', title: 'No Lock-in', description: "Open source (GPL-3.0). Export anytime. Can't be acquired or shut down." },
+];
+---
+
+<section class="relative py-24 lg:py-32">
+    <div class="mx-auto max-w-6xl px-6">
+        <div class="grid gap-6 md:grid-cols-3">
+            {props.map((prop) => (
+                <div class="fade-up rounded-2xl border border-white/10 p-8 transition-colors hover:border-white/25">
+                    <span class="font-mono text-xs text-white/30">{prop.number}</span>
+                    <h3 class="mt-4 text-xl font-bold tracking-tight text-white">{prop.title}</h3>
+                    <p class="mt-3 text-sm leading-relaxed text-white/50">{prop.description}</p>
+                </div>
+            ))}
+        </div>
+    </div>
+</section>

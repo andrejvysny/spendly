@@ -78,7 +78,12 @@ export default function BankData({
             setRequisitions(response.data);
         } catch (error) {
             console.error('Error fetching requisitions:', error);
-            toast.error('Failed to load requisitions. Please try again.');
+            if (axios.isAxiosError(error) && error.response?.status === 429) {
+                const retryAfter = error.response?.data?.retry_after ?? 60;
+                toast.error(`Rate limited by bank. Please wait ${retryAfter}s and try again.`);
+            } else {
+                toast.error('Failed to load requisitions. Please try again.');
+            }
         } finally {
             setIsLoading(false);
             setIsRefreshing(false);
@@ -130,7 +135,11 @@ export default function BankData({
                 <div className="space-y-6">
                     <HeadingSmall
                         title={gocardless_use_mock ? 'GoCardless Bank Data Settings (Sandbox)' : 'GoCardless Bank Data Settings'}
-                        description={gocardless_use_mock ? 'Sandbox mode: connect mock banks and sync fixture data without credentials.' : 'Setup account sync from your bank'}
+                        description={
+                            gocardless_use_mock
+                                ? 'Sandbox mode: connect mock banks and sync fixture data without credentials.'
+                                : 'Setup account sync from your bank'
+                        }
                     />
 
                     {gocardless_use_mock ? (
@@ -144,8 +153,8 @@ export default function BankData({
                     ) : (
                         <div>
                             <p className="text-muted-foreground">
-                                Connect your bank account to automatically sync transactions and manage your finances more effectively. This integration
-                                allows you to view and manage your bank data directly within the app.
+                                Connect your bank account to automatically sync transactions and manage your finances more effectively. This
+                                integration allows you to view and manage your bank data directly within the app.
                             </p>
 
                             <form onSubmit={submit} className="mt-6 space-y-6">
@@ -232,12 +241,7 @@ export default function BankData({
                     ) : (
                         <div className="mt-4 grid grid-cols-1 gap-4">
                             {requisitions.results.map((req) => (
-                                <Requisition
-                                    key={req.id}
-                                    requisition={req}
-                                    setRequisitions={setRequisitions}
-                                    onRefresh={fetchRequisitions}
-                                />
+                                <Requisition key={req.id} requisition={req} setRequisitions={setRequisitions} onRefresh={fetchRequisitions} />
                             ))}
                         </div>
                     )}
