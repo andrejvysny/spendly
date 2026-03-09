@@ -129,7 +129,8 @@ class BudgetRepositoryTest extends TestCase
             'month' => 1,
         ]);
 
-        $updated = $this->repository->update($budget, ['amount' => 250]);
+        $updated = $this->repository->update($budget->id, ['amount' => 250]);
+        $this->assertNotNull($updated);
         $this->assertSame(250.0, (float) $updated->amount);
         $this->assertDatabaseHas('budgets', ['id' => $budget->id, 'amount' => 250]);
     }

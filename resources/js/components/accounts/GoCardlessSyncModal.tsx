@@ -1,11 +1,11 @@
-import Requisition, { type RequisitionsResponse } from '@/components/settings/requisition';
 import GoCardlessImportWizard from '@/components/settings/GoCardlessImportWizard';
+import Requisition, { type RequisitionsResponse } from '@/components/settings/requisition';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { router } from '@inertiajs/react';
 import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
-import { router } from '@inertiajs/react';
 import { toast } from 'react-toastify';
 
 interface GoCardlessSyncModalProps {
@@ -34,7 +34,12 @@ export default function GoCardlessSyncModal({ isOpen, onClose, onAccountImported
             setRequisitions(response.data);
         } catch (error) {
             console.error('Error fetching requisitions:', error);
-            toast.error('Failed to load bank connections.');
+            if (axios.isAxiosError(error) && error.response?.status === 429) {
+                const retryAfter = error.response?.data?.retry_after ?? 60;
+                toast.error(`Rate limited by bank. Please wait ${retryAfter}s and try again.`);
+            } else {
+                toast.error('Failed to load bank connections.');
+            }
         } finally {
             setIsLoadingRequisitions(false);
         }
@@ -62,7 +67,7 @@ export default function GoCardlessSyncModal({ isOpen, onClose, onAccountImported
             <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
             <div className="fixed inset-0 flex items-center justify-center p-4">
-                <Dialog.Panel className="bg-card mx-auto flex w-full max-w-2xl max-h-[90vh] flex-col rounded-xl shadow-lg">
+                <Dialog.Panel className="bg-card mx-auto flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl shadow-lg">
                     <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
                         <Dialog.Title className="text-foreground text-xl font-semibold">Sync from GoCardless</Dialog.Title>
                         <button type="button" onClick={onClose} className="hover:text-foreground text-gray-400" aria-label="Close">
@@ -80,16 +85,13 @@ export default function GoCardlessSyncModal({ isOpen, onClose, onAccountImported
                                         <p className="text-muted-foreground mt-3 text-sm">Loading…</p>
                                     </div>
                                 ) : requisitions.results.length === 0 ? (
-                                    <p className="text-muted-foreground py-4 text-sm">No bank connections yet. Connect a bank to import its accounts.</p>
+                                    <p className="text-muted-foreground py-4 text-sm">
+                                        No bank connections yet. Connect a bank to import its accounts.
+                                    </p>
                                 ) : (
                                     <div className="space-y-4">
                                         {requisitions.results.map((req) => (
-                                            <Requisition
-                                                key={req.id}
-                                                requisition={req}
-                                                setRequisitions={setRequisitions}
-                                                onRefresh={handleRefresh}
-                                            />
+                                            <Requisition key={req.id} requisition={req} setRequisitions={setRequisitions} onRefresh={handleRefresh} />
                                         ))}
                                     </div>
                                 )}

@@ -60,19 +60,4 @@ class BudgetRepository extends BaseRepository implements BudgetRepositoryInterfa
 
         return $budget;
     }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function update(Budget $budget, array $data): Budget
-    {
-        $budget->update($data);
-
-        return $budget->fresh();
-    }
-
-    public function delete(Budget $budget): bool
-    {
-        return parent::delete($budget);
-    }
 }

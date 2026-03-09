@@ -65,7 +65,18 @@ function Requisition({
 
     const accounts = requisition.accounts ?? [];
     const accountList = accounts.map((acc) =>
-        isEnrichedAccount(acc) ? acc : ({ id: acc, local_id: null, name: 'Account', iban: null, currency: null, owner_name: null, status: 'Ready to import' as const, last_synced_at: null })
+        isEnrichedAccount(acc)
+            ? acc
+            : {
+                  id: acc,
+                  local_id: null,
+                  name: 'Account',
+                  iban: null,
+                  currency: null,
+                  owner_name: null,
+                  status: 'Ready to import' as const,
+                  last_synced_at: null,
+              },
     );
     const importedCount = accountList.filter((a) => a.status === 'Imported' && a.local_id).length;
 
@@ -79,10 +90,9 @@ function Requisition({
 
         setIsDeleting(true);
         try {
-            const url =
-                deleteImportedAccounts ?
-                    `/api/bank-data/gocardless/requisitions/${requisitionToDelete}?delete_imported_accounts=1`
-                :   `/api/bank-data/gocardless/requisitions/${requisitionToDelete}`;
+            const url = deleteImportedAccounts
+                ? `/api/bank-data/gocardless/requisitions/${requisitionToDelete}?delete_imported_accounts=1`
+                : `/api/bank-data/gocardless/requisitions/${requisitionToDelete}`;
             await axios.delete(url);
 
             setRequisitions((prev) => ({
@@ -116,14 +126,12 @@ function Requisition({
                 <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                            <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-lg">
                                 <Building2 className="text-muted-foreground h-5 w-5" />
                             </div>
                             <div>
                                 <h3 className="text-lg font-semibold tracking-tight">{requisition.institution_id}</h3>
-                                <p className="text-muted-foreground text-sm">
-                                    Created {new Date(requisition.created).toLocaleDateString()}
-                                </p>
+                                <p className="text-muted-foreground text-sm">Created {new Date(requisition.created).toLocaleDateString()}</p>
                             </div>
                         </div>
                         <Badge variant={requisition.status === 'LN' ? 'default' : 'secondary'}>
@@ -134,22 +142,18 @@ function Requisition({
                 <CardContent className="space-y-4 pt-0">
                     <div className="text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                         <span>Agreement</span>
-                        <span className="font-medium text-foreground truncate">{requisition.agreement}</span>
+                        <span className="text-foreground truncate font-medium">{requisition.agreement}</span>
                         <span>Language</span>
-                        <span className="font-medium text-foreground">{requisition.user_language}</span>
+                        <span className="text-foreground font-medium">{requisition.user_language}</span>
                         <span>Accounts</span>
-                        <span className="font-medium text-foreground">{accountList.length}</span>
+                        <span className="text-foreground font-medium">{accountList.length}</span>
                     </div>
 
                     {accountList.length > 0 && (
                         <SimpleCollapse title="Linked Accounts" className="mt-3">
                             <ul className="space-y-2">
                                 {accountList.map((account) => (
-                                    <AccountRow
-                                        key={account.id}
-                                        account={account}
-                                        onImportSuccess={onRefresh}
-                                    />
+                                    <AccountRow key={account.id} account={account} onImportSuccess={onRefresh} />
                                 ))}
                             </ul>
                         </SimpleCollapse>
@@ -180,8 +184,8 @@ function Requisition({
                             {importedCount > 0 ? (
                                 <>
                                     This bank connection has {importedCount} imported account{importedCount !== 1 ? 's' : ''}. Do you want to delete
-                                    {importedCount !== 1 ? ' those accounts and all their data' : ' that account and all its data'} (transactions, etc.)
-                                    or keep {importedCount !== 1 ? 'them' : 'it'}?
+                                    {importedCount !== 1 ? ' those accounts and all their data' : ' that account and all its data'} (transactions,
+                                    etc.) or keep {importedCount !== 1 ? 'them' : 'it'}?
                                 </>
                             ) : (
                                 <>Are you sure you want to delete this bank connection? This action cannot be undone.</>
@@ -194,12 +198,7 @@ function Requisition({
                         </Button>
                         {importedCount > 0 ? (
                             <>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => deleteRequisition(false)}
-                                    disabled={isDeleting}
-                                    className="order-2"
-                                >
+                                <Button variant="outline" onClick={() => deleteRequisition(false)} disabled={isDeleting} className="order-2">
                                     {isDeleting ? 'Deleting...' : 'Keep accounts, remove connection only'}
                                 </Button>
                                 <Button
@@ -228,13 +227,7 @@ export default Requisition;
 /**
  * Single account row: icon, name, IBAN, currency, status badge, and Import or View action.
  */
-function AccountRow({
-    account,
-    onImportSuccess,
-}: {
-    account: EnrichedAccountDto;
-    onImportSuccess?: () => void;
-}) {
+function AccountRow({ account, onImportSuccess }: { account: EnrichedAccountDto; onImportSuccess?: () => void }) {
     const [isLoading, setIsLoading] = useState(false);
 
     const handleImport = () => {
@@ -246,8 +239,13 @@ function AccountRow({
                 onImportSuccess?.();
             })
             .catch((err) => {
-                const message = err.response?.data?.message ?? err.message ?? 'Import failed';
-                toast.error(message);
+                if (err.response?.status === 429) {
+                    const retryAfter = err.response?.data?.retry_after ?? 60;
+                    toast.error(`Rate limited by bank. Please wait ${retryAfter}s and try again.`);
+                } else {
+                    const message = err.response?.data?.message ?? err.message ?? 'Import failed';
+                    toast.error(message);
+                }
             })
             .finally(() => setIsLoading(false));
     };
@@ -260,28 +258,22 @@ function AccountRow({
 
     return (
         <li className="bg-muted/50 flex items-center gap-3 rounded-lg border p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-background">
+            <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
                 <CreditCard className="text-muted-foreground h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-                <p className="font-medium leading-tight">{account.name}</p>
+                <p className="leading-tight font-medium">{account.name}</p>
                 <p className="text-muted-foreground truncate text-sm">{displayIban}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                    {account.currency && (
-                        <span className="text-muted-foreground text-xs">{account.currency}</span>
-                    )}
-                    {account.owner_name && (
-                        <span className="text-muted-foreground truncate text-xs"> · {account.owner_name}</span>
-                    )}
+                    {account.currency && <span className="text-muted-foreground text-xs">{account.currency}</span>}
+                    {account.owner_name && <span className="text-muted-foreground truncate text-xs"> · {account.owner_name}</span>}
                     {account.status === 'Imported' && (
                         <Badge variant="secondary" className="text-xs">
                             Synced
                         </Badge>
                     )}
                     {account.last_synced_at && (
-                        <span className="text-muted-foreground text-xs">
-                            Last sync: {new Date(account.last_synced_at).toLocaleDateString()}
-                        </span>
+                        <span className="text-muted-foreground text-xs">Last sync: {new Date(account.last_synced_at).toLocaleDateString()}</span>
                     )}
                 </div>
             </div>
@@ -291,12 +283,7 @@ function AccountRow({
                         <Link href={`/accounts/${account.local_id}`}>View account</Link>
                     </Button>
                 ) : (
-                    <Button
-                        variant="default"
-                        size="sm"
-                        onClick={handleImport}
-                        disabled={isLoading}
-                    >
+                    <Button variant="default" size="sm" onClick={handleImport} disabled={isLoading}>
                         {isLoading ? 'Importing...' : 'Import'}
                     </Button>
                 )}

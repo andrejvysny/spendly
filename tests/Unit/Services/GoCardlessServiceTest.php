@@ -5,11 +5,10 @@ namespace Tests\Unit\Services;
 use App\Models\Account;
 use App\Models\User;
 use App\Repositories\AccountRepository;
+use App\Services\GoCardless\ClientFactory\GoCardlessClientFactoryInterface;
 use App\Services\GoCardless\GoCardlessBankDataClient;
 use App\Services\GoCardless\GocardlessMapper;
 use App\Services\GoCardless\GoCardlessService;
-use App\Services\GoCardless\ClientFactory\GoCardlessClientFactoryInterface;
-use App\Services\GoCardless\TokenManager;
 use App\Services\GoCardless\TransactionSyncService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -67,8 +66,6 @@ class GoCardlessServiceTest extends UnitTestCase
         $this->user->gocardless_refresh_token_expires_at = now()->addDay();
         $this->user->shouldReceive('setAttribute')->andReturnSelf();
         $this->user->shouldReceive('update')->andReturnSelf();
-
-
 
         $this->service = new GoCardlessService(
             $this->accountRepository,
@@ -477,13 +474,42 @@ class GoCardlessServiceTest extends UnitTestCase
 
         $institutionId = 'inst_123';
         $redirectUrl = 'https://example.com/callback';
+        $agreementData = ['id' => 'agr_789'];
         $requisitionData = [
             'id' => 'req_456',
             'status' => 'CREATED',
         ];
 
+        $this->bankDataMock->shouldReceive('createEndUserAgreement')
+            ->with($institutionId, [])
+            ->once()
+            ->andReturn($agreementData);
+
         $this->bankDataMock->shouldReceive('createRequisition')
-            ->with($institutionId, $redirectUrl)
+            ->with($institutionId, $redirectUrl, 'agr_789')
+            ->once()
+            ->andReturn($requisitionData);
+
+        $result = $this->service->createRequisition($institutionId, $redirectUrl, $this->user);
+
+        $this->assertEquals($requisitionData, $result);
+    }
+
+    public function test_create_requisition_proceeds_without_agreement_on_failure(): void
+    {
+        $this->setupFactoryMock();
+
+        $institutionId = 'inst_123';
+        $redirectUrl = 'https://example.com/callback';
+        $requisitionData = ['id' => 'req_456', 'status' => 'CREATED'];
+
+        $this->bankDataMock->shouldReceive('createEndUserAgreement')
+            ->with($institutionId, [])
+            ->once()
+            ->andThrow(new \Exception('EUA creation failed'));
+
+        $this->bankDataMock->shouldReceive('createRequisition')
+            ->with($institutionId, $redirectUrl, null)
             ->once()
             ->andReturn($requisitionData);
 

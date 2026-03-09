@@ -1,0 +1,34 @@
+---
+const features = [
+    { title: 'Bank Sync', description: 'Connect European bank accounts via GoCardless. Auto-import transactions daily.' },
+    { title: 'Smart Rules Engine', description: 'Auto-categorize, tag, and organize transactions with custom conditions and actions.' },
+    { title: 'Analytics & Reports', description: 'Monthly comparisons, category breakdowns, balance history, savings rate tracking.' },
+    { title: 'CSV Import Wizard', description: 'Import from any bank. Auto-detect formats, smart field mapping, duplicate detection.' },
+    { title: 'Budget Tracking', description: 'Set monthly or yearly budgets per category. Visual progress and overage alerts.' },
+    { title: 'Recurring Detection', description: 'Automatically detect recurring payments. See projected yearly costs at a glance.' },
+];
+---
+
+<section id="features" class="relative py-24 lg:py-32">
+    <div class="mx-auto max-w-6xl px-6">
+        <div class="fade-up mb-16">
+            <span class="font-mono text-xs uppercase tracking-widest text-white/30">Features</span>
+            <h2 class="mt-4 max-w-lg text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                Everything you need to take control
+            </h2>
+        </div>
+
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature, i) => (
+                <div class="fade-up group rounded-2xl border border-white/10 p-8 transition-colors hover:border-white/25">
+                    <div class="mb-4 flex items-center gap-3">
+                        <span class="font-mono text-xs text-white/30">0{i + 1}</span>
+                        <span class="h-px flex-1 bg-white/10 transition-colors group-hover:bg-white/25"></span>
+                    </div>
+                    <h3 class="text-base font-semibold text-white">{feature.title}</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-white/50">{feature.description}</p>
+                </div>
+            ))}
+        </div>
+    </div>
+</section>

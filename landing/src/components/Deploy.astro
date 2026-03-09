@@ -1,0 +1,57 @@
+---
+
+---
+
+<section id="deploy" class="relative py-24 lg:py-32">
+    <div class="mx-auto max-w-6xl px-6">
+        <div class="fade-up mb-16">
+            <span class="font-mono text-xs uppercase tracking-widest text-white/30">Deploy</span>
+            <h2 class="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">Up and running in minutes</h2>
+            <p class="mt-4 max-w-lg text-white/50">All you need is a server with Docker.</p>
+        </div>
+
+        <div class="grid gap-6 md:grid-cols-3">
+            <!-- Docker Compose -->
+            <div class="fade-up relative rounded-2xl border border-white/20 p-8">
+                <span class="absolute top-4 right-4 rounded-full border border-white/20 px-3 py-0.5 font-mono text-[10px] uppercase tracking-widest text-white/50">Recommended</span>
+                <h3 class="text-base font-semibold text-white">Docker Compose</h3>
+                <p class="mt-2 text-sm text-white/50">Clone and start with a single command.</p>
+                <div class="mt-6 rounded-xl border border-white/10 p-4 font-mono text-sm">
+                    <div class="text-white/30">$</div>
+                    <div class="text-white">git clone https://github.com/</div>
+                    <div class="pl-4 text-white">andrejvysny/spendly.git</div>
+                    <div class="mt-1 text-white/30">$</div>
+                    <div class="text-white">cd spendly</div>
+                    <div class="mt-1 text-white/30">$</div>
+                    <div class="text-white">docker compose up -d</div>
+                </div>
+            </div>
+
+            <!-- Quick Setup -->
+            <div class="fade-up rounded-2xl border border-white/10 p-8 transition-colors hover:border-white/25">
+                <h3 class="text-base font-semibold text-white">Quick Setup</h3>
+                <p class="mt-2 text-sm text-white/50">Interactive script that configures everything.</p>
+                <div class="mt-6 rounded-xl border border-white/10 p-4 font-mono text-sm">
+                    <span class="text-white/30">$ </span><span class="text-white">./scripts/dev.sh</span>
+                </div>
+            </div>
+
+            <!-- Manual -->
+            <div class="fade-up rounded-2xl border border-white/10 p-8 transition-colors hover:border-white/25">
+                <h3 class="text-base font-semibold text-white">Manual Setup</h3>
+                <p class="mt-2 text-sm text-white/50">PHP 8.3+, Node.js 20+, Composer. Full control.</p>
+                <a
+                    href="https://github.com/andrejvysny/spendly#installation"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-6 inline-flex items-center gap-2 text-sm text-white/50 transition-colors hover:text-white"
+                >
+                    Read the docs
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>

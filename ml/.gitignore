@@ -1,6 +1,6 @@
-models/
-!models/.gitkeep
-__pycache__/
-*.pyc
-.pytest_cache/
 venv/
+.env
+__pycache__/
+.pytest_cache/
+*.pyc
+.ipynb_checkpoints/

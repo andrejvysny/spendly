@@ -92,7 +92,10 @@ class BudgetService
             $data['month'] = 0;
         }
 
-        return $this->budgetRepository->update($budget, $data);
+        $this->budgetRepository->update($budget->id, $data);
+
+        /** @var Budget */
+        return $budget->fresh();
     }
 
     public function delete(Budget $budget): bool

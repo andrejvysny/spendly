@@ -1,0 +1,68 @@
+---
+interface Props {
+    title?: string;
+    description?: string;
+}
+
+const {
+    title = 'Spendly — Open-Source Self-Hosted Personal Finance Tracker',
+    description = 'Track spending, sync bank accounts, set budgets. Self-host on your server with Docker. Free, open-source alternative to YNAB and Monarch Money.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" style="background:#000">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content={description} />
+        <meta name="generator" content={Astro.generator} />
+
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:type" content="website" />
+        <meta property="og:image" content="/screenshots/dashboard.png" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={title} />
+        <meta name="twitter:description" content={description} />
+        <meta name="twitter:image" content="/screenshots/dashboard.png" />
+
+        <title>{title}</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "SoftwareApplication",
+                "name": "Spendly",
+                "applicationCategory": "FinanceApplication",
+                "operatingSystem": "Linux, macOS, Windows (via Docker)",
+                "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+                "description": "Open-source self-hosted personal finance tracker with bank sync, smart rules, and zero subscription fees.",
+                "license": "https://opensource.org/licenses/GPL-3.0"
+            }
+        </script>
+    </head>
+    <body class="font-sans" style="background:#000;color:#fff">
+        <slot />
+
+        <script>
+            const observer = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) entry.target.classList.add('visible');
+                    });
+                },
+                { threshold: 0.1 },
+            );
+            document.querySelectorAll('.fade-up').forEach((el) => observer.observe(el));
+        </script>
+    </body>
+</html>
