@@ -149,4 +149,37 @@ class GocardlessMapperTest extends TestCase
         $mapped = $this->mapper->mapTransactionData($tx, $account, Carbon::now());
         $this->assertSame(Transaction::TYPE_PAYMENT, $mapped['type'], 'External counterparty (Finax) must not be marked TRANSFER');
     }
+
+    public function test_map_transaction_data_marks_internal_own_account_payment_as_transfer_candidate_only(): void
+    {
+        $user = User::factory()->create();
+        $sourceAccount = Account::factory()->create([
+            'user_id' => $user->id,
+            'iban' => 'SK9009000000005124514591',
+            'gocardless_institution_id' => 'SLSP_GIBASKBX',
+            'bank_name' => 'Slovenská sporiteľňa',
+        ]);
+        Account::factory()->create([
+            'user_id' => $user->id,
+            'iban' => 'SK4211000000002948050714',
+            'gocardless_institution_id' => 'TRSKSKBX',
+            'bank_name' => 'Tatra banka',
+        ]);
+
+        $tx = [
+            'transactionId' => 'TRN-INTERNAL-1',
+            'bookingDate' => '2026-02-02',
+            'valueDate' => '2026-02-02',
+            'transactionAmount' => ['amount' => '-150.00', 'currency' => 'EUR'],
+            'creditorName' => 'Savings',
+            'creditorAccount' => ['iban' => 'SK4211000000002948050714'],
+            'proprietaryBankTransactionCode' => 'STANDINGORDER',
+            'bankTransactionCode' => 'PMNT-ICDT-STDO',
+        ];
+
+        $mapped = $this->mapper->mapTransactionData($tx, $sourceAccount, Carbon::now());
+
+        $this->assertSame(Transaction::TYPE_PAYMENT, $mapped['type']);
+        $this->assertTrue($mapped['metadata']['transfer_candidate'] ?? false);
+    }
 }

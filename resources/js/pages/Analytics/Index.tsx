@@ -67,9 +67,14 @@ interface MerchantSpending {
     count: number;
 }
 
+interface BalanceHistoryPoint {
+    date: string;
+    balance: number;
+}
+
 interface BalanceHistoryData {
-    balanceHistory: Record<number, Record<string, number>>; // accountId -> period -> balance
-    netWorthHistory: Record<string, number>; // period -> totalBalance
+    balance_history: Record<number, BalanceHistoryPoint[]>;
+    net_worth_history: BalanceHistoryPoint[];
 }
 
 interface RecurringGroupStats {
@@ -101,6 +106,7 @@ interface AnalyticsProps extends PageProps {
         end: string;
     };
     period: string;
+    currency_error?: string | null;
 }
 
 // Define breadcrumbs for consistent navigation
@@ -122,6 +128,7 @@ export default function Index({
     merchantSpending,
     dateRange,
     period: initialPeriod,
+    currency_error: initialCurrencyError,
 }: AnalyticsProps & {
     categorySpending: CategorySpendingData;
     merchantSpending: MerchantSpendingData;
@@ -135,6 +142,11 @@ export default function Index({
     // Balance history state
     const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryData | null>(null);
     const [loadingBalanceHistory, setLoadingBalanceHistory] = useState(false);
+    const [balanceHistoryError, setBalanceHistoryError] = useState<string | null>(initialCurrencyError ?? null);
+
+    useEffect(() => {
+        setBalanceHistoryError(initialCurrencyError ?? null);
+    }, [initialCurrencyError]);
 
     // Recurring overview state
     const [recurringGroups, setRecurringGroups] = useState<RecurringGroupItem[]>([]);
@@ -154,6 +166,7 @@ export default function Index({
     const fetchBalanceHistory = useCallback(async () => {
         if (selectedAccounts.length === 0) {
             setBalanceHistory(null);
+            setBalanceHistoryError(null);
             return;
         }
 
@@ -161,15 +174,19 @@ export default function Index({
         try {
             const params = new URLSearchParams();
             selectedAccounts.forEach((id) => params.append('account_ids[]', id.toString()));
-            params.append('start_date', dateRange.start);
-            params.append('end_date', dateRange.end);
+            params.append('from', dateRange.start);
+            params.append('to', dateRange.end);
             params.append('granularity', periodType === 'specific_month' ? 'day' : 'month');
 
             const response = await axios.get(`/api/analytics/balance-history?${params.toString()}`);
             setBalanceHistory(response.data);
+            setBalanceHistoryError(null);
         } catch (error) {
             console.error('Failed to fetch balance history:', error);
             setBalanceHistory(null);
+            setBalanceHistoryError(
+                axios.isAxiosError(error) ? (error.response?.data?.message ?? 'Failed to load balance history.') : 'Failed to load balance history.',
+            );
         } finally {
             setLoadingBalanceHistory(false);
         }
@@ -198,7 +215,7 @@ export default function Index({
                     end_date: value.to,
                     account_ids: selectedAccounts,
                 },
-                only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange'],
+                only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'currency_error'],
                 preserveState: true,
             });
         }
@@ -221,7 +238,7 @@ export default function Index({
 
         router.visit('/analytics', {
             data,
-            only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange'],
+            only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'currency_error'],
             preserveState: true,
         });
     };
@@ -238,7 +255,7 @@ export default function Index({
                     specific_month: newValue,
                     account_ids: selectedAccounts,
                 } as Record<string, string | number | boolean | File | null | number[]>,
-                only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange'],
+                only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'currency_error'],
                 preserveState: true,
             });
         }
@@ -267,7 +284,7 @@ export default function Index({
         // Use router.visit instead of reload to avoid parameter accumulation
         router.visit('/analytics', {
             data,
-            only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'selectedAccountIds'],
+            only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'selectedAccountIds', 'currency_error'],
             preserveState: true,
         });
     };
@@ -620,10 +637,11 @@ export default function Index({
     const totalExpenses = cashflow.reduce((sum, item) => sum + item.total_expenses, 0);
     const netBalance = totalIncome - totalExpenses;
     const totalTransactions = cashflow.reduce((sum, item) => sum + item.transaction_count, 0);
+    const analyticsError = initialCurrencyError ?? balanceHistoryError;
 
     // Format balance history for chart
     const formatBalanceHistoryForChart = (): ChartData<'line'> => {
-        if (!balanceHistory || !balanceHistory.netWorthHistory) {
+        if (!balanceHistory || balanceHistory.net_worth_history.length === 0) {
             return {
                 labels: [],
                 datasets: [
@@ -642,14 +660,13 @@ export default function Index({
             };
         }
 
-        // Sort periods chronologically
-        const periods = Object.keys(balanceHistory.netWorthHistory).sort();
+        const periods = balanceHistory.net_worth_history.map((point) => point.date);
         const datasets: ChartData<'line'>['datasets'] = [];
 
         // Add net worth line (primary)
         datasets.push({
             label: 'Total Net Worth',
-            data: periods.map((period) => balanceHistory.netWorthHistory[period]),
+            data: balanceHistory.net_worth_history.map((point) => point.balance),
             borderColor: 'rgb(99, 102, 241)',
             backgroundColor: 'rgba(99, 102, 241, 0.1)',
             borderWidth: 3,
@@ -660,7 +677,7 @@ export default function Index({
         });
 
         // Add individual account lines (secondary, if more than one account)
-        if (selectedAccounts.length > 1 && balanceHistory.balanceHistory) {
+        if (selectedAccounts.length > 1 && balanceHistory.balance_history) {
             const colors = [
                 { border: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.1)' },
                 { border: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.1)' },
@@ -669,12 +686,12 @@ export default function Index({
                 { border: 'rgb(245, 158, 11)', bg: 'rgba(245, 158, 11, 0.1)' },
             ];
 
-            Object.entries(balanceHistory.balanceHistory).forEach(([accountId, history], index) => {
+            Object.entries(balanceHistory.balance_history).forEach(([accountId, history], index) => {
                 const account = accounts.find((a) => a.id === parseInt(accountId));
                 const color = colors[index % colors.length];
                 datasets.push({
                     label: account?.name || `Account ${accountId}`,
-                    data: periods.map((period) => history[period] || 0),
+                    data: history.map((point) => point.balance),
                     borderColor: color.border,
                     backgroundColor: 'transparent',
                     borderWidth: 1,
@@ -848,6 +865,12 @@ export default function Index({
                         <Button variant="outline">Export</Button>
                     </div>
                 </div>
+
+                {analyticsError && !noAccountsSelected && (
+                    <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+                        {analyticsError}
+                    </div>
+                )}
 
                 {/* Controls and Summary Section */}
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -1044,6 +1067,10 @@ export default function Index({
                         ) : noAccountsSelected ? (
                             <div className="flex h-full items-center justify-center">
                                 <span className="text-muted-foreground">Select accounts to view balance history</span>
+                            </div>
+                        ) : analyticsError ? (
+                            <div className="flex h-full items-center justify-center">
+                                <span className="text-muted-foreground text-center">{analyticsError}</span>
                             </div>
                         ) : (
                             <Line data={formatBalanceHistoryForChart()} options={balanceHistoryChartOptions} />

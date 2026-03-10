@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Contracts\Repositories\AnalyticsRepositoryInterface;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Transaction;
 use Inertia\Inertia;
@@ -11,7 +12,8 @@ class DashboardController extends Controller
 {
     public function __construct(
         private AccountRepositoryInterface $accountRepository,
-        private TransactionRepositoryInterface $transactionRepository
+        private TransactionRepositoryInterface $transactionRepository,
+        private AnalyticsRepositoryInterface $analyticsRepository,
     ) {}
 
     public function index()
@@ -72,82 +74,20 @@ class DashboardController extends Controller
             return $item;
         });
 
-        // 4. Balance History (Back-calculated)
-        // We want the last 12 months, including current.
-        $months = [];
-        $date = now()->startOfMonth();
-        for ($i = 0; $i < 12; $i++) {
-            $months[] = $date->copy();
-            $date->subMonth();
-        }
-        $months = array_reverse($months); // Ascending order: [Jan 2025, ..., Jan 2026]
-
-        $monthlyBalances = [];
-        foreach ($accounts as $account) {
-            $currentBalance = $account->balance;
-            $history = [];
-            
-            // The balance at the END of the current month (effectively NOW) is the current balance
-            // However, we want to plot specific points. simpler: Point X = Balance at end of Month X.
-            // Balance(End Month X) = Balance(End Month X+1) - Sum(Transactions in Month X+1) -- Wait
-            // Balance (Month T) = Balance (Month T+1) - Transactions(Month T+1)
-            // Actually: Balance(End T) = Balance(End T+1) - NetFlow(T+1). 
-            // Current Balance is Balance at NOW. 
-            // So Balance(Start of Current Month) = Current Balance - Transactions(Since Start of Month).
-            
-            // Let's get transactions grouped by month for the last 12 months
-            $dateFormat = match (config('database.default')) {
-                'sqlite' => 'strftime("%Y-%m", booked_date)',
-                'pgsql' => "TO_CHAR(booked_date, 'YYYY-MM')",
-                default => 'DATE_FORMAT(booked_date, "%Y-%m")',
-            };
-
-            $txByMonth = Transaction::where('account_id', $account->id)
-                ->where('booked_date', '>=', $months[0])
-                ->selectRaw("$dateFormat as month, SUM(amount) as net_amount")
-                ->groupBy('month')
-                ->pluck('net_amount', 'month');
-
-            // Start from current balance and work backwards
-            // For the chart, we usually want value at the end of the month.
-            // For the current month, "End" is Now.
-            
-            $runningBalance = $currentBalance;
-            $chartData = [];
-
-            // Iterate backwards from current month
-            // We need to loop from specific months.
-            // The global $months array is [Oldest -> Newest]
-            // Let's iterate Newest -> Oldest to back-calculate
-            
-            $reversedMonths = array_reverse($months);
-            foreach ($reversedMonths as $m) {
-                $monthKey = $m->format('Y-m');
-                
-                // This point represents the balance at the end of month $m
-                // For the very first iteration (current month), it's the current balance.
-                // For previous months, we subtract the net amount of the *subsequent* month (the one we just processed).
-                // Wait, logic check:
-                // Balance_End_Jan = 1000.
-                // Transactions_Jan = +200.
-                // Balance_End_Dec = Balance_End_Jan - Transactions_Jan = 1000 - 200 = 800.
-                
-                // So, for the current month loop:
-                // We add the point (Month, RunningBalance).
-                // Then we update RunningBalance for the *previous* month iteration.
-                // RunningBalance = RunningBalance - NetChange(CurrentMonth).
-                
-                $chartData[] = [
-                    'date' => $m->format('M Y'),
-                    'balance' => (float) $runningBalance
-                ];
-
-                $netChange = $txByMonth->get($monthKey) ?? 0;
-                $runningBalance -= $netChange;
-            }
-            // fix order back to ascending
-            $monthlyBalances[$account->id] = array_reverse($chartData);
-        }
+        // 4. Balance History (Back-calculated via shared analytics repository)
+        $balanceStart = now()->subMonths(11)->startOfMonth();
+        $balanceEnd = now()->endOfDay();
+        $currentBalances = $accounts
+            ->pluck('balance', 'id')
+            ->map(fn ($balance) => (float) $balance)
+            ->toArray();
+        $monthlyBalances = $this->analyticsRepository->getBalanceHistory(
+            $accountIds,
+            $currentBalances,
+            $balanceStart,
+            $balanceEnd,
+            'month'
+        );
 
         return Inertia::render('dashboard', [
             'accounts' => $accounts,

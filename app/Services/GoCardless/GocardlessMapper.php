@@ -189,14 +189,17 @@ class GocardlessMapper
         $partner = $extractor->extractPartner($transaction);
         $type = $extractor->extractTransactionType($transaction, $amount);
 
-        // Mark as TRANSFER only when counterparty (debtor or creditor) is one of the user's own accounts
+        // Flag probable own-account transfers, but keep the source type until pairing confirms it.
         $ownIbanNormalized = $this->getOwnAccountIbansNormalized((int) $account->user_id);
         $counterpartyIban = $this->getCounterpartyIban($sourceIban, $targetIban, $account->iban);
-        if ($counterpartyIban !== null && $ownIbanNormalized !== [] && isset($ownIbanNormalized[$this->normalizeIban($counterpartyIban)])) {
-            $type = Transaction::TYPE_TRANSFER;
-        }
+        $isTransferCandidate = $counterpartyIban !== null
+            && $ownIbanNormalized !== []
+            && isset($ownIbanNormalized[$this->normalizeIban($counterpartyIban)]);
 
         $metadata = $extractor->extractMetadata($transaction);
+        if ($isTransferCandidate) {
+            $metadata['transfer_candidate'] = true;
+        }
 
         $currencyExchange = $extractor->extractCurrencyExchange($transaction);
         $originalCurrency = null;

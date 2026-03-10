@@ -56,15 +56,28 @@ class AccountBalanceService
      */
     public function calculateBalanceForAccount(Account $account): ?float
     {
-        // Get the latest transaction by booked_date with a valid balance_after_transaction
-        $latestTransaction = Transaction::where('account_id', $account->id)
+        // Use the newest authoritative running balance, then roll forward any newer transactions
+        // that do not carry a balance snapshot.
+        $latestTransactionWithBalance = Transaction::where('account_id', $account->id)
             ->whereNotNull('balance_after_transaction')
             ->orderBy('booked_date', 'desc')
-            ->orderBy('id', 'desc') // Secondary sort for same-day transactions
+            ->orderBy('id', 'desc')
             ->first();
 
-        if ($latestTransaction !== null) {
-            return (float) $latestTransaction->balance_after_transaction;
+        if ($latestTransactionWithBalance !== null) {
+            $latestBalance = (float) $latestTransactionWithBalance->balance_after_transaction;
+
+            $laterTransactionDelta = Transaction::where('account_id', $account->id)
+                ->where(function ($query) use ($latestTransactionWithBalance) {
+                    $query->where('booked_date', '>', $latestTransactionWithBalance->booked_date)
+                        ->orWhere(function ($sameDayQuery) use ($latestTransactionWithBalance) {
+                            $sameDayQuery->where('booked_date', $latestTransactionWithBalance->booked_date)
+                                ->where('id', '>', $latestTransactionWithBalance->id);
+                        });
+                })
+                ->sum('amount');
+
+            return $latestBalance + (float) $laterTransactionDelta;
         }
 
         // No valid balance_after_transaction found

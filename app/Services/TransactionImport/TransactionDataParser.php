@@ -64,14 +64,6 @@ class TransactionDataParser
 
         $data['fingerprint'] = Transaction::generateFingerprint($data);
 
-        // CSV import: make fingerprint unique per row to avoid false-positive duplicate skips
-        // (multiple same amount/date/partner rows are distinct transactions)
-        $importId = $configuration['import_id'] ?? null;
-        $rowNumber = $configuration['_row_number'] ?? null;
-        if ($importId !== null && $rowNumber !== null) {
-            $data['fingerprint'] = hash('sha256', $data['fingerprint'].'|'.$importId.'|'.$rowNumber);
-        }
-
         return $data;
     }
 
@@ -243,7 +235,16 @@ class TransactionDataParser
         if (empty($data['type'])) {
             $data['type'] = 'Imported';
         } else {
-            $data['type'] = $this->normalizeTransactionType($data['type']);
+            if ($this->isTransferType($data['type'])) {
+                $metadata = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
+                $metadata['transfer_candidate'] = true;
+                $data['metadata'] = $metadata;
+                $data['type'] = (float) $data['amount'] < 0
+                    ? Transaction::TYPE_PAYMENT
+                    : Transaction::TYPE_DEPOSIT;
+            } else {
+                $data['type'] = $this->normalizeTransactionType($data['type']);
+            }
         }
 
         // Generate transaction ID if not provided
@@ -251,9 +252,8 @@ class TransactionDataParser
             $data['transaction_id'] = 'IMP-'.uniqid();
         }
 
-        // CSV imports may not map balance; DB column is NOT NULL
-        if (! isset($data['balance_after_transaction'])) {
-            $data['balance_after_transaction'] = 0;
+        if (! array_key_exists('balance_after_transaction', $data)) {
+            $data['balance_after_transaction'] = null;
         }
     }
 
@@ -265,16 +265,21 @@ class TransactionDataParser
      */
     private function normalizeTransactionType(string $type): string
     {
+        return $type;
+    }
+
+    private function isTransferType(string $type): bool
+    {
         $normalized = strtolower(trim($type));
         $transferAliases = ['transfer', 'prevod', 'überweisung', 'virement', 'bonifico'];
 
         foreach ($transferAliases as $alias) {
             if ($normalized === $alias) {
-                return Transaction::TYPE_TRANSFER;
+                return true;
             }
         }
 
-        return $type;
+        return false;
     }
 
     /**

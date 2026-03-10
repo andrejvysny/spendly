@@ -283,4 +283,114 @@ class TransferDetectionTest extends TestCase
 
         $this->assertSame(0, $updated);
     }
+
+    public function test_matches_verified_own_account_transfer_on_next_day(): void
+    {
+        $user = User::factory()->create();
+        $accountA = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK5555000000005555555555']);
+        $accountB = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK6666000000006666666666']);
+
+        $debit = Transaction::factory()->create([
+            'account_id' => $accountA->id,
+            'transaction_id' => 'T-D5',
+            'amount' => -75.00,
+            'currency' => 'EUR',
+            'booked_date' => Carbon::parse('2025-01-15'),
+            'processed_date' => Carbon::parse('2025-01-15'),
+            'type' => Transaction::TYPE_PAYMENT,
+            'transfer_pair_transaction_id' => null,
+            'target_iban' => $accountB->iban,
+        ]);
+        $credit = Transaction::factory()->create([
+            'account_id' => $accountB->id,
+            'transaction_id' => 'T-C5',
+            'amount' => 75.00,
+            'currency' => 'EUR',
+            'booked_date' => Carbon::parse('2025-01-16'),
+            'processed_date' => Carbon::parse('2025-01-16'),
+            'type' => Transaction::TYPE_DEPOSIT,
+            'transfer_pair_transaction_id' => null,
+            'source_iban' => $accountA->iban,
+        ]);
+
+        $updated = $this->app->make(TransferDetectionService::class)
+            ->detectAndMarkTransfersForUser((int) $user->id);
+
+        $this->assertSame(2, $updated);
+
+        $debit->refresh();
+        $credit->refresh();
+        $this->assertSame(Transaction::TYPE_TRANSFER, $debit->type);
+        $this->assertSame(Transaction::TYPE_TRANSFER, $credit->type);
+        $this->assertSame($credit->id, $debit->transfer_pair_transaction_id);
+        $this->assertSame($debit->id, $credit->transfer_pair_transaction_id);
+    }
+
+    public function test_does_not_pair_cross_currency_transactions(): void
+    {
+        $user = User::factory()->create();
+        $accountA = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK7777000000007777777777']);
+        $accountB = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK8888000000008888888888']);
+
+        $date = Carbon::parse('2025-01-15');
+        $debit = Transaction::factory()->create([
+            'account_id' => $accountA->id,
+            'transaction_id' => 'T-D6',
+            'amount' => -100.00,
+            'currency' => 'EUR',
+            'booked_date' => $date,
+            'processed_date' => $date,
+            'type' => Transaction::TYPE_PAYMENT,
+            'transfer_pair_transaction_id' => null,
+            'target_iban' => $accountB->iban,
+        ]);
+        $credit = Transaction::factory()->create([
+            'account_id' => $accountB->id,
+            'transaction_id' => 'T-C6',
+            'amount' => 100.00,
+            'currency' => 'USD',
+            'booked_date' => $date,
+            'processed_date' => $date,
+            'type' => Transaction::TYPE_DEPOSIT,
+            'transfer_pair_transaction_id' => null,
+            'source_iban' => $accountA->iban,
+        ]);
+
+        $updated = $this->app->make(TransferDetectionService::class)
+            ->detectAndMarkTransfersForUser((int) $user->id);
+
+        $this->assertSame(0, $updated);
+        $this->assertSame(Transaction::TYPE_PAYMENT, $debit->fresh()->type);
+        $this->assertSame(Transaction::TYPE_DEPOSIT, $credit->fresh()->type);
+    }
+
+    public function test_marks_unpaired_transfer_candidates_for_review(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK9999000000009999999999']);
+        Account::factory()->create(['user_id' => $user->id, 'iban' => 'SK0000000000000000000001']);
+
+        $transaction = Transaction::factory()->create([
+            'account_id' => $account->id,
+            'transaction_id' => 'T-D7',
+            'amount' => -42.00,
+            'currency' => 'EUR',
+            'booked_date' => Carbon::parse('2025-01-22'),
+            'processed_date' => Carbon::parse('2025-01-22'),
+            'type' => Transaction::TYPE_PAYMENT,
+            'transfer_pair_transaction_id' => null,
+            'metadata' => ['transfer_candidate' => true],
+            'needs_manual_review' => false,
+            'review_reason' => null,
+        ]);
+
+        $updated = $this->app->make(TransferDetectionService::class)
+            ->detectAndMarkTransfersForUser((int) $user->id);
+
+        $this->assertSame(0, $updated);
+
+        $transaction->refresh();
+        $this->assertTrue($transaction->needs_manual_review);
+        $this->assertSame(TransferDetectionService::REVIEW_REASON_TRANSFER_CANDIDATE_UNPAIRED, $transaction->review_reason);
+    }
 }

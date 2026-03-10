@@ -163,7 +163,7 @@ class MlPredictCommand extends Command
     private function predictTransfers(MlService $ml, int $userId, bool $apply, int $limit, float $minConfidence): int
     {
         $this->info("Detecting transfers for user #{$userId}...");
-        $predictions = $ml->detectTransfers($userId, $limit);
+        $predictions = $ml->detectTransfers($userId, null, null, $limit);
 
         if (empty($predictions)) {
             $this->warn('No transfer predictions returned.');

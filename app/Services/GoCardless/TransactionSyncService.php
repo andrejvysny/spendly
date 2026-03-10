@@ -141,16 +141,6 @@ class TransactionSyncService
 
                 $transactionId = $mappedData['transaction_id'];
 
-                $fingerprintExists = $this->transactionRepository->fingerprintExists(
-                    $account->id,
-                    $mappedData['fingerprint']
-                );
-                if ($fingerprintExists && ! $existingIds->contains($transactionId)) {
-                    $stats['skipped']++;
-
-                    continue;
-                }
-
                 if ($existingIds->contains($transactionId)) {
                     if ($updateExisting) {
                         $toUpdate[$transactionId] = $mappedData;
@@ -163,24 +153,28 @@ class TransactionSyncService
                         ]);
                     }
                 } else {
-                    // Cross-source deduplication: if this transaction was previously imported via CSV,
-                    // update that row with GoCardless data instead of creating a duplicate
-                    $bookedDate = $mappedData['booked_date'] instanceof Carbon
-                        ? $mappedData['booked_date']
-                        : Carbon::parse($mappedData['booked_date']);
-                    $existingImport = $this->transactionRepository->findExistingImportByAmountAndDate(
+                    $existingImport = $this->transactionRepository->findStrongMatchingImport(
                         $account->id,
-                        $bookedDate,
-                        (float) $mappedData['amount']
+                        $mappedData
                     );
+
                     if ($existingImport !== null) {
                         $toUpdate[$existingImport->transaction_id] = $mappedData;
+                    } elseif ($this->transactionRepository->fingerprintExists($account->id, $mappedData['fingerprint'])) {
+                        $stats['skipped']++;
+                    } elseif ($this->hasPotentialImportMatch($account->id, $mappedData)) {
+                        $mappedData['needs_manual_review'] = true;
+                        $mappedData['review_reason'] = $this->appendReviewReason(
+                            $mappedData['review_reason'] ?? null,
+                            'probable_duplicate'
+                        );
+                        $mappedData['created_at'] = now();
+                        $mappedData['updated_at'] = now();
+                        $toCreate[] = $mappedData;
                     } else {
                         $mappedData['created_at'] = now();
                         $mappedData['updated_at'] = now();
-                        // Key by fingerprint to prevent UNIQUE constraint violations
-                        // when two GoCardless transactions produce identical fingerprints
-                        $toCreate[$mappedData['fingerprint']] = $mappedData;
+                        $toCreate[] = $mappedData;
                     }
                 }
             } catch (\Throwable $e) {
@@ -202,7 +196,7 @@ class TransactionSyncService
 
         // Perform batch operations
         $this->transactionRepository->transaction(function () use ($toCreate, $toUpdate, &$stats, $account) {
-            // Batch create (array_values to re-index after dedup keying)
+            // Batch create.
             if (! empty($toCreate)) {
                 $created = $this->transactionRepository->createBatch(array_values($toCreate));
                 $stats['created'] = $created;
@@ -245,6 +239,39 @@ class TransactionSyncService
         }
 
         return $stats;
+    }
+
+    /**
+     * @param  array<string, mixed>  $mappedData
+     */
+    private function hasPotentialImportMatch(int $accountId, array $mappedData): bool
+    {
+        $bookedDate = $mappedData['booked_date'] instanceof Carbon
+            ? $mappedData['booked_date']
+            : Carbon::parse((string) ($mappedData['booked_date'] ?? now()));
+
+        return Transaction::query()
+            ->where('account_id', $accountId)
+            ->whereDate('booked_date', $bookedDate->toDateString())
+            ->whereRaw('ABS(amount - ?) <= ?', [(float) ($mappedData['amount'] ?? 0), 0.01])
+            ->where('currency', (string) ($mappedData['currency'] ?? ''))
+            ->where(function ($query) {
+                $query->where('transaction_id', 'like', 'IMP-%')
+                    ->orWhereNotNull('import_data');
+            })
+            ->exists();
+    }
+
+    private function appendReviewReason(?string $existingReasons, string $newReason): string
+    {
+        $reasons = $existingReasons !== null && trim($existingReasons) !== ''
+            ? explode(',', $existingReasons)
+            : [];
+
+        $reasons[] = $newReason;
+        $reasons = array_values(array_unique(array_filter(array_map('trim', $reasons))));
+
+        return implode(',', $reasons);
     }
 
     /**
