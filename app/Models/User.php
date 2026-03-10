@@ -21,6 +21,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'base_currency',
+        'budget_mode',
         'gocardless_secret_id',
         'gocardless_secret_key',
         'gocardless_access_token',

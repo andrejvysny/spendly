@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Budget;
-use App\Models\Category;
+use App\Models\BudgetPeriod;
+use App\Models\RecurringGroup;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -24,16 +25,24 @@ class BudgetControllerTest extends TestCase
         $user = User::factory()->create();
         $category = $user->categories()->create(['name' => 'Food']);
 
-        Budget::create([
+        $budget = Budget::create([
             'user_id' => $user->id,
             'category_id' => $category->id,
             'amount' => 400,
             'currency' => 'EUR',
+            'mode' => Budget::MODE_LIMIT,
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => (int) date('Y'),
-            'month' => (int) date('n'),
         ]);
 
+        BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => now()->startOfMonth()->format('Y-m-d'),
+            'end_date' => now()->endOfMonth()->format('Y-m-d'),
+            'amount_budgeted' => 400,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        $this->withoutVite();
         $response = $this->actingAs($user)->get('/budgets');
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
@@ -47,16 +56,12 @@ class BudgetControllerTest extends TestCase
     {
         $user = User::factory()->create();
         $category = $user->categories()->create(['name' => 'Groceries']);
-        $year = (int) date('Y');
-        $month = (int) date('n');
 
         $response = $this->actingAs($user)->post('/budgets', [
             'category_id' => $category->id,
             'amount' => 500,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => $year,
-            'month' => $month,
         ]);
 
         $response->assertRedirect();
@@ -66,8 +71,13 @@ class BudgetControllerTest extends TestCase
             'amount' => 500,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => $year,
-            'month' => $month,
+        ]);
+        // Verify auto-created period
+        $budget = Budget::where('user_id', $user->id)->first();
+        $this->assertDatabaseHas('budget_periods', [
+            'budget_id' => $budget->id,
+            'amount_budgeted' => 500,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
         ]);
     }
 
@@ -75,14 +85,12 @@ class BudgetControllerTest extends TestCase
     {
         $user = User::factory()->create();
         $category = $user->categories()->create(['name' => 'Travel']);
-        $year = 2025;
 
         $response = $this->actingAs($user)->post('/budgets', [
             'category_id' => $category->id,
             'amount' => 3000,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_YEARLY,
-            'year' => $year,
         ]);
 
         $response->assertRedirect();
@@ -91,8 +99,24 @@ class BudgetControllerTest extends TestCase
             'category_id' => $category->id,
             'amount' => 3000,
             'period_type' => Budget::PERIOD_YEARLY,
-            'year' => $year,
-            'month' => 0,
+        ]);
+    }
+
+    public function test_user_can_create_budget_without_category(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post('/budgets', [
+            'amount' => 2000,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('budgets', [
+            'user_id' => $user->id,
+            'category_id' => null,
+            'amount' => 2000,
         ]);
     }
 
@@ -106,16 +130,10 @@ class BudgetControllerTest extends TestCase
             'amount' => 400,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 2,
         ]);
 
         $response = $this->actingAs($user)->put("/budgets/{$budget->id}", [
             'amount' => 600,
-            'currency' => 'EUR',
-            'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 2,
         ]);
 
         $response->assertRedirect();
@@ -136,8 +154,6 @@ class BudgetControllerTest extends TestCase
             'amount' => 400,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 2,
         ]);
 
         $this->actingAs($user)
@@ -155,8 +171,6 @@ class BudgetControllerTest extends TestCase
             'amount' => 400,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 2,
         ]);
 
         $response = $this->actingAs($user)->delete("/budgets/{$budget->id}");
@@ -175,8 +189,6 @@ class BudgetControllerTest extends TestCase
             'amount' => 400,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 2,
         ]);
 
         $this->actingAs($user)->delete("/budgets/{$budget->id}")->assertForbidden();
@@ -194,11 +206,103 @@ class BudgetControllerTest extends TestCase
             'amount' => 500,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => (int) date('Y'),
-            'month' => (int) date('n'),
         ]);
 
         $response->assertSessionHasErrors('category_id');
         $this->assertDatabaseCount('budgets', 0);
+    }
+
+    public function test_user_can_view_builder_page(): void
+    {
+        $user = User::factory()->create();
+        $user->categories()->create(['name' => 'Food']);
+
+        $this->withoutVite();
+        $response = $this->actingAs($user)->get('/budgets/builder');
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('budgets/Builder')
+            ->has('categories')
+            ->has('existingBudgets')
+            ->has('defaultCurrency')
+        );
+    }
+
+    public function test_suggestions_endpoint_returns_json(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->getJson('/budgets/suggestions');
+        $response->assertOk();
+        $response->assertJsonStructure(['suggestions']);
+    }
+
+    public function test_suggestions_include_recurring_groups(): void
+    {
+        $user = User::factory()->create();
+        $account = $user->accounts()->create([
+            'name' => 'Test',
+            'currency' => 'EUR',
+            'type' => 'checking',
+            'balance' => 1000,
+        ]);
+        $category = $user->categories()->create(['name' => 'Subscriptions']);
+
+        $group = RecurringGroup::create([
+            'user_id' => $user->id,
+            'name' => 'Netflix',
+            'interval' => 'monthly',
+            'interval_days' => 30,
+            'amount_min' => -15.99,
+            'amount_max' => -15.99,
+            'scope' => RecurringGroup::SCOPE_PER_USER,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+        ]);
+
+        // Create transactions linked to this recurring group
+        for ($i = 0; $i < 3; $i++) {
+            \App\Models\Transaction::create([
+                'account_id' => $account->id,
+                'transaction_id' => "tx-netflix-{$i}",
+                'amount' => -15.99,
+                'currency' => 'EUR',
+                'booked_date' => now()->subMonths($i)->format('Y-m-d'),
+                'processed_date' => now()->subMonths($i)->format('Y-m-d'),
+                'description' => 'Netflix',
+                'type' => 'card_payment',
+                'balance_after_transaction' => 900,
+                'category_id' => $category->id,
+                'recurring_group_id' => $group->id,
+            ]);
+        }
+
+        $response = $this->actingAs($user)->getJson('/budgets/suggestions');
+        $response->assertOk();
+        $response->assertJsonPath('suggestions.0.category_name', 'Subscriptions');
+        $this->assertGreaterThan(0, $response->json('suggestions.0.suggested_amount'));
+    }
+
+    public function test_budget_periods_cascade_delete_with_budget(): void
+    {
+        $user = User::factory()->create();
+        $category = $user->categories()->create(['name' => 'Food']);
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 400,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 400,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($user)->delete("/budgets/{$budget->id}");
+        $this->assertDatabaseMissing('budget_periods', ['budget_id' => $budget->id]);
     }
 }

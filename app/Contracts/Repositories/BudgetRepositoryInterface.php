@@ -17,7 +17,12 @@ interface BudgetRepositoryInterface
     /**
      * @return Collection<int, Budget>
      */
-    public function findForUserAndPeriod(int $userId, string $periodType, int $year, ?int $month): Collection;
+    public function findActiveByUser(int $userId): Collection;
+
+    /**
+     * @return Collection<int, Budget>
+     */
+    public function findByUserAndPeriodType(int $userId, string $periodType): Collection;
 
     /**
      * @param  array<string, mixed>  $data
@@ -27,7 +32,7 @@ interface BudgetRepositoryInterface
     /**
      * @param  array<string, mixed>  $data
      */
-    public function update(Budget $budget, array $data): Budget;
+    public function updateBudget(Budget $budget, array $data): Budget;
 
-    public function delete(Budget $budget): bool;
+    public function deleteBudget(Budget $budget): bool;
 }
