@@ -31,23 +31,34 @@ class BudgetController extends Controller
         $user = $this->getAuthUser();
         $userId = $this->getAuthUserId();
 
-        $periodType = $request->input('period_type', Budget::PERIOD_MONTHLY);
-        $year = (int) $request->input('year', (int) date('Y'));
+        $periodType = (string) $request->input('period_type', Budget::PERIOD_MONTHLY);
+        $year = (int) ($request->input('year') ?? date('Y'));
         $month = $request->has('month') ? (int) $request->input('month') : (int) date('n');
         if ($periodType === Budget::PERIOD_YEARLY) {
             $month = 0;
         }
 
-        $budgetsWithProgress = $this->budgetService->getBudgetsWithProgress($userId, $periodType, $year, $month === 0 ? null : $month);
+        $budgetsWithProgress = $this->budgetService->getBudgetsWithProgress(
+            $userId,
+            $periodType,
+            $year,
+            $month === 0 ? null : $month
+        );
 
         $categories = $this->categoryRepository->findByUser($userId);
 
-        $accounts = $user->accounts;
-        $defaultCurrency = $accounts->isNotEmpty() ? $accounts->first()->currency : 'EUR';
+        /** @var \App\Models\User $authUser */
+        $authUser = $user;
+        $accounts = $authUser->accounts;
+        $firstAccount = $accounts->first();
+        $defaultCurrency = $firstAccount !== null ? (string) $firstAccount->currency : 'EUR';
 
         return Inertia::render('budgets/Index', [
             'budgets' => $budgetsWithProgress->map(function (array $row) {
+                /** @var Budget $budget */
                 $budget = $row['budget'];
+                /** @var \App\Models\BudgetPeriod|null $period */
+                $period = $row['period'];
 
                 return [
                     'id' => $budget->id,
@@ -61,10 +72,20 @@ class BudgetController extends Controller
                     ] : null,
                     'amount' => (float) $budget->amount,
                     'currency' => $budget->currency,
+                    'mode' => $budget->mode,
                     'period_type' => $budget->period_type,
-                    'year' => $budget->year,
-                    'month' => $budget->month,
                     'name' => $budget->name,
+                    'rollover_enabled' => $budget->rollover_enabled,
+                    'include_subcategories' => $budget->include_subcategories,
+                    'is_active' => $budget->is_active,
+                    'period' => $period ? [
+                        'id' => $period->id,
+                        'start_date' => $period->start_date->format('Y-m-d'),
+                        'end_date' => $period->end_date->format('Y-m-d'),
+                        'amount_budgeted' => (float) $period->amount_budgeted,
+                        'rollover_amount' => (float) $period->rollover_amount,
+                        'status' => $period->status,
+                    ] : null,
                     'spent' => $row['spent'],
                     'remaining' => $row['remaining'],
                     'percentage_used' => $row['percentage_used'],
@@ -84,15 +105,64 @@ class BudgetController extends Controller
         ]);
     }
 
+    public function builder(Request $request): Response
+    {
+        $this->authorize('viewAny', Budget::class);
+
+        $userId = $this->getAuthUserId();
+        $categories = $this->categoryRepository->findByUser($userId);
+        $existingBudgets = $this->budgetService->getBudgetsWithProgress(
+            $userId,
+            Budget::PERIOD_MONTHLY,
+            (int) date('Y'),
+            (int) date('n')
+        );
+
+        /** @var \App\Models\User $user */
+        $user = $this->getAuthUser();
+        $firstAccount = $user->accounts->first();
+        $defaultCurrency = $firstAccount !== null ? (string) $firstAccount->currency : 'EUR';
+
+        return Inertia::render('budgets/Builder', [
+            'categories' => $categories->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'color' => $c->color,
+                'icon' => $c->icon,
+            ])->values()->all(),
+            'existingBudgets' => $existingBudgets->map(function (array $row) {
+                /** @var Budget $budget */
+                $budget = $row['budget'];
+
+                return [
+                    'id' => $budget->id,
+                    'category_id' => $budget->category_id,
+                    'amount' => (float) $budget->amount,
+                    'currency' => $budget->currency,
+                    'period_type' => $budget->period_type,
+                ];
+            })->values()->all(),
+            'defaultCurrency' => $defaultCurrency,
+        ]);
+    }
+
+    /**
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function suggestAmounts(Request $request)
+    {
+        $this->authorize('viewAny', Budget::class);
+
+        $suggestions = $this->budgetService->getSuggestedAmounts($this->getAuthUserId());
+
+        return response()->json(['suggestions' => $suggestions]);
+    }
+
     public function store(StoreBudgetRequest $request): RedirectResponse
     {
         $this->authorize('create', Budget::class);
 
         $validated = $request->validated();
-        if (($validated['period_type'] ?? '') === Budget::PERIOD_YEARLY) {
-            $validated['month'] = 0;
-        }
-
         $this->budgetService->create($this->getAuthUserId(), $validated);
 
         return redirect()->back()->with('success', 'Budget created successfully.');
@@ -103,10 +173,6 @@ class BudgetController extends Controller
         $this->authorize('update', $budget);
 
         $validated = $request->validated();
-        if (isset($validated['period_type']) && $validated['period_type'] === Budget::PERIOD_YEARLY) {
-            $validated['month'] = 0;
-        }
-
         $this->budgetService->update($budget, $validated);
 
         return redirect()->back()->with('success', 'Budget updated successfully.');

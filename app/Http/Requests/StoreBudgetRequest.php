@@ -25,22 +25,20 @@ class StoreBudgetRequest extends FormRequest
 
         return [
             'category_id' => [
-                'required',
+                'nullable',
                 'integer',
                 Rule::in($categoryIds),
             ],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'currency' => ['required', 'string', 'size:3'],
+            'mode' => ['sometimes', 'string', Rule::in([Budget::MODE_LIMIT, Budget::MODE_ENVELOPE])],
             'period_type' => ['required', 'string', Rule::in([Budget::PERIOD_MONTHLY, Budget::PERIOD_YEARLY])],
-            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
-            'month' => [
-                'required_if:period_type,' . Budget::PERIOD_MONTHLY,
-                'nullable',
-                'integer',
-                'min:1',
-                'max:12',
-            ],
             'name' => ['nullable', 'string', 'max:255'],
+            'rollover_enabled' => ['sometimes', 'boolean'],
+            'include_subcategories' => ['sometimes', 'boolean'],
+            'auto_create_next' => ['sometimes', 'boolean'],
+            'overall_limit_mode' => ['nullable', 'string', Rule::in(['independent', 'sum', 'pool'])],
+            'notes' => ['nullable', 'string'],
         ];
     }
 }

@@ -26,21 +26,22 @@ class UpdateBudgetRequest extends FormRequest
         return [
             'category_id' => [
                 'sometimes',
-                'required',
+                'nullable',
                 'integer',
                 Rule::in($categoryIds),
             ],
             'amount' => ['sometimes', 'required', 'numeric', 'min:0.01'],
             'currency' => ['sometimes', 'required', 'string', 'size:3'],
+            'mode' => ['sometimes', 'string', Rule::in([Budget::MODE_LIMIT, Budget::MODE_ENVELOPE])],
             'period_type' => ['sometimes', 'required', 'string', Rule::in([Budget::PERIOD_MONTHLY, Budget::PERIOD_YEARLY])],
-            'year' => ['sometimes', 'required', 'integer', 'min:2000', 'max:2100'],
-            'month' => [
-                'nullable',
-                'integer',
-                'min:0',
-                'max:12',
-            ],
             'name' => ['nullable', 'string', 'max:255'],
+            'rollover_enabled' => ['sometimes', 'boolean'],
+            'include_subcategories' => ['sometimes', 'boolean'],
+            'auto_create_next' => ['sometimes', 'boolean'],
+            'overall_limit_mode' => ['nullable', 'string', Rule::in(['independent', 'sum', 'pool'])],
+            'is_active' => ['sometimes', 'boolean'],
+            'sort_order' => ['sometimes', 'integer', 'min:0'],
+            'notes' => ['nullable', 'string'],
         ];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Contracts\Repositories\AnalyticsRepositoryInterface;
+use App\Contracts\Repositories\BudgetPeriodRepositoryInterface;
 use App\Contracts\Repositories\BudgetRepositoryInterface;
 use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Contracts\Repositories\ConditionGroupRepositoryInterface;
@@ -23,6 +24,7 @@ use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Models\RuleEngine\Rule;
 use App\Repositories\AccountRepository;
 use App\Repositories\AnalyticsRepository;
+use App\Repositories\BudgetPeriodRepository;
 use App\Repositories\BudgetRepository;
 use App\Repositories\CategoryRepository;
 use App\Repositories\ConditionGroupRepository;
@@ -51,6 +53,7 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(TransactionRepositoryInterface::class, TransactionRepository::class);
         $this->app->bind(AnalyticsRepositoryInterface::class, AnalyticsRepository::class);
         $this->app->bind(BudgetRepositoryInterface::class, BudgetRepository::class);
+        $this->app->bind(BudgetPeriodRepositoryInterface::class, BudgetPeriodRepository::class);
 
         // Category and Tag repositories
         $this->app->bind(CategoryRepositoryInterface::class, CategoryRepository::class);
