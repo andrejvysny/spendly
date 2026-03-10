@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spendly — Open-Source Self-Hosted Personal Finance Tracker</title>
+    <meta name="description" content="Track spending, sync bank accounts, set budgets. Self-host on your server with Docker. Free, open-source alternative to YNAB and Monarch Money.">
+
+    <link rel="canonical" href="https://spendly.dev/">
+
+    <meta property="og:title" content="Spendly — Open-Source Self-Hosted Personal Finance Tracker">
+    <meta property="og:description" content="Track spending, sync bank accounts, set budgets. Self-host on your server with Docker. Free, open-source alternative to YNAB and Monarch Money.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://spendly.dev/screenshots/dashboard.png">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Spendly — Open-Source Self-Hosted Personal Finance Tracker">
+    <meta name="twitter:description" content="Track spending, sync bank accounts, set budgets. Self-host on your server with Docker. Free, open-source alternative to YNAB and Monarch Money.">
+    <meta name="twitter:image" content="https://spendly.dev/screenshots/dashboard.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Instrument Sans', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    borderRadius: {
+                        DEFAULT: '0.625rem',
+                    },
+                },
+            },
+        };
+    </script>
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Spendly",
+            "applicationCategory": "FinanceApplication",
+            "operatingSystem": "Linux, macOS, Windows (via Docker)",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "description": "Open-source self-hosted personal finance tracker with bank sync, smart rules, and zero subscription fees.",
+            "license": "https://opensource.org/licenses/GPL-3.0"
+        }
+    </script>
+
+    <style>
+        :root {
+            --background: #efefef;
+            --foreground: oklch(0.145 0 0);
+            --card: oklch(1 0 0);
+            --card-foreground: oklch(0.145 0 0);
+            --primary: oklch(0.205 0 0);
+            --primary-foreground: oklch(0.985 0 0);
+            --secondary: oklch(0.97 0 0);
+            --secondary-foreground: oklch(0.205 0 0);
+            --muted-foreground: oklch(0.556 0 0);
+            --border: oklch(0.922 0 0);
+            --radius: 0.625rem;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background: oklch(0.145 0 0);
+                --foreground: oklch(0.985 0 0);
+                --card: oklch(0.205 0 0);
+                --card-foreground: oklch(0.985 0 0);
+                --primary: oklch(0.985 0 0);
+                --primary-foreground: oklch(0.205 0 0);
+                --secondary: oklch(0.269 0 0);
+                --secondary-foreground: oklch(0.985 0 0);
+                --muted-foreground: oklch(0.708 0 0);
+                --border: oklch(0.269 0 0);
+            }
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--background);
+            color: var(--foreground);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        ::selection {
+            background-color: var(--primary);
+            color: var(--primary-foreground);
+        }
+
+        .fade-up {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+                        transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .fade-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="font-sans">
+
+    <!-- Nav -->
+    <nav class="fixed top-0 z-50 w-full border-b" style="background:color-mix(in srgb, var(--card) 85%, transparent);backdrop-filter:blur(20px);border-color:var(--border)">
+        <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+            <a href="#" class="text-base font-bold" style="color:var(--foreground)">Spendly</a>
+
+            <div class="hidden items-center gap-8 md:flex">
+                <a href="#features" class="text-sm transition-colors" style="color:var(--muted-foreground)" onmouseover="this.style.color='var(--foreground)'" onmouseout="this.style.color='var(--muted-foreground)'">Features</a>
+                <a href="#screenshots" class="text-sm transition-colors" style="color:var(--muted-foreground)" onmouseover="this.style.color='var(--foreground)'" onmouseout="this.style.color='var(--muted-foreground)'">Screenshots</a>
+                <a href="#deploy" class="text-sm transition-colors" style="color:var(--muted-foreground)" onmouseover="this.style.color='var(--foreground)'" onmouseout="this.style.color='var(--muted-foreground)'">Deploy</a>
+                <a href="https://github.com/andrejvysny/spendly" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 text-sm transition-colors" style="color:var(--muted-foreground)" onmouseover="this.style.color='var(--foreground)'" onmouseout="this.style.color='var(--muted-foreground)'">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+
+            <a href="#deploy" class="hidden rounded-md px-5 py-1.5 text-sm font-medium transition-colors md:block" style="background:var(--primary);color:var(--primary-foreground)">
+                Get Started
+            </a>
+
+            <button id="mobile-menu-btn" class="flex h-10 w-10 items-center justify-center md:hidden" aria-label="Open menu" style="color:var(--foreground)">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="mobile-menu" class="hidden border-t px-6 py-4 md:hidden" style="border-color:var(--border)">
+            <div class="flex flex-col gap-4">
+                <a href="#features" class="text-sm" style="color:var(--muted-foreground)">Features</a>
+                <a href="#screenshots" class="text-sm" style="color:var(--muted-foreground)">Screenshots</a>
+                <a href="#deploy" class="text-sm" style="color:var(--muted-foreground)">Deploy</a>
+                <a href="https://github.com/andrejvysny/spendly" target="_blank" rel="noopener noreferrer" class="text-sm" style="color:var(--muted-foreground)">GitHub</a>
+                <a href="#deploy" class="rounded-md px-4 py-2 text-center text-sm font-medium" style="background:var(--primary);color:var(--primary-foreground)">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="relative pt-32 pb-24 lg:pt-44 lg:pb-32">
+        <div class="relative mx-auto max-w-6xl px-6">
+            <div class="max-w-3xl">
+                <div class="fade-up mb-6">
+                    <span class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold" style="background:var(--card);border-color:var(--border);color:var(--muted-foreground)">
+                        Open source &middot; Self-hosted &middot; Free forever
+                    </span>
+                </div>
+
+                <h1 class="fade-up text-5xl font-semibold tracking-tight sm:text-6xl lg:text-8xl" style="color:var(--foreground)">
+                    Your finances.<br>
+                    Your server.<br>
+                    Your rules.
+                </h1>
+
+                <p class="fade-up mt-8 max-w-xl text-lg leading-relaxed" style="color:var(--muted-foreground)">
+                    Personal finance tracker with bank sync, smart rules, and zero subscription fees. Self-host in minutes.
+                </p>
+
+                <div class="fade-up mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <a href="#deploy" class="inline-flex items-center justify-center rounded-md px-8 py-3 text-sm font-medium transition-opacity hover:opacity-90" style="background:var(--primary);color:var(--primary-foreground)">
+                        Deploy with Docker
+                        <svg class="ml-2 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                    <a href="#screenshots" class="inline-flex items-center justify-center rounded-md border px-8 py-3 text-sm font-medium transition-colors" style="border-color:var(--border);color:var(--muted-foreground)">
+                        View Screenshots
+                    </a>
+                </div>
+            </div>
+
+            <div class="fade-up mt-20 lg:mt-24">
+                <div class="overflow-hidden rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                    <div class="flex items-center gap-1.5 border-b px-4 py-3" style="border-color:var(--border)">
+                        <div class="h-2.5 w-2.5 rounded-full" style="background:var(--border)"></div>
+                        <div class="h-2.5 w-2.5 rounded-full" style="background:var(--border)"></div>
+                        <div class="h-2.5 w-2.5 rounded-full" style="background:var(--border)"></div>
+                        <span class="ml-3 font-mono text-[10px]" style="color:var(--muted-foreground)">spendly / dashboard</span>
+                    </div>
+                    <img src="screenshots/dashboard.png" alt="Spendly Dashboard" class="w-full" loading="eager">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Value Props -->
+    <section class="relative py-24 lg:py-32">
+        <div class="mx-auto max-w-6xl px-6">
+            <div class="grid gap-6 md:grid-cols-3">
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">01</span>
+                    <h3 class="mt-4 text-xl font-semibold tracking-tight" style="color:var(--foreground)">Own Your Data</h3>
+                    <p class="mt-3 text-sm leading-relaxed" style="color:var(--muted-foreground)">Your financial data stays on your server. No third-party access, no data selling, no surveillance.</p>
+                </div>
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">02</span>
+                    <h3 class="mt-4 text-xl font-semibold tracking-tight" style="color:var(--foreground)">Zero Subscription</h3>
+                    <p class="mt-3 text-sm leading-relaxed" style="color:var(--muted-foreground)">No monthly fees. YNAB charges $109/yr, Monarch $99/yr. Spendly is free forever.</p>
+                </div>
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">03</span>
+                    <h3 class="mt-4 text-xl font-semibold tracking-tight" style="color:var(--foreground)">No Lock-in</h3>
+                    <p class="mt-3 text-sm leading-relaxed" style="color:var(--muted-foreground)">Open source (GPL-3.0). Export anytime. Can't be acquired or shut down.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="relative py-24 lg:py-32">
+        <div class="mx-auto max-w-6xl px-6">
+            <div class="fade-up mb-16">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--muted-foreground)">Features</span>
+                <h2 class="mt-4 max-w-lg text-3xl font-semibold tracking-tight sm:text-4xl" style="color:var(--foreground)">
+                    Everything you need to take control
+                </h2>
+            </div>
+
+            <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">01</span>
+                    <h3 class="mt-4 text-base font-semibold" style="color:var(--foreground)">Bank Sync</h3>
+                    <p class="mt-2 text-sm leading-relaxed" style="color:var(--muted-foreground)">Connect European bank accounts via GoCardless. Auto-import transactions daily.</p>
+                </div>
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">02</span>
+                    <h3 class="mt-4 text-base font-semibold" style="color:var(--foreground)">Smart Rules Engine</h3>
+                    <p class="mt-2 text-sm leading-relaxed" style="color:var(--muted-foreground)">Auto-categorize, tag, and organize transactions with custom conditions and actions.</p>
+                </div>
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">03</span>
+                    <h3 class="mt-4 text-base font-semibold" style="color:var(--foreground)">Analytics & Reports</h3>
+                    <p class="mt-2 text-sm leading-relaxed" style="color:var(--muted-foreground)">Monthly comparisons, category breakdowns, balance history, savings rate tracking.</p>
+                </div>
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">04</span>
+                    <h3 class="mt-4 text-base font-semibold" style="color:var(--foreground)">CSV Import Wizard</h3>
+                    <p class="mt-2 text-sm leading-relaxed" style="color:var(--muted-foreground)">Import from any bank. Auto-detect formats, smart field mapping, duplicate detection.</p>
+                </div>
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">05</span>
+                    <h3 class="mt-4 text-base font-semibold" style="color:var(--foreground)">Budget Tracking</h3>
+                    <p class="mt-2 text-sm leading-relaxed" style="color:var(--muted-foreground)">Set monthly or yearly budgets per category. Visual progress and overage alerts.</p>
+                </div>
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <span class="font-mono text-xs" style="color:var(--muted-foreground)">06</span>
+                    <h3 class="mt-4 text-base font-semibold" style="color:var(--foreground)">Recurring Detection</h3>
+                    <p class="mt-2 text-sm leading-relaxed" style="color:var(--muted-foreground)">Automatically detect recurring payments. See projected yearly costs at a glance.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Screenshots -->
+    <section id="screenshots" class="relative py-24 lg:py-32">
+        <div class="mx-auto max-w-6xl px-6">
+            <div class="fade-up mb-16">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--muted-foreground)">Screenshots</span>
+                <h2 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl" style="color:var(--foreground)">See it in action</h2>
+            </div>
+
+            <div class="fade-up mb-8 flex gap-1 border-b" style="border-color:var(--border)">
+                <button class="screenshot-tab relative rounded-t-lg px-4 py-3 text-sm font-medium active" data-target="dashboard" style="color:var(--foreground)">
+                    Dashboard
+                    <span class="tab-indicator absolute right-0 bottom-0 left-0 h-0.5" style="background:var(--foreground)"></span>
+                </button>
+                <button class="screenshot-tab relative rounded-t-lg px-4 py-3 text-sm font-medium" data-target="transactions" style="color:var(--muted-foreground)">
+                    Transactions
+                    <span class="tab-indicator absolute right-0 bottom-0 left-0 h-0.5 hidden"></span>
+                </button>
+                <button class="screenshot-tab relative rounded-t-lg px-4 py-3 text-sm font-medium" data-target="accounts" style="color:var(--muted-foreground)">
+                    Accounts
+                    <span class="tab-indicator absolute right-0 bottom-0 left-0 h-0.5 hidden"></span>
+                </button>
+                <button class="screenshot-tab relative rounded-t-lg px-4 py-3 text-sm font-medium" data-target="import" style="color:var(--muted-foreground)">
+                    Import
+                    <span class="tab-indicator absolute right-0 bottom-0 left-0 h-0.5 hidden"></span>
+                </button>
+                <button class="screenshot-tab relative rounded-t-lg px-4 py-3 text-sm font-medium" data-target="categories" style="color:var(--muted-foreground)">
+                    Categories
+                    <span class="tab-indicator absolute right-0 bottom-0 left-0 h-0.5 hidden"></span>
+                </button>
+            </div>
+
+            <div class="fade-up overflow-hidden rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                <div class="flex items-center gap-1.5 border-b px-4 py-3" style="border-color:var(--border)">
+                    <div class="h-2.5 w-2.5 rounded-full" style="background:var(--border)"></div>
+                    <div class="h-2.5 w-2.5 rounded-full" style="background:var(--border)"></div>
+                    <div class="h-2.5 w-2.5 rounded-full" style="background:var(--border)"></div>
+                    <span id="screenshot-path" class="ml-3 font-mono text-[10px]" style="color:var(--muted-foreground)">spendly / dashboard</span>
+                </div>
+                <img id="screenshot-img" src="screenshots/dashboard.png" alt="Spendly Dashboard" class="w-full" loading="lazy">
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="border-y py-12" style="border-color:var(--border)">
+        <div class="mx-auto max-w-6xl px-6">
+            <div class="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--muted-foreground)">Built with</span>
+                <div class="flex flex-wrap items-center justify-center gap-4">
+                    <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" style="border-color:var(--border);color:var(--muted-foreground)">Laravel</span>
+                    <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" style="border-color:var(--border);color:var(--muted-foreground)">React</span>
+                    <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" style="border-color:var(--border);color:var(--muted-foreground)">TypeScript</span>
+                    <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" style="border-color:var(--border);color:var(--muted-foreground)">SQLite</span>
+                    <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" style="border-color:var(--border);color:var(--muted-foreground)">Docker</span>
+                    <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" style="border-color:var(--border);color:var(--muted-foreground)">Tailwind CSS</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Deploy -->
+    <section id="deploy" class="relative py-24 lg:py-32">
+        <div class="mx-auto max-w-6xl px-6">
+            <div class="fade-up mb-16">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--muted-foreground)">Deploy</span>
+                <h2 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl" style="color:var(--foreground)">Up and running in minutes</h2>
+                <p class="mt-4 max-w-lg" style="color:var(--muted-foreground)">All you need is a server with Docker.</p>
+            </div>
+
+            <div class="grid gap-6 md:grid-cols-3">
+                <!-- Docker Compose -->
+                <div class="fade-up relative rounded-lg border p-8 shadow-sm" style="background:var(--card);border-color:var(--border)">
+                    <span class="absolute top-4 right-4 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider" style="background:var(--primary);color:var(--primary-foreground)">Recommended</span>
+                    <h3 class="text-base font-semibold" style="color:var(--foreground)">Docker Compose</h3>
+                    <p class="mt-2 text-sm" style="color:var(--muted-foreground)">Clone and start with a single command.</p>
+                    <div class="mt-6 rounded-lg p-4 font-mono text-sm" style="background:var(--secondary);color:var(--foreground)">
+                        <div style="color:var(--muted-foreground)">$</div>
+                        <div>git clone https://github.com/</div>
+                        <div class="pl-4">andrejvysny/spendly.git</div>
+                        <div class="mt-1" style="color:var(--muted-foreground)">$</div>
+                        <div>cd spendly</div>
+                        <div class="mt-1" style="color:var(--muted-foreground)">$</div>
+                        <div>docker compose up -d</div>
+                    </div>
+                </div>
+
+                <!-- Quick Setup -->
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <h3 class="text-base font-semibold" style="color:var(--foreground)">Quick Setup</h3>
+                    <p class="mt-2 text-sm" style="color:var(--muted-foreground)">Interactive script that configures everything.</p>
+                    <div class="mt-6 rounded-lg p-4 font-mono text-sm" style="background:var(--secondary);color:var(--foreground)">
+                        <span style="color:var(--muted-foreground)">$ </span><span>./scripts/dev.sh</span>
+                    </div>
+                </div>
+
+                <!-- Manual -->
+                <div class="fade-up rounded-lg border p-8 shadow-sm transition-shadow hover:shadow-md" style="background:var(--card);border-color:var(--border)">
+                    <h3 class="text-base font-semibold" style="color:var(--foreground)">Manual Setup</h3>
+                    <p class="mt-2 text-sm" style="color:var(--muted-foreground)">PHP 8.3+, Node.js 20+, Composer. Full control.</p>
+                    <a href="https://github.com/andrejvysny/spendly#installation" target="_blank" rel="noopener noreferrer" class="mt-6 inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-70" style="color:var(--foreground)">
+                        Read the docs
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison -->
+    <section class="relative py-24 lg:py-32">
+        <div class="mx-auto max-w-5xl px-6">
+            <div class="fade-up mb-16">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--muted-foreground)">Compare</span>
+                <h2 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl" style="color:var(--foreground)">How Spendly stacks up</h2>
+            </div>
+
+            <div class="fade-up overflow-hidden rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead>
+                            <tr class="border-b" style="border-color:var(--border);background:var(--secondary)">
+                                <th class="px-6 py-4 font-mono text-xs uppercase tracking-wider" style="color:var(--muted-foreground)">Feature</th>
+                                <th class="px-6 py-4 font-semibold" style="color:var(--foreground)">Spendly</th>
+                                <th class="px-6 py-4 font-normal" style="color:var(--muted-foreground)">YNAB</th>
+                                <th class="px-6 py-4 font-normal" style="color:var(--muted-foreground)">Monarch</th>
+                                <th class="px-6 py-4 font-normal" style="color:var(--muted-foreground)">Firefly III</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b" style="border-color:var(--border)">
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Price</td>
+                                <td class="px-6 py-4 font-medium" style="color:var(--foreground)">Free</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">$109/yr</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">$99/yr</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Free</td>
+                            </tr>
+                            <tr class="border-b" style="border-color:var(--border)">
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Self-hosted</td>
+                                <td class="px-6 py-4 font-medium" style="color:var(--foreground)">Yes</td>
+                                <td class="px-6 py-4 opacity-30" style="color:var(--muted-foreground)">No</td>
+                                <td class="px-6 py-4 opacity-30" style="color:var(--muted-foreground)">No</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Yes</td>
+                            </tr>
+                            <tr class="border-b" style="border-color:var(--border)">
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Bank sync</td>
+                                <td class="px-6 py-4 font-medium" style="color:var(--foreground)">GoCardless (EU)</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Plaid (US)</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Plaid (US)</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Spectre/Plaid</td>
+                            </tr>
+                            <tr class="border-b" style="border-color:var(--border)">
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Rule engine</td>
+                                <td class="px-6 py-4 font-medium" style="color:var(--foreground)">Yes</td>
+                                <td class="px-6 py-4 opacity-30" style="color:var(--muted-foreground)">No</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Limited</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Yes</td>
+                            </tr>
+                            <tr class="border-b" style="border-color:var(--border)">
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Open source</td>
+                                <td class="px-6 py-4 font-medium" style="color:var(--foreground)">GPL-3.0</td>
+                                <td class="px-6 py-4 opacity-30" style="color:var(--muted-foreground)">No</td>
+                                <td class="px-6 py-4 opacity-30" style="color:var(--muted-foreground)">No</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">AGPL-3.0</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Modern UI</td>
+                                <td class="px-6 py-4 font-medium" style="color:var(--foreground)">React 19</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Custom</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Custom</td>
+                                <td class="px-6 py-4" style="color:var(--muted-foreground)">Blade/jQuery</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Community -->
+    <section class="relative py-24 lg:py-32">
+        <div class="mx-auto max-w-6xl px-6">
+            <div class="fade-up mx-auto max-w-2xl text-center">
+                <h2 class="text-3xl font-semibold tracking-tight sm:text-4xl" style="color:var(--foreground)">
+                    Built by the community,<br>for the community
+                </h2>
+                <p class="mt-4" style="color:var(--muted-foreground)">
+                    Open source and community-driven. Contributions, feedback, and ideas are welcome.
+                </p>
+
+                <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+                    <a href="https://github.com/andrejvysny/spendly" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-md px-6 py-2.5 text-sm font-medium transition-opacity hover:opacity-90" style="background:var(--primary);color:var(--primary-foreground)">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                        Star on GitHub
+                    </a>
+                    <a href="https://github.com/andrejvysny/spendly/issues" target="_blank" rel="noopener noreferrer" class="inline-flex items-center rounded-md border px-6 py-2.5 text-sm font-medium transition-colors" style="border-color:var(--border);color:var(--muted-foreground)">
+                        Report Issues
+                    </a>
+                    <a href="https://github.com/andrejvysny/spendly/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" class="inline-flex items-center rounded-md border px-6 py-2.5 text-sm font-medium transition-colors" style="border-color:var(--border);color:var(--muted-foreground)">
+                        Contribute
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="relative py-24 lg:py-32">
+        <div class="mx-auto max-w-3xl px-6">
+            <div class="fade-up mb-16">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--muted-foreground)">FAQ</span>
+                <h2 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl" style="color:var(--foreground)">Questions & answers</h2>
+            </div>
+
+            <div class="fade-up space-y-2">
+                <details class="group rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-left font-medium" style="color:var(--foreground)">
+                        Is Spendly production-ready?
+                        <svg class="ml-4 h-4 w-4 shrink-0 transition-transform group-open:rotate-45" style="color:var(--muted-foreground)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </summary>
+                    <p class="px-6 pb-6 text-sm leading-relaxed" style="color:var(--muted-foreground)">Spendly is in active development and has not reached v1.0 yet. It is functional and used daily, but expect breaking changes between updates. Back up your data regularly.</p>
+                </details>
+                <details class="group rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-left font-medium" style="color:var(--foreground)">
+                        What banks are supported?
+                        <svg class="ml-4 h-4 w-4 shrink-0 transition-transform group-open:rotate-45" style="color:var(--muted-foreground)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </summary>
+                    <p class="px-6 pb-6 text-sm leading-relaxed" style="color:var(--muted-foreground)">Spendly supports 2,500+ European banks via GoCardless (formerly Nordigen). For banks outside Europe, import transactions via CSV from any bank.</p>
+                </details>
+                <details class="group rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-left font-medium" style="color:var(--foreground)">
+                        What database does it use?
+                        <svg class="ml-4 h-4 w-4 shrink-0 transition-transform group-open:rotate-45" style="color:var(--muted-foreground)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </summary>
+                    <p class="px-6 pb-6 text-sm leading-relaxed" style="color:var(--muted-foreground)">SQLite by default — zero configuration, no separate database server. MySQL and PostgreSQL are also supported.</p>
+                </details>
+                <details class="group rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-left font-medium" style="color:var(--foreground)">
+                        Is my financial data safe?
+                        <svg class="ml-4 h-4 w-4 shrink-0 transition-transform group-open:rotate-45" style="color:var(--muted-foreground)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </summary>
+                    <p class="px-6 pb-6 text-sm leading-relaxed" style="color:var(--muted-foreground)">Your data is stored entirely on your own server. Nothing is sent to third parties except bank sync via GoCardless, which requires it.</p>
+                </details>
+                <details class="group rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-left font-medium" style="color:var(--foreground)">
+                        Can I import from other apps?
+                        <svg class="ml-4 h-4 w-4 shrink-0 transition-transform group-open:rotate-45" style="color:var(--muted-foreground)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </summary>
+                    <p class="px-6 pb-6 text-sm leading-relaxed" style="color:var(--muted-foreground)">Yes. The CSV import wizard supports any bank export format with automatic field mapping. Save mappings for repeated imports.</p>
+                </details>
+                <details class="group rounded-lg border shadow-sm" style="background:var(--card);border-color:var(--border)">
+                    <summary class="flex cursor-pointer items-center justify-between p-6 text-left font-medium" style="color:var(--foreground)">
+                        How do I update Spendly?
+                        <svg class="ml-4 h-4 w-4 shrink-0 transition-transform group-open:rotate-45" style="color:var(--muted-foreground)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </summary>
+                    <p class="px-6 pb-6 text-sm leading-relaxed" style="color:var(--muted-foreground)">docker compose pull && docker compose up -d. Migrations run automatically on startup.</p>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t py-12" style="border-color:var(--border)">
+        <div class="mx-auto max-w-6xl px-6">
+            <div class="flex flex-col items-center justify-between gap-6 md:flex-row">
+                <div class="flex items-center gap-4">
+                    <span class="text-sm font-bold" style="color:var(--foreground)">Spendly</span>
+                    <span class="h-3 w-px" style="background:var(--border)"></span>
+                    <span class="text-xs" style="color:var(--muted-foreground)">Your finances, your rules.</span>
+                </div>
+
+                <div class="flex items-center gap-6">
+                    <a href="https://github.com/andrejvysny/spendly" target="_blank" rel="noopener noreferrer" class="text-xs transition-opacity hover:opacity-70" style="color:var(--muted-foreground)">GitHub</a>
+                    <a href="https://github.com/andrejvysny/spendly/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="text-xs transition-opacity hover:opacity-70" style="color:var(--muted-foreground)">License</a>
+                    <a href="https://github.com/andrejvysny/spendly/issues" target="_blank" rel="noopener noreferrer" class="text-xs transition-opacity hover:opacity-70" style="color:var(--muted-foreground)">Issues</a>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center">
+                <p class="text-xs" style="color:var(--muted-foreground);opacity:0.5">GPL-3.0</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // Mobile nav toggle
+        const btn = document.getElementById('mobile-menu-btn');
+        const menu = document.getElementById('mobile-menu');
+        btn?.addEventListener('click', () => menu?.classList.toggle('hidden'));
+        menu?.querySelectorAll('a').forEach(a => a.addEventListener('click', () => menu?.classList.add('hidden')));
+
+        // Screenshot tabs
+        const tabData = {
+            dashboard: { src: 'screenshots/dashboard.png', label: 'Dashboard', path: 'spendly / dashboard' },
+            transactions: { src: 'screenshots/transactions_list.png', label: 'Transactions', path: 'spendly / transactions' },
+            accounts: { src: 'screenshots/accounts_list.png', label: 'Accounts', path: 'spendly / accounts' },
+            import: { src: 'screenshots/import_upload.png', label: 'Import', path: 'spendly / import' },
+            categories: { src: 'screenshots/categories_list.png', label: 'Categories', path: 'spendly / categories' },
+        };
+
+        document.querySelectorAll('.screenshot-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.target;
+                const data = tabData[target];
+                if (!data) return;
+
+                document.getElementById('screenshot-img').src = data.src;
+                document.getElementById('screenshot-img').alt = 'Spendly ' + data.label;
+                document.getElementById('screenshot-path').textContent = data.path;
+
+                document.querySelectorAll('.screenshot-tab').forEach(t => {
+                    const isActive = t === tab;
+                    t.style.color = isActive ? 'var(--foreground)' : 'var(--muted-foreground)';
+                    t.querySelector('.tab-indicator').classList.toggle('hidden', !isActive);
+                });
+            });
+        });
+
+        // Fade-up on scroll
+        const observer = new IntersectionObserver(
+            entries => entries.forEach(entry => {
+                if (entry.isIntersecting) entry.target.classList.add('visible');
+            }),
+            { threshold: 0.1 }
+        );
+        document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+    </script>
+</body>
+</html>
