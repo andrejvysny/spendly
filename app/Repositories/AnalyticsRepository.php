@@ -110,18 +110,18 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
 
     /**
      * @param  array<int>  $accountIds
-     * @return array{withMerchant: \Illuminate\Support\Collection, noMerchant: object|null}
+     * @return array{withCounterparty: \Illuminate\Support\Collection, noCounterparty: object|null}
      */
-    public function getMerchantSpending(array $accountIds, Carbon $startDate, Carbon $endDate): array
+    public function getCounterpartySpending(array $accountIds, Carbon $startDate, Carbon $endDate): array
     {
         if ($accountIds === []) {
-            return ['withMerchant' => collect(), 'noMerchant' => null];
+            return ['withCounterparty' => collect(), 'noCounterparty' => null];
         }
 
-        $withMerchant = DB::table('transactions')
-            ->join('merchants', 'transactions.merchant_id', '=', 'merchants.id')
+        $withCounterparty = DB::table('transactions')
+            ->join('counterparties', 'transactions.counterparty_id', '=', 'counterparties.id')
             ->select(
-                'merchants.name as merchant',
+                'counterparties.name as counterparty',
                 DB::raw('SUM(ABS(transactions.amount)) as total'),
                 DB::raw('COUNT(*) as count')
             )
@@ -130,13 +130,13 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->where('transactions.booked_date', '<=', $endDate)
             ->where('transactions.amount', '<', 0)
             ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
-            ->whereNotNull('transactions.merchant_id')
-            ->groupBy('merchants.id', 'merchants.name')
+            ->whereNotNull('transactions.counterparty_id')
+            ->groupBy('counterparties.id', 'counterparties.name')
             ->orderBy('total', 'desc')
             ->limit(10)
             ->get();
 
-        $noMerchant = DB::table('transactions')
+        $noCounterparty = DB::table('transactions')
             ->select(
                 DB::raw('SUM(ABS(amount)) as total'),
                 DB::raw('COUNT(*) as count')
@@ -146,12 +146,12 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->where('booked_date', '<=', $endDate)
             ->where('amount', '<', 0)
             ->where('type', '!=', Transaction::TYPE_TRANSFER)
-            ->whereNull('merchant_id')
+            ->whereNull('counterparty_id')
             ->first();
 
         return [
-            'withMerchant' => $withMerchant,
-            'noMerchant' => $noMerchant,
+            'withCounterparty' => $withCounterparty,
+            'noCounterparty' => $noCounterparty,
         ];
     }
 

@@ -3,7 +3,7 @@
 namespace App\Services\RuleEngine;
 
 use App\Contracts\Repositories\CategoryRepositoryInterface;
-use App\Contracts\Repositories\MerchantRepositoryInterface;
+use App\Contracts\Repositories\CounterpartyRepositoryInterface;
 use App\Contracts\Repositories\TagRepositoryInterface;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
 use App\Models\RuleEngine\ActionType;
@@ -16,7 +16,7 @@ class ActionExecutor implements ActionExecutorInterface
     // Cache for frequently accessed models to reduce database queries
     private array $categoryCache = [];
 
-    private array $merchantCache = [];
+    private array $counterpartyCache = [];
 
     private array $tagCache = [];
 
@@ -24,7 +24,7 @@ class ActionExecutor implements ActionExecutorInterface
 
     public function __construct(
         private readonly CategoryRepositoryInterface $categoryRepository,
-        private readonly MerchantRepositoryInterface $merchantRepository,
+        private readonly CounterpartyRepositoryInterface $counterpartyRepository,
         private readonly TagRepositoryInterface $tagRepository
     ) {}
 
@@ -42,7 +42,7 @@ class ActionExecutor implements ActionExecutorInterface
         try {
             return match (ActionType::from($action->action_type)) {
                 ActionType::ACTION_SET_CATEGORY => $this->setCategory($action, $transaction),
-                ActionType::ACTION_SET_MERCHANT => $this->setMerchant($action, $transaction),
+                ActionType::ACTION_SET_COUNTERPARTY => $this->setCounterparty($action, $transaction),
                 ActionType::ACTION_ADD_TAG => $this->addTag($action, $transaction),
                 ActionType::ACTION_REMOVE_TAG => $this->removeTag($action, $transaction),
                 ActionType::ACTION_REMOVE_ALL_TAGS => $this->removeAllTags($transaction),
@@ -56,12 +56,12 @@ class ActionExecutor implements ActionExecutorInterface
                 ActionType::ACTION_SEND_NOTIFICATION => $this->sendNotification($action, $transaction),
                 ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS => $this->createTagIfNotExists($action, $transaction),
                 ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => $this->createCategoryIfNotExists($action, $transaction),
-                ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => $this->createMerchantIfNotExists($action, $transaction),
+                ActionType::ACTION_CREATE_COUNTERPARTY_IF_NOT_EXISTS => $this->createCounterpartyIfNotExists($action, $transaction),
                 ActionType::ACTION_SET_PARTNER => $this->setPartner($action, $transaction),
                 ActionType::ACTION_SET_PLACE => $this->setPlace($action, $transaction),
                 ActionType::ACTION_MARK_REVIEWED => $this->markReviewed($transaction),
                 ActionType::ACTION_CLEAR_CATEGORY => $this->clearCategory($transaction),
-                ActionType::ACTION_CLEAR_MERCHANT => $this->clearMerchant($transaction),
+                ActionType::ACTION_CLEAR_COUNTERPARTY => $this->clearCounterparty($transaction),
             };
         } catch (\Exception $e) {
             Log::error('Rule action execution failed', [
@@ -104,7 +104,7 @@ class ActionExecutor implements ActionExecutorInterface
 
         return match (ActionType::from($action->action_type)) {
             ActionType::ACTION_SET_CATEGORY => "Set category to: {$this->getCategoryName($value)}",
-            ActionType::ACTION_SET_MERCHANT => "Set merchant to: {$this->getMerchantName($value)}",
+            ActionType::ACTION_SET_COUNTERPARTY => "Set counterparty to: {$this->getCounterpartyName($value)}",
             ActionType::ACTION_ADD_TAG => "Add tag: {$this->getTagName($value)}",
             ActionType::ACTION_REMOVE_TAG => "Remove tag: {$this->getTagName($value)}",
             ActionType::ACTION_REMOVE_ALL_TAGS => 'Remove all tags',
@@ -118,12 +118,12 @@ class ActionExecutor implements ActionExecutorInterface
             ActionType::ACTION_SEND_NOTIFICATION => 'Send notification',
             ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS => "Create tag if not exists: {$value}",
             ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS => "Create category if not exists: {$value}",
-            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS => "Create merchant if not exists: {$value}",
+            ActionType::ACTION_CREATE_COUNTERPARTY_IF_NOT_EXISTS => "Create counterparty if not exists: {$value}",
             ActionType::ACTION_SET_PARTNER => "Set partner to: {$value}",
             ActionType::ACTION_SET_PLACE => "Set place to: {$value}",
             ActionType::ACTION_MARK_REVIEWED => 'Mark as reviewed',
             ActionType::ACTION_CLEAR_CATEGORY => 'Clear category',
-            ActionType::ACTION_CLEAR_MERCHANT => 'Clear merchant',
+            ActionType::ACTION_CLEAR_COUNTERPARTY => 'Clear counterparty',
             default => 'Unknown action',
         };
     }
@@ -150,23 +150,23 @@ class ActionExecutor implements ActionExecutorInterface
         return true;
     }
 
-    private function setMerchant(RuleAction $action, Transaction $transaction): bool
+    private function setCounterparty(RuleAction $action, Transaction $transaction): bool
     {
-        $merchantId = (int) $action->getDecodedValue();
+        $counterpartyId = (int) $action->getDecodedValue();
 
         // Use cache to avoid repeated database queries
-        if (! isset($this->merchantCache[$merchantId])) {
-            $merchant = $this->merchantRepository->find($merchantId);
-            $this->merchantCache[$merchantId] = $merchant;
+        if (! isset($this->counterpartyCache[$counterpartyId])) {
+            $counterparty = $this->counterpartyRepository->find($counterpartyId);
+            $this->counterpartyCache[$counterpartyId] = $counterparty;
         } else {
-            $merchant = $this->merchantCache[$merchantId];
+            $counterparty = $this->counterpartyCache[$counterpartyId];
         }
 
-        if (! $merchant || $merchant->user_id !== $transaction->account->user_id) {
+        if (! $counterparty || $counterparty->user_id !== $transaction->account->user_id) {
             return false;
         }
 
-        $transaction->merchant_id = $merchantId;
+        $transaction->counterparty_id = $counterpartyId;
         $transaction->save();
 
         return true;
@@ -319,17 +319,17 @@ class ActionExecutor implements ActionExecutorInterface
         return true;
     }
 
-    private function createMerchantIfNotExists(RuleAction $action, Transaction $transaction): bool
+    private function createCounterpartyIfNotExists(RuleAction $action, Transaction $transaction): bool
     {
-        $merchantName = $action->getDecodedValue();
+        $counterpartyName = $action->getDecodedValue();
         $userId = $transaction->account->user_id;
 
-        $merchant = $this->merchantRepository->firstOrCreate(
-            ['name' => $merchantName, 'user_id' => $userId],
+        $counterparty = $this->counterpartyRepository->firstOrCreate(
+            ['name' => $counterpartyName, 'user_id' => $userId],
             ['description' => 'Created by rule engine']
         );
 
-        $transaction->merchant_id = $merchant->id;
+        $transaction->counterparty_id = $counterparty->id;
         $transaction->save();
 
         return true;
@@ -368,9 +368,9 @@ class ActionExecutor implements ActionExecutorInterface
         return true;
     }
 
-    private function clearMerchant(Transaction $transaction): bool
+    private function clearCounterparty(Transaction $transaction): bool
     {
-        $transaction->merchant_id = null;
+        $transaction->counterparty_id = null;
         $transaction->save();
 
         return true;
@@ -393,17 +393,17 @@ class ActionExecutor implements ActionExecutorInterface
         return $category ? $category->name : "Category #{$categoryId}";
     }
 
-    private function getMerchantName(int $merchantId): string
+    private function getCounterpartyName(int $counterpartyId): string
     {
         // Use cache to avoid repeated database queries
-        if (! isset($this->merchantCache[$merchantId])) {
-            $merchant = $this->merchantRepository->find($merchantId);
-            $this->merchantCache[$merchantId] = $merchant;
+        if (! isset($this->counterpartyCache[$counterpartyId])) {
+            $counterparty = $this->counterpartyRepository->find($counterpartyId);
+            $this->counterpartyCache[$counterpartyId] = $counterparty;
         } else {
-            $merchant = $this->merchantCache[$merchantId];
+            $counterparty = $this->counterpartyCache[$counterpartyId];
         }
 
-        return $merchant ? $merchant->name : "Merchant #{$merchantId}";
+        return $counterparty ? $counterparty->name : "Counterparty #{$counterpartyId}";
     }
 
     private function getTagName($tagId): string
@@ -429,7 +429,7 @@ class ActionExecutor implements ActionExecutorInterface
     public function clearCaches(): self
     {
         $this->categoryCache = [];
-        $this->merchantCache = [];
+        $this->counterpartyCache = [];
         $this->tagCache = [];
         $this->transactionUpdateBatch = [];
 
@@ -443,7 +443,7 @@ class ActionExecutor implements ActionExecutorInterface
     {
         return [
             'category_cache_count' => count($this->categoryCache),
-            'merchant_cache_count' => count($this->merchantCache),
+            'counterparty_cache_count' => count($this->counterpartyCache),
             'tag_cache_count' => count($this->tagCache),
             'pending_updates' => count($this->transactionUpdateBatch),
         ];

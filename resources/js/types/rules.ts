@@ -78,7 +78,7 @@ export type ConditionField =
     | 'description'
     | 'partner'
     | 'category'
-    | 'merchant'
+    | 'counterparty'
     | 'account'
     | 'type'
     | 'note'
@@ -91,7 +91,7 @@ export type ConditionField =
     | 'currency'
     | 'is_reconciled'
     | 'has_category'
-    | 'has_merchant';
+    | 'has_counterparty';
 
 export type ConditionOperator =
     | 'equals'
@@ -116,7 +116,7 @@ export type ConditionOperator =
 
 export type ActionType =
     | 'set_category'
-    | 'set_merchant'
+    | 'set_counterparty'
     | 'add_tag'
     | 'remove_tag'
     | 'remove_all_tags'
@@ -130,12 +130,12 @@ export type ActionType =
     | 'send_notification'
     | 'create_tag_if_not_exists'
     | 'create_category_if_not_exists'
-    | 'create_merchant_if_not_exists'
+    | 'create_counterparty_if_not_exists'
     | 'set_partner'
     | 'set_place'
     | 'mark_reviewed'
     | 'clear_category'
-    | 'clear_merchant';
+    | 'clear_counterparty';
 
 // API Response Types
 export interface RuleGroupsResponse {
@@ -166,7 +166,7 @@ export interface RuleOptionsResponse {
         };
         // Data for select inputs
         categories: Array<{ id: number; name: string }>;
-        merchants: Array<{ id: number; name: string }>;
+        counterparties: Array<{ id: number; name: string }>;
         tags: Array<{ id: number; name: string }>;
         transaction_types: Record<string, string>;
     };

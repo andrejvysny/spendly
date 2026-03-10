@@ -56,6 +56,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'gocardless_secret_id' => 'encrypted',
+            'gocardless_secret_key' => 'encrypted',
+            'gocardless_access_token' => 'encrypted',
+            'gocardless_refresh_token' => 'encrypted',
             'gocardless_refresh_token_expires_at' => 'datetime',
             'gocardless_access_token_expires_at' => 'datetime',
         ];
@@ -86,11 +90,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the merchants for the user.
+     * Get the counterparties for the user.
      */
-    public function merchants(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function counterparties(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(\App\Models\Merchant::class);
+        return $this->hasMany(\App\Models\Counterparty::class);
     }
 
     /**

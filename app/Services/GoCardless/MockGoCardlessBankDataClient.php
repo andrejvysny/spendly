@@ -59,7 +59,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
     public function createEndUserAgreement(string $institutionId, array $userData): array
     {
         return [
-            'id' => 'mock_agreement_' . uniqid(),
+            'id' => 'mock_agreement_'.uniqid(),
             'institution_id' => $institutionId,
             'max_historical_days' => 90,
             'access_valid_for_days' => 90,
@@ -75,6 +75,26 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
         $this->markRequisitionLinked($requisitionId, $accountIds);
 
         return $accountIds;
+    }
+
+    public function getAccountMetadata(string $accountId): array
+    {
+        $resolved = $this->fixtureRepository->resolveAccountId($accountId);
+        if ($resolved !== null) {
+            return [
+                'id' => $accountId,
+                'institution_id' => $resolved['institution'],
+                'status' => 'READY',
+            ];
+        }
+
+        $profile = $this->getMockAccountProfile($accountId);
+
+        return [
+            'id' => $accountId,
+            'institution_id' => $profile['institution_id'] ?? self::MOCK_INSTITUTION,
+            'status' => 'READY',
+        ];
     }
 
     public function getAccountDetails(string $accountId): array
@@ -120,6 +140,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             'booked' => $this->buildMockBookedTransactions($accountId),
             'pending' => $this->buildMockPendingTransactions($accountId),
         ];
+
         return ['transactions' => $transactions];
     }
 
@@ -146,7 +167,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null): array
     {
-        $id = 'mock_requisition_' . uniqid();
+        $id = 'mock_requisition_'.uniqid();
         $requisition = $this->buildRequisition(
             $id,
             $redirectUrl,
@@ -155,7 +176,8 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             $agreementId ?? 'mock_agreement_id',
             []
         );
-        $requisition['link'] = $redirectUrl . '?mock=1&requisition_id=' . $id;
+        $separator = str_contains($redirectUrl, '?') ? '&' : '?';
+        $requisition['link'] = $redirectUrl.$separator.'mock=1&requisition_id='.$id;
 
         $this->appendRequisition($requisition);
 
@@ -249,7 +271,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
     private function getCacheKey(): string
     {
-        return self::CACHE_KEY_PREFIX . $this->user->id;
+        return self::CACHE_KEY_PREFIX.$this->user->id;
     }
 
     /**
@@ -338,8 +360,8 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
         return [
             'institution_id' => self::MOCK_INSTITUTION,
             'bank_name' => 'Mock Bank',
-            'name' => 'Mock Account ' . substr($accountId, -4),
-            'iban' => 'GB99MOCK' . substr(md5($accountId), 0, 8),
+            'name' => 'Mock Account '.substr($accountId, -4),
+            'iban' => 'GB99MOCK'.substr(md5($accountId), 0, 8),
             'currency' => 'EUR',
             'ownerName' => 'Mock User',
             'cashAccountType' => 'CACC',
@@ -364,7 +386,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             foreach ($recurringOffsets as $idx => $daysAgo) {
                 $date = $this->daysAgo($daysAgo);
                 $booked[] = [
-                    'transactionId' => 'mock_tx_recurring_' . $accountId . '_' . $idx,
+                    'transactionId' => 'mock_tx_recurring_'.$accountId.'_'.$idx,
                     'bookingDate' => $date,
                     'valueDate' => $date,
                     'transactionAmount' => [
@@ -395,11 +417,11 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
                 'proprietaryBankTransactionCode' => 'CARD_PAYMENT',
                 'bankTransactionCode' => 'MCRD',
             ];
-            $booked[] = array_merge($duplicateBase, ['transactionId' => 'mock_tx_duplicate_' . $accountId . '_a']);
+            $booked[] = array_merge($duplicateBase, ['transactionId' => 'mock_tx_duplicate_'.$accountId.'_a']);
 
             $transferDate = $this->daysAgo(20);
             $booked[] = [
-                'transactionId' => 'mock_tx_transfer_out_' . $accountId,
+                'transactionId' => 'mock_tx_transfer_out_'.$accountId,
                 'bookingDate' => $transferDate,
                 'valueDate' => $transferDate,
                 'transactionAmount' => [
@@ -422,7 +444,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
             return [
                 [
-                    'transactionId' => 'mock_tx_transfer_in_' . $accountId,
+                    'transactionId' => 'mock_tx_transfer_in_'.$accountId,
                     'bookingDate' => $transferDate,
                     'valueDate' => $transferDate,
                     'transactionAmount' => [
@@ -437,7 +459,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
                     'bankTransactionCode' => 'PMNT',
                 ],
                 [
-                    'transactionId' => 'mock_tx_slsp_card_' . $accountId,
+                    'transactionId' => 'mock_tx_slsp_card_'.$accountId,
                     'bookingDate' => $this->daysAgo(5),
                     'valueDate' => $this->daysAgo(5),
                     'transactionAmount' => [
@@ -458,7 +480,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
         return [
             [
-                'transactionId' => 'mock_tx_booked_' . $accountId,
+                'transactionId' => 'mock_tx_booked_'.$accountId,
                 'bookingDate' => $fallbackDate,
                 'valueDate' => $fallbackDate,
                 'transactionAmount' => [
@@ -466,6 +488,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
                     'currency' => 'EUR',
                 ],
                 'remittanceInformationUnstructured' => 'Mock Transaction',
+                'remittanceInformationUnstructuredArray' => ['Mock Transaction'],
                 'debtorAccount' => ['iban' => $iban],
                 'creditorAccount' => ['iban' => 'GB12MOCKFALLBACK01'],
                 'proprietaryBankTransactionCode' => 'CARD_PAYMENT',
@@ -484,7 +507,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
 
         return [
             [
-                'transactionId' => 'mock_tx_pending_' . $accountId,
+                'transactionId' => 'mock_tx_pending_'.$accountId,
                 'valueDate' => now()->addDays(1)->format('Y-m-d'),
                 'transactionAmount' => [
                     'amount' => '-15.50',

@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 class MlTrainCommand extends Command
 {
     protected $signature = 'ml:train
-        {task : Task to train (categorizer, merchant-detector, transfer-detector)}
+        {task : Task to train (categorizer, counterparty-detector, transfer-detector)}
         {--user= : User ID to train for}';
 
     protected $description = 'Train ML models via the ML service';
@@ -22,11 +22,13 @@ class MlTrainCommand extends Command
 
         if (! $userId) {
             $this->error('--user is required');
+
             return self::FAILURE;
         }
 
         if (! $ml->isAvailable()) {
             $this->error('ML service is not available. Check ML_ENABLED and ML_API_URL.');
+
             return self::FAILURE;
         }
 
@@ -34,18 +36,20 @@ class MlTrainCommand extends Command
 
         $result = match ($task) {
             'categorizer' => $ml->trainCategorizer($userId),
-            'merchant-detector' => $ml->trainMerchantDetector($userId),
+            'counterparty-detector' => $ml->trainCounterpartyDetector($userId),
             'transfer-detector' => $ml->trainTransferDetector($userId),
             default => null,
         };
 
         if ($result === null) {
-            $this->error("Unknown task: {$task}. Valid: categorizer, merchant-detector");
+            $this->error("Unknown task: {$task}. Valid: categorizer, counterparty-detector");
+
             return self::FAILURE;
         }
 
         if (empty($result)) {
             $this->error('Training failed — empty response from ML service.');
+
             return self::FAILURE;
         }
 
@@ -66,6 +70,7 @@ class MlTrainCommand extends Command
         }
 
         $this->error("Training failed: {$message}");
+
         return self::FAILURE;
     }
 }

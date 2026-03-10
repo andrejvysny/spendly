@@ -77,7 +77,7 @@ class AccountController extends Controller
 
         // Get initial paginated transactions for this account (first page only)
         $transactions = $account->transactions()
-            ->with(['category', 'merchant', 'tags'])
+            ->with(['category', 'counterparty', 'tags'])
             ->orderBy('booked_date', 'desc')
             ->paginate(100); // Use same pagination count as TransactionController
 
@@ -107,9 +107,9 @@ class AccountController extends Controller
         $cashflow_last_month = $this->getCashflowOfMonth([$account->id], 1);
         $cashflow_this_month = $this->getCashflowOfMonth([$account->id], 0);
 
-        // Get categories and merchants for the filter dropdowns
+        // Get categories and counterparties for the filter dropdowns
         $categories = auth()->user()->categories;
-        $merchants = auth()->user()->merchants;
+        $counterparties = auth()->user()->counterparties;
 
         return Inertia::render('accounts/detail', [
             'account' => $account,
@@ -125,7 +125,7 @@ class AccountController extends Controller
             'monthlySummaries' => $monthlySummaries,
             'total_transactions' => $total_transactions,
             'categories' => $categories,
-            'merchants' => $merchants,
+            'counterparties' => $counterparties,
         ]);
     }
 

@@ -49,6 +49,7 @@ class DataProfiler
                 }
             }
         }
+
         return [
             'digits' => $total > 0 ? $digits / $total : 0,
             'letters' => $total > 0 ? $letters / $total : 0,
@@ -88,6 +89,7 @@ class DataProfiler
             }
         }
         $count = count($values) > 0 ? count($values) : 1;
+
         return [
             'amount' => $amountScore / $count,
             'date' => $dateScore / $count,

@@ -1,7 +1,7 @@
 import TransactionComponent from '@/components/transactions/Transaction';
 import { Button } from '@/components/ui/button';
 import { LoadingDots } from '@/components/ui/loading-dots';
-import { Category, Merchant, Transaction } from '@/types/index';
+import { Category, Counterparty, Transaction } from '@/types/index';
 import { useEffect, useState } from 'react';
 import BulkActionMenu from './BulkActionMenu';
 
@@ -9,7 +9,7 @@ interface Props {
     transactions: Transaction[];
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     categories: Category[];
-    merchants: Merchant[];
+    counterparties: Counterparty[];
     showMonthlySummary?: boolean;
     hasMorePages?: boolean;
     onLoadMore?: () => Promise<void>;
@@ -26,7 +26,7 @@ interface Props {
  * @param transactions - The initial list of transactions to display.
  * @param monthlySummaries - Summary data for each month, keyed by month name.
  * @param categories - List of available categories for transactions.
- * @param merchants - List of available merchants for transactions.
+ * @param counterparties - List of available counterparties for transactions.
  * @param showMonthlySummary - Whether to display monthly income, expense, and balance summaries.
  * @param hasMorePages - Indicates if more pages of transactions are available for loading.
  * @param onLoadMore - Callback to load additional transactions when pagination is enabled.
@@ -38,7 +38,7 @@ function TransactionList({
     transactions: initialTransactions,
     monthlySummaries,
     categories,
-    merchants,
+    counterparties,
     showMonthlySummary = true,
     hasMorePages = false,
     onLoadMore,
@@ -65,7 +65,7 @@ function TransactionList({
     const handleResetSelection = (updatedData?: {
         ids: string[];
         category_id?: string | null;
-        merchant_id?: string | null;
+        counterparty_id?: string | null;
         updated_transactions?: Array<{ id: number; note: string }>;
     }) => {
         // If we have updated data, update the local transactions
@@ -78,10 +78,10 @@ function TransactionList({
                 selectedCategory = categories.find((c) => String(c.id) === updatedData.category_id) || null;
             }
 
-            // Find the merchant object if a merchant_id was provided
-            let selectedMerchant: Merchant | null = null;
-            if (updatedData.merchant_id) {
-                selectedMerchant = merchants.find((m) => String(m.id) === updatedData.merchant_id) || null;
+            // Find the counterparty object if a counterparty_id was provided
+            let selectedCounterparty: Counterparty | null = null;
+            if (updatedData.counterparty_id) {
+                selectedCounterparty = counterparties.find((c) => String(c.id) === updatedData.counterparty_id) || null;
             }
 
             // Update all selected transactions
@@ -95,8 +95,8 @@ function TransactionList({
                         updates.category = updatedData.category_id === null ? undefined : selectedCategory || undefined;
                     }
 
-                    if (updatedData.merchant_id !== undefined) {
-                        updates.merchant = updatedData.merchant_id === null ? undefined : selectedMerchant || undefined;
+                    if (updatedData.counterparty_id !== undefined) {
+                        updates.counterparty = updatedData.counterparty_id === null ? undefined : selectedCounterparty || undefined;
                     }
 
                     // Handle note updates
@@ -202,9 +202,9 @@ function TransactionList({
                 sortedMonths.map((month) => {
                     const summary =
                         monthlySummaries[month] &&
-                            typeof monthlySummaries[month].income === 'number' &&
-                            typeof monthlySummaries[month].expense === 'number' &&
-                            typeof monthlySummaries[month].balance === 'number'
+                        typeof monthlySummaries[month].income === 'number' &&
+                        typeof monthlySummaries[month].expense === 'number' &&
+                        typeof monthlySummaries[month].balance === 'number'
                             ? monthlySummaries[month]
                             : { income: 0, expense: 0, balance: 0 };
                     const dateGroups = groupedByMonth[month];
@@ -277,7 +277,7 @@ function TransactionList({
                     selectedTransactions={selectedTransactions}
                     transactions={transactions}
                     categories={categories}
-                    merchants={merchants}
+                    counterparties={counterparties}
                     onUpdate={handleResetSelection}
                 />
             )}

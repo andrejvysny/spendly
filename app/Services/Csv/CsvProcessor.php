@@ -198,6 +198,7 @@ class CsvProcessor
                 // Handle offset
                 if ($batch->getSkippedCount() + $batch->getSuccessCount() + $batch->getFailedCount() < $offset) {
                     $batch->addResult(CsvProcessResult::skipped('Offset skip', $row));
+
                     continue;
                 }
 
@@ -342,13 +343,13 @@ class CsvProcessor
         $headers = [];
 
         if (! Storage::exists($path)) {
-            throw new \RuntimeException('CSV file not found: ' . $path);
+            throw new \RuntimeException('CSV file not found: '.$path);
         }
 
         $fullPath = Storage::path($path);
         $handle = fopen($fullPath, 'r');
         if (! $handle) {
-            throw new \RuntimeException('Unable to open CSV file: ' . $path);
+            throw new \RuntimeException('Unable to open CSV file: '.$path);
         }
 
         $lineNumber = 0;
@@ -363,6 +364,7 @@ class CsvProcessor
                 if (! $headerRead) {
                     $headers = $parsed;
                     $headerRead = true;
+
                     continue;
                 }
                 $rows[] = ['line' => $lineNumber, 'data' => $parsed];

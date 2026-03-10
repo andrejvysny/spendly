@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
-import { BreadcrumbItem, Category, Merchant, Transaction } from '@/types/index';
+import { BreadcrumbItem, Category, Counterparty, Transaction } from '@/types/index';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
@@ -36,13 +36,13 @@ interface Props {
         expense: number;
         balance: number;
         categoriesCount: number;
-        merchantsCount: number;
+        counterpartiesCount: number;
         uncategorizedCount: number;
-        noMerchantCount: number;
+        noCounterpartyCount: number;
     };
     isFiltered?: boolean;
     categories: Category[];
-    merchants: Merchant[];
+    counterparties: Counterparty[];
     accounts: { id: number; name: string }[];
     filters?: {
         search?: string;
@@ -57,7 +57,7 @@ interface Props {
         dateFrom?: string;
         dateTo?: string;
         dateRange?: { from: string; to: string };
-        merchant_id?: string;
+        counterparty_id?: string;
         category_id?: string;
         recurring_only?: boolean;
     };
@@ -69,9 +69,9 @@ interface TotalSummary {
     expense: number;
     balance: number;
     categoriesCount: number;
-    merchantsCount: number;
+    counterpartiesCount: number;
     uncategorizedCount: number;
-    noMerchantCount: number;
+    noCounterpartyCount: number;
 }
 
 type FilterValues = {
@@ -91,7 +91,7 @@ type FilterValues = {
         from?: string;
         to?: string;
     };
-    merchant_id?: string;
+    counterparty_id?: string;
     category_id?: string;
     recurring_only?: boolean;
 };
@@ -167,7 +167,7 @@ async function fetchTransactions(
  * @param totalSummary - Initial total summary metrics for filtered transactions.
  * @param isFiltered - Indicates if filters are initially applied.
  * @param categories - List of available transaction categories.
- * @param merchants - List of available merchants.
+ * @param counterparties - List of available counterparties.
  * @param accounts - List of available accounts.
  * @param filters - Optional initial filter values.
  *
@@ -179,7 +179,7 @@ export default function Index({
     totalSummary: initialTotalSummary,
     isFiltered: initialIsFiltered,
     categories,
-    merchants,
+    counterparties,
     accounts,
     filters = {},
 }: Props) {
@@ -218,7 +218,7 @@ export default function Index({
         dateFrom: filters.dateFrom || '',
         dateTo: filters.dateTo || '',
         dateRange: filters.dateRange || { from: '', to: '' },
-        merchant_id: filters.merchant_id || 'all',
+        counterparty_id: filters.counterparty_id || 'all',
         category_id: filters.category_id || 'all',
         recurring_only: filters.recurring_only ?? false,
     });
@@ -259,7 +259,7 @@ export default function Index({
             dateFrom: '',
             dateTo: '',
             dateRange: { from: '', to: '' },
-            merchant_id: 'all',
+            counterparty_id: 'all',
             category_id: 'all',
             recurring_only: false,
         }),
@@ -384,10 +384,10 @@ export default function Index({
         return [{ value: 'all', label: 'All Accounts' }, ...accounts.map((account) => ({ value: account.id.toString(), label: account.name }))];
     }, [accounts]);
 
-    // Get merchant and category options for dropdowns
-    const merchantOptions = useMemo(() => {
-        return [{ value: 'all', label: 'All Merchants' }, ...merchants.map((merchant) => ({ value: merchant.id.toString(), label: merchant.name }))];
-    }, [merchants]);
+    // Get counterparty and category options for dropdowns
+    const counterpartyOptions = useMemo(() => {
+        return [{ value: 'all', label: 'All Counterparties' }, ...counterparties.map((c) => ({ value: c.id.toString(), label: c.name }))];
+    }, [counterparties]);
 
     const categoryOptions = useMemo(() => {
         return [
@@ -402,7 +402,7 @@ export default function Index({
             case 'search':
                 return !!filterValues.search;
             case 'account_id':
-            case 'merchant_id':
+            case 'counterparty_id':
             case 'category_id':
                 return filterValues[name] !== 'all';
             case 'transactionType':
@@ -538,7 +538,7 @@ export default function Index({
             recipient_note: transaction.recipient_note,
             place: transaction.place,
             category_id: transaction.category?.id,
-            merchant_id: transaction.merchant?.id,
+            counterparty_id: transaction.counterparty?.id,
         };
 
         router.post('/transactions', payload, {
@@ -717,7 +717,7 @@ export default function Index({
                                                             newValues.account_id !== 'all' ||
                                                             newValues.transactionType !== 'all' ||
                                                             newValues.amountFilter ||
-                                                            newValues.merchant_id !== 'all' ||
+                                                            newValues.counterparty_id !== 'all' ||
                                                             newValues.category_id !== 'all' ||
                                                             newValues.recurring_only ||
                                                             newDateFrom ||
@@ -736,13 +736,16 @@ export default function Index({
                                     </div>
 
                                     <div className="mb-2">
-                                        <label className={`mb-1 block text-sm ${getFilterLabelStyle('merchant_id')}`}>Merchant</label>
-                                        <Select value={filterValues.merchant_id} onValueChange={(value) => handleFilterChange('merchant_id', value)}>
+                                        <label className={`mb-1 block text-sm ${getFilterLabelStyle('counterparty_id')}`}>Counterparty</label>
+                                        <Select
+                                            value={filterValues.counterparty_id}
+                                            onValueChange={(value) => handleFilterChange('counterparty_id', value)}
+                                        >
                                             <SelectTrigger className="w-full">
-                                                <SelectValue placeholder="Select merchant" />
+                                                <SelectValue placeholder="Select counterparty" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {merchantOptions.map((option) => (
+                                                {counterpartyOptions.map((option) => (
                                                     <SelectItem key={option.value} value={option.value}>
                                                         {option.label}
                                                     </SelectItem>
@@ -768,9 +771,7 @@ export default function Index({
                                     </div>
 
                                     <div className="mb-2 flex items-center justify-between">
-                                        <label
-                                            className={`text-sm ${filterValues.recurring_only ? 'font-medium text-green-600' : 'font-medium'}`}
-                                        >
+                                        <label className={`text-sm ${filterValues.recurring_only ? 'font-medium text-green-600' : 'font-medium'}`}>
                                             Recurring only
                                         </label>
                                         <Switch
@@ -873,7 +874,7 @@ export default function Index({
                                             filterValues.amountFilter ||
                                             filterValues.dateFrom ||
                                             filterValues.dateTo ||
-                                            filterValues.merchant_id !== 'all' ||
+                                            filterValues.counterparty_id !== 'all' ||
                                             filterValues.category_id !== 'all') && (
                                             <div className="mb-4">
                                                 <div className="mb-2 flex items-center justify-between">
@@ -936,16 +937,16 @@ export default function Index({
                                                             <span className="text-base font-medium">{totalSummary.categoriesCount}</span>
                                                         </div>
                                                         <div className="flex flex-col">
-                                                            <span className="text-xs text-gray-400">Merchants</span>
-                                                            <span className="text-base font-medium">{totalSummary.merchantsCount}</span>
+                                                            <span className="text-xs text-gray-400">Counterpartys</span>
+                                                            <span className="text-base font-medium">{totalSummary.counterpartiesCount}</span>
                                                         </div>
                                                         <div className="flex flex-col">
                                                             <span className="text-xs text-gray-400">Uncategorized</span>
                                                             <span className="text-base font-medium">{totalSummary.uncategorizedCount}</span>
                                                         </div>
                                                         <div className="flex flex-col">
-                                                            <span className="text-xs text-gray-400">No Merchant</span>
-                                                            <span className="text-base font-medium">{totalSummary.noMerchantCount}</span>
+                                                            <span className="text-xs text-gray-400">No Counterparty</span>
+                                                            <span className="text-base font-medium">{totalSummary.noCounterpartyCount}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -956,7 +957,7 @@ export default function Index({
                                         transactions={transactions}
                                         monthlySummaries={monthlySummaries}
                                         categories={categories}
-                                        merchants={merchants}
+                                        counterparties={counterparties}
                                         showMonthlySummary={showMonthlySummary}
                                         hasMorePages={hasMorePages}
                                         onLoadMore={handleLoadMore}

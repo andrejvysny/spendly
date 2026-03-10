@@ -8,11 +8,11 @@ use App\Contracts\Repositories\BudgetPeriodRepositoryInterface;
 use App\Contracts\Repositories\BudgetRepositoryInterface;
 use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Contracts\Repositories\ConditionGroupRepositoryInterface;
+use App\Contracts\Repositories\CounterpartyRepositoryInterface;
 use App\Contracts\Repositories\GoCardlessSyncFailureRepositoryInterface;
 use App\Contracts\Repositories\ImportFailureRepositoryInterface;
 use App\Contracts\Repositories\ImportMappingRepositoryInterface;
 use App\Contracts\Repositories\ImportRepositoryInterface;
-use App\Contracts\Repositories\MerchantRepositoryInterface;
 use App\Contracts\Repositories\RuleActionRepositoryInterface;
 use App\Contracts\Repositories\RuleConditionRepositoryInterface;
 use App\Contracts\Repositories\RuleExecutionLogRepositoryInterface;
@@ -28,11 +28,11 @@ use App\Repositories\BudgetPeriodRepository;
 use App\Repositories\BudgetRepository;
 use App\Repositories\CategoryRepository;
 use App\Repositories\ConditionGroupRepository;
+use App\Repositories\CounterpartyRepository;
 use App\Repositories\GoCardlessSyncFailureRepository;
 use App\Repositories\ImportFailureRepository;
 use App\Repositories\ImportMappingRepository;
 use App\Repositories\ImportRepository;
-use App\Repositories\MerchantRepository;
 use App\Repositories\RuleActionRepository;
 use App\Repositories\RuleConditionRepository;
 use App\Repositories\RuleExecutionLogRepository;
@@ -58,7 +58,7 @@ class RepositoryServiceProvider extends ServiceProvider
         // Category and Tag repositories
         $this->app->bind(CategoryRepositoryInterface::class, CategoryRepository::class);
         $this->app->bind(TagRepositoryInterface::class, TagRepository::class);
-        $this->app->bind(MerchantRepositoryInterface::class, MerchantRepository::class);
+        $this->app->bind(CounterpartyRepositoryInterface::class, CounterpartyRepository::class);
 
         // Import repositories
         $this->app->bind(ImportRepositoryInterface::class, ImportRepository::class);

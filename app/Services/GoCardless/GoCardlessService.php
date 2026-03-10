@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\GoCardless;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
@@ -12,6 +14,8 @@ use Illuminate\Support\Facades\Log;
 class GoCardlessService
 {
     private BankDataClientInterface $client;
+
+    private ?int $currentUserId = null;
 
     public function __construct(
         private AccountRepositoryInterface $accountRepository,
@@ -55,8 +59,9 @@ class GoCardlessService
      */
     private function getClient(User $user): BankDataClientInterface
     {
-        if (! $this->isClientInitialized()) {
+        if (! $this->isClientInitialized() || $this->currentUserId !== $user->id) {
             $this->initializeClient($user);
+            $this->currentUserId = $user->id;
         }
 
         return $this->client;
@@ -104,12 +109,10 @@ class GoCardlessService
         );
 
         $bookedTransactions = $response['transactions']['booked'] ?? [];
-        $pendingTransactions = $response['transactions']['pending'] ?? [];
 
         Log::info('Retrieved transactions from GoCardless', [
             'account_id' => $accountId,
             'booked_count' => count($bookedTransactions),
-            'pending_count' => count($pendingTransactions),
             'date_from' => $dateRange['date_from'],
             'date_to' => $dateRange['date_to'],
         ]);
@@ -205,20 +208,7 @@ class GoCardlessService
             $this->getClient($user);
 
             $balances = $this->client->getBalances($account->gocardless_account_id);
-            $currentBalance = null;
-
-            // Prefer closingBooked, fall back to interimAvailable/expected/interimBooked
-            $preferredTypes = ['closingBooked', 'interimAvailable', 'expected', 'interimBooked'];
-            $balancesByType = [];
-            foreach ($balances['balances'] ?? [] as $balance) {
-                $balancesByType[$balance['balanceType']] = (float) ($balance['balanceAmount']['amount'] ?? 0);
-            }
-            foreach ($preferredTypes as $type) {
-                if (isset($balancesByType[$type])) {
-                    $currentBalance = $balancesByType[$type];
-                    break;
-                }
-            }
+            $currentBalance = BalanceResolver::resolve($balances['balances'] ?? []);
 
             if ($currentBalance !== null) {
                 $this->accountRepository->updateBalance($account, $currentBalance);
@@ -333,6 +323,7 @@ class GoCardlessService
                     'owner_name' => null,
                     'status' => 'Imported',
                     'last_synced_at' => $local->gocardless_last_synced_at?->toIso8601String(),
+                    'enrichment_status' => 'complete',
                 ];
 
                 continue;
@@ -350,6 +341,7 @@ class GoCardlessService
                     'owner_name' => $account['ownerName'] ?? null,
                     'status' => 'Ready to import',
                     'last_synced_at' => null,
+                    'enrichment_status' => 'complete',
                 ];
             } catch (GoCardlessRateLimitException $e) {
                 Log::warning('Rate limited during account enrichment, returning partial results', [
@@ -370,6 +362,7 @@ class GoCardlessService
                         'owner_name' => null,
                         'status' => 'Ready to import',
                         'last_synced_at' => null,
+                        'enrichment_status' => 'stub',
                     ];
                 }
                 break;
@@ -387,6 +380,7 @@ class GoCardlessService
                     'owner_name' => null,
                     'status' => 'Ready to import',
                     'last_synced_at' => null,
+                    'enrichment_status' => 'stub',
                 ];
             }
         }
@@ -431,29 +425,27 @@ class GoCardlessService
             throw new AccountAlreadyExistsException;
         }
 
-        // Get account details from GoCardless
+        // Get account metadata (institution_id) and details from GoCardless
+        $accountMetadata = [];
+        try {
+            $accountMetadata = $this->client->getAccountMetadata($goCardlessAccountId);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to fetch account metadata', [
+                'account_id' => $goCardlessAccountId,
+                'error' => $e->getMessage(),
+            ]);
+        }
         $accountDetails = $this->client->getAccountDetails($goCardlessAccountId);
         $accountData = $accountDetails['account'] ?? [];
 
         // Get account balances (prefer closingBooked, fall back to interimAvailable/expected)
         $balances = $this->client->getBalances($goCardlessAccountId);
-        $currentBalance = 0;
+        $currentBalance = BalanceResolver::resolve($balances['balances'] ?? []) ?? 0;
 
-        $preferredTypes = ['closingBooked', 'interimAvailable', 'expected', 'interimBooked'];
-        $balancesByType = [];
-        foreach ($balances['balances'] ?? [] as $balance) {
-            $balancesByType[$balance['balanceType']] = $balance['balanceAmount']['amount'] ?? 0;
-        }
-        foreach ($preferredTypes as $type) {
-            if (isset($balancesByType[$type])) {
-                $currentBalance = $balancesByType[$type];
-                break;
-            }
-        }
-
-        // Map and create account
+        // Map and create account — merge institution_id from metadata
         $mappedData = $this->mapper->mapAccountData(array_merge($accountData, [
             'id' => $goCardlessAccountId,
+            'institution_id' => $accountMetadata['institution_id'] ?? null,
             'balance' => $currentBalance,
         ]));
 

@@ -177,7 +177,7 @@ class BalancesRecalculateCommand extends Command
     private function displayResults(array $results): void
     {
         $this->newLine();
-        $this->info("Results:");
+        $this->info('Results:');
         $this->line("  Success: {$results['success']}");
         $this->line("  Failed: {$results['failed']}");
 

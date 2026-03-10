@@ -3,33 +3,33 @@
 namespace App\Models;
 
 use App\Contracts\OwnedByUserContract;
+use App\Enums\CounterpartyType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Merchant extends BaseModel implements OwnedByUserContract
+class Counterparty extends BaseModel implements OwnedByUserContract
 {
-    /** @use HasFactory<\Database\Factories\MerchantFactory> */
+    /** @use HasFactory<\Database\Factories\CounterpartyFactory> */
     use BelongsToUser, HasFactory;
 
     protected $fillable = [
         'name',
         'description',
         'logo',
+        'type',
         'user_id',
     ];
 
-    /**
-     * Get the user that owns the merchant.
-     */
+    protected $casts = [
+        'type' => CounterpartyType::class,
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Get the transactions for this merchant.
-     */
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);

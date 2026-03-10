@@ -9,6 +9,6 @@ return [
         'import_failures' => 50,
         'categories' => null,
         'tags' => null,
-        'merchants' => null,
+        'counterparties' => null,
     ],
 ];

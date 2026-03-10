@@ -6,7 +6,7 @@ Spendly can automatically detect recurring payments (subscriptions and other rep
 
 ## Data model
 
-- **RecurringGroup**: One recurring series (e.g. "Netflix"). Fields include `user_id`, `name`, `interval` (weekly/monthly/quarterly/yearly), `amount_min`/`amount_max`, `scope` (per_account/per_user), `status` (suggested/confirmed/dismissed), and optional `merchant_id` / `normalized_description`.
+- **RecurringGroup**: One recurring series (e.g. "Netflix"). Fields include `user_id`, `name`, `interval` (weekly/monthly/quarterly/yearly), `amount_min`/`amount_max`, `scope` (per_account/per_user), `status` (suggested/confirmed/dismissed), and optional `counterparty_id` / `normalized_description`.
 - **Transaction.recurring_group_id**: Set when the transaction belongs to a **confirmed** RecurringGroup.
 - **RecurringDetectionSetting**: Per-user settings (scope, group_by, amount variance, min_occurrences, run_after_import, scheduled_enabled).
 - **DismissedRecurringSuggestion**: Stores a fingerprint when a suggestion is dismissed so the same series is not re-suggested.
@@ -14,7 +14,7 @@ Spendly can automatically detect recurring payments (subscriptions and other rep
 ## Detection algorithm
 
 1. Load transactions for the user (optionally per account) in a lookback window (default 12 months).
-2. Group by payee: merchant_id (if present and group_by allows) or normalized description.
+2. Group by payee: counterparty_id (if present and group_by allows) or normalized description.
 3. For each group: sort by date, compute consecutive date deltas, infer interval (weekly ~7 days, monthly ~30, etc.) with allowed variance; check amounts against configured ±% or ±fixed variance.
 4. Keep only series with at least 3 occurrences and consistent interval + amount.
 5. Skip if the series matches an existing confirmed/dismissed group or a dismissed fingerprint.

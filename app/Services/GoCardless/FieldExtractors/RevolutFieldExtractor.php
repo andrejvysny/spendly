@@ -22,6 +22,7 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
             }
             $value = $value[$segment];
         }
+
         return $value;
     }
 
@@ -48,7 +49,8 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
         $amount = self::get($transaction, 'transactionAmount.amount', 0);
         $amount = is_numeric($amount) ? (float) $amount : 0.0;
         $direction = $amount >= 0 ? 'In' : 'Out';
-        return trim((string) $code . ' ' . $direction);
+
+        return trim((string) $code.' '.$direction);
     }
 
     public function extractPartner(array $transaction): ?string
@@ -67,6 +69,7 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
             return null;
         }
         $code = (string) self::get($transaction, 'proprietaryBankTransactionCode');
+
         return $this->extractPartnerFromArray($arr, $code);
     }
 
@@ -88,6 +91,7 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
         if (count($arr) >= 2) {
             return $first;
         }
+
         return null;
     }
 
@@ -97,6 +101,7 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
         if ($mcc !== null && (string) $mcc !== '') {
             return (string) $mcc;
         }
+
         return null;
     }
 
@@ -106,6 +111,7 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
         if (! is_array($exchange) || $exchange === []) {
             return null;
         }
+
         return $exchange;
     }
 
@@ -156,6 +162,7 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
         if (is_array($additional) && $additional !== []) {
             $metadata['additional_data'] = $additional;
         }
+
         return $metadata;
     }
 }

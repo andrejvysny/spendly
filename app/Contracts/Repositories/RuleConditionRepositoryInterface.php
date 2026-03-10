@@ -9,6 +9,4 @@ use App\Models\RuleEngine\RuleCondition;
 /**
  * @extends RuleScopedRepositoryInterface<RuleCondition>
  */
-interface RuleConditionRepositoryInterface extends RuleScopedRepositoryInterface
-{
-}
+interface RuleConditionRepositoryInterface extends RuleScopedRepositoryInterface {}

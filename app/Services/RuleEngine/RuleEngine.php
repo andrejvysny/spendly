@@ -227,7 +227,7 @@ class RuleEngine implements RuleEngineInterface
         // Process in batches
         $transactionIds->chunk($batchSize)->each(function ($chunk) use ($batchSize, $rules, &$processed, $total) {
             // Load transactions with relationships for this chunk
-            $transactions = Transaction::with(['account', 'tags', 'category', 'merchant'])
+            $transactions = Transaction::with(['account', 'tags', 'category', 'counterparty'])
                 ->whereIn('id', $chunk->toArray())
                 ->where('user_id', $this->user->id)
                 ->get();

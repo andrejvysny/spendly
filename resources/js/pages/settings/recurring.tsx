@@ -91,10 +91,7 @@ export default function RecurringSettingsPage() {
                     <div className="space-y-4">
                         <div>
                             <Label>Scope</Label>
-                            <Select
-                                value={settings.scope}
-                                onValueChange={(v) => update('scope', v)}
-                            >
+                            <Select value={settings.scope} onValueChange={(v) => update('scope', v)}>
                                 <SelectTrigger className="mt-1 w-full max-w-xs">
                                     <SelectValue />
                                 </SelectTrigger>
@@ -103,36 +100,28 @@ export default function RecurringSettingsPage() {
                                     <SelectItem value="per_user">Across all accounts</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <p className="mt-1 text-muted-foreground text-sm">
-                                Detect recurring per account or across all your accounts.
-                            </p>
+                            <p className="text-muted-foreground mt-1 text-sm">Detect recurring per account or across all your accounts.</p>
                         </div>
 
                         <div>
                             <Label>Group by</Label>
-                            <Select
-                                value={settings.group_by}
-                                onValueChange={(v) => update('group_by', v)}
-                            >
+                            <Select value={settings.group_by} onValueChange={(v) => update('group_by', v)}>
                                 <SelectTrigger className="mt-1 w-full max-w-xs">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="merchant_only">Merchant only</SelectItem>
-                                    <SelectItem value="merchant_and_description">Merchant + description fallback</SelectItem>
+                                    <SelectItem value="merchant_only">Counterparty only</SelectItem>
+                                    <SelectItem value="merchant_and_description">Counterparty + description fallback</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <p className="mt-1 text-muted-foreground text-sm">
-                                How to identify the same payee (merchant only, or use description when no merchant).
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                How to identify the same payee (counterparty only, or use description when no counterparty).
                             </p>
                         </div>
 
                         <div>
                             <Label>Amount variance type</Label>
-                            <Select
-                                value={settings.amount_variance_type}
-                                onValueChange={(v) => update('amount_variance_type', v)}
-                            >
+                            <Select value={settings.amount_variance_type} onValueChange={(v) => update('amount_variance_type', v)}>
                                 <SelectTrigger className="mt-1 w-full max-w-xs">
                                     <SelectValue />
                                 </SelectTrigger>
@@ -153,37 +142,25 @@ export default function RecurringSettingsPage() {
                                 value={settings.amount_variance_value}
                                 onChange={(e) => update('amount_variance_value', e.target.value)}
                             />
-                            <p className="mt-1 text-muted-foreground text-sm">
-                                {settings.amount_variance_type === 'percent'
-                                    ? 'E.g. 5 for ±5%'
-                                    : 'E.g. 2.00 for ±2 in account currency'}
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                {settings.amount_variance_type === 'percent' ? 'E.g. 5 for ±5%' : 'E.g. 2.00 for ±2 in account currency'}
                             </p>
                         </div>
 
                         <div className="flex items-center justify-between">
                             <div>
                                 <Label>Run after import</Label>
-                                <p className="text-muted-foreground text-sm">
-                                    Run recurring detection after each CSV import or bank sync.
-                                </p>
+                                <p className="text-muted-foreground text-sm">Run recurring detection after each CSV import or bank sync.</p>
                             </div>
-                            <Switch
-                                checked={settings.run_after_import}
-                                onCheckedChange={(v) => update('run_after_import', v)}
-                            />
+                            <Switch checked={settings.run_after_import} onCheckedChange={(v) => update('run_after_import', v)} />
                         </div>
 
                         <div className="flex items-center justify-between">
                             <div>
                                 <Label>Scheduled detection</Label>
-                                <p className="text-muted-foreground text-sm">
-                                    Run recurring detection on a schedule (e.g. nightly).
-                                </p>
+                                <p className="text-muted-foreground text-sm">Run recurring detection on a schedule (e.g. nightly).</p>
                             </div>
-                            <Switch
-                                checked={settings.scheduled_enabled}
-                                onCheckedChange={(v) => update('scheduled_enabled', v)}
-                            />
+                            <Switch checked={settings.scheduled_enabled} onCheckedChange={(v) => update('scheduled_enabled', v)} />
                         </div>
                     </div>
 

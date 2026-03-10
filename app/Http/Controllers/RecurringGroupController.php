@@ -29,7 +29,7 @@ class RecurringGroupController extends Controller
         }
 
         $query = RecurringGroup::where('user_id', $user->id)
-            ->with(['merchant', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)])
+            ->with(['counterparty', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)])
             ->withSum('transactions', 'amount')
             ->withCount('transactions')
             ->withMin('transactions', 'booked_date')
@@ -71,7 +71,7 @@ class RecurringGroupController extends Controller
         $addTag = $request->boolean('add_recurring_tag', true);
         $this->recurringDetectionService->confirmGroup($recurringGroup, $addTag);
 
-        $group = $recurringGroup->fresh(['merchant', 'account', 'transactions']);
+        $group = $recurringGroup->fresh(['counterparty', 'account', 'transactions']);
         $this->loadRecurringGroupStats($group);
 
         return response()->json([
@@ -127,7 +127,7 @@ class RecurringGroupController extends Controller
 
         $this->recurringDetectionService->detachTransactionsFromGroup($recurringGroup, $transactionIds, $removeTag);
 
-        $group = $recurringGroup->fresh(['merchant', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)]);
+        $group = $recurringGroup->fresh(['counterparty', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)]);
         $this->loadRecurringGroupStats($group);
 
         return response()->json([
@@ -161,7 +161,7 @@ class RecurringGroupController extends Controller
             ], 422);
         }
 
-        $group = $recurringGroup->fresh(['merchant', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)]);
+        $group = $recurringGroup->fresh(['counterparty', 'account', 'transactions' => fn ($q) => $q->orderBy('booked_date', 'desc')->limit(20)]);
         $this->loadRecurringGroupStats($group);
 
         return response()->json([
@@ -298,7 +298,7 @@ class RecurringGroupController extends Controller
 
         $validated = $request->validate([
             'scope' => ['nullable', Rule::in([RecurringDetectionSetting::SCOPE_PER_ACCOUNT, RecurringDetectionSetting::SCOPE_PER_USER])],
-            'group_by' => ['nullable', Rule::in([RecurringDetectionSetting::GROUP_BY_MERCHANT_ONLY, RecurringDetectionSetting::GROUP_BY_MERCHANT_AND_DESCRIPTION])],
+            'group_by' => ['nullable', Rule::in([RecurringDetectionSetting::GROUP_BY_COUNTERPARTY_ONLY, RecurringDetectionSetting::GROUP_BY_COUNTERPARTY_AND_DESCRIPTION])],
             'amount_variance_type' => ['nullable', Rule::in([RecurringDetectionSetting::AMOUNT_VARIANCE_PERCENT, RecurringDetectionSetting::AMOUNT_VARIANCE_FIXED])],
             'amount_variance_value' => ['nullable', 'numeric', 'min:0'],
             'min_occurrences' => ['nullable', 'integer', 'min:2', 'max:10'],

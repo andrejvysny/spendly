@@ -4,7 +4,7 @@ namespace Tests\Unit\RuleEngine;
 
 use App\Models\Account;
 use App\Models\Category;
-use App\Models\Merchant;
+use App\Models\Counterparty;
 use App\Models\RuleEngine\ActionType;
 use App\Models\RuleEngine\RuleAction;
 use App\Models\Tag;
@@ -72,19 +72,19 @@ class ActionExecutorTest extends TestCase
         $this->assertNull($this->transaction->fresh()->category_id);
     }
 
-    public function it_sets_merchant()
+    public function it_sets_counterparty()
     {
-        $merchant = Merchant::factory()->create(['user_id' => $this->user->id]);
+        $counterparty = Counterparty::factory()->create(['user_id' => $this->user->id]);
 
         $action = new RuleAction([
-            'action_type' => RuleAction::ACTION_SET_MERCHANT,
+            'action_type' => RuleAction::ACTION_SET_COUNTERPARTY,
         ]);
-        $action->setEncodedValue($merchant->id);
+        $action->setEncodedValue($counterparty->id);
 
         $result = $this->executor->execute($action, $this->transaction);
 
         $this->assertTrue($result);
-        $this->assertEquals($merchant->id, $this->transaction->fresh()->merchant_id);
+        $this->assertEquals($counterparty->id, $this->transaction->fresh()->counterparty_id);
     }
 
     public function it_adds_tag()
@@ -320,20 +320,20 @@ class ActionExecutorTest extends TestCase
         $this->assertEquals($category->id, $this->transaction->fresh()->category_id);
     }
 
-    public function it_creates_merchant_if_not_exists()
+    public function it_creates_counterparty_if_not_exists()
     {
         $action = new RuleAction([
-            'action_type' => RuleAction::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS,
+            'action_type' => RuleAction::ACTION_CREATE_COUNTERPARTY_IF_NOT_EXISTS,
         ]);
-        $action->setEncodedValue('New Merchant');
+        $action->setEncodedValue('New Counterparty');
 
         $result = $this->executor->execute($action, $this->transaction);
 
         $this->assertTrue($result);
 
-        $merchant = Merchant::where('name', 'New Merchant')->where('user_id', $this->user->id)->first();
-        $this->assertNotNull($merchant);
-        $this->assertEquals($merchant->id, $this->transaction->fresh()->merchant_id);
+        $counterparty = Counterparty::where('name', 'New Counterparty')->where('user_id', $this->user->id)->first();
+        $this->assertNotNull($counterparty);
+        $this->assertEquals($counterparty->id, $this->transaction->fresh()->counterparty_id);
     }
 
     public function it_handles_action_execution_errors_gracefully()

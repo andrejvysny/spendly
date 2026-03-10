@@ -54,9 +54,9 @@ class AnalyticsController extends Controller
         $categorySpending = $currencyError === null
             ? $this->analyticsRepository->getCategorySpending($accountIdsArray, $startDate, $endDate)
             : ['categorized' => collect(), 'uncategorized' => null];
-        $merchantSpending = $currencyError === null
-            ? $this->analyticsRepository->getMerchantSpending($accountIdsArray, $startDate, $endDate)
-            : ['withMerchant' => collect(), 'noMerchant' => null];
+        $counterpartySpending = $currencyError === null
+            ? $this->analyticsRepository->getCounterpartySpending($accountIdsArray, $startDate, $endDate)
+            : ['withCounterparty' => collect(), 'noCounterparty' => null];
 
         return Inertia::render('Analytics/Index', [
             'accounts' => $user_accounts,
@@ -64,7 +64,7 @@ class AnalyticsController extends Controller
             'selectedAccountIds' => $accountIds->toArray(),
             'cashflow' => $cashFlow,
             'categorySpending' => $categorySpending,
-            'merchantSpending' => $merchantSpending,
+            'counterpartySpending' => $counterpartySpending,
             'dateRange' => [
                 'start' => $startDate->format('Y-m-d'),
                 'end' => $endDate->format('Y-m-d'),
@@ -138,8 +138,6 @@ class AnalyticsController extends Controller
 
     /**
      * Get balance history over time for accounts.
-     *
-     * @return JsonResponse
      */
     public function balanceHistory(Request $request): JsonResponse
     {
@@ -261,8 +259,6 @@ class AnalyticsController extends Controller
      * Get monthly comparison data for two specified months.
      *
      * Returns daily cashflow data for two months to enable comparison charts.
-     *
-     * @return JsonResponse
      */
     public function monthlyComparison(Request $request): JsonResponse
     {

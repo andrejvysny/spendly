@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { Account, Category, PageProps } from '@/types';
 import { formatAmount } from '@/utils/currency';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
 import {
     ArcElement,
@@ -16,18 +16,17 @@ import {
     ChartData,
     Chart as ChartJS,
     ChartOptions,
+    Filler,
     Legend,
     LinearScale,
     LineElement,
     PointElement,
     Title,
     Tooltip,
-    Filler,
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { format } from 'date-fns';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from '@inertiajs/react';
 import { Bar, Chart, Doughnut, Line } from 'react-chartjs-2';
 
 // Register ChartJS components
@@ -49,9 +48,9 @@ interface CategorySpendingData {
     uncategorized: { total: number; count: number };
 }
 
-interface MerchantSpendingData {
-    withMerchant: MerchantSpending[];
-    noMerchant: { total: number; count: number };
+interface CounterpartySpendingData {
+    withCounterparty: CounterpartySpendingItem[];
+    noCounterparty: { total: number; count: number };
 }
 
 interface CategorySpending {
@@ -61,8 +60,8 @@ interface CategorySpending {
     color?: string;
 }
 
-interface MerchantSpending {
-    merchant: string;
+interface CounterpartySpendingItem {
+    counterparty: string;
     total: number;
     count: number;
 }
@@ -100,7 +99,7 @@ interface AnalyticsProps extends PageProps {
     selectedAccountIds: number[];
     cashflow: CashflowData[];
     categorySpending: CategorySpendingData;
-    merchantSpending: MerchantSpendingData;
+    counterpartySpending: CounterpartySpendingData;
     dateRange: {
         start: string;
         end: string;
@@ -113,7 +112,7 @@ interface AnalyticsProps extends PageProps {
 const breadcrumbs = [{ title: 'Analytics', href: '/analytics' }];
 
 /**
- * Renders the analytics dashboard for financial data, providing interactive charts and tables for cashflow, category spending, and merchant spending.
+ * Renders the analytics dashboard for financial data, providing interactive charts and tables for cashflow, category spending, and counterparty spending.
  *
  * Displays summary statistics, period and account filters, and visualizations for selected accounts and date ranges. Users can filter data by period, custom date range, specific month, and accounts, with the dashboard updating dynamically based on selections.
  *
@@ -125,13 +124,13 @@ export default function Index({
     selectedAccountIds,
     cashflow,
     categorySpending,
-    merchantSpending,
+    counterpartySpending,
     dateRange,
     period: initialPeriod,
     currency_error: initialCurrencyError,
 }: AnalyticsProps & {
     categorySpending: CategorySpendingData;
-    merchantSpending: MerchantSpendingData;
+    counterpartySpending: CounterpartySpendingData;
 }) {
     const [dateSelection, setDateSelection] = useState({ from: dateRange.start, to: dateRange.end });
     const [periodType, setPeriodType] = useState<string>(initialPeriod);
@@ -215,7 +214,7 @@ export default function Index({
                     end_date: value.to,
                     account_ids: selectedAccounts,
                 },
-                only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'currency_error'],
+                only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'currency_error'],
                 preserveState: true,
             });
         }
@@ -238,7 +237,7 @@ export default function Index({
 
         router.visit('/analytics', {
             data,
-            only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'currency_error'],
+            only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'currency_error'],
             preserveState: true,
         });
     };
@@ -255,7 +254,7 @@ export default function Index({
                     specific_month: newValue,
                     account_ids: selectedAccounts,
                 } as Record<string, string | number | boolean | File | null | number[]>,
-                only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'currency_error'],
+                only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'currency_error'],
                 preserveState: true,
             });
         }
@@ -284,7 +283,7 @@ export default function Index({
         // Use router.visit instead of reload to avoid parameter accumulation
         router.visit('/analytics', {
             data,
-            only: ['cashflow', 'categorySpending', 'merchantSpending', 'dateRange', 'selectedAccountIds', 'currency_error'],
+            only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'selectedAccountIds', 'currency_error'],
             preserveState: true,
         });
     };
@@ -402,14 +401,14 @@ export default function Index({
         };
     };
 
-    // Format merchant spending for chart
-    const formatMerchantForChart = (): ChartData<'bar'> => {
+    // Format counterparty spending for chart
+    const formatCounterpartyForChart = (): ChartData<'bar'> => {
         return {
-            labels: merchantSpending.withMerchant.map((item) => item.merchant),
+            labels: counterpartySpending.withCounterparty.map((item) => item.counterparty),
             datasets: [
                 {
-                    label: 'Spending by Merchant',
-                    data: merchantSpending.withMerchant.map((item) => item.total),
+                    label: 'Spending by Counterparty',
+                    data: counterpartySpending.withCounterparty.map((item) => item.total),
                     backgroundColor: 'rgba(153, 102, 255, 0.6)',
                     borderColor: 'rgba(153, 102, 255, 1)',
                     borderWidth: 1,
@@ -867,9 +866,7 @@ export default function Index({
                 </div>
 
                 {analyticsError && !noAccountsSelected && (
-                    <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
-                        {analyticsError}
-                    </div>
+                    <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">{analyticsError}</div>
                 )}
 
                 {/* Controls and Summary Section */}
@@ -985,17 +982,13 @@ export default function Index({
                                 <div className="flex flex-col">
                                     <span className="text-xs text-gray-400">Projected yearly</span>
                                     <span className="text-base font-medium">
-                                        {formatAmount(
-                                            recurringGroups.reduce((sum, g) => sum + (g.stats?.projected_yearly_cost ?? 0), 0)
-                                        )}
+                                        {formatAmount(recurringGroups.reduce((sum, g) => sum + (g.stats?.projected_yearly_cost ?? 0), 0))}
                                     </span>
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-xs text-gray-400">Total paid (all time)</span>
                                     <span className="text-base font-medium">
-                                        {formatAmount(
-                                            recurringGroups.reduce((sum, g) => sum + (g.stats?.total_paid ?? 0), 0)
-                                        )}
+                                        {formatAmount(recurringGroups.reduce((sum, g) => sum + (g.stats?.total_paid ?? 0), 0))}
                                     </span>
                                 </div>
                                 <div className="flex flex-col">
@@ -1015,9 +1008,7 @@ export default function Index({
                                                     <Link href="/recurring" className="min-w-0 truncate hover:underline">
                                                         {g.name}
                                                     </Link>
-                                                    <span className="shrink-0 tabular-nums">
-                                                        {formatAmount(g.stats?.projected_yearly_cost ?? 0)}
-                                                    </span>
+                                                    <span className="shrink-0 tabular-nums">{formatAmount(g.stats?.projected_yearly_cost ?? 0)}</span>
                                                 </li>
                                             ))}
                                     </ul>
@@ -1087,7 +1078,7 @@ export default function Index({
                     </div>
                 </div>
 
-                {/* Category and Merchant Charts */}
+                {/* Category and Counterparty Charts */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {/* Category Spending */}
                     {noAccountsSelected ? (
@@ -1174,10 +1165,10 @@ export default function Index({
                         </div>
                     )}
 
-                    {/* Merchant Spending */}
+                    {/* Counterparty Spending */}
                     {noAccountsSelected ? (
                         <div className="bg-card rounded-xl border-1 p-6 shadow-xs">
-                            <h3 className="mb-4 text-lg font-semibold">Top Merchants</h3>
+                            <h3 className="mb-4 text-lg font-semibold">Top Counterparties</h3>
                             <div className="h-80 w-full">
                                 <Bar data={{ labels: [], datasets: [{ data: [] }] }} options={barChartOptions} />
                             </div>
@@ -1185,7 +1176,7 @@ export default function Index({
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Merchant</TableHead>
+                                            <TableHead>Counterparty</TableHead>
                                             <TableHead className="text-right">Amount</TableHead>
                                             <TableHead className="text-right">%</TableHead>
                                             <TableHead className="text-right">Transactions</TableHead>
@@ -1194,7 +1185,7 @@ export default function Index({
                                     <TableBody>
                                         <TableRow>
                                             <TableCell colSpan={4} className="text-muted-foreground text-center">
-                                                No merchant data available
+                                                No counterparty data available
                                             </TableCell>
                                         </TableRow>
                                     </TableBody>
@@ -1203,52 +1194,55 @@ export default function Index({
                         </div>
                     ) : (
                         <div className="bg-card rounded-xl border-1 p-6 shadow-xs">
-                            <h3 className="mb-4 text-lg font-semibold">Top Merchants</h3>
+                            <h3 className="mb-4 text-lg font-semibold">Top Counterparties</h3>
                             <div className="h-80 w-full">
-                                <Bar data={formatMerchantForChart()} options={barChartOptions} />
+                                <Bar data={formatCounterpartyForChart()} options={barChartOptions} />
                             </div>
 
-                            {/* Merchants List */}
+                            {/* Counterparties List */}
                             <div className="mt-4 overflow-hidden overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Merchant</TableHead>
+                                            <TableHead>Counterparty</TableHead>
                                             <TableHead className="text-right">Amount</TableHead>
                                             <TableHead className="text-right">%</TableHead>
                                             <TableHead className="text-right">Transactions</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {merchantSpending.withMerchant.length === 0 ? (
+                                        {counterpartySpending.withCounterparty.length === 0 ? (
                                             <TableRow>
                                                 <TableCell colSpan={4} className="text-muted-foreground text-center">
-                                                    No merchant data available
+                                                    No counterparty data available
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
                                             <>
-                                                {merchantSpending.withMerchant.map((merchant) => {
-                                                    const totalSpending = merchantSpending.withMerchant.reduce((sum, merch) => sum + merch.total, 0);
-                                                    const percentage = ((merchant.total / totalSpending) * 100).toFixed(1);
+                                                {counterpartySpending.withCounterparty.map((cp) => {
+                                                    const totalSpending = counterpartySpending.withCounterparty.reduce(
+                                                        (sum, item) => sum + item.total,
+                                                        0,
+                                                    );
+                                                    const percentage = ((cp.total / totalSpending) * 100).toFixed(1);
                                                     return (
-                                                        <TableRow key={merchant.merchant}>
-                                                            <TableCell className="font-medium">{merchant.merchant}</TableCell>
-                                                            <TableCell className="text-right text-red-500">{formatAmount(merchant.total)}</TableCell>
+                                                        <TableRow key={cp.counterparty}>
+                                                            <TableCell className="font-medium">{cp.counterparty}</TableCell>
+                                                            <TableCell className="text-right text-red-500">{formatAmount(cp.total)}</TableCell>
                                                             <TableCell className="text-right">{percentage}%</TableCell>
-                                                            <TableCell className="text-right">{merchant.count}</TableCell>
+                                                            <TableCell className="text-right">{cp.count}</TableCell>
                                                         </TableRow>
                                                     );
                                                 })}
-                                                {/* No merchant row */}
-                                                {merchantSpending.noMerchant && merchantSpending.noMerchant.count > 0 && (
-                                                    <TableRow key="no-merchant">
-                                                        <TableCell className="text-muted-foreground font-medium">No Merchant</TableCell>
+                                                {/* No counterparty row */}
+                                                {counterpartySpending.noCounterparty && counterpartySpending.noCounterparty.count > 0 && (
+                                                    <TableRow key="no-counterparty">
+                                                        <TableCell className="text-muted-foreground font-medium">No Counterparty</TableCell>
                                                         <TableCell className="text-right text-red-500">
-                                                            {formatAmount(merchantSpending.noMerchant.total)}
+                                                            {formatAmount(counterpartySpending.noCounterparty.total)}
                                                         </TableCell>
                                                         <TableCell className="text-right">-</TableCell>
-                                                        <TableCell className="text-right">{merchantSpending.noMerchant.count}</TableCell>
+                                                        <TableCell className="text-right">{counterpartySpending.noCounterparty.count}</TableCell>
                                                     </TableRow>
                                                 )}
                                             </>

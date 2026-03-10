@@ -39,7 +39,7 @@ class RuleActionFactory extends Factory
     {
         return match ($actionType) {
             ActionType::ACTION_SET_CATEGORY,
-            ActionType::ACTION_SET_MERCHANT,
+            ActionType::ACTION_SET_COUNTERPARTY,
             ActionType::ACTION_ADD_TAG,
             ActionType::ACTION_REMOVE_TAG => (string) $this->faker->numberBetween(1, 100),
 
@@ -50,7 +50,7 @@ class RuleActionFactory extends Factory
             ActionType::ACTION_APPEND_NOTE,
             ActionType::ACTION_CREATE_TAG_IF_NOT_EXISTS,
             ActionType::ACTION_CREATE_CATEGORY_IF_NOT_EXISTS,
-            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS,
+            ActionType::ACTION_CREATE_COUNTERPARTY_IF_NOT_EXISTS,
             ActionType::ACTION_SEND_NOTIFICATION => $this->faker->sentence(),
 
             ActionType::ACTION_SET_TYPE => $this->faker->randomElement(['PAYMENT', 'TRANSFER', 'DEPOSIT', 'EXCHANGE']),

@@ -9,6 +9,4 @@ use App\Models\RuleEngine\RuleGroup;
 /**
  * @extends UserScopedRepositoryInterface<RuleGroup>
  */
-interface RuleGroupRepositoryInterface extends UserScopedRepositoryInterface
-{
-}
+interface RuleGroupRepositoryInterface extends UserScopedRepositoryInterface {}

@@ -3,7 +3,7 @@
 namespace Tests\Unit\RuleEngine;
 
 use App\Models\Category;
-use App\Models\Merchant;
+use App\Models\Counterparty;
 use App\Models\RuleEngine\ConditionOperator;
 use App\Models\RuleEngine\RuleCondition;
 use App\Models\Tag;
@@ -269,13 +269,13 @@ class ConditionEvaluatorTest extends TestCase
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }
 
-    public function it_handles_category_and_merchant_fields()
+    public function it_handles_category_and_counterparty_fields()
     {
         $category = new Category(['name' => 'Groceries']);
-        $merchant = new Merchant(['name' => 'Walmart']);
+        $counterparty = new Counterparty(['name' => 'Walmart']);
 
         $this->transaction->setRelation('category', $category);
-        $this->transaction->setRelation('merchant', $merchant);
+        $this->transaction->setRelation('counterparty', $counterparty);
 
         $condition = new RuleCondition([
             'field' => 'category',
@@ -285,7 +285,7 @@ class ConditionEvaluatorTest extends TestCase
 
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
 
-        $condition->field = 'merchant';
+        $condition->field = 'counterparty';
         $condition->value = 'Walmart';
         $this->assertTrue($this->evaluator->evaluate($condition, $this->transaction));
     }

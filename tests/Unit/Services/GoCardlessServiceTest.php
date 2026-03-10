@@ -594,13 +594,22 @@ class GoCardlessServiceTest extends UnitTestCase
             ->once()
             ->andReturn($balances);
 
-        $this->mapper->shouldReceive('mapAccountData')
-            ->with([
+        $this->bankDataMock->shouldReceive('getAccountMetadata')
+            ->with($gocardlessAccountId)
+            ->once()
+            ->andReturn([
                 'id' => $gocardlessAccountId,
-                'name' => 'Test Account',
-                'currency' => 'GBP',
-                'balance' => '1000.50',
-            ])
+                'institution_id' => null,
+                'status' => 'READY',
+            ]);
+
+        $this->mapper->shouldReceive('mapAccountData')
+            ->with(\Mockery::on(function ($arg) use ($gocardlessAccountId) {
+                return $arg['id'] === $gocardlessAccountId
+                    && $arg['name'] === 'Test Account'
+                    && $arg['currency'] === 'GBP'
+                    && $arg['institution_id'] === null;
+            }))
             ->once()
             ->andReturn($mappedData);
 

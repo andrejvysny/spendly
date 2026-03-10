@@ -14,9 +14,9 @@ class RecurringDetectionSetting extends Model implements OwnedByUserContract
 
     public const string SCOPE_PER_USER = 'per_user';
 
-    public const string GROUP_BY_MERCHANT_ONLY = 'merchant_only';
+    public const string GROUP_BY_COUNTERPARTY_ONLY = 'counterparty_only';
 
-    public const string GROUP_BY_MERCHANT_AND_DESCRIPTION = 'merchant_and_description';
+    public const string GROUP_BY_COUNTERPARTY_AND_DESCRIPTION = 'counterparty_and_description';
 
     public const string AMOUNT_VARIANCE_PERCENT = 'percent';
 
@@ -70,7 +70,7 @@ class RecurringDetectionSetting extends Model implements OwnedByUserContract
         return self::create([
             'user_id' => $userId,
             'scope' => self::SCOPE_PER_ACCOUNT,
-            'group_by' => self::GROUP_BY_MERCHANT_AND_DESCRIPTION,
+            'group_by' => self::GROUP_BY_COUNTERPARTY_AND_DESCRIPTION,
             'amount_variance_type' => self::AMOUNT_VARIANCE_PERCENT,
             'amount_variance_value' => 5.00,
             'min_occurrences' => 3,

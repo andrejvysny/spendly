@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
 class MlPredictCommand extends Command
 {
     protected $signature = 'ml:predict
-        {task : Prediction task (categories, merchants, recurring, transfers)}
+        {task : Prediction task (categories, counterparties, recurring, transfers)}
         {--user= : User ID}
         {--apply : Apply predictions to database}
         {--limit=100 : Max transactions to process}
@@ -29,17 +29,19 @@ class MlPredictCommand extends Command
 
         if (! $userId) {
             $this->error('--user is required');
+
             return self::FAILURE;
         }
 
         if (! $ml->isAvailable()) {
             $this->error('ML service is not available. Check ML_ENABLED and ML_API_URL.');
+
             return self::FAILURE;
         }
 
         return match ($task) {
             'categories' => $this->predictCategories($ml, $userId, $apply, $limit, $minConfidence),
-            'merchants' => $this->predictMerchants($ml, $userId, $apply, $limit, $minConfidence),
+            'counterparties' => $this->predictCounterparties($ml, $userId, $apply, $limit, $minConfidence),
             'recurring' => $this->predictRecurring($ml, $userId),
             'transfers' => $this->predictTransfers($ml, $userId, $apply, $limit, $minConfidence),
             default => $this->invalidTask($task),
@@ -53,6 +55,7 @@ class MlPredictCommand extends Command
 
         if (empty($predictions)) {
             $this->warn('No predictions returned.');
+
             return self::SUCCESS;
         }
 
@@ -68,7 +71,7 @@ class MlPredictCommand extends Command
                     $applied++;
                 }
             }
-            $this->info("Applied {$applied}/" . count($predictions) . " predictions (min confidence: {$minConfidence}).");
+            $this->info("Applied {$applied}/".count($predictions)." predictions (min confidence: {$minConfidence}).");
         } else {
             $this->info('Dry run. Use --apply to write predictions to DB.');
         }
@@ -76,30 +79,31 @@ class MlPredictCommand extends Command
         return self::SUCCESS;
     }
 
-    private function predictMerchants(MlService $ml, int $userId, bool $apply, int $limit, float $minConfidence): int
+    private function predictCounterparties(MlService $ml, int $userId, bool $apply, int $limit, float $minConfidence): int
     {
-        $this->info("Detecting merchants for user #{$userId}...");
-        $predictions = $ml->detectMerchants($userId, limit: $limit);
+        $this->info("Detecting counterparties for user #{$userId}...");
+        $predictions = $ml->detectCounterparties($userId, limit: $limit);
 
         if (empty($predictions)) {
             $this->warn('No predictions returned.');
+
             return self::SUCCESS;
         }
 
-        $this->displayPredictions($predictions, ['transaction_id', 'predicted_merchant_id', 'suggested_merchant_name', 'confidence', 'method']);
+        $this->displayPredictions($predictions, ['transaction_id', 'predicted_counterparty_id', 'suggested_counterparty_name', 'confidence', 'method']);
 
         if ($apply) {
             $applied = 0;
             foreach ($predictions as $p) {
-                $merchantId = $p['predicted_merchant_id'] ?? null;
-                if ($merchantId && ($p['confidence'] ?? 0) >= $minConfidence) {
+                $counterpartyId = $p['predicted_counterparty_id'] ?? null;
+                if ($counterpartyId && ($p['confidence'] ?? 0) >= $minConfidence) {
                     Transaction::where('id', $p['transaction_id'])
-                        ->whereNull('merchant_id')
-                        ->update(['merchant_id' => $merchantId]);
+                        ->whereNull('counterparty_id')
+                        ->update(['counterparty_id' => $counterpartyId]);
                     $applied++;
                 }
             }
-            $this->info("Applied {$applied}/" . count($predictions) . " predictions (min confidence: {$minConfidence}).");
+            $this->info("Applied {$applied}/".count($predictions)." predictions (min confidence: {$minConfidence}).");
         } else {
             $this->info('Dry run. Use --apply to write predictions to DB.');
         }
@@ -114,6 +118,7 @@ class MlPredictCommand extends Command
 
         if (empty($groups)) {
             $this->warn('No recurring patterns detected.');
+
             return self::SUCCESS;
         }
 
@@ -135,7 +140,8 @@ class MlPredictCommand extends Command
             $rows
         );
 
-        $this->info(count($groups) . ' recurring pattern(s) detected.');
+        $this->info(count($groups).' recurring pattern(s) detected.');
+
         return self::SUCCESS;
     }
 
@@ -150,13 +156,14 @@ class MlPredictCommand extends Command
                 if (is_float($val)) {
                     return round($val, 3);
                 }
+
                 return $val;
             }, $columns);
         }, array_slice($predictions, 0, 50));
 
         $this->table($columns, $rows);
         if (count($predictions) > 50) {
-            $this->info('... and ' . (count($predictions) - 50) . ' more.');
+            $this->info('... and '.(count($predictions) - 50).' more.');
         }
     }
 
@@ -167,6 +174,7 @@ class MlPredictCommand extends Command
 
         if (empty($predictions)) {
             $this->warn('No transfer predictions returned.');
+
             return self::SUCCESS;
         }
 
@@ -205,7 +213,8 @@ class MlPredictCommand extends Command
 
     private function invalidTask(string $task): int
     {
-        $this->error("Unknown task: {$task}. Valid: categories, merchants, recurring, transfers");
+        $this->error("Unknown task: {$task}. Valid: categories, counterparties, recurring, transfers");
+
         return self::FAILURE;
     }
 }

@@ -18,6 +18,11 @@
       <directory>tests/Feature</directory>
     </testsuite>
   </testsuites>
+  <groups>
+    <exclude>
+      <group>sandbox</group>
+    </exclude>
+  </groups>
   <php>
     <env name="APP_ENV" value="testing"/>
     <env name="APP_MAINTENANCE_DRIVER" value="file"/>

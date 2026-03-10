@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             AccountSeeder::class,
             CategorySeeder::class,
-            MerchantSeeder::class,
+            CounterpartySeeder::class,
             TagSeeder::class,
             TransactionSeeder::class,
         ]);

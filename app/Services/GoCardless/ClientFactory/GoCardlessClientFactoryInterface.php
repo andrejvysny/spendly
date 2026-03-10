@@ -2,8 +2,8 @@
 
 namespace App\Services\GoCardless\ClientFactory;
 
-use App\Services\GoCardless\BankDataClientInterface;
 use App\Models\User;
+use App\Services\GoCardless\BankDataClientInterface;
 
 interface GoCardlessClientFactoryInterface
 {

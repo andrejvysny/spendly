@@ -47,6 +47,7 @@ class RetryGoCardlessSyncFailuresCommand extends Command
             $nextRetry = $f->last_retry_at
                 ? $f->last_retry_at->copy()->addMinutes($backoffMinutes)
                 : $f->created_at->copy()->addMinutes(1);
+
             return Carbon::now()->greaterThanOrEqualTo($nextRetry);
         });
 
@@ -57,7 +58,7 @@ class RetryGoCardlessSyncFailuresCommand extends Command
         }
 
         if ($dryRun) {
-            $this->info('Dry run: would retry ' . $due->count() . ' failure(s).');
+            $this->info('Dry run: would retry '.$due->count().' failure(s).');
 
             return self::SUCCESS;
         }
@@ -71,6 +72,7 @@ class RetryGoCardlessSyncFailuresCommand extends Command
             if (! $account) {
                 $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
                 $failed++;
+
                 continue;
             }
 
@@ -78,6 +80,7 @@ class RetryGoCardlessSyncFailuresCommand extends Command
             if (! is_array($raw)) {
                 $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
                 $failed++;
+
                 continue;
             }
 
@@ -88,6 +91,7 @@ class RetryGoCardlessSyncFailuresCommand extends Command
                 if ($validation->hasErrors()) {
                     $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
                     $failed++;
+
                     continue;
                 }
 
@@ -100,6 +104,7 @@ class RetryGoCardlessSyncFailuresCommand extends Command
                 if ($existingIds->isNotEmpty()) {
                     $failureRepository->markResolved($failure->id, 'already_imported');
                     $resolved++;
+
                     continue;
                 }
 
@@ -109,7 +114,7 @@ class RetryGoCardlessSyncFailuresCommand extends Command
                 $resolved++;
             } catch (\Throwable $e) {
                 $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
-                $this->warn("Failure {$failure->id}: " . $e->getMessage());
+                $this->warn("Failure {$failure->id}: ".$e->getMessage());
                 $failed++;
             }
         }

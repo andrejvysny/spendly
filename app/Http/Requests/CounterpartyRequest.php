@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\CounterpartyType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Enum;
 
-class MerchantRequest extends FormRequest
+class CounterpartyRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -20,6 +22,7 @@ class MerchantRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'logo' => ['nullable', 'string', 'max:255'],
+            'type' => ['nullable', new Enum(CounterpartyType::class)],
         ];
     }
 }

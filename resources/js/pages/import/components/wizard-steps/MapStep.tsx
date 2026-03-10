@@ -5,10 +5,10 @@ import { Transaction } from '@/types/index';
 import { useCallback, useEffect, useState } from 'react';
 
 // Define a type that includes additional properties not in the original Transaction type
-interface ImportedData extends Omit<Partial<Transaction>, 'category' | 'tags' | 'merchant'> {
+interface ImportedData extends Omit<Partial<Transaction>, 'category' | 'tags' | 'counterparty'> {
     category?: string;
     tags?: string; // Changed from tag to tags to match Transaction type more closely if it's a list of tags as string
-    merchant?: string;
+    counterparty?: string;
     [key: string]: unknown;
 }
 
@@ -16,23 +16,23 @@ interface MapStepProps {
     data: Partial<Transaction>[];
     categories: { id: number; name: string }[];
     tags?: { id: number; name: string }[];
-    merchants?: { id: number; name: string }[];
+    counterparties?: { id: number; name: string }[];
     onComplete: (mappings: Record<string, Record<string, string>>) => void;
 }
 
-type MappingType = 'category' | 'tag' | 'merchant';
+type MappingType = 'category' | 'tag' | 'counterparty';
 
-export default function MapStep({ data, categories, tags = [], merchants = [], onComplete }: MapStepProps) {
+export default function MapStep({ data, categories, tags = [], counterparties = [], onComplete }: MapStepProps) {
     const [mappings, setMappings] = useState<Record<MappingType, Record<string, string>>>({
         category: {},
         tag: {},
-        merchant: {},
+        counterparty: {},
     });
 
     const [uniqueValues, setUniqueValues] = useState<Record<MappingType, string[]>>({
         category: [],
         tag: [],
-        merchant: [],
+        counterparty: [],
     });
 
     // Extract unique values for each mapping type from the data
@@ -40,7 +40,7 @@ export default function MapStep({ data, categories, tags = [], merchants = [], o
         const values: Record<MappingType, Set<string>> = {
             category: new Set<string>(),
             tag: new Set<string>(),
-            merchant: new Set<string>(),
+            counterparty: new Set<string>(),
         };
 
         data.forEach((item) => {
@@ -58,18 +58,18 @@ export default function MapStep({ data, categories, tags = [], merchants = [], o
                 values.tag.add(importedData.tags.trim());
             }
 
-            // Extract merchants
-            if (importedData.merchant && typeof importedData.merchant === 'string' && importedData.merchant.trim()) {
-                values.merchant.add(importedData.merchant.trim());
+            // Extract counterparties
+            if (importedData.counterparty && typeof importedData.counterparty === 'string' && importedData.counterparty.trim()) {
+                values.counterparty.add(importedData.counterparty.trim());
             } else if (importedData.partner && typeof importedData.partner === 'string' && importedData.partner.trim()) {
-                values.merchant.add(importedData.partner.trim());
+                values.counterparty.add(importedData.partner.trim());
             }
         });
 
         setUniqueValues({
             category: Array.from(values.category).sort(),
             tag: Array.from(values.tag).sort(),
-            merchant: Array.from(values.merchant).sort(),
+            counterparty: Array.from(values.counterparty).sort(),
         });
     }, [data]);
 
@@ -139,11 +139,11 @@ export default function MapStep({ data, categories, tags = [], merchants = [], o
     return (
         <div className="text-foreground mx-auto max-w-4xl">
             <h3 className="mb-4 text-xl font-semibold">Map Imported Fields</h3>
-            <p className="mb-6">Map the values from your import file to your existing categories, tags, and merchants.</p>
+            <p className="mb-6">Map the values from your import file to your existing categories, tags, and counterparties.</p>
 
             {renderMappingTable('category', uniqueValues.category, categories)}
             {renderMappingTable('tag', uniqueValues.tag, tags)}
-            {renderMappingTable('merchant', uniqueValues.merchant, merchants)}
+            {renderMappingTable('counterparty', uniqueValues.counterparty, counterparties)}
 
             {Object.values(uniqueValues).every((arr) => arr.length === 0) && (
                 <div className="mb-8 rounded-md border border-dashed border-gray-700 p-8 text-center">

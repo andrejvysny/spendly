@@ -15,6 +15,7 @@ class MockGoCardlessBankDataClientTest extends TestCase
     use RefreshDatabase;
 
     private MockGoCardlessBankDataClient $client;
+
     private User $user;
 
     /** @var array<string> RequisitionDto field names required by frontend */
@@ -27,7 +28,7 @@ class MockGoCardlessBankDataClientTest extends TestCase
     {
         parent::setUp();
         $this->user = User::factory()->create();
-        $fixtureRepository = new MockGoCardlessFixtureRepository(__DIR__ . '/../../../nonexistent_fixture_path');
+        $fixtureRepository = new MockGoCardlessFixtureRepository(__DIR__.'/../../../nonexistent_fixture_path');
         $this->client = new MockGoCardlessBankDataClient($this->user, $fixtureRepository);
     }
 
@@ -67,7 +68,7 @@ class MockGoCardlessBankDataClientTest extends TestCase
         $this->assertArrayHasKey('transactions', $result);
         $this->assertArrayHasKey('booked', $result['transactions']);
         $this->assertNotEmpty($result['transactions']['booked']);
-        
+
         $transaction = $result['transactions']['booked'][0];
         $this->assertStringStartsWith('mock_tx_booked_', $transaction['transactionId']);
         $this->assertArrayHasKey('remittanceInformationUnstructuredArray', $transaction);
@@ -130,6 +131,6 @@ class MockGoCardlessBankDataClientTest extends TestCase
         $this->assertArrayHasKey('link', $result);
         $this->assertStringStartsWith($redirectUrl, $result['link']);
         $this->assertStringContainsString('mock=1', $result['link']);
-        $this->assertStringContainsString('requisition_id=' . $result['id'], $result['link']);
+        $this->assertStringContainsString('requisition_id='.$result['id'], $result['link']);
     }
 }

@@ -64,7 +64,7 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
         'amount_max',
         'scope',
         'account_id',
-        'merchant_id',
+        'counterparty_id',
         'normalized_description',
         'status',
         'detection_config_snapshot',
@@ -99,9 +99,9 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
         return $this->belongsTo(Account::class);
     }
 
-    public function merchant(): BelongsTo
+    public function counterparty(): BelongsTo
     {
-        return $this->belongsTo(Merchant::class);
+        return $this->belongsTo(Counterparty::class);
     }
 
     /**

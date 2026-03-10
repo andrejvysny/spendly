@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Settings\BankDataController;
+use App\Http\Controllers\Settings\GoCardlessCredentialController;
+use App\Http\Controllers\Settings\GoCardlessRequisitionController;
+use App\Http\Controllers\Settings\GoCardlessSyncController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -22,26 +25,24 @@ Route::middleware('auth')->group(function () {
 
     Route::get('settings/recurring', fn () => \Inertia\Inertia::render('settings/recurring'))->name('recurring_settings.edit');
 
-    Route::get('settings/bank_data', [BankDataController::class, 'edit'])->name('bank_data.edit');
-    Route::patch('settings/bank_data', [BankDataController::class, 'update'])->name('bank_data.update');
-    Route::delete('settings/bank_data/credentials', [BankDataController::class, 'purgeGoCardlessCredentials'])->name('bank_data.purgeGoCardlessCredentials');
+    Route::get('settings/bank_data', [GoCardlessCredentialController::class, 'edit'])->name('bank_data.edit');
+    Route::patch('settings/bank_data', [GoCardlessCredentialController::class, 'update'])->name('bank_data.update');
+    Route::delete('settings/bank_data/credentials', [GoCardlessCredentialController::class, 'purgeGoCardlessCredentials'])->name('bank_data.purgeGoCardlessCredentials');
     Route::delete('settings/bank_data', [BankDataController::class, 'destroy'])->name('bank_data.destroy');
 
     Route::prefix('/api/bank-data/gocardless')->group(function () {
-        Route::get('/institutions', [BankDataController::class, 'getInstitutions']);
-        Route::get('/requisitions', [BankDataController::class, 'getRequisitions']);
-        Route::post('/requisitions', [BankDataController::class, 'createRequisition']);
-        Route::delete('/requisitions/{id}', [BankDataController::class, 'deleteRequisition']);
-        Route::get('/requisition/callback', [BankDataController::class, 'handleRequisitionCallback'])
+        Route::get('/institutions', [GoCardlessRequisitionController::class, 'getInstitutions']);
+        Route::get('/requisitions', [GoCardlessRequisitionController::class, 'getRequisitions']);
+        Route::post('/requisitions', [GoCardlessRequisitionController::class, 'createRequisition']);
+        Route::delete('/requisitions/{id}', [GoCardlessRequisitionController::class, 'deleteRequisition']);
+        Route::get('/requisition/callback', [GoCardlessRequisitionController::class, 'handleRequisitionCallback'])
             ->withoutMiddleware(['auth']);
-        // TODO: Uncomment this when we have a proper signed URL
-        // ->middleware('signed'); // or create a custom token/verify middleware
-        Route::post('/import/account', [BankDataController::class, 'importAccount']);
-        Route::post('/accounts/{account}/sync-transactions', [BankDataController::class, 'syncAccountTransactions'])
+        Route::post('/import/account', [GoCardlessRequisitionController::class, 'importAccount']);
+        Route::post('/accounts/{account}/sync-transactions', [GoCardlessSyncController::class, 'syncAccountTransactions'])
             ->name('bank_data.syncAccountTransactions');
-        Route::post('/accounts/sync-all', [BankDataController::class, 'syncAllAccounts'])
+        Route::post('/accounts/sync-all', [GoCardlessSyncController::class, 'syncAllAccounts'])
             ->name('bank_data.syncAllAccounts');
-        Route::post('/accounts/{account}/refresh-balance', [BankDataController::class, 'refreshAccountBalance'])
+        Route::post('/accounts/{account}/refresh-balance', [GoCardlessSyncController::class, 'refreshAccountBalance'])
             ->name('bank_data.refreshAccountBalance');
     });
 

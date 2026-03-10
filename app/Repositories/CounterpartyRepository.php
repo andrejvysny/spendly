@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
-use App\Contracts\Repositories\MerchantRepositoryInterface;
-use App\Models\Merchant;
+use App\Contracts\Repositories\CounterpartyRepositoryInterface;
+use App\Models\Counterparty;
 use App\Repositories\Concerns\UserScoped;
 
-class MerchantRepository extends BaseRepository implements MerchantRepositoryInterface
+class CounterpartyRepository extends BaseRepository implements CounterpartyRepositoryInterface
 {
     use UserScoped;
 
-    public function __construct(Merchant $model)
+    public function __construct(Counterparty $model)
     {
         parent::__construct($model);
     }
@@ -20,7 +20,7 @@ class MerchantRepository extends BaseRepository implements MerchantRepositoryInt
     /**
      * @param  array<string, mixed>  $data
      */
-    public function create(array $data): Merchant
+    public function create(array $data): Counterparty
     {
         return $this->model->create($data);
     }

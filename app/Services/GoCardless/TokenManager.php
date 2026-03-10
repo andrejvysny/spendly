@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\GoCardless;
 
 use App\Models\User;
 use DateTime;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -25,18 +28,20 @@ class TokenManager
      */
     public function getAccessToken(): string
     {
-        // Check if we have a valid access token
-        if ($this->isAccessTokenValid()) {
-            return $this->user->gocardless_access_token;
-        }
+        return Cache::lock("gc_token:{$this->user->id}", 60)->block(30, function () {
+            // Re-read user from DB to get latest token values (may have been refreshed by another worker)
+            $this->user->refresh();
 
-        // Try to refresh the token
-        if ($this->isRefreshTokenValid()) {
-            return $this->refreshAccessToken();
-        }
+            if ($this->isAccessTokenValid()) {
+                return $this->user->gocardless_access_token;
+            }
 
-        // Get a new token set
-        return $this->getNewTokenSet();
+            if ($this->isRefreshTokenValid()) {
+                return $this->refreshAccessToken();
+            }
+
+            return $this->getNewTokenSet();
+        });
     }
 
     /**
@@ -93,9 +98,10 @@ class TokenManager
     {
         Log::info('Refreshing GoCardless access token', ['user_id' => $this->user->id]);
 
-        $response = Http::post("{$this->baseUrl}/token/refresh/", [
-            'refresh' => $this->user->gocardless_refresh_token,
-        ]);
+        $response = Http::timeout(30)->connectTimeout(10)
+            ->post("{$this->baseUrl}/token/refresh/", [
+                'refresh' => $this->user->gocardless_refresh_token,
+            ]);
 
         if (! $response->successful()) {
             throw new \Exception('Failed to refresh access token: '.$response->body());
@@ -130,10 +136,11 @@ class TokenManager
             throw new \Exception('GoCardless credentials not configured');
         }
 
-        $response = Http::post("{$this->baseUrl}/token/new/", [
-            'secret_id' => $this->user->gocardless_secret_id,
-            'secret_key' => $this->user->gocardless_secret_key,
-        ]);
+        $response = Http::timeout(30)->connectTimeout(10)
+            ->post("{$this->baseUrl}/token/new/", [
+                'secret_id' => $this->user->gocardless_secret_id,
+                'secret_key' => $this->user->gocardless_secret_key,
+            ]);
 
         if (! $response->successful()) {
             throw new \Exception('Failed to get new token set: '.$response->body());

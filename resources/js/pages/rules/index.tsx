@@ -38,7 +38,7 @@ interface RulesIndexProps {
             boolean: string[];
         };
         categories: Array<{ id: number; name: string }>;
-        merchants: Array<{ id: number; name: string }>;
+        counterparties: Array<{ id: number; name: string }>;
         tags: Array<{ id: number; name: string }>;
         transaction_types: Record<string, string>;
     };

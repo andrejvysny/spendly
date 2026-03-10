@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Account;
 use App\Models\Category;
-use App\Models\Merchant;
+use App\Models\Counterparty;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
@@ -30,10 +30,10 @@ class TransactionSeeder extends Seeder
         $rentCategory = Category::where('name', 'Rent')->where('user_id', $user->id)->first();
         $utilitiesCategory = Category::where('name', 'Utilities')->where('user_id', $user->id)->first();
 
-        // Get merchants for this user
-        $walmart = Merchant::where('name', 'Walmart')->where('user_id', $user->id)->first();
-        $starbucks = Merchant::where('name', 'Starbucks')->where('user_id', $user->id)->first();
-        $mcdonalds = Merchant::where('name', 'McDonald\'s')->where('user_id', $user->id)->first();
+        // Get counterparties for this user
+        $walmart = Counterparty::where('name', 'Walmart')->where('user_id', $user->id)->first();
+        $starbucks = Counterparty::where('name', 'Starbucks')->where('user_id', $user->id)->first();
+        $mcdonalds = Counterparty::where('name', 'McDonald\'s')->where('user_id', $user->id)->first();
 
         // Get tags for this user
         $recurringTag = Tag::where('name', 'Recurring')->where('user_id', $user->id)->first();
@@ -101,7 +101,7 @@ class TransactionSeeder extends Seeder
                 'type' => Transaction::TYPE_CARD_PAYMENT,
                 'account_id' => $creditCard->id,
                 'category_id' => $groceriesCategory->id,
-                'merchant_id' => $walmart->id,
+                'counterparty_id' => $walmart->id,
                 'balance_after_transaction' => $creditBalance,
             ]);
             $grocTx->tags()->attach($personalTag->id);
@@ -111,7 +111,7 @@ class TransactionSeeder extends Seeder
         for ($i = 0; $i < 8; $i++) {
             $amount = rand(-50, -15);
             $creditBalance += $amount; // amount is negative, so this subtracts
-            $merchant = rand(0, 1) ? $starbucks : $mcdonalds;
+            $counterparty = rand(0, 1) ? $starbucks : $mcdonalds;
             $restTx = Transaction::create([
                 'transaction_id' => 'FOOD-'.uniqid(),
                 'amount' => $amount,
@@ -122,7 +122,7 @@ class TransactionSeeder extends Seeder
                 'type' => Transaction::TYPE_CARD_PAYMENT,
                 'account_id' => $creditCard->id,
                 'category_id' => $restaurantsCategory->id,
-                'merchant_id' => $merchant->id,
+                'counterparty_id' => $counterparty->id,
                 'balance_after_transaction' => $creditBalance,
             ]);
             $restTx->tags()->attach($personalTag->id);

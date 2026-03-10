@@ -41,7 +41,7 @@ interface CreateRuleModalProps {
 }
 
 // Boolean condition fields that use is_true/is_false operators
-const BOOLEAN_FIELDS: ConditionField[] = ['is_reconciled', 'has_category', 'has_merchant'];
+const BOOLEAN_FIELDS: ConditionField[] = ['is_reconciled', 'has_category', 'has_counterparty'];
 
 // Field display names
 const FIELD_LABELS: Record<ConditionField, string> = {
@@ -49,7 +49,7 @@ const FIELD_LABELS: Record<ConditionField, string> = {
     description: 'Transaction name',
     partner: 'Partner',
     category: 'Category',
-    merchant: 'Merchant',
+    counterparty: 'Counterparty',
     account: 'Account',
     type: 'Type',
     note: 'Note',
@@ -62,7 +62,7 @@ const FIELD_LABELS: Record<ConditionField, string> = {
     currency: 'Currency',
     is_reconciled: 'Is reconciled',
     has_category: 'Has category',
-    has_merchant: 'Has merchant',
+    has_counterparty: 'Has counterparty',
 };
 
 // Operator display names
@@ -91,7 +91,7 @@ const OPERATOR_LABELS: Record<ConditionOperator, string> = {
 // Action display names
 const ACTION_LABELS: Record<ActionType, string> = {
     set_category: 'Set category',
-    set_merchant: 'Set merchant',
+    set_counterparty: 'Set counterparty',
     add_tag: 'Add tag',
     remove_tag: 'Remove tag',
     remove_all_tags: 'Remove all tags',
@@ -105,12 +105,12 @@ const ACTION_LABELS: Record<ActionType, string> = {
     send_notification: 'Send notification',
     create_tag_if_not_exists: 'Create tag if not exists',
     create_category_if_not_exists: 'Create category if not exists',
-    create_merchant_if_not_exists: 'Create merchant if not exists',
+    create_counterparty_if_not_exists: 'Create counterparty if not exists',
     set_partner: 'Set partner',
     set_place: 'Set place',
     mark_reviewed: 'Mark as reviewed',
     clear_category: 'Clear category',
-    clear_merchant: 'Clear merchant',
+    clear_counterparty: 'Clear counterparty',
 };
 
 // Trigger type display names
@@ -318,8 +318,8 @@ export function CreateRuleModal({
 
             if (config.model === 'categories') {
                 options = ruleOptions.categories.map((cat) => ({ value: cat.id, label: cat.name }));
-            } else if (config.model === 'merchants') {
-                options = ruleOptions.merchants.map((merchant) => ({ value: merchant.id, label: merchant.name }));
+            } else if (config.model === 'counterparties') {
+                options = ruleOptions.counterparties.map((counterparty) => ({ value: counterparty.id, label: counterparty.name }));
             } else if (config.model === 'tags') {
                 options = ruleOptions.tags.map((tag) => ({ value: tag.id, label: tag.name }));
             } else if (config.model === 'transaction_types') {

@@ -18,6 +18,7 @@ class GenericFieldExtractor implements BankFieldExtractorInterface
             }
             $value = $value[$segment];
         }
+
         return $value;
     }
 
@@ -40,6 +41,7 @@ class GenericFieldExtractor implements BankFieldExtractorInterface
             return (string) $debtor;
         }
         $code = self::get($transaction, 'proprietaryBankTransactionCode');
+
         return trim((string) $code) ?: 'Transaction';
     }
 
@@ -59,6 +61,7 @@ class GenericFieldExtractor implements BankFieldExtractorInterface
         if ($partner !== null && (string) $partner !== '') {
             return (string) $partner;
         }
+
         return null;
     }
 
@@ -72,6 +75,7 @@ class GenericFieldExtractor implements BankFieldExtractorInterface
         if ($remittance !== null && preg_match('/^MCC-(\d{4})$/', (string) $remittance, $m)) {
             return $m[1];
         }
+
         return null;
     }
 
@@ -81,6 +85,7 @@ class GenericFieldExtractor implements BankFieldExtractorInterface
         if (! is_array($exchange) || $exchange === []) {
             return null;
         }
+
         return $exchange;
     }
 
@@ -95,6 +100,7 @@ class GenericFieldExtractor implements BankFieldExtractorInterface
         if ($amount > 0) {
             return Transaction::TYPE_DEPOSIT;
         }
+
         return Transaction::TYPE_PAYMENT;
     }
 
@@ -125,6 +131,7 @@ class GenericFieldExtractor implements BankFieldExtractorInterface
         if ($endToEnd !== null && (string) $endToEnd !== '') {
             $metadata['end_to_end_id'] = (string) $endToEnd;
         }
+
         return $metadata;
     }
 }

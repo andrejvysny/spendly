@@ -50,7 +50,7 @@ export interface Transaction {
     original_target_iban?: string;
     original_partner?: string;
     import_data?: Record<string, unknown> | undefined;
-    merchant_id?: number;
+    counterparty_id?: number;
     category_id?: number;
     recurring_group_id?: number | null;
     transfer_pair_transaction_id?: number | null;
@@ -58,7 +58,7 @@ export interface Transaction {
     recipient_note?: string;
     place?: string;
     account?: Account;
-    merchant?: Merchant;
+    counterparty?: Counterparty;
     category?: Category;
     tags?: Tag[];
 }
@@ -215,9 +215,10 @@ export interface PageProps {
     };
 }
 
-export interface Merchant {
+export interface Counterparty {
     id: number;
     name: string;
+    type: string;
     user_id: number;
     logo?: string | null;
 }

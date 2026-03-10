@@ -8,6 +8,7 @@ use Illuminate\Support\Collection;
 
 /**
  * @template TModel of \Illuminate\Database\Eloquent\Model
+ *
  * @extends BaseRepositoryContract<TModel>
  */
 interface RuleScopedRepositoryInterface extends BaseRepositoryContract

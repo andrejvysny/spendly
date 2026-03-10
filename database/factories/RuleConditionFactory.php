@@ -113,7 +113,7 @@ class RuleConditionFactory extends Factory
             'target_iban', 'source_iban' => $this->faker->iban(),
             'date' => $this->faker->date(),
             'category' => $this->faker->word(),
-            'merchant' => $this->faker->company(),
+            'counterparty' => $this->faker->company(),
             'tags' => implode(',', $this->faker->words(3)),
             default => $this->faker->word(),
         };

@@ -61,6 +61,15 @@ class GocardlessConnectCommand extends Command
 
         $this->info('Requisition created: '.$requisitionId);
 
+        $link = $requisition['link'] ?? null;
+        if ($link !== null) {
+            $this->newLine();
+            $this->info('Authorize in your browser:');
+            $this->line($link);
+            $this->newLine();
+            $this->info('After authorization, re-run this command with the same options to import accounts.');
+        }
+
         try {
             $accountIds = $this->gocardlessService->getAccounts($requisitionId, $user);
         } catch (\Throwable $e) {
