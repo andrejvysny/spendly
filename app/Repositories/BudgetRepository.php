@@ -23,32 +23,38 @@ class BudgetRepository extends BaseRepository implements BudgetRepositoryInterfa
      */
     public function findByUser(int $userId): Collection
     {
-        $collection = $this->model->where('user_id', $userId)
+        return $this->model->where('user_id', $userId)
             ->with('category')
-            ->orderBy('year', 'desc')
-            ->orderBy('month', 'desc')
+            ->orderBy('sort_order')
+            ->orderBy('created_at', 'desc')
             ->get();
-
-        return $collection;
     }
 
     /**
      * @return Collection<int, Budget>
      */
-    public function findForUserAndPeriod(int $userId, string $periodType, int $year, ?int $month): Collection
+    public function findActiveByUser(int $userId): Collection
     {
-        $query = $this->model->where('user_id', $userId)
+        return $this->model->where('user_id', $userId)
+            ->where('is_active', true)
+            ->with('category')
+            ->orderBy('sort_order')
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
+    /**
+     * @return Collection<int, Budget>
+     */
+    public function findByUserAndPeriodType(int $userId, string $periodType): Collection
+    {
+        return $this->model->where('user_id', $userId)
             ->where('period_type', $periodType)
-            ->where('year', $year)
-            ->with('category');
-
-        if ($periodType === Budget::PERIOD_MONTHLY) {
-            $query->where('month', $month ?? 0);
-        } else {
-            $query->where('month', 0);
-        }
-
-        return $query->orderBy('month')->orderBy('category_id')->get();
+            ->where('is_active', true)
+            ->with('category')
+            ->orderBy('sort_order')
+            ->orderBy('created_at', 'desc')
+            ->get();
     }
 
     /**
@@ -56,8 +62,6 @@ class BudgetRepository extends BaseRepository implements BudgetRepositoryInterfa
      */
     public function create(array $data): Budget
     {
-        $budget = $this->model->create($data);
-
-        return $budget;
+        return $this->model->create($data);
     }
 }

@@ -21,18 +21,19 @@ class BudgetFactory extends Factory
      */
     public function definition(): array
     {
-        $year = (int) $this->faker->year();
-        $month = $this->faker->numberBetween(1, 12);
-
         return [
             'user_id' => User::factory(),
             'category_id' => Category::factory(),
             'amount' => $this->faker->randomFloat(2, 100, 2000),
             'currency' => 'EUR',
+            'mode' => Budget::MODE_LIMIT,
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => $year,
-            'month' => $month,
             'name' => null,
+            'rollover_enabled' => false,
+            'include_subcategories' => true,
+            'auto_create_next' => true,
+            'is_active' => true,
+            'sort_order' => 0,
         ];
     }
 
@@ -40,7 +41,27 @@ class BudgetFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'period_type' => Budget::PERIOD_YEARLY,
-            'month' => 0,
+        ]);
+    }
+
+    public function envelope(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'mode' => Budget::MODE_ENVELOPE,
+        ]);
+    }
+
+    public function withRollover(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'rollover_enabled' => true,
+        ]);
+    }
+
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
         ]);
     }
 }

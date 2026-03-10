@@ -66,6 +66,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Budget routes
     Route::get('/budgets', [BudgetController::class, 'index'])->name('budgets.index');
+    Route::get('/budgets/builder', [BudgetController::class, 'builder'])->name('budgets.builder');
+    Route::get('/budgets/suggestions', [BudgetController::class, 'suggestAmounts'])->name('budgets.suggestions');
     Route::post('/budgets', [BudgetController::class, 'store'])->name('budgets.store');
     Route::put('/budgets/{budget}', [BudgetController::class, 'update'])->name('budgets.update');
     Route::delete('/budgets/{budget}', [BudgetController::class, 'destroy'])->name('budgets.destroy');
