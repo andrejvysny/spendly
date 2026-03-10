@@ -1,5 +1,3 @@
-//WIP
-
 import CreateTransactionModal from '@/components/transactions/CreateTransactionModal';
 import TransactionList from '@/components/transactions/TransactionList';
 import { Button } from '@/components/ui/button';
@@ -347,8 +345,6 @@ export default function Index({
 
         if (value) {
             const parsed = parseAmountInput(value);
-            console.log('Parsed amount input:', parsed);
-
             switch (parsed.type) {
                 case 'exact':
                     newValues.amountExact = parsed.values[0].toString();
@@ -370,7 +366,6 @@ export default function Index({
             }
         }
 
-        console.log('New filter values:', newValues);
         setFilterValues(newValues);
 
         // Only fetch if we have a valid input or we're clearing the filter AND initial load is complete
@@ -432,7 +427,6 @@ export default function Index({
     // Debounced fetch function
     const fetchTransactionsLogic = useCallback(
         async (values: FilterValues) => {
-            console.log('Fetching transactions with values:', values);
             setIsLoading(true);
             try {
                 const isResettingFilters =
@@ -447,9 +441,6 @@ export default function Index({
                     );
 
                 const result = await fetchTransactions(values);
-                if (process.env.NODE_ENV === 'development') {
-                    console.log('API response:', result);
-                }
                 if (result.data) {
                     reset(result.data, result.current_page, result.has_more_pages, result.totalCount);
                     setMonthlySummaries(result.monthlySummaries || {});

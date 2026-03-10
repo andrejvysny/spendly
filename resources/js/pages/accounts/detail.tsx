@@ -155,7 +155,7 @@ export default function Detail({
         try {
             const response = await axios.put(`/accounts/${account.id}/sync-options`, options);
             if (response.data.success) {
-                console.log('Sync options saved successfully');
+                // saved
             } else {
                 console.error('Failed to save sync options:', response.data.message);
             }
@@ -211,7 +211,7 @@ export default function Detail({
             }
 
             if (doTransactions) {
-                window.location.reload();
+                router.reload();
             }
         } catch (error) {
             console.error('Sync error:', error);

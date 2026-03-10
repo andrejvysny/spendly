@@ -115,13 +115,6 @@ class FieldMappingService {
         const { raw_data, metadata, parsed_data } = failure;
         const headers = metadata.headers || [];
 
-        console.log('🔍 FieldMappingService.mapFields called with:', {
-            failureId: failure.id,
-            headers,
-            raw_data,
-            parsed_data,
-            fieldDefinitions: fieldDefinitions ? 'Available' : 'Not available',
-        });
 
         const mappings = new Map();
         const actuallyMappedFields = new Set<string>(); // Track fields that were actually mapped from raw data
@@ -138,25 +131,17 @@ class FieldMappingService {
                 (typeof value === 'number' && isNaN(value));
 
             if (isValueEmpty && value !== 0) {
-                console.log(`❌ Skipping empty value for header "${header}":`, value);
                 return;
             }
 
             Object.entries(this.fieldPatterns).forEach(([fieldName, pattern]) => {
                 // NEVER auto-map account_id from CSV data - account comes from import context
                 if (fieldName === 'account_id') {
-                    console.log(`❌ Skipping auto-mapping for account_id - should come from import metadata`);
                     return;
                 }
 
                 // Debug logging for processed_date pattern matching
                 if (fieldName === 'processed_date') {
-                    console.log(`🔍 Testing processed_date pattern for header "${header}":`, {
-                        header,
-                        pattern: pattern.toString(),
-                        testResult: pattern.test(header),
-                        value,
-                    });
                 }
 
                 if (pattern.test(header)) {
@@ -173,7 +158,6 @@ class FieldMappingService {
                             (typeof transformedValue === 'number' && isNaN(transformedValue));
 
                         if (isTransformedValueEmpty && transformedValue !== 0) {
-                            console.log(`❌ Skipping mapping "${header}" -> ${fieldName} because transformed value is empty:`, transformedValue);
                             return;
                         }
 
@@ -185,14 +169,11 @@ class FieldMappingService {
                         });
 
                         actuallyMappedFields.add(fieldName); // Mark as actually mapped
-                        console.log(`✅ Mapped "${header}" (${value}) -> ${fieldName} (confidence: ${confidence}, transformed: ${transformedValue})`);
                     }
                 }
             });
         });
 
-        console.log('📋 Final mappings:', Array.from(mappings.entries()));
-        console.log('🎯 Actually mapped fields from CSV:', Array.from(actuallyMappedFields));
 
         // Create default values based on field definitions or fallback to legacy structure
         const defaultValues: any = {};
@@ -210,29 +191,23 @@ class FieldMappingService {
                 // Try to get value from parsed data first
                 if (parsed_data && parsed_data[fieldName] !== undefined) {
                     value = parsed_data[fieldName];
-                    console.log(`📊 Using parsed data for ${fieldName}:`, value);
                 }
                 // Then try auto-mapping (only if we have a valid mapping from CSV)
                 else if (mappings.has(fieldName) && actuallyMappedFields.has(fieldName)) {
                     value = mappings.get(fieldName).suggestedValue;
                     wasActuallyMapped = true;
                     finalActuallyMappedFields.add(fieldName);
-                    console.log(`🎯 Using auto-mapped value for ${fieldName}:`, value);
                 }
                 // Finally use smart defaults
                 else {
                     value = this.getSmartDefault(fieldName, fieldDef, failure, importData);
-                    console.log(`🔧 Using smart default for ${fieldName}:`, value);
 
                     // Additional validation for select fields to prevent empty strings
                     if (fieldDef?.type === 'select' && value === '') {
-                        console.log(`⚠️ Smart default returned empty string for select field ${fieldName}, fixing...`);
                         if (fieldDef.options && fieldDef.options.length > 0) {
                             value = fieldDef.options[0].value.toString();
-                            console.log(`🔧 Fixed select field ${fieldName} with first option:`, value);
                         } else {
                             value = null;
-                            console.log(`🔧 No options available for select field ${fieldName}, setting to null`);
                         }
                     }
                 }
@@ -243,25 +218,11 @@ class FieldMappingService {
                     // Ensure we use the account from import metadata, not from parsed data
                     if (importData?.metadata?.account_id) {
                         value = importData.metadata.account_id.toString();
-                        console.log(`🔒 Forcing account_id to use import metadata:`, value);
                     }
                 }
 
                 // Additional logging for problematic fields
                 if (fieldName === 'account_id' || fieldName === 'currency') {
-                    console.log(`🔍 Final value for ${fieldName}:`, {
-                        value,
-                        valueType: typeof value,
-                        fieldDef: fieldDef,
-                        isRequired: fieldDef?.required,
-                        hasOptions: fieldDef?.options?.length > 0,
-                        firstOption: fieldDef?.options?.[0],
-                        wasActuallyMapped,
-                        importData: {
-                            currency: importData?.currency,
-                            accountId: importData?.metadata?.account_id,
-                        },
-                    });
                 }
 
                 // Final validation to ensure fields have proper values
@@ -273,17 +234,13 @@ class FieldMappingService {
                         // Special handling for specific fields
                         if (fieldName === 'currency') {
                             value = importData?.currency || 'EUR';
-                            console.log(`🚨 Emergency fix: Set empty currency to:`, value);
                         } else if (fieldName === 'account_id' && importData?.metadata?.account_id) {
                             value = importData.metadata.account_id.toString();
-                            console.log(`🚨 Emergency fix: Set empty account_id from import metadata:`, value);
                         } else if (fieldDef.required && fieldDef.options && fieldDef.options.length > 0) {
                             value = fieldDef.options[0].value.toString();
-                            console.log(`🚨 Emergency fix: Set empty required select field ${fieldName} to first option:`, value);
                         } else if (!fieldDef.required) {
                             // For optional fields, leave as null to show "-- None --"
                             value = null;
-                            console.log(`✅ Optional select field ${fieldName} left as null (no selection)`);
                         } else {
                             // This shouldn't happen - select without options
                             console.error(`❌ Select field ${fieldName} has no options and no value!`);
@@ -295,7 +252,6 @@ class FieldMappingService {
                 defaultValues[fieldName] = value;
             });
         } else {
-            console.log('⚠️ No field definitions available, using legacy fallback');
             // Legacy fallback - only mark fields as mapped if they actually came from CSV
             const legacyMappings = {
                 transaction_id:
@@ -350,7 +306,6 @@ class FieldMappingService {
                     // Use import metadata for account_id
                     if (importData?.metadata?.account_id) {
                         value = importData.metadata.account_id.toString();
-                        console.log(`🔒 Legacy: Using account_id from import metadata:`, value);
                     }
                 } else if (mappings.has(fieldName) && actuallyMappedFields.has(fieldName)) {
                     const mappedValue = mappings.get(fieldName)?.suggestedValue;
@@ -362,11 +317,9 @@ class FieldMappingService {
                 // Final validation for legacy mode as well
                 if (value === '' && fieldName === 'currency') {
                     value = importData?.currency || 'EUR';
-                    console.log(`🚨 Legacy emergency fix: Set empty currency to:`, value);
                 }
                 if (value === '' && fieldName === 'account_id') {
                     value = importData?.metadata?.account_id?.toString() || '1';
-                    console.log(`🚨 Legacy emergency fix: Set empty account_id to:`, value);
                 }
 
                 defaultValues[fieldName] = value;
@@ -385,7 +338,6 @@ class FieldMappingService {
                 const isEmpty = value === '' || value === null || value === undefined;
 
                 if (isEmpty) {
-                    console.log(`⚠️ Found empty/null value for field ${fieldName} (type: ${fieldDef.type}, required: ${fieldDef.required})`);
 
                     // Handle based on field type
                     switch (fieldDef.type) {
@@ -393,11 +345,9 @@ class FieldMappingService {
                             // For select fields, only set first option if required
                             if (fieldDef.required && fieldDef.options && fieldDef.options.length > 0) {
                                 defaultValues[fieldName] = fieldDef.options[0].value.toString();
-                                console.log(`🔧 Fixed empty required select field ${fieldName} to first option:`, defaultValues[fieldName]);
                             } else if (!fieldDef.required) {
                                 // For optional fields, keep as null to show "-- None --"
                                 defaultValues[fieldName] = null;
-                                console.log(`✅ Optional select field ${fieldName} kept as null (no selection)`);
                             } else {
                                 // This shouldn't happen - required select field without options
                                 console.error(`❌ Required select field ${fieldName} has no options!`);
@@ -409,21 +359,18 @@ class FieldMappingService {
                             // For text fields, empty string is acceptable
                             if (value === null || value === undefined) {
                                 defaultValues[fieldName] = '';
-                                console.log(`🔧 Fixed null text field ${fieldName} to empty string`);
                             }
                             break;
                         case 'number':
                             // For number fields, 0 is acceptable
                             if (value === null || value === undefined || value === '') {
                                 defaultValues[fieldName] = 0;
-                                console.log(`🔧 Fixed empty number field ${fieldName} to 0`);
                             }
                             break;
                         case 'date':
                             // For date fields, provide today's date if required
                             if (fieldDef.required && (value === null || value === undefined || value === '')) {
                                 defaultValues[fieldName] = new Date().toISOString().split('T')[0];
-                                console.log(`🔧 Fixed empty date field ${fieldName} to today`);
                             }
                             break;
                     }
@@ -432,20 +379,16 @@ class FieldMappingService {
                 // Special handling for specific fields
                 if (fieldName === 'currency' && isEmpty) {
                     defaultValues[fieldName] = importData?.currency || 'EUR';
-                    console.log(`🔧 Special: Set currency to:`, defaultValues[fieldName]);
                 }
                 if (fieldName === 'account_id' && isEmpty) {
                     const accountId =
                         importData?.metadata?.account_id?.toString() ||
                         (fieldDef.options && fieldDef.options.length > 0 ? fieldDef.options[0].value.toString() : '1');
                     defaultValues[fieldName] = accountId;
-                    console.log(`🔧 Special: Set account_id to:`, defaultValues[fieldName]);
                 }
             });
         }
 
-        console.log('🎉 Final mapped values:', defaultValues);
-        console.log('🎉 Final actually mapped fields:', Array.from(finalActuallyMappedFields));
 
         // Return both the values and the tracking of what was actually mapped
         return {
@@ -461,19 +404,15 @@ class FieldMappingService {
             case 'currency':
                 // For currency, prioritize importData currency, then first valid option from field definitions
                 const importCurrency = importData?.currency;
-                console.log(`🔍 Getting currency default - importCurrency: ${importCurrency}, fieldDef options:`, fieldDef?.options);
 
                 if (importCurrency && fieldDef?.options?.some((opt: any) => opt.value.toString() === importCurrency.toString())) {
-                    console.log(`✅ Using import currency: ${importCurrency}`);
                     return importCurrency.toString();
                 }
                 // Fallback to first valid option
                 if (fieldDef?.options && fieldDef.options.length > 0) {
                     const firstOption = fieldDef.options[0].value.toString();
-                    console.log(`✅ Using first currency option: ${firstOption}`);
                     return firstOption;
                 }
-                console.log(`⚠️ No currency options available, defaulting to EUR`);
                 return 'EUR';
             case 'booked_date':
             case 'processed_date':
@@ -498,20 +437,16 @@ class FieldMappingService {
             case 'account_id':
                 // NEVER auto-map account_id from CSV - always use the account from import metadata
                 const accountFromImport = importData?.metadata?.account_id;
-                console.log(`🔍 Getting account_id default - accountFromImport: ${accountFromImport}, fieldDef options:`, fieldDef?.options);
 
                 if (accountFromImport) {
                     const accountIdStr = accountFromImport.toString();
-                    console.log(`✅ Using account from import metadata: ${accountIdStr}`);
                     return accountIdStr;
                 }
                 // Fallback to first available account from field definitions options
                 if (fieldDef?.options && fieldDef.options.length > 0) {
                     const firstOption = fieldDef.options[0].value.toString();
-                    console.log(`✅ Using first account option: ${firstOption}`);
                     return firstOption;
                 }
-                console.log(`⚠️ No account options available, defaulting to '1'`);
                 return fieldDef?.required ? '1' : null;
             default:
                 if (fieldDef?.type === 'number') return 0;
@@ -587,15 +522,12 @@ class FieldMappingService {
     private static isValidDate(dateString: any): boolean {
         const date = new Date(dateString);
         const isValid = date instanceof Date && !isNaN(date.getTime());
-        console.log(`🔍 isValidDate check: "${dateString}" -> ${isValid} (date: ${date})`);
         return isValid;
     }
 
     private static parseDate(dateString: any): string {
-        console.log(`📅 parseDate called with: "${dateString}" (type: ${typeof dateString})`);
 
         if (!dateString || dateString === '') {
-            console.log(`❌ Empty date string, returning today's date`);
             return new Date().toISOString().split('T')[0];
         }
 
@@ -611,7 +543,6 @@ class FieldMappingService {
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
                 const formattedDate = `${yyyy}-${mm}-${dd}`;
-                console.log(`✅ Parsed DD.MM.YYYY format: ${formattedDate}`);
                 return formattedDate;
             }
         }
@@ -626,7 +557,6 @@ class FieldMappingService {
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
                 const formattedDate = `${yyyy}-${mm}-${dd}`;
-                console.log(`✅ Parsed DD/MM/YYYY format: ${formattedDate}`);
                 return formattedDate;
             }
         }
@@ -641,7 +571,6 @@ class FieldMappingService {
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
                 const formattedDate = `${yyyy}-${mm}-${dd}`;
-                console.log(`✅ Parsed DD-MM-YYYY format: ${formattedDate}`);
                 return formattedDate;
             }
         }
@@ -656,7 +585,6 @@ class FieldMappingService {
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
                 const formattedDate = `${yyyy}-${mm}-${dd}`;
-                console.log(`✅ Parsed YYYY-MM-DD format: ${formattedDate}`);
                 return formattedDate;
             }
         }
@@ -668,11 +596,9 @@ class FieldMappingService {
             const mm = String(date.getMonth() + 1).padStart(2, '0');
             const dd = String(date.getDate()).padStart(2, '0');
             const formattedDate = `${yyyy}-${mm}-${dd}`;
-            console.log(`✅ Parsed with Date constructor: ${formattedDate}`);
             return formattedDate;
         }
 
-        console.log(`❌ Could not parse date "${dateString}", returning today's date`);
         return new Date().toISOString().split('T')[0];
     }
 

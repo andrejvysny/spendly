@@ -10,7 +10,7 @@ import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { type BreadcrumbItem } from '@/types';
 import { Transition } from '@headlessui/react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import { FormEventHandler, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -119,7 +119,7 @@ export default function BankData({
                 toast.success('GoCardless credentials cleared successfully.');
                 setRequisitions({ count: 0, next: null, previous: null, results: [] });
                 setData({ gocardless_secret_id: '', gocardless_secret_key: '' });
-                window.location.reload(); // TODO proper reload of content
+                router.reload();
             })
             .catch((error) => {
                 console.error('Error purging credentials:', error);
@@ -259,7 +259,7 @@ export default function BankData({
                 onClose={() => setIsImportWizardOpen(false)}
                 onSuccess={() => {
                     setIsImportWizardOpen(false);
-                    window.location.reload();
+                    router.reload();
                 }}
             />
         </AppLayout>

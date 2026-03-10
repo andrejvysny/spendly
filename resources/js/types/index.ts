@@ -207,6 +207,8 @@ export interface User {
     name: string;
     email: string;
     email_verified_at: string;
+    avatar?: string;
+    base_currency?: string;
 }
 
 export interface PageProps {
@@ -227,4 +229,13 @@ export interface Tag {
     id: number;
     name: string;
     user_id: number;
+}
+
+export interface SharedData {
+    name: string;
+    quote: { message: string; author: string };
+    auth: { user: User; [key: string]: unknown };
+    ziggy: { location: string; [key: string]: unknown };
+    sidebarOpen: boolean;
+    [key: string]: unknown;
 }
