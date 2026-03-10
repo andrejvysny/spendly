@@ -2,20 +2,18 @@
 
 namespace Database\Factories;
 
-use App\Models\Merchant;
+use App\Models\Counterparty;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Merchant>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Counterparty>
  */
-class MerchantFactory extends Factory
+class CounterpartyFactory extends Factory
 {
-    protected $model = Merchant::class;
+    protected $model = Counterparty::class;
 
     /**
-     * Define the model's default state.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array
@@ -23,6 +21,7 @@ class MerchantFactory extends Factory
         return [
             'user_id' => User::factory(),
             'name' => $this->faker->company(),
+            'type' => 'merchant',
         ];
     }
 }

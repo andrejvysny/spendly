@@ -9,6 +9,4 @@ use App\Models\Tag;
 /**
  * @extends NamedRepositoryInterface<Tag>
  */
-interface TagRepositoryInterface extends NamedRepositoryInterface
-{
-}
+interface TagRepositoryInterface extends NamedRepositoryInterface {}

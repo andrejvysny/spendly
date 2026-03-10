@@ -27,6 +27,7 @@ class PatternMatcher
         if ($this->looksLikeCurrency($value)) {
             return 'currency';
         }
+
         return 'text';
     }
 
@@ -50,12 +51,14 @@ class PatternMatcher
                 $matchCount++;
             }
         }
+
         return $total > 0 ? $matchCount / $total : 0.0;
     }
 
     public function looksLikeAmount(string $value): bool
     {
         $value = str_replace(' ', '', $value);
+
         return (bool) preg_match('/^-?[\d.,]+$/', $value) && preg_match('/[,.]/', $value);
     }
 
@@ -64,6 +67,7 @@ class PatternMatcher
         if (preg_match('/^\d{4}-\d{2}-\d{2}/', $value)) {
             return true;
         }
+
         return (bool) preg_match('#^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$#', $value);
     }
 

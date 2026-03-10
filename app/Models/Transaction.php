@@ -78,7 +78,7 @@ class Transaction extends BaseModel
         'balance_after_transaction',
         'account_id',
         'import_data',
-        'merchant_id',
+        'counterparty_id',
         'category_id',
         'recurring_group_id',
         'transfer_pair_transaction_id',
@@ -186,11 +186,11 @@ class Transaction extends BaseModel
     }
 
     /**
-     * Get the merchant associated with the transaction.
+     * Get the counterparty associated with the transaction.
      */
-    public function merchant(): BelongsTo
+    public function counterparty(): BelongsTo
     {
-        return $this->belongsTo(Merchant::class);
+        return $this->belongsTo(Counterparty::class);
     }
 
     /**
@@ -251,7 +251,7 @@ class Transaction extends BaseModel
                 ->orWhereHas('category', function ($q) use ($term) {
                     $q->where('name', 'LIKE', "%{$term}%");
                 })
-                ->orWhereHas('merchant', function ($q) use ($term) {
+                ->orWhereHas('counterparty', function ($q) use ($term) {
                     $q->where('name', 'LIKE', "%{$term}%");
                 })
                 ->orWhereHas('account', function ($q) use ($term) {
@@ -269,9 +269,9 @@ class Transaction extends BaseModel
         $this->save();
     }
 
-    public function setMerchant(Merchant $merchant): void
+    public function setCounterparty(Counterparty $counterparty): void
     {
-        $this->merchant_id = $merchant->id;
+        $this->counterparty_id = $counterparty->id;
         $this->save();
     }
 

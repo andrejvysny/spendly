@@ -73,7 +73,7 @@ class MockGoCardlessFixtureRepository
             return null;
         }
 
-        $path = $this->basePath . '/' . $resolved['institution'] . '/' . $resolved['prefix'] . '_details' . $resolved['suffix'] . '.json';
+        $path = $this->basePath.'/'.$resolved['institution'].'/'.$resolved['prefix'].'_details'.$resolved['suffix'].'.json';
 
         $data = $this->readJsonFile($path);
         if ($data === null || ! isset($data['account']) || ! is_array($data['account'])) {
@@ -96,7 +96,7 @@ class MockGoCardlessFixtureRepository
             return null;
         }
 
-        $path = $this->basePath . '/' . $resolved['institution'] . '/' . $resolved['prefix'] . '_balances' . $resolved['suffix'] . '.json';
+        $path = $this->basePath.'/'.$resolved['institution'].'/'.$resolved['prefix'].'_balances'.$resolved['suffix'].'.json';
 
         $data = $this->readJsonFile($path);
         if ($data === null || ! isset($data['balances']) || ! is_array($data['balances'])) {
@@ -119,7 +119,7 @@ class MockGoCardlessFixtureRepository
             return null;
         }
 
-        $path = $this->basePath . '/' . $resolved['institution'] . '/' . $resolved['prefix'] . '_transactions_booked' . $resolved['suffix'] . '.json';
+        $path = $this->basePath.'/'.$resolved['institution'].'/'.$resolved['prefix'].'_transactions_booked'.$resolved['suffix'].'.json';
 
         $data = $this->readJsonFile($path);
         if ($data === null) {
@@ -135,7 +135,7 @@ class MockGoCardlessFixtureRepository
             $booked = $this->filterTransactionsByDate($booked, $dateFrom, $dateTo);
         }
 
-        $pendingPath = $this->basePath . '/' . $resolved['institution'] . '/' . $resolved['prefix'] . '_transactions_pending' . $resolved['suffix'] . '.json';
+        $pendingPath = $this->basePath.'/'.$resolved['institution'].'/'.$resolved['prefix'].'_transactions_pending'.$resolved['suffix'].'.json';
         $pendingData = $this->readJsonFile($pendingPath);
         $pending = $pendingData['transactions']['pending'] ?? [];
         if (! is_array($pending)) {
@@ -189,7 +189,7 @@ class MockGoCardlessFixtureRepository
         }
 
         foreach ($dirs as $entry) {
-            if ($entry === '.' || $entry === '..' || ! is_dir($this->basePath . '/' . $entry)) {
+            if ($entry === '.' || $entry === '..' || ! is_dir($this->basePath.'/'.$entry)) {
                 continue;
             }
 
@@ -212,19 +212,20 @@ class MockGoCardlessFixtureRepository
      */
     private function discoverAccountIdsInInstitution(string $institutionId): array
     {
-        $dir = $this->basePath . '/' . $institutionId;
+        $dir = $this->basePath.'/'.$institutionId;
         if (! is_dir($dir)) {
             return [];
         }
 
         $accountIds = [];
-        $files = glob($dir . '/*_details*.json') ?: [];
+        $files = glob($dir.'/*_details*.json') ?: [];
 
         foreach ($files as $file) {
             $basename = basename($file);
             if (str_ends_with($basename, self::DETAILS_PATTERN)) {
                 $prefix = substr($basename, 0, -strlen(self::DETAILS_PATTERN));
                 $accountIds[] = $prefix;
+
                 continue;
             }
             if (str_contains($basename, self::DETAILS_SUFFIX_PATTERN)) {
@@ -233,7 +234,7 @@ class MockGoCardlessFixtureRepository
                 if ($idx !== false) {
                     $prefix = substr($rest, 0, $idx);
                     $suffixPart = substr($rest, $idx + strlen(self::DETAILS_SUFFIX_PATTERN));
-                    $accountIds[] = $prefix . '_' . $suffixPart;
+                    $accountIds[] = $prefix.'_'.$suffixPart;
                 }
             }
         }
@@ -352,7 +353,7 @@ class MockGoCardlessFixtureRepository
         return match (strtoupper($institutionId)) {
             'REVOLUT' => 'REVOGB21',
             'SLSP' => 'GIBASKBX',
-            default => 'MOCK' . strtoupper(substr($institutionId, 0, 4)),
+            default => 'MOCK'.strtoupper(substr($institutionId, 0, 4)),
         };
     }
 }

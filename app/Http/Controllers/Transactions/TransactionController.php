@@ -16,7 +16,7 @@ class TransactionController extends Controller
     /**
      * Displays a paginated list of the authenticated user's transactions with advanced filtering and summary statistics.
      *
-     * Applies filters for search, transaction type, account, amount (with multiple filter types), merchant, category, and date range. Calculates total and monthly summaries for the filtered transactions. Provides related categories, merchants, tags, and accounts for filter dropdowns. Returns an Inertia.js response rendering the transactions index view.
+     * Applies filters for search, transaction type, account, amount (with multiple filter types), counterparty, category, and date range. Calculates total and monthly summaries for the filtered transactions. Provides related categories, counterparties, tags, and accounts for filter dropdowns. Returns an Inertia.js response rendering the transactions index view.
      */
     const int PAGINATION_COUNT = 100; // Define a constant for pagination count
 
@@ -34,9 +34,9 @@ class TransactionController extends Controller
             $expenseSum = clone $query;
             $balanceSum = clone $query;
             $categoriesCount = clone $query;
-            $merchantsCount = clone $query;
+            $counterpartiesCount = clone $query;
             $uncategorizedCount = clone $query;
-            $noMerchantCount = clone $query;
+            $noCounterpartyCount = clone $query;
 
             $totalSummary = [
                 'count' => $countClone->count(),
@@ -44,9 +44,9 @@ class TransactionController extends Controller
                 'expense' => abs($expenseSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '<', 0)->sum('amount')),
                 'balance' => $balanceSum->sum('amount'),
                 'categoriesCount' => $categoriesCount->whereNotNull('category_id')->distinct('category_id')->count('category_id'),
-                'merchantsCount' => $merchantsCount->whereNotNull('merchant_id')->distinct('merchant_id')->count('merchant_id'),
+                'counterpartiesCount' => $counterpartiesCount->whereNotNull('counterparty_id')->distinct('counterparty_id')->count('counterparty_id'),
                 'uncategorizedCount' => $uncategorizedCount->whereNull('category_id')->count(),
-                'noMerchantCount' => $noMerchantCount->whereNull('merchant_id')->count(),
+                'noCounterpartyCount' => $noCounterpartyCount->whereNull('counterparty_id')->count(),
             ];
         }
 
@@ -74,9 +74,9 @@ class TransactionController extends Controller
             $monthlySummaries[$month]['balance'] += $transaction->amount;
         }
 
-        // Get categories, merchants, and tags for the filter dropdowns
+        // Get categories, counterparties, and tags for the filter dropdowns
         $categories = Auth::user()->categories;
-        $merchants = Auth::user()->merchants;
+        $counterparties = Auth::user()->counterparties;
         $tags = Auth::user()->tags;
         $accounts = Auth::user()->accounts;
 
@@ -92,14 +92,14 @@ class TransactionController extends Controller
             'totalSummary' => $totalSummary,
             'isFiltered' => $isFiltered,
             'categories' => $categories,
-            'merchants' => $merchants,
+            'counterparties' => $counterparties,
             'accounts' => $accounts,
             'tags' => $tags,
             'filters' => $request->only([
                 'search', 'account_id', 'transactionType',
                 'amountFilterType', 'amountMin', 'amountMax',
                 'amountExact', 'amountAbove', 'amountBelow',
-                'dateFrom', 'dateTo', 'merchant_id', 'category_id',
+                'dateFrom', 'dateTo', 'counterparty_id', 'category_id',
                 'recurring_only',
             ]),
             'totalCount' => $totalCount,
@@ -119,7 +119,7 @@ class TransactionController extends Controller
             ->orderByDesc('booked_date');
 
         if ($request->filled('review_reason')) {
-            $query->where('review_reason', 'like', '%' . $request->review_reason . '%');
+            $query->where('review_reason', 'like', '%'.$request->review_reason.'%');
         }
 
         $transactions = $query->paginate(50);
@@ -133,7 +133,7 @@ class TransactionController extends Controller
     /**
      * Retrieves a paginated list of transactions for the authenticated user, applying filters and returning results as JSON.
      *
-     * Applies filters for search term, transaction type, account, merchant, category, and date range. Returns the paginated transactions and a flag indicating if more pages are available.
+     * Applies filters for search term, transaction type, account, counterparty, category, and date range. Returns the paginated transactions and a flag indicating if more pages are available.
      *
      * @return JsonResponse JSON response containing filtered transactions and pagination status.
      */
@@ -186,7 +186,7 @@ class TransactionController extends Controller
     /**
      * Filters transactions based on request parameters and returns a paginated JSON response.
      *
-     * Applies filters for search term, transaction type, account, amount (with support for exact, range, above, below), merchant, category, and date range. Returns paginated transactions, monthly summaries for the current page, total summary statistics, filter status, and pagination info.
+     * Applies filters for search term, transaction type, account, amount (with support for exact, range, above, below), counterparty, category, and date range. Returns paginated transactions, monthly summaries for the current page, total summary statistics, filter status, and pagination info.
      *
      * @return JsonResponse Paginated filtered transactions and summary data.
      */
@@ -203,9 +203,9 @@ class TransactionController extends Controller
             $expenseSum = clone $query;
             $balanceSum = clone $query;
             $categoriesCount = clone $query;
-            $merchantsCount = clone $query;
+            $counterpartiesCount = clone $query;
             $uncategorizedCount = clone $query;
-            $noMerchantCount = clone $query;
+            $noCounterpartyCount = clone $query;
 
             $totalSummary = [
                 'count' => $totalCount->count(),
@@ -213,9 +213,9 @@ class TransactionController extends Controller
                 'expense' => abs($expenseSum->where('type', '!=', Transaction::TYPE_TRANSFER)->where('amount', '<', 0)->sum('amount')),
                 'balance' => $balanceSum->sum('amount'),
                 'categoriesCount' => $categoriesCount->whereNotNull('category_id')->distinct('category_id')->count('category_id'),
-                'merchantsCount' => $merchantsCount->whereNotNull('merchant_id')->distinct('merchant_id')->count('merchant_id'),
+                'counterpartiesCount' => $counterpartiesCount->whereNotNull('counterparty_id')->distinct('counterparty_id')->count('counterparty_id'),
                 'uncategorizedCount' => $uncategorizedCount->whereNull('category_id')->count(),
-                'noMerchantCount' => $noMerchantCount->whereNull('merchant_id')->count(),
+                'noCounterpartyCount' => $noCounterpartyCount->whereNull('counterparty_id')->count(),
             ];
 
             // Get paginated transactions
@@ -271,7 +271,7 @@ class TransactionController extends Controller
     }
 
     /**
-     * Updates the merchant, category, and tags of a transaction.
+     * Updates the counterparty, category, and tags of a transaction.
      *
      * Validates and applies updates to the specified transaction, including synchronizing associated tags. Redirects back with a success or error message based on the outcome.
      */
@@ -279,7 +279,7 @@ class TransactionController extends Controller
     {
         try {
             $validated = $request->validate([
-                'merchant_id' => 'nullable|exists:merchants,id',
+                'counterparty_id' => 'nullable|exists:counterparties,id',
                 'category_id' => 'nullable|exists:categories,id',
                 'tags' => 'nullable|array',
                 'tags.*' => 'exists:tags,id',
@@ -303,9 +303,9 @@ class TransactionController extends Controller
     }
 
     /**
-     * Updates the merchant and/or category fields for multiple transactions in bulk.
+     * Updates the counterparty and/or category fields for multiple transactions in bulk.
      *
-     * Validates the request for transaction IDs and optional merchant and category IDs, then updates the specified fields for each transaction. Returns a JSON response indicating success or failure.
+     * Validates the request for transaction IDs and optional counterparty and category IDs, then updates the specified fields for each transaction. Returns a JSON response indicating success or failure.
      *
      * @return JsonResponse JSON response with a success message or error details.
      */
@@ -315,7 +315,7 @@ class TransactionController extends Controller
             $validated = $request->validate([
                 'transaction_ids' => 'required|array',
                 'transaction_ids.*' => 'exists:transactions,id',
-                'merchant_id' => 'nullable|string',
+                'counterparty_id' => 'nullable|string',
                 'category_id' => 'nullable|string',
             ]);
 
@@ -323,8 +323,8 @@ class TransactionController extends Controller
 
             foreach ($transactions as $transaction) {
                 $updateData = [];
-                if (array_key_exists('merchant_id', $validated)) {
-                    $updateData['merchant_id'] = $validated['merchant_id'] === '' ? null : $validated['merchant_id'];
+                if (array_key_exists('counterparty_id', $validated)) {
+                    $updateData['counterparty_id'] = $validated['counterparty_id'] === '' ? null : $validated['counterparty_id'];
                 }
                 if (array_key_exists('category_id', $validated)) {
                     $updateData['category_id'] = $validated['category_id'] === '' ? null : $validated['category_id'];
@@ -429,7 +429,7 @@ class TransactionController extends Controller
 
         $query = Transaction::with([
             'account',
-            'merchant',
+            'counterparty',
             'category',
             'tags',
         ])
@@ -617,9 +617,9 @@ class TransactionController extends Controller
             }
         }
 
-        // Merchant
-        if ($request->has('merchant_id') && ! empty($request->merchant_id) && $request->merchant_id !== 'all') {
-            $query->where('merchant_id', $request->merchant_id);
+        // Counterparty
+        if ($request->has('counterparty_id') && ! empty($request->counterparty_id) && $request->counterparty_id !== 'all') {
+            $query->where('counterparty_id', $request->counterparty_id);
             $isFiltered = true;
         }
 
@@ -765,17 +765,17 @@ class TransactionController extends Controller
                 })->toArray(),
                 'description' => 'Associated account',
             ],
-            'merchant_id' => [
+            'counterparty_id' => [
                 'type' => 'select',
-                'label' => 'Merchant',
+                'label' => 'Counterparty',
                 'required' => false,
-                'options' => Auth::user()->merchants->map(function ($merchant) {
+                'options' => Auth::user()->counterparties->map(function ($counterparty) {
                     return [
-                        'value' => $merchant->id,
-                        'label' => $merchant->name,
+                        'value' => $counterparty->id,
+                        'label' => $counterparty->name,
                     ];
                 })->toArray(),
-                'description' => 'Associated merchant',
+                'description' => 'Associated counterparty',
             ],
             'category_id' => [
                 'type' => 'select',
@@ -796,7 +796,7 @@ class TransactionController extends Controller
             'field_order' => [
                 'account_id', 'transaction_id', 'amount', 'currency', 'description', 'booked_date', 'processed_date', 'partner', 'place', 'type',
                 'target_iban', 'source_iban', 'balance_after_transaction',
-                'merchant_id', 'category_id',
+                'counterparty_id', 'category_id',
                 'note', 'recipient_note',
             ],
         ]);

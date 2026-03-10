@@ -10,6 +10,9 @@ use Carbon\Carbon;
 
 class GocardlessMapper
 {
+    /** @var array<int, array<string, true>> */
+    private array $ibanCache = [];
+
     public function __construct(
         private readonly FieldExtractorFactory $extractorFactory,
         private readonly AccountRepositoryInterface $accountRepository
@@ -49,6 +52,7 @@ class GocardlessMapper
             return 'checking';
         }
         $upper = strtoupper((string) $raw);
+
         return match ($upper) {
             'SVGS' => 'savings',
             'CACC' => 'checking',
@@ -184,7 +188,7 @@ class GocardlessMapper
         $description = $extractor->extractDescription($transaction);
         if (trim($description) === '') {
             $partner = $extractor->extractPartner($transaction);
-            $description = $partner ?: 'Transaction ' . ($this->get($transaction, 'transactionId') ?? 'unknown');
+            $description = $partner ?: 'Transaction '.($this->get($transaction, 'transactionId') ?? 'unknown');
         }
         $partner = $extractor->extractPartner($transaction);
         $type = $extractor->extractTransactionType($transaction, $amount);
@@ -271,6 +275,7 @@ class GocardlessMapper
         if ($targetIban !== null && $targetIban !== '' && $this->normalizeIban($targetIban) !== $accountNorm) {
             return $targetIban;
         }
+
         return null;
     }
 
@@ -281,6 +286,10 @@ class GocardlessMapper
      */
     private function getOwnAccountIbansNormalized(int $userId): array
     {
+        if (isset($this->ibanCache[$userId])) {
+            return $this->ibanCache[$userId];
+        }
+
         $accounts = $this->accountRepository->findByUser($userId);
         $out = [];
         foreach ($accounts as $acc) {
@@ -289,12 +298,16 @@ class GocardlessMapper
                 $out[$this->normalizeIban((string) $iban)] = true;
             }
         }
+
+        $this->ibanCache[$userId] = $out;
+
         return $out;
     }
 
     private function normalizeIban(string $iban): string
     {
         $s = strtoupper(trim(preg_replace('/\s+/', '', $iban)));
+
         return $s;
     }
 

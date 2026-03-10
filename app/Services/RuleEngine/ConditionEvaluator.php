@@ -81,7 +81,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
             ConditionField::FIELD_DESCRIPTION => $transaction->description,
             ConditionField::FIELD_PARTNER => $transaction->partner,
             ConditionField::FIELD_CATEGORY => $transaction->category?->name,
-            ConditionField::FIELD_MERCHANT => $transaction->merchant?->name,
+            ConditionField::FIELD_COUNTERPARTY => $transaction->counterparty?->name,
             ConditionField::FIELD_ACCOUNT => $transaction->account?->name,
             ConditionField::FIELD_TYPE => $transaction->type,
             ConditionField::FIELD_NOTE => $transaction->note,
@@ -94,7 +94,7 @@ class ConditionEvaluator implements ConditionEvaluatorInterface
             ConditionField::FIELD_CURRENCY => $transaction->currency,
             ConditionField::FIELD_IS_RECONCILED => (bool) $transaction->is_reconciled,
             ConditionField::FIELD_HAS_CATEGORY => $transaction->category_id !== null,
-            ConditionField::FIELD_HAS_MERCHANT => $transaction->merchant_id !== null,
+            ConditionField::FIELD_HAS_COUNTERPARTY => $transaction->counterparty_id !== null,
             default => null,
         };
 

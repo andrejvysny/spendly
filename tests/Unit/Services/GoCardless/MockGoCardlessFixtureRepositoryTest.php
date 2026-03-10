@@ -15,7 +15,7 @@ class MockGoCardlessFixtureRepositoryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tempDir = sys_get_temp_dir() . '/gocardless_fixture_test_' . uniqid();
+        $this->tempDir = sys_get_temp_dir().'/gocardless_fixture_test_'.uniqid();
         File::makeDirectory($this->tempDir, 0755, true);
     }
 
@@ -36,14 +36,14 @@ class MockGoCardlessFixtureRepositoryTest extends TestCase
 
     public function test_has_fixture_data_returns_false_when_dir_missing(): void
     {
-        $repo = new MockGoCardlessFixtureRepository($this->tempDir . '/nonexistent');
+        $repo = new MockGoCardlessFixtureRepository($this->tempDir.'/nonexistent');
 
         $this->assertFalse($repo->hasFixtureData());
     }
 
     public function test_discovers_institution_and_account_from_details_file(): void
     {
-        File::makeDirectory($this->tempDir . '/TestBank', 0755, true);
+        File::makeDirectory($this->tempDir.'/TestBank', 0755, true);
         $details = [
             'account' => [
                 'resourceId' => 'acc-123',
@@ -52,7 +52,7 @@ class MockGoCardlessFixtureRepositoryTest extends TestCase
             ],
         ];
         File::put(
-            $this->tempDir . '/TestBank/acc-123_details.json',
+            $this->tempDir.'/TestBank/acc-123_details.json',
             json_encode($details, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)
         );
 
@@ -84,9 +84,9 @@ class MockGoCardlessFixtureRepositoryTest extends TestCase
 
     public function test_get_balances_payload_normalizes_closing_booked(): void
     {
-        File::makeDirectory($this->tempDir . '/Bank', 0755, true);
+        File::makeDirectory($this->tempDir.'/Bank', 0755, true);
         File::put(
-            $this->tempDir . '/Bank/acc_balances.json',
+            $this->tempDir.'/Bank/acc_balances.json',
             json_encode([
                 'balances' => [
                     [
@@ -98,7 +98,7 @@ class MockGoCardlessFixtureRepositoryTest extends TestCase
             ], JSON_THROW_ON_ERROR)
         );
         File::put(
-            $this->tempDir . '/Bank/acc_details.json',
+            $this->tempDir.'/Bank/acc_details.json',
             json_encode(['account' => ['resourceId' => 'acc', 'currency' => 'EUR']], JSON_THROW_ON_ERROR)
         );
 

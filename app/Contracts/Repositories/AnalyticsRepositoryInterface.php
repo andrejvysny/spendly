@@ -26,12 +26,12 @@ interface AnalyticsRepositoryInterface
     public function getCategorySpending(array $accountIds, Carbon $startDate, Carbon $endDate): array;
 
     /**
-     * Get spending by merchant for the specified date range.
+     * Get spending by counterparty for the specified date range.
      *
      * @param  array<int>  $accountIds
-     * @return array{withMerchant: \Illuminate\Support\Collection, noMerchant: object|null}
+     * @return array{withCounterparty: \Illuminate\Support\Collection, noCounterparty: object|null}
      */
-    public function getMerchantSpending(array $accountIds, Carbon $startDate, Carbon $endDate): array;
+    public function getCounterpartySpending(array $accountIds, Carbon $startDate, Carbon $endDate): array;
 
     /**
      * Get daily cashflow for a specific month (for account show page).
@@ -47,7 +47,7 @@ interface AnalyticsRepositoryInterface
      * @param  array<int>  $accountIds
      * @param  array<int, float>  $currentBalances  Map of account_id => current balance
      * @param  string  $granularity  'day' or 'month'
-     * @return array<int, array<array{date: string, balance: float}>>  Map of account_id => time series
+     * @return array<int, array<array{date: string, balance: float}>> Map of account_id => time series
      */
     public function getBalanceHistory(
         array $accountIds,

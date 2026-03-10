@@ -97,6 +97,7 @@ class AmountParser
     private function isParenthesesNegative(string $value): bool
     {
         $trimmed = trim($value);
+
         return str_starts_with($trimmed, '(') && str_ends_with($trimmed, ')');
     }
 
@@ -111,6 +112,7 @@ class AmountParser
         } else {
             $value = str_replace(',', '.', $value);
         }
+
         return (float) $value;
     }
 
@@ -124,6 +126,7 @@ class AmountParser
         if (abs($amount) < 0.01 && $amount != 0) {
             $warnings[] = 'Near-zero amount';
         }
+
         return $warnings;
     }
 
@@ -139,6 +142,7 @@ class AmountParser
         if ($format !== self::FORMAT_SIMPLE) {
             return 0.9;
         }
+
         return 0.8;
     }
 }

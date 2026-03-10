@@ -18,6 +18,7 @@ class SlspFieldExtractor implements BankFieldExtractorInterface
             }
             $value = $value[$segment];
         }
+
         return $value;
     }
 
@@ -43,6 +44,7 @@ class SlspFieldExtractor implements BankFieldExtractorInterface
         }
 
         $code = self::get($transaction, 'proprietaryBankTransactionCode');
+
         return trim((string) $code);
     }
 
@@ -58,6 +60,7 @@ class SlspFieldExtractor implements BankFieldExtractorInterface
         if ($partner !== null && (string) $partner !== '') {
             return (string) $partner;
         }
+
         return null;
     }
 
@@ -70,6 +73,7 @@ class SlspFieldExtractor implements BankFieldExtractorInterface
         if (preg_match('/^MCC-(\d{4})$/', (string) $remittance, $m)) {
             return $m[1];
         }
+
         return null;
     }
 
@@ -98,6 +102,7 @@ class SlspFieldExtractor implements BankFieldExtractorInterface
         if ($amount > 0) {
             return Transaction::TYPE_DEPOSIT;
         }
+
         return Transaction::TYPE_PAYMENT;
     }
 
@@ -132,6 +137,7 @@ class SlspFieldExtractor implements BankFieldExtractorInterface
         if ($mandateId !== null && (string) $mandateId !== '') {
             $metadata['mandate_id'] = (string) $mandateId;
         }
+
         return $metadata;
     }
 }

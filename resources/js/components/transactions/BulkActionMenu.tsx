@@ -1,7 +1,7 @@
 import { TextareaInput, TextInput } from '@/components/ui/form-inputs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SmartForm } from '@/components/ui/smart-form';
-import { Category, Merchant, Transaction } from '@/types/index';
+import { Category, Counterparty, Transaction } from '@/types/index';
 import axios from 'axios';
 import { useState } from 'react';
 import { z } from 'zod';
@@ -10,11 +10,11 @@ interface Props {
     selectedTransactions: string[];
     transactions?: Transaction[];
     categories?: Category[];
-    merchants?: Merchant[];
+    counterparties?: Counterparty[];
     onUpdate: (data?: {
         ids: string[];
         category_id?: string | null;
-        merchant_id?: string | null;
+        counterparty_id?: string | null;
         updated_transactions?: Array<{ id: number; note: string }>;
     }) => void;
 }
@@ -26,7 +26,7 @@ const categorySchema = z.object({
     description: z.string().optional(),
 });
 
-const merchantSchema = z.object({
+const counterpartySchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().optional(),
     logo: z.string().optional(),
@@ -37,34 +37,26 @@ const noteSchema = z.object({
 });
 
 type CategoryFormValues = z.infer<typeof categorySchema>;
-type MerchantFormValues = z.infer<typeof merchantSchema>;
+type CounterpartyFormValues = z.infer<typeof counterpartySchema>;
 type NoteFormValues = z.infer<typeof noteSchema>;
 
 /**
- * Displays a menu for bulk assigning categories or merchants to selected transactions, with options to create new categories or merchants inline.
- *
- * The menu appears when transactions are selected, allowing users to assign an existing or newly created category or merchant to all selected transactions. After a successful assignment or creation, the parent component is notified via the provided callback.
+ * Displays a menu for bulk assigning categories or counterparties to selected transactions, with options to create new categories or counterparties inline.
  *
  * @param selectedTransactions - Array of transaction IDs to update.
  * @param transactions - Array of transaction objects (optional, used for calculating totals).
  * @param categories - Optional list of available categories for assignment.
- * @param merchants - Optional list of available merchants for assignment.
+ * @param counterparties - Optional list of available counterparties for assignment.
  * @param onUpdate - Callback invoked after a successful assignment or when the menu is closed.
  *
  * @returns The bulk action menu UI, or `null` if no transactions are selected.
  */
-export default function BulkActionMenu({
-    selectedTransactions,
-    transactions = [],
-    categories = [],
-    merchants = [],
-    onUpdate,
-}: Props) {
-    const [activeMenu, setActiveMenu] = useState<'category' | 'merchant' | 'note' | null>(null);
+export default function BulkActionMenu({ selectedTransactions, transactions = [], categories = [], counterparties = [], onUpdate }: Props) {
+    const [activeMenu, setActiveMenu] = useState<'category' | 'counterparty' | 'note' | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('');
-    const [selectedMerchant, setSelectedMerchant] = useState<string>('');
+    const [selectedCounterparty, setSelectedCounterparty] = useState<string>('');
     const [isCreatingCategory, setIsCreatingCategory] = useState(false);
-    const [isCreatingMerchant, setIsCreatingMerchant] = useState(false);
+    const [isCreatingCounterparty, setIsCreatingCounterparty] = useState(false);
 
     // Calculate totals
     const selectedTransactionObjects = transactions.filter((t) => selectedTransactions.includes(String(t.id)));
@@ -92,23 +84,23 @@ export default function BulkActionMenu({
         }
     };
 
-    const handleAssignMerchant = async () => {
-        if (!selectedMerchant) return;
+    const handleAssignCounterparty = async () => {
+        if (!selectedCounterparty) return;
 
         try {
-            const merchantId = selectedMerchant === 'none' ? '' : selectedMerchant;
+            const counterpartyId = selectedCounterparty === 'none' ? '' : selectedCounterparty;
             await axios.post('/transactions/bulk-update', {
                 transaction_ids: selectedTransactions,
-                merchant_id: merchantId,
+                counterparty_id: counterpartyId,
             });
             onUpdate({
                 ids: selectedTransactions,
-                merchant_id: merchantId === '' ? null : merchantId,
+                counterparty_id: counterpartyId === '' ? null : counterpartyId,
             });
             setActiveMenu(null);
-            setSelectedMerchant('');
+            setSelectedCounterparty('');
         } catch (error) {
-            console.error('Failed to assign merchant:', error);
+            console.error('Failed to assign counterparty:', error);
         }
     };
 
@@ -117,7 +109,6 @@ export default function BulkActionMenu({
             const response = await axios.post('/categories', values);
             const newCategory = response.data;
 
-            // Assign the new category to selected transactions
             await axios.post('/transactions/bulk-update', {
                 transaction_ids: selectedTransactions,
                 category_id: newCategory.id,
@@ -134,25 +125,24 @@ export default function BulkActionMenu({
         }
     };
 
-    const handleCreateMerchant = async (values: MerchantFormValues) => {
+    const handleCreateCounterparty = async (values: CounterpartyFormValues) => {
         try {
-            const response = await axios.post('/merchants', values);
-            const newMerchant = response.data;
+            const response = await axios.post('/counterparties', values);
+            const newCounterparty = response.data;
 
-            // Assign the new merchant to selected transactions
             await axios.post('/transactions/bulk-update', {
                 transaction_ids: selectedTransactions,
-                merchant_id: newMerchant.id,
+                counterparty_id: newCounterparty.id,
             });
 
             onUpdate({
                 ids: selectedTransactions,
-                merchant_id: String(newMerchant.id),
+                counterparty_id: String(newCounterparty.id),
             });
             setActiveMenu(null);
-            setIsCreatingMerchant(false);
+            setIsCreatingCounterparty(false);
         } catch (error) {
-            console.error('Failed to create merchant:', error);
+            console.error('Failed to create counterparty:', error);
         }
     };
 
@@ -232,30 +222,33 @@ export default function BulkActionMenu({
                     <div className="space-y-1.5">
                         <button
                             onClick={() => setActiveMenu(activeMenu === 'category' ? null : 'category')}
-                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${activeMenu === 'category'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                                }`}
+                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
+                                activeMenu === 'category'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                            }`}
                         >
                             Assign Category
                         </button>
 
                         <button
-                            onClick={() => setActiveMenu(activeMenu === 'merchant' ? null : 'merchant')}
-                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${activeMenu === 'merchant'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                                }`}
+                            onClick={() => setActiveMenu(activeMenu === 'counterparty' ? null : 'counterparty')}
+                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
+                                activeMenu === 'counterparty'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                            }`}
                         >
-                            Assign Merchant
+                            Assign Counterparty
                         </button>
 
                         <button
                             onClick={() => setActiveMenu(activeMenu === 'note' ? null : 'note')}
-                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${activeMenu === 'note'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                                }`}
+                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
+                                activeMenu === 'note'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                            }`}
                         >
                             Add Note
                         </button>
@@ -331,15 +324,15 @@ export default function BulkActionMenu({
                     </div>
                 )}
 
-                {/* Merchant Selection Panel */}
-                {activeMenu === 'merchant' && (
+                {/* Counterparty Selection Panel */}
+                {activeMenu === 'counterparty' && (
                     <div className="border-border border-t p-3">
-                        {isCreatingMerchant ? (
-                            <SmartForm schema={merchantSchema} onSubmit={handleCreateMerchant} formProps={{ className: 'space-y-3' }}>
+                        {isCreatingCounterparty ? (
+                            <SmartForm schema={counterpartySchema} onSubmit={handleCreateCounterparty} formProps={{ className: 'space-y-3' }}>
                                 {() => (
                                     <>
-                                        <TextInput<MerchantFormValues> name="name" placeholder="Merchant Name" />
-                                        <TextInput<MerchantFormValues> name="description" placeholder="Description (optional)" />
+                                        <TextInput<CounterpartyFormValues> name="name" placeholder="Counterparty Name" />
+                                        <TextInput<CounterpartyFormValues> name="description" placeholder="Description (optional)" />
                                         <div className="flex gap-2">
                                             <button
                                                 type="submit"
@@ -349,7 +342,7 @@ export default function BulkActionMenu({
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => setIsCreatingMerchant(false)}
+                                                onClick={() => setIsCreatingCounterparty(false)}
                                                 className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md px-3 py-1.5 text-sm font-medium"
                                             >
                                                 Cancel
@@ -360,35 +353,35 @@ export default function BulkActionMenu({
                             </SmartForm>
                         ) : (
                             <div className="space-y-2">
-                                <Select value={selectedMerchant} onValueChange={setSelectedMerchant}>
+                                <Select value={selectedCounterparty} onValueChange={setSelectedCounterparty}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select a merchant" />
+                                        <SelectValue placeholder="Select a counterparty" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="none">None (Remove Merchant)</SelectItem>
-                                        {merchants && merchants.length > 0 ? (
-                                            merchants.map((merchant) => (
-                                                <SelectItem key={merchant.id} value={String(merchant.id)}>
-                                                    {merchant.name}
+                                        <SelectItem value="none">None (Remove Counterparty)</SelectItem>
+                                        {counterparties && counterparties.length > 0 ? (
+                                            counterparties.map((counterparty) => (
+                                                <SelectItem key={counterparty.id} value={String(counterparty.id)}>
+                                                    {counterparty.name}
                                                 </SelectItem>
                                             ))
                                         ) : (
-                                            <SelectItem value="no-merchants" disabled>
-                                                No merchants available
+                                            <SelectItem value="no-counterparties" disabled>
+                                                No counterparties available
                                             </SelectItem>
                                         )}
                                     </SelectContent>
                                 </Select>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={handleAssignMerchant}
-                                        disabled={!selectedMerchant}
+                                        onClick={handleAssignCounterparty}
+                                        disabled={!selectedCounterparty}
                                         className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                                     >
                                         Apply
                                     </button>
                                     <button
-                                        onClick={() => setIsCreatingMerchant(true)}
+                                        onClick={() => setIsCreatingCounterparty(true)}
                                         className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md px-3 py-1.5 text-sm font-medium"
                                     >
                                         Create New

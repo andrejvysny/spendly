@@ -30,7 +30,9 @@ describe('TransactionList', () => {
     it('renders transactions and handles load more', async () => {
         const user = userEvent.setup();
         const handleLoad = jest.fn();
-        render(<TransactionList transactions={sample} monthlySummaries={{}} categories={[]} merchants={[]} hasMorePages onLoadMore={handleLoad} />);
+        render(
+            <TransactionList transactions={sample} monthlySummaries={{}} categories={[]} counterparties={[]} hasMorePages onLoadMore={handleLoad} />,
+        );
 
         expect(screen.getByTestId('transaction')).toBeInTheDocument();
 

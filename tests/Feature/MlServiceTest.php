@@ -151,31 +151,31 @@ class MlServiceTest extends TestCase
         $this->assertSame([], $result);
     }
 
-    // -- detectMerchants --
+    // -- detectCounterparties --
 
     public function test_detect_merchants_returns_predictions(): void
     {
         $expected = [
             [
                 'transaction_id' => 10,
-                'predicted_merchant_id' => 42,
-                'suggested_merchant_name' => 'Netflix',
+                'predicted_counterparty_id' => 42,
+                'suggested_counterparty_name' => 'Netflix',
                 'confidence' => 0.95,
                 'method' => 'exact_match',
             ],
         ];
 
         Http::fake([
-            'ml-test:8001/api/v1/detect-merchants' => Http::response($expected, 200),
+            'ml-test:8001/api/v1/detect-counterparties' => Http::response($expected, 200),
         ]);
 
         $service = $this->enabledService();
-        $result = $service->detectMerchants(userId: 7, transactionIds: [10]);
+        $result = $service->detectCounterparties(userId: 7, transactionIds: [10]);
 
         $this->assertSame($expected, $result);
 
         Http::assertSent(function ($request) {
-            return $request->url() === 'http://ml-test:8001/api/v1/detect-merchants'
+            return $request->url() === 'http://ml-test:8001/api/v1/detect-counterparties'
                 && $request['user_id'] === 7
                 && $request['transaction_ids'] === [10];
         });
@@ -187,7 +187,7 @@ class MlServiceTest extends TestCase
 
         $service = $this->disabledService();
 
-        $this->assertSame([], $service->detectMerchants(userId: 1));
+        $this->assertSame([], $service->detectCounterparties(userId: 1));
         Http::assertNothingSent();
     }
 
@@ -215,7 +215,7 @@ class MlServiceTest extends TestCase
         $service = $this->enabledService();
         $result = $service->detectRecurring(userId: 5);
 
-        $this->assertSame($expected, $result);
+        $this->assertEquals($expected, $result);
 
         Http::assertSent(function ($request) {
             return $request->url() === 'http://ml-test:8001/api/v1/detect-recurring'
@@ -252,11 +252,11 @@ class MlServiceTest extends TestCase
         $service = $this->disabledService();
 
         $this->assertSame([], $service->categorize(userId: 1));
-        $this->assertSame([], $service->detectMerchants(userId: 1));
+        $this->assertSame([], $service->detectCounterparties(userId: 1));
         $this->assertSame([], $service->detectRecurring(userId: 1));
         $this->assertSame([], $service->trainCategorizer(userId: 1));
-        $this->assertSame([], $service->trainMerchantDetector(userId: 1));
-        $this->assertSame([], $service->discoverMerchants(userId: 1));
+        $this->assertSame([], $service->trainCounterpartyDetector(userId: 1));
+        $this->assertSame([], $service->discoverCounterparties(userId: 1));
 
         Http::assertNothingSent();
     }

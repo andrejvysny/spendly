@@ -26,7 +26,6 @@ class ConfidenceAggregator
      * Calculate mapping confidence for a column (header + sample values).
      *
      * @param  array<string>  $sampleValues
-     * @return MappingConfidence
      */
     public function calculateMappingConfidence(string $header, array $sampleValues): MappingConfidence
     {

@@ -132,7 +132,7 @@ class RecurringDetectionService
                     'amount_max' => $result['amount_max'],
                     'scope' => $scope,
                     'account_id' => $accountId,
-                    'merchant_id' => $firstTx->merchant_id,
+                    'counterparty_id' => $firstTx->counterparty_id,
                     'normalized_description' => $this->normalizeDescription((string) ($firstTx->description ?? '')),
                     'first_date' => $firstDate,
                     'last_date' => $lastDate,
@@ -185,16 +185,16 @@ class RecurringDetectionService
 
     private function getPayeeKey(Transaction $tx, string $groupBy): string
     {
-        if ($groupBy === RecurringDetectionSetting::GROUP_BY_MERCHANT_ONLY) {
-            if ($tx->merchant_id !== null) {
-                return 'm'.$tx->merchant_id;
+        if ($groupBy === RecurringDetectionSetting::GROUP_BY_COUNTERPARTY_ONLY) {
+            if ($tx->counterparty_id !== null) {
+                return 'm'.$tx->counterparty_id;
             }
 
             return 'd:'.$this->normalizeDescriptionForPayee((string) ($tx->description ?? ''));
         }
 
-        if ($tx->merchant_id !== null) {
-            return 'm'.$tx->merchant_id;
+        if ($tx->counterparty_id !== null) {
+            return 'm'.$tx->counterparty_id;
         }
 
         return 'd:'.$this->normalizeDescriptionForPayee((string) ($tx->description ?? ''));
@@ -376,11 +376,11 @@ class RecurringDetectionService
 
     private function deriveName(Transaction $tx): string
     {
-        if ($tx->merchant_id !== null && $tx->relationLoaded('merchant') && $tx->merchant !== null) {
-            /** @var \App\Models\Merchant $merchant */
-            $merchant = $tx->merchant;
+        if ($tx->counterparty_id !== null && $tx->relationLoaded('counterparty') && $tx->counterparty !== null) {
+            /** @var \App\Models\Counterparty $counterparty */
+            $counterparty = $tx->counterparty;
 
-            return $merchant->name;
+            return $counterparty->name;
         }
         $desc = $tx->description ?? $tx->partner ?? 'Unknown';
 
@@ -531,14 +531,17 @@ class RecurringDetectionService
             $account = $tx->account;
             if ($account === null || (int) $account->user_id !== $userId) {
                 $ineligible[] = $tx->id;
+
                 continue;
             }
             if ($group->scope === RecurringGroup::SCOPE_PER_ACCOUNT && $group->account_id !== null && (int) $tx->account_id !== (int) $group->account_id) {
                 $ineligible[] = $tx->id;
+
                 continue;
             }
             if ($tx->recurring_group_id !== null && (int) $tx->recurring_group_id !== (int) $group->id) {
                 $ineligible[] = $tx->id;
+
                 continue;
             }
             $toAttach[] = $tx->id;

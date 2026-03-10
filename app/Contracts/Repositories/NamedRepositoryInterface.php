@@ -6,6 +6,7 @@ namespace App\Contracts\Repositories;
 
 /**
  * @template TModel of \Illuminate\Database\Eloquent\Model
+ *
  * @extends UserScopedRepositoryInterface<TModel>
  */
 interface NamedRepositoryInterface extends UserScopedRepositoryInterface

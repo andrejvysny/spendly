@@ -72,6 +72,7 @@ class TransferFixIncorrectCommand extends Command
             if ($dryRun) {
                 $this->line("Would update transaction id={$transaction->id} ({$transaction->transaction_id}) type TRANSFER -> {$newType}");
                 $updated++;
+
                 continue;
             }
             $transaction->update(['type' => $newType]);
@@ -128,9 +129,10 @@ class TransferFixIncorrectCommand extends Command
             }
             $ids = [$transaction->id, $pair->id];
             if ($dryRun) {
-                $this->line('Would unpair and reclassify transaction ids ' . implode(', ', $ids));
+                $this->line('Would unpair and reclassify transaction ids '.implode(', ', $ids));
                 $updated += 2;
                 $processedIds = array_merge($processedIds, $ids);
+
                 continue;
             }
             foreach ([$transaction, $pair] as $t) {
@@ -157,6 +159,7 @@ class TransferFixIncorrectCommand extends Command
                 $map[$account->id] = $this->normalizeIban((string) $iban);
             }
         }
+
         return $map;
     }
 
@@ -173,6 +176,7 @@ class TransferFixIncorrectCommand extends Command
                 $out[$this->normalizeIban((string) $iban)] = true;
             }
         }
+
         return $out;
     }
 
@@ -186,6 +190,7 @@ class TransferFixIncorrectCommand extends Command
         if ($iban === null || trim($iban) === '') {
             return null;
         }
+
         return $this->normalizeIban($iban);
     }
 }

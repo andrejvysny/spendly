@@ -290,7 +290,7 @@ class GoCardlessBankDataTest extends UnitTestCase
         $result = $service->getTransactions('test_account', '2024-01-01', '2024-01-31');
 
         $this->assertCount(3, $result['transactions']['booked']);
-        $this->assertCount(1, $result['transactions']['pending']);
+        $this->assertArrayNotHasKey('pending', $result['transactions']);
         $this->assertEquals('tx1', $result['transactions']['booked'][0]['transactionId']);
         $this->assertEquals('tx4', $result['transactions']['booked'][2]['transactionId']);
     }
@@ -314,7 +314,6 @@ class GoCardlessBankDataTest extends UnitTestCase
 
         $this->assertArrayHasKey('transactions', $result);
         $this->assertEmpty($result['transactions']['booked']);
-        $this->assertEmpty($result['transactions']['pending']);
     }
 
     /**

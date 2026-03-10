@@ -16,7 +16,7 @@ interface Props extends TransactionType {
 /**
  * Renders a transaction card with selectable and expandable details.
  *
- * Displays transaction information including partner, merchant, account, type, date, and amount. Allows selection via a checkbox and toggling of detailed view.
+ * Displays transaction information including partner, counterparty, account, type, date, and amount. Allows selection via a checkbox and toggling of detailed view.
  *
  * @param compact
  * @param isSelected - Whether the transaction is currently selected.
@@ -54,7 +54,7 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                                 (isTransfer ? ' bg-muted' : '')
                             }
                             style={!isTransfer ? { backgroundColor: transaction.category?.color || '#333333' } : undefined}
-                            title={isTransfer ? 'Transfer' : (transaction.category?.name || 'Uncategorized')}
+                            title={isTransfer ? 'Transfer' : transaction.category?.name || 'Uncategorized'}
                         >
                             {isTransfer ? (
                                 <svg
@@ -63,7 +63,7 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                                     viewBox="0 0 24 24"
                                     strokeWidth={1.5}
                                     stroke="currentColor"
-                                    className={compact ? 'h-5 w-5 text-muted-foreground' : 'h-8 w-8 text-muted-foreground'}
+                                    className={compact ? 'text-muted-foreground h-5 w-5' : 'text-muted-foreground h-8 w-8'}
                                 >
                                     <path
                                         strokeLinecap="round"
@@ -93,15 +93,13 @@ export default function Transaction({ compact = false, isSelected = false, onSel
 
                         <div className="flex-1">
                             <div className={!compact ? 'font-medium' : 'text-sm font-medium'}>
-                                {transaction.partner || transaction.merchant?.name || transaction.type}
+                                {transaction.partner || transaction.counterparty?.name || transaction.type}
                             </div>
                             <small className="text-gray-500">{formatDate(transaction.processed_date)}</small>
                             {!compact && (
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                     {transaction.recurring_group_id != null && (
-                                        <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs font-medium">
-                                            Recurring
-                                        </span>
+                                        <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs font-medium">Recurring</span>
                                     )}
                                     {transaction.account && (
                                         <span className="bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs">
@@ -112,25 +110,25 @@ export default function Transaction({ compact = false, isSelected = false, onSel
                                     <span
                                         className={
                                             isTransfer
-                                                ? 'bg-muted rounded-full border-1 border-border px-2 py-1 text-base text-xs'
+                                                ? 'bg-muted border-border rounded-full border-1 px-2 py-1 text-base text-xs'
                                                 : 'bg-background rounded-full border-1 border-black px-2 py-1 text-base text-xs'
                                         }
                                     >
                                         {transaction.type}
                                     </span>
 
-                                    {transaction.merchant?.name && (
+                                    {transaction.counterparty?.name && (
                                         <span
-                                            className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.merchant.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
+                                            className={`bg-background flex items-center rounded-full border-1 border-black ${transaction.counterparty.logo ? 'h-6 p-1' : 'px-2 py-1'}`}
                                         >
-                                            {transaction.merchant.logo ? (
+                                            {transaction.counterparty.logo ? (
                                                 <img
-                                                    src={transaction.merchant.logo}
-                                                    alt={transaction.merchant.name}
+                                                    src={transaction.counterparty.logo}
+                                                    alt={transaction.counterparty.name}
                                                     className="h-5 w-auto rounded-full object-contain"
                                                 />
                                             ) : (
-                                                <span className="text-xs font-bold">{transaction.merchant.name}</span>
+                                                <span className="text-xs font-bold">{transaction.counterparty.name}</span>
                                             )}
                                         </span>
                                     )}

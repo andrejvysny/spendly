@@ -9,6 +9,4 @@ use App\Models\RuleEngine\RuleAction;
 /**
  * @extends RuleScopedRepositoryInterface<RuleAction>
  */
-interface RuleActionRepositoryInterface extends RuleScopedRepositoryInterface
-{
-}
+interface RuleActionRepositoryInterface extends RuleScopedRepositoryInterface {}

@@ -91,6 +91,7 @@ class AutoDetectionService
         if ($count === 0) {
             return 0.0;
         }
+
         return round($sum / max($count, 1), 4);
     }
 }

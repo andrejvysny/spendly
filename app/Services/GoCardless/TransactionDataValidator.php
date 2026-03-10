@@ -93,7 +93,7 @@ class TransactionDataValidator
             $warnings[] = 'Description truncated';
         }
         if (empty(trim((string) ($data['description'] ?? '')))) {
-            $data['description'] = 'Transaction ' . ($data['transaction_id'] ?? 'unknown');
+            $data['description'] = 'Transaction '.($data['transaction_id'] ?? 'unknown');
         }
 
         $partner = $data['partner'] ?? null;
@@ -121,6 +121,7 @@ class TransactionDataValidator
             $data['amount'] ?? '',
             $data['description'] ?? '',
         ];
-        return 'fallback_' . md5(implode('|', $parts));
+
+        return 'fallback_'.md5(implode('|', $parts));
     }
 }

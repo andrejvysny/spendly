@@ -4,12 +4,12 @@ use App\Http\Controllers\Accounts\AccountController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CounterpartyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Import\ImportController;
 use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\Import\ImportMappingsController;
 use App\Http\Controllers\Import\ImportWizardController;
-use App\Http\Controllers\MerchantController;
 use App\Http\Controllers\RuleEngine\RuleController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\Transactions\TransactionController;
@@ -52,11 +52,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
 
-    // Merchant routes
-    Route::get('/merchants', [MerchantController::class, 'index'])->name('merchants.index');
-    Route::post('/merchants', [MerchantController::class, 'store'])->name('merchants.store');
-    Route::put('/merchants/{merchant}', [MerchantController::class, 'update'])->name('merchants.update');
-    Route::delete('/merchants/{merchant}', [MerchantController::class, 'destroy'])->name('merchants.destroy');
+    // Counterparty routes
+    Route::get('/counterparties', [CounterpartyController::class, 'index'])->name('counterparties.index');
+    Route::post('/counterparties', [CounterpartyController::class, 'store'])->name('counterparties.store');
+    Route::put('/counterparties/{counterparty}', [CounterpartyController::class, 'update'])->name('counterparties.update');
+    Route::delete('/counterparties/{counterparty}', [CounterpartyController::class, 'destroy'])->name('counterparties.destroy');
 
     // Tag routes
     Route::get('/tags', [TagController::class, 'index'])->name('tags.index');

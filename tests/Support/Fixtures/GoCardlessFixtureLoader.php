@@ -20,7 +20,7 @@ final class GoCardlessFixtureLoader
      */
     public static function loadRevolutTransactions(string $accountId = 'LT683250013083708433'): array
     {
-        $path = self::fixturePath('Revolut', $accountId . '_transactions_booked.json');
+        $path = self::fixturePath('Revolut', $accountId.'_transactions_booked.json');
         if (! File::exists($path)) {
             return [];
         }
@@ -37,7 +37,7 @@ final class GoCardlessFixtureLoader
      */
     public static function loadRevolutTransactionsUsd(string $accountId = 'LT683250013083708433'): array
     {
-        $path = self::fixturePath('Revolut', $accountId . '_transactions_booked_USD.json');
+        $path = self::fixturePath('Revolut', $accountId.'_transactions_booked_USD.json');
         if (! File::exists($path)) {
             return [];
         }
@@ -54,7 +54,7 @@ final class GoCardlessFixtureLoader
      */
     public static function loadSlspTransactions(string $accountId = 'SK6809000000005183172536'): array
     {
-        $path = self::fixturePath('SLSP', $accountId . '_transactions_booked.json');
+        $path = self::fixturePath('SLSP', $accountId.'_transactions_booked.json');
         if (! File::exists($path)) {
             return [];
         }
@@ -71,7 +71,7 @@ final class GoCardlessFixtureLoader
      */
     public static function loadRevolutDetails(string $accountId): array
     {
-        $path = self::fixturePath('Revolut', $accountId . '_details.json');
+        $path = self::fixturePath('Revolut', $accountId.'_details.json');
         if (! File::exists($path)) {
             return [];
         }
@@ -88,7 +88,7 @@ final class GoCardlessFixtureLoader
      */
     public static function loadSlspDetails(string $accountId): array
     {
-        $path = self::fixturePath('SLSP', $accountId . '_details.json');
+        $path = self::fixturePath('SLSP', $accountId.'_details.json');
         if (! File::exists($path)) {
             return [];
         }
@@ -106,7 +106,7 @@ final class GoCardlessFixtureLoader
         $base = base_path('gocardless_bank_account_data');
 
         return File::isDirectory($base)
-            && File::exists($base . DIRECTORY_SEPARATOR . 'Revolut')
-            && File::exists($base . DIRECTORY_SEPARATOR . 'SLSP');
+            && File::exists($base.DIRECTORY_SEPARATOR.'Revolut')
+            && File::exists($base.DIRECTORY_SEPARATOR.'SLSP');
     }
 }

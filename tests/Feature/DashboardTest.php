@@ -25,7 +25,7 @@ class DashboardTest extends TestCase
     public function test_dashboard_returns_correct_stats_structure(): void
     {
         $user = User::factory()->create();
-        
+
         $this->actingAs($user)
             ->get('/dashboard')
             ->assertOk()

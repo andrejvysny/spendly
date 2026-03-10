@@ -12,7 +12,7 @@ enum ConditionField: string
 
     case FIELD_CATEGORY = 'category';
 
-    case FIELD_MERCHANT = 'merchant';
+    case FIELD_COUNTERPARTY = 'counterparty';
 
     case FIELD_ACCOUNT = 'account';
 
@@ -38,7 +38,7 @@ enum ConditionField: string
 
     case FIELD_HAS_CATEGORY = 'has_category';
 
-    case FIELD_HAS_MERCHANT = 'has_merchant';
+    case FIELD_HAS_COUNTERPARTY = 'has_counterparty';
 
     /**
      * Fields that use boolean-style operators (is_empty/is_not_empty only).
@@ -48,7 +48,7 @@ enum ConditionField: string
         return [
             self::FIELD_IS_RECONCILED,
             self::FIELD_HAS_CATEGORY,
-            self::FIELD_HAS_MERCHANT,
+            self::FIELD_HAS_COUNTERPARTY,
         ];
     }
 }

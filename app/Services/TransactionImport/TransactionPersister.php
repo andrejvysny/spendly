@@ -174,7 +174,7 @@ class TransactionPersister
                                 $this->prepareForInsert($data->toArray())
                             );
                             // Eager load needed relations for rule processing
-                            $transaction->load(['account.user', 'tags', 'category', 'merchant']);
+                            $transaction->load(['account.user', 'tags', 'category', 'counterparty']);
                             $created->push($transaction);
                         } catch (\Exception $individualError) {
                             Log::error('Individual transaction insert failed', [

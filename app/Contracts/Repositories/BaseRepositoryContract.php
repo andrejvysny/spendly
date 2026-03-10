@@ -21,7 +21,7 @@ interface BaseRepositoryContract
      */
     public function transaction(callable $callback);
 
-    public function delete(int $id): bool;
+    public function delete(int|\Illuminate\Database\Eloquent\Model $id): bool;
 
     /**
      * @return TModel|null

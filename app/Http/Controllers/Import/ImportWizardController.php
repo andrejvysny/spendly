@@ -7,24 +7,24 @@ namespace App\Http\Controllers\Import;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Import\ImportConfigureRequest;
 use App\Http\Requests\Import\ImportUploadRequest;
+use App\Jobs\RecurringDetectionJob;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Import\Import;
+use App\Models\RecurringDetectionSetting;
 use App\Services\Csv\CsvProcessor;
 use App\Services\TransactionImport\FieldDetection\AutoDetectionService;
 use App\Services\TransactionImport\ImportMappingService;
 use App\Services\TransactionImport\Parsers\AmountParser;
 use App\Services\TransactionImport\Parsers\DateParser;
-use App\Jobs\RecurringDetectionJob;
-use App\Models\RecurringDetectionSetting;
-use App\Services\TransferDetectionService;
 use App\Services\TransactionImport\TransactionImportService;
+use App\Services\TransferDetectionService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Http\Request;
 
 class ImportWizardController extends Controller
 {
@@ -359,6 +359,7 @@ class ImportWizardController extends Controller
             $previewData = $this->importService->getPreview($import, (int) ($request->input('limit', 10)));
         } catch (\Exception $e) {
             Log::error('Failed to generate preview', ['import_id' => $import->id, 'error' => $e->getMessage()]);
+
             return response()->json(['message' => 'Failed to generate preview'], 500);
         }
 

@@ -41,14 +41,14 @@ class RuleController extends Controller
 
         // Get data for dynamic inputs
         $categories = $user->categories()->select('id', 'name')->get();
-        $merchants = $user->merchants()->select('id', 'name')->get();
+        $counterparties = $user->counterparties()->select('id', 'name')->get();
         $tags = $user->tags()->select('id', 'name')->get();
 
         $actionInputConfig = self::buildActionInputConfig();
 
         return Inertia::render('rules/index', [
             'initialRuleGroups' => $ruleGroups,
-            'ruleOptions' => self::buildRuleOptions($categories, $merchants, $tags),
+            'ruleOptions' => self::buildRuleOptions($categories, $counterparties, $tags),
             'actionInputConfig' => $actionInputConfig,
         ]);
     }
@@ -382,11 +382,11 @@ class RuleController extends Controller
         $user = auth()->user();
 
         $categories = $user->categories()->select('id', 'name')->get();
-        $merchants = $user->merchants()->select('id', 'name')->get();
+        $counterparties = $user->counterparties()->select('id', 'name')->get();
         $tags = $user->tags()->select('id', 'name')->get();
 
         return response()->json([
-            'data' => self::buildRuleOptions($categories, $merchants, $tags),
+            'data' => self::buildRuleOptions($categories, $counterparties, $tags),
         ]);
     }
 
@@ -405,7 +405,7 @@ class RuleController extends Controller
     /**
      * Build the shared rule options array used by both Inertia and API responses.
      */
-    private static function buildRuleOptions($categories, $merchants, $tags): array
+    private static function buildRuleOptions($categories, $counterparties, $tags): array
     {
         return [
             'trigger_types' => Trigger::cases(),
@@ -419,7 +419,7 @@ class RuleController extends Controller
                 'boolean' => ConditionOperator::boolean(),
             ],
             'categories' => $categories,
-            'merchants' => $merchants,
+            'counterparties' => $counterparties,
             'tags' => $tags,
             'transaction_types' => [
                 Transaction::TYPE_TRANSFER => 'Transfer',
@@ -443,10 +443,10 @@ class RuleController extends Controller
                 'model' => 'categories',
                 'placeholder' => 'Select a category',
             ],
-            ActionType::ACTION_SET_MERCHANT->value => [
+            ActionType::ACTION_SET_COUNTERPARTY->value => [
                 'type' => 'select',
-                'model' => 'merchants',
-                'placeholder' => 'Select a merchant',
+                'model' => 'counterparties',
+                'placeholder' => 'Select a counterparty',
             ],
             ActionType::ACTION_ADD_TAG->value => [
                 'type' => 'select',
@@ -503,9 +503,9 @@ class RuleController extends Controller
                 'type' => 'text',
                 'placeholder' => 'Enter category name',
             ],
-            ActionType::ACTION_CREATE_MERCHANT_IF_NOT_EXISTS->value => [
+            ActionType::ACTION_CREATE_COUNTERPARTY_IF_NOT_EXISTS->value => [
                 'type' => 'text',
-                'placeholder' => 'Enter merchant name',
+                'placeholder' => 'Enter counterparty name',
             ],
             ActionType::ACTION_SET_PARTNER->value => [
                 'type' => 'text',
@@ -523,7 +523,7 @@ class RuleController extends Controller
                 'type' => 'none',
                 'placeholder' => 'No value needed',
             ],
-            ActionType::ACTION_CLEAR_MERCHANT->value => [
+            ActionType::ACTION_CLEAR_COUNTERPARTY->value => [
                 'type' => 'none',
                 'placeholder' => 'No value needed',
             ],

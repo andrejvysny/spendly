@@ -11,7 +11,9 @@ use Illuminate\Support\Facades\Log;
 class MlService
 {
     private string $baseUrl;
+
     private bool $enabled;
+
     private int $timeout;
 
     public function __construct()
@@ -29,6 +31,7 @@ class MlService
 
         try {
             $response = Http::timeout(5)->get("{$this->baseUrl}/api/v1/health");
+
             return $response->successful();
         } catch (\Throwable) {
             return false;
@@ -50,11 +53,11 @@ class MlService
 
     /**
      * @param  int[]|null  $transactionIds
-     * @return array<int, array{transaction_id: int, predicted_merchant_id: ?int, suggested_merchant_name: ?string, confidence: float, method: string}>
+     * @return array<int, array{transaction_id: int, predicted_counterparty_id: ?int, suggested_counterparty_name: ?string, confidence: float, method: string}>
      */
-    public function detectMerchants(int $userId, ?array $transactionIds = null, int $limit = 100): array
+    public function detectCounterparties(int $userId, ?array $transactionIds = null, int $limit = 100): array
     {
-        return $this->post('/api/v1/detect-merchants', [
+        return $this->post('/api/v1/detect-counterparties', [
             'user_id' => $userId,
             'transaction_ids' => $transactionIds,
             'limit' => $limit,
@@ -84,9 +87,9 @@ class MlService
     /**
      * @return array{status: string, message: string}
      */
-    public function trainMerchantDetector(int $userId): array
+    public function trainCounterpartyDetector(int $userId): array
     {
-        return $this->post('/api/v1/train/merchant-detector', [
+        return $this->post('/api/v1/train/counterparty-detector', [
             'user_id' => $userId,
         ]);
     }
@@ -117,9 +120,9 @@ class MlService
     /**
      * @return array<int, array{cluster_id: int, suggested_name: string, transaction_ids: int[], confidence: float}>
      */
-    public function discoverMerchants(int $userId): array
+    public function discoverCounterparties(int $userId): array
     {
-        return $this->post('/api/v1/discover-merchants', [
+        return $this->post('/api/v1/discover-counterparties', [
             'user_id' => $userId,
         ]);
     }
@@ -131,6 +134,7 @@ class MlService
     {
         if (! $this->enabled) {
             Log::debug('ML service disabled, skipping request', ['path' => $path]);
+
             return [];
         }
 

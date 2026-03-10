@@ -94,7 +94,7 @@ class RuleApiTest extends TestCase
                         'string',
                     ],
                     'categories',
-                    'merchants',
+                    'counterparties',
                     'tags',
                     'transaction_types',
                 ],
@@ -118,7 +118,7 @@ class RuleApiTest extends TestCase
                             'model',
                             'placeholder',
                         ],
-                        'set_merchant' => [
+                        'set_counterparty' => [
                             'type',
                             'model',
                             'placeholder',
@@ -133,8 +133,8 @@ class RuleApiTest extends TestCase
             ])
             ->assertJsonPath('data.action_input_types.set_category.type', 'select')
             ->assertJsonPath('data.action_input_types.set_category.model', 'categories')
-            ->assertJsonPath('data.action_input_types.set_merchant.type', 'select')
-            ->assertJsonPath('data.action_input_types.set_merchant.model', 'merchants')
+            ->assertJsonPath('data.action_input_types.set_counterparty.type', 'select')
+            ->assertJsonPath('data.action_input_types.set_counterparty.model', 'counterparties')
             ->assertJsonPath('data.action_input_types.add_tag.type', 'select')
             ->assertJsonPath('data.action_input_types.add_tag.model', 'tags');
     }
@@ -153,8 +153,8 @@ class RuleApiTest extends TestCase
             ->has('actionInputConfig')
             ->where('actionInputConfig.set_category.type', 'select')
             ->where('actionInputConfig.set_category.model', 'categories')
-            ->where('actionInputConfig.set_merchant.type', 'select')
-            ->where('actionInputConfig.set_merchant.model', 'merchants')
+            ->where('actionInputConfig.set_counterparty.type', 'select')
+            ->where('actionInputConfig.set_counterparty.model', 'counterparties')
             ->where('actionInputConfig.add_tag.type', 'select')
             ->where('actionInputConfig.add_tag.model', 'tags')
         );

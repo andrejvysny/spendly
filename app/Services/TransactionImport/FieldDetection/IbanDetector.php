@@ -12,6 +12,7 @@ class IbanDetector
     public function looksLikeIban(string $value): bool
     {
         $value = str_replace(' ', '', strtoupper(trim($value)));
+
         return preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/', $value) === 1;
     }
 
@@ -25,7 +26,7 @@ class IbanDetector
             return false;
         }
 
-        $rearranged = substr($value, 4) . substr($value, 0, 4);
+        $rearranged = substr($value, 4).substr($value, 0, 4);
         $numeric = '';
         for ($i = 0, $len = strlen($rearranged); $i < $len; $i++) {
             $c = $rearranged[$i];

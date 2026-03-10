@@ -107,7 +107,7 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
         }
 
         return $this->model->query()
-            ->with(['account.user', 'tags', 'category', 'merchant'])
+            ->with(['account.user', 'tags', 'category', 'counterparty'])
             ->where(function ($q) use ($pairs) {
                 foreach ($pairs as [$accId, $txId]) {
                     $q->orWhere(function ($qq) use ($accId, $txId) {
@@ -126,7 +126,7 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     public function getRecentByAccounts(array $accountIds, int $limit = 10): Collection
     {
         return $this->model->whereIn('account_id', $accountIds)
-            ->with(['category', 'merchant', 'account', 'tags'])
+            ->with(['category', 'counterparty', 'account', 'tags'])
             ->orderBy('booked_date', 'desc')
             ->limit($limit)
             ->get();
@@ -157,7 +157,7 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     public function getForRecurringDetection(int $userId, Carbon $from, Carbon $to, ?int $accountId = null): Collection
     {
         $query = $this->model
-            ->with(['merchant', 'account'])
+            ->with(['counterparty', 'account'])
             ->whereHas('account', fn ($q) => $q->where('user_id', $userId))
             ->whereBetween('booked_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
             ->where('type', '!=', Transaction::TYPE_TRANSFER);

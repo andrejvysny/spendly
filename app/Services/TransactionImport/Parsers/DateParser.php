@@ -91,6 +91,7 @@ class DateParser
             if ($this->isReasonable($date)) {
                 return DateParseResult::success($date, self::FORMAT_ISO, 1.0);
             }
+
             return DateParseResult::success($date, self::FORMAT_ISO, 0.9, ['Date outside reasonable range']);
         } catch (\Throwable) {
             return DateParseResult::failure(self::FORMAT_ISO, 0.0, ['Invalid ISO date']);
@@ -105,6 +106,7 @@ class DateParser
         }
         try {
             $date = Carbon::createFromFormat($format, $normalized);
+
             return $date ?: null;
         } catch (\Throwable) {
             return null;
@@ -115,6 +117,7 @@ class DateParser
     {
         $min = Carbon::parse(self::MIN_REASONABLE)->startOfDay();
         $max = Carbon::now()->addYear()->endOfDay();
+
         return $date->between($min, $max);
     }
 
@@ -131,6 +134,7 @@ class DateParser
         if (str_contains($locale, 'en_us') || str_contains($locale, 'us')) {
             return [self::FORMAT_MDY, self::FORMAT_DMY];
         }
+
         return [self::FORMAT_DMY, self::FORMAT_DMY_DOT, self::FORMAT_MDY];
     }
 
@@ -143,6 +147,7 @@ class DateParser
                 return DateParseResult::success($date, $format, 0.7, ['Ambiguous date format']);
             }
         }
+
         return DateParseResult::failure('', 0.0, ['Could not parse date']);
     }
 }

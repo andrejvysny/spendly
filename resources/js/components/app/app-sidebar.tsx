@@ -49,8 +49,8 @@ const mainNavItems: NavItem[] = [
         icon: Tags,
     },
     {
-        title: 'Merchants',
-        href: '/merchants',
+        title: 'Counterparties',
+        href: '/counterparties',
         icon: ShoppingBag,
     },
     {

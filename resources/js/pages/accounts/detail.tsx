@@ -9,14 +9,13 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
-import { Account, Category, Merchant, Transaction } from '@/types/index';
+import { Account, Category, Counterparty, Transaction } from '@/types/index';
 import { formatAmount } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { Head, router } from '@inertiajs/react';
@@ -34,7 +33,7 @@ interface Props {
         total: number;
     };
     categories: Category[];
-    merchants: Merchant[];
+    counterparties: Counterparty[];
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     total_transactions: number;
     cashflow_last_month: Array<{
@@ -104,7 +103,7 @@ async function fetchAccountTransactions(
  * @param account - The account to display details for, including sync status and metadata.
  * @param transactions - Paginated transaction data for the account.
  * @param categories - Available transaction categories.
- * @param merchants - List of merchants related to the transactions.
+ * @param counterparties - List of counterparties related to the transactions.
  * @param monthlySummaries - Monthly summary data for the account.
  * @param total_transactions - Total number of transactions for the account.
  * @param cashflow_last_month - Daily cashflow data for the previous month.
@@ -114,7 +113,7 @@ export default function Detail({
     account,
     transactions: initialTransactions,
     categories,
-    merchants,
+    counterparties,
     monthlySummaries: initialSummaries,
     total_transactions,
     cashflow_last_month,
@@ -306,7 +305,7 @@ export default function Detail({
                                 <div className="mb-4 flex flex-col gap-3">
                                     <div className="flex flex-col">
                                         <span className="text-muted-foreground mb-1 text-xs">{'IBAN'}</span>
-                                        <span className="break-words text-sm">{account.iban || '—'}</span>
+                                        <span className="text-sm break-words">{account.iban || '—'}</span>
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-muted-foreground mb-1 text-xs">{'Type'}</span>
@@ -358,11 +357,7 @@ export default function Detail({
                                     </div>
 
                                     <div className="flex w-full">
-                                        <Button
-                                            onClick={handleSync}
-                                            disabled={syncing}
-                                            className="flex-1 rounded-r-none border-r border-border"
-                                        >
+                                        <Button onClick={handleSync} disabled={syncing} className="border-border flex-1 rounded-r-none border-r">
                                             {syncing ? 'Syncing...' : 'Sync'}
                                         </Button>
                                         <DropdownMenu>
@@ -381,7 +376,10 @@ export default function Detail({
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
                                                     className="flex cursor-pointer flex-col items-start gap-0.5"
-                                                    onClick={(e) => { e.preventDefault(); setSyncScope('both'); }}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setSyncScope('both');
+                                                    }}
                                                 >
                                                     <span className="flex items-center gap-2 text-sm font-medium">
                                                         <span className="w-4">{syncScope === 'both' ? <Check className="h-4 w-4" /> : null}</span>
@@ -391,17 +389,25 @@ export default function Detail({
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     className="flex cursor-pointer flex-col items-start gap-0.5"
-                                                    onClick={(e) => { e.preventDefault(); setSyncScope('transactions'); }}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setSyncScope('transactions');
+                                                    }}
                                                 >
                                                     <span className="flex items-center gap-2 text-sm font-medium">
-                                                        <span className="w-4">{syncScope === 'transactions' ? <Check className="h-4 w-4" /> : null}</span>
+                                                        <span className="w-4">
+                                                            {syncScope === 'transactions' ? <Check className="h-4 w-4" /> : null}
+                                                        </span>
                                                         Transactions only
                                                     </span>
                                                     <span className="text-muted-foreground text-xs">Fetch new and updated transactions</span>
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     className="flex cursor-pointer flex-col items-start gap-0.5"
-                                                    onClick={(e) => { e.preventDefault(); setSyncScope('balance'); }}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setSyncScope('balance');
+                                                    }}
                                                 >
                                                     <span className="flex items-center gap-2 text-sm font-medium">
                                                         <span className="w-4">{syncScope === 'balance' ? <Check className="h-4 w-4" /> : null}</span>
@@ -495,7 +501,7 @@ export default function Detail({
                                 transactions={transactions}
                                 monthlySummaries={monthlySummaries}
                                 categories={categories}
-                                merchants={merchants}
+                                counterparties={counterparties}
                                 hasMorePages={hasMorePages}
                                 onLoadMore={handleLoadMore}
                                 isLoadingMore={isLoadingMore}

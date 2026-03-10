@@ -52,7 +52,7 @@ const HEADER_SYNONYMS: Record<string, { high: string[]; medium: string[] }> = {
  */
 export function suggestColumnMappings(
     headers: string[],
-    sampleRows: string[][]
+    sampleRows: string[][],
 ): { columnIndex: number; field: string; confidence: number; signals: Record<string, number> }[] {
     const result: { columnIndex: number; field: string; confidence: number; signals: Record<string, number> }[] = [];
     for (let c = 0; c < headers.length; c++) {
@@ -106,7 +106,7 @@ class FieldMappingService {
         recipient_note: /^(recipient.*note|recipient.*memo|for.*recipient|pro.*prijemce|beneficiary.*note|payee.*note|destination.*note)$/i,
         place: /^(place|location|misto|lokalita|where|venue|lieu|lugar|posto|ort|lokalizacja|miesto.*pouzitia.*karty)$/i,
         balance_after_transaction: /^(balance.*after|remaining.*balance|new.*balance|balance|zůstatek|zustatek|saldo.*final|balance.*final|solde)$/i,
-        merchant_id: /^(merchant|obchodnik|store|shop|vendor|comerciante|commerciante|magasin|negozio|laden|sklep)$/i,
+        counterparty_id: /^(merchant|obchodnik|store|shop|vendor|comerciante|commerciante|magasin|negozio|laden|sklep)$/i,
         category_id: /^(category|kategorie|group|skupina|class|trida|categoria|classe|groupe|klasse|categoria)$/i,
         account_id: /^(account|ucet|konto|account.*number|numero.*cuenta|numero.*conto|numero.*compte|kontonummer|numer.*konta)$/i,
     };
@@ -487,7 +487,7 @@ class FieldMappingService {
             case 'partner':
                 // Partner is a required text field, should never be null
                 return '';
-            case 'merchant_id':
+            case 'counterparty_id':
             case 'category_id':
                 // For optional select fields, return null so they show "-- None --"
                 // Only return first option if field is required

@@ -9,7 +9,7 @@ interface ConfirmStepProps {
     mappings: Record<string, Record<string, string>>;
     categories: Category[];
     tags?: { id: number; name: string }[];
-    merchants?: { id: number; name: string }[];
+    counterparties?: { id: number; name: string }[];
     onConfirm: () => void;
     isLoading: boolean;
     error: string | null;
@@ -17,23 +17,23 @@ interface ConfirmStepProps {
 }
 
 // Extended transaction data that includes additional fields
-interface ExtendedTransactionData extends Omit<Partial<Transaction>, 'merchant' | 'category' | 'tags'> {
+interface ExtendedTransactionData extends Omit<Partial<Transaction>, 'counterparty' | 'category' | 'tags'> {
     category?: string;
     tag?: string;
-    merchant?: string;
+    counterparty?: string;
     note?: string;
     recipient_note?: string;
     place?: string;
 }
 
-type MappingType = 'category' | 'tag' | 'merchant';
+type MappingType = 'category' | 'tag' | 'counterparty';
 
 export default function ConfirmStep({
     data,
-    mappings = { category: {}, tag: {}, merchant: {} },
+    mappings = { category: {}, tag: {}, counterparty: {} },
     categories,
     tags = [],
-    merchants = [],
+    counterparties = [],
     onConfirm,
     isLoading,
     error,
@@ -45,14 +45,14 @@ export default function ConfirmStep({
         const uniqueValues: Record<MappingType, Set<string>> = {
             category: new Set<string>(),
             tag: new Set<string>(),
-            merchant: new Set<string>(),
+            counterparty: new Set<string>(),
         };
 
         data.forEach((item) => {
             const extendedItem = item as ExtendedTransactionData;
             if (extendedItem.category) uniqueValues.category.add(extendedItem.category);
             if (extendedItem.tag) uniqueValues.tag.add(extendedItem.tag);
-            if (extendedItem.merchant) uniqueValues.merchant.add(extendedItem.merchant);
+            if (extendedItem.counterparty) uniqueValues.counterparty.add(extendedItem.counterparty);
         });
 
         // Count new vs existing for each mapping type
@@ -147,7 +147,7 @@ export default function ConfirmStep({
 
                             <div className="text-foreground flex items-center gap-3">
                                 <CheckCircle2 className="h-5 w-5 text-green-400" />
-                                <span>Creating new categories, tags, and merchants...</span>
+                                <span>Creating new categories, tags, and counterparties...</span>
                             </div>
 
                             <div className="text-foreground flex items-center gap-3">
@@ -206,7 +206,7 @@ export default function ConfirmStep({
                 {/* Mapping Tables */}
                 {renderMappingTable('category', mappings?.category, categories)}
                 {renderMappingTable('tag', mappings?.tag, tags)}
-                {renderMappingTable('merchant', mappings?.merchant, merchants)}
+                {renderMappingTable('counterparty', mappings?.counterparty, counterparties)}
             </div>
 
             {/* Sample Records */}
@@ -226,7 +226,7 @@ export default function ConfirmStep({
                                 <TableHead>Place</TableHead>
                                 <TableHead>Category</TableHead>
                                 <TableHead>Tag</TableHead>
-                                <TableHead>Merchant</TableHead>
+                                <TableHead>Counterparty</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -244,7 +244,7 @@ export default function ConfirmStep({
                                         <TableCell>{item.place}</TableCell>
                                         <TableCell>{extendedItem.category}</TableCell>
                                         <TableCell>{extendedItem.tag}</TableCell>
-                                        <TableCell>{extendedItem.merchant}</TableCell>
+                                        <TableCell>{extendedItem.counterparty}</TableCell>
                                     </TableRow>
                                 );
                             })}

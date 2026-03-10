@@ -168,10 +168,10 @@ readonly class TransactionImportService
         $rows = [];
         foreach ($result->getResults() as $processResult) {
             if ($processResult->getData() instanceof \App\Services\TransactionImport\TransactionDto) {
-                 $rows[] = array_merge(
-                     $processResult->getData()->toArray(),
-                     ['_row_number' => $processResult->getMetadata()['row_number'] ?? null]
-                 );
+                $rows[] = array_merge(
+                    $processResult->getData()->toArray(),
+                    ['_row_number' => $processResult->getMetadata()['row_number'] ?? null]
+                );
             }
         }
 
@@ -196,7 +196,7 @@ readonly class TransactionImportService
         $distribution = [];
 
         // We process all rows to aggregate values
-         $this->csvProcessor->processRows(
+        $this->csvProcessor->processRows(
             "imports/{$import->filename}",
             $import->metadata['delimiter'] ?? ';',
             $import->metadata['quote_char'] ?? '"',
@@ -204,27 +204,28 @@ readonly class TransactionImportService
                 $value = $row[$columnIndex] ?? null;
                 if ($value !== null && trim($value) !== '') {
                     $value = trim($value);
-                    if (!isset($distribution[$value])) {
+                    if (! isset($distribution[$value])) {
                         $distribution[$value] = 0;
                     }
                     $distribution[$value]++;
                 }
+
                 // Return generic success to keep processing
                 return \App\Services\Csv\CsvProcessResult::success('', []);
             },
             true // skip_header
         );
 
-         // Sort by count descending
-         arsort($distribution);
+        // Sort by count descending
+        arsort($distribution);
 
-         // Format for frontend
-         $result = [];
-         foreach ($distribution as $value => $count) {
-             $result[] = ['value' => $value, 'count' => $count];
-         }
+        // Format for frontend
+        $result = [];
+        foreach ($distribution as $value => $count) {
+            $result[] = ['value' => $value, 'count' => $count];
+        }
 
-         return $result;
+        return $result;
     }
 
     /**

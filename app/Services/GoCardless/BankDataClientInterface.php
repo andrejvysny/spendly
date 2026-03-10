@@ -10,6 +10,8 @@ interface BankDataClientInterface
 
     public function getAccounts(string $requisitionId): array;
 
+    public function getAccountMetadata(string $accountId): array;
+
     public function getAccountDetails(string $accountId): array;
 
     public function getTransactions(string $accountId, ?string $dateFrom = null, ?string $dateTo = null): array;

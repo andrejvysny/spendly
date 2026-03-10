@@ -444,7 +444,7 @@ class ImportFailureController extends Controller
             'metadata' => 'nullable|array',
             'balance_after_transaction' => 'required|numeric',
             'account_id' => 'required|exists:accounts,id',
-            'merchant_id' => 'nullable|exists:merchants,id',
+            'counterparty_id' => 'nullable|exists:counterparties,id',
             'category_id' => 'nullable|exists:categories,id',
             'tags' => 'nullable|array',
             'tags.*' => 'exists:tags,id',
@@ -467,7 +467,7 @@ class ImportFailureController extends Controller
                 'type' => $validated['type'],
                 'balance_after_transaction' => $validated['balance_after_transaction'],
                 'account_id' => $validated['account_id'],
-                'merchant_id' => $validated['merchant_id'] ?? null,
+                'counterparty_id' => $validated['counterparty_id'] ?? null,
                 'category_id' => $validated['category_id'] ?? null,
                 'note' => $validated['note'] ?? null,
                 'recipient_note' => $validated['recipient_note'] ?? null,
@@ -489,7 +489,7 @@ class ImportFailureController extends Controller
 
             return response()->json([
                 'message' => 'Transaction created successfully',
-                'transaction' => $transaction->load(['account', 'merchant', 'category']),
+                'transaction' => $transaction->load(['account', 'counterparty', 'category']),
                 'failure' => $failure->fresh()->load('reviewer'),
             ], 201);
         } catch (\Exception $e) {

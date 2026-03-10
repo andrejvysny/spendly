@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\GoCardless;
 
 use App\Exceptions\GoCardlessRateLimitException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -27,6 +30,16 @@ class GoCardlessBankDataClient implements BankDataClientInterface
         if (! $this->tokenManager) {
             $this->getAccessToken();
         }
+    }
+
+    /**
+     * Create an authenticated HTTP request with standard timeouts.
+     */
+    private function request(): PendingRequest
+    {
+        return Http::withToken($this->getAccessToken())
+            ->timeout(30)
+            ->connectTimeout(10);
     }
 
     /**
@@ -62,19 +75,21 @@ class GoCardlessBankDataClient implements BankDataClientInterface
         }
 
         if ($this->refreshToken && $this->refreshTokenExpires > new \DateTime) {
-            $response = Http::post("{$this->baseUrl}/token/refresh/", [
-                'refresh' => $this->refreshToken,
-            ]);
+            $response = Http::timeout(30)->connectTimeout(10)
+                ->post("{$this->baseUrl}/token/refresh/", [
+                    'refresh' => $this->refreshToken,
+                ]);
 
             if ($response->successful()) {
                 return $this->processTokenResponse($response);
             }
         }
 
-        $response = Http::post("{$this->baseUrl}/token/new/", [
-            'secret_id' => $this->secretId,
-            'secret_key' => $this->secretKey,
-        ]);
+        $response = Http::timeout(30)->connectTimeout(10)
+            ->post("{$this->baseUrl}/token/new/", [
+                'secret_id' => $this->secretId,
+                'secret_key' => $this->secretKey,
+            ]);
 
         if (! $response->successful()) {
             throw new \Exception('Failed to get access token: '.$response->body());
@@ -176,7 +191,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
 
     public function createEndUserAgreement(string $institutionId, array $userData): array
     {
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->request()
             ->post("{$this->baseUrl}/agreements/enduser/", [
                 'institution_id' => $institutionId,
                 'max_historical_days' => 90,
@@ -199,18 +214,50 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      */
     public function getAccounts(string $requisitionId): array
     {
-        if ($this->useCache && Cache::has("gocardless_accounts_{$requisitionId}")) {
-            return Cache::get("gocardless_accounts_{$requisitionId}");
+        if ($this->useCache) {
+            $cached = Cache::get("gocardless_accounts_{$requisitionId}");
+            if ($cached !== null) {
+                return $cached;
+            }
         }
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->request()
             ->get("{$this->baseUrl}/requisitions/{$requisitionId}/");
 
         $this->handleResponse($response, 'get accounts');
-        if ($this->useCache) {
-            Cache::put("gocardless_accounts_{$requisitionId}", $response->json()['accounts'] ?? [], $this->cacheDuration);
+
+        $accounts = $response->json()['accounts'] ?? [];
+
+        // Only cache non-empty results — empty means auth may not be complete yet
+        if ($this->useCache && $accounts !== []) {
+            Cache::put("gocardless_accounts_{$requisitionId}", $accounts, $this->cacheDuration);
         }
 
-        return $response->json()['accounts'] ?? [];
+        return $accounts;
+    }
+
+    /**
+     * Retrieves account metadata (institution_id, status, etc.) from the GoCardless account endpoint.
+     */
+    public function getAccountMetadata(string $accountId): array
+    {
+        $key = "gocardless_account_metadata_{$accountId}";
+        if ($this->useCache) {
+            $cached = Cache::get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+
+        $response = $this->request()
+            ->get("{$this->baseUrl}/accounts/{$accountId}/");
+
+        $this->handleResponse($response, 'get account metadata');
+
+        if ($this->useCache) {
+            Cache::put($key, $response->json(), $this->cacheDuration);
+        }
+
+        return $response->json();
     }
 
     /**
@@ -224,11 +271,14 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     public function getAccountDetails(string $accountId): array
     {
         $key = "gocardless_account_details_{$accountId}";
-        if ($this->useCache && Cache::has($key)) {
-            return Cache::get($key);
+        if ($this->useCache) {
+            $cached = Cache::get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
         }
 
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->request()
             ->get("{$this->baseUrl}/accounts/{$accountId}/details/");
 
         $this->handleResponse($response, 'get account details');
@@ -254,8 +304,11 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     {
         // Check cache first
         $cacheKey = "gocardless_transactions_{$accountId}_{$dateFrom}_{$dateTo}";
-        if ($this->useCache && Cache::has($cacheKey)) {
-            return Cache::get($cacheKey);
+        if ($this->useCache) {
+            $cached = Cache::get($cacheKey);
+            if ($cached !== null) {
+                return $cached;
+            }
         }
 
         $params = [];
@@ -274,7 +327,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
         do {
             try {
                 $url = $nextPage ?? "{$this->baseUrl}/accounts/{$accountId}/transactions/";
-                $response = Http::withToken($this->getAccessToken())
+                $response = $this->request()
                     ->get($url, $params);
 
                 $this->handleResponse($response, 'get transactions');
@@ -289,20 +342,13 @@ class GoCardlessBankDataClient implements BankDataClientInterface
                         $transactions['booked']
                     );
                 }
-                if (isset($transactions['pending'])) {
-                    $allTransactions['transactions']['pending'] = array_merge(
-                        $allTransactions['transactions']['pending'] ?? [],
-                        $transactions['pending']
-                    );
-                }
-
                 // Get next page URL if available
                 $nextPage = $data['next'] ?? null;
 
                 // Reset retry count on successful request
                 $retryCount = 0;
 
-            } catch (\Exception $e) {
+            } catch (\Illuminate\Http\Client\ConnectionException $e) {
                 $retryCount++;
                 if ($retryCount >= $maxRetries) {
                     throw new \Exception('Failed to get transactions after '.$maxRetries.' retries: '.$e->getMessage());
@@ -330,11 +376,14 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     public function getBalances(string $accountId): array
     {
         $key = "gocardless_balances_{$accountId}";
-        if ($this->useCache && Cache::has($key)) {
-            return Cache::get($key);
+        if ($this->useCache) {
+            $cached = Cache::get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
         }
 
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->request()
             ->get("{$this->baseUrl}/accounts/{$accountId}/balances/");
 
         $this->handleResponse($response, 'get balances');
@@ -369,7 +418,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
             $payload['agreement'] = $agreementId;
         }
 
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->request()
             ->post("{$this->baseUrl}/requisitions/", $payload);
 
         $this->handleResponse($response, 'create requisition');
@@ -392,19 +441,32 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     public function getRequisitions(?string $requisitionId = null): array
     {
         $key = $requisitionId ? "gocardless_requisitions_{$requisitionId}" : 'gocardless_requisitions_all';
-        if ($this->useCache && Cache::has($key)) {
-            return Cache::get($key);
+        if ($this->useCache) {
+            $cached = Cache::get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
         }
 
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->request()
             ->get($requisitionId ? "{$this->baseUrl}/requisitions/{$requisitionId}/" : "{$this->baseUrl}/requisitions/");
 
         $this->handleResponse($response, 'get requisitions');
-        if ($this->useCache) {
-            Cache::put($key, $response->json(), $this->cacheDuration);
+
+        $data = $response->json();
+
+        // Only cache linked requisitions — transient statuses (CR, GC, UA) should not be cached
+        if ($requisitionId !== null) {
+            $isTransient = in_array($data['status'] ?? null, ['CR', 'GC', 'UA'], true);
+        } else {
+            $isTransient = collect($data['results'] ?? [])
+                ->contains(fn (array $r) => in_array($r['status'] ?? null, ['CR', 'GC', 'UA'], true));
+        }
+        if ($this->useCache && ! $isTransient) {
+            Cache::put($key, $data, $this->cacheDuration);
         }
 
-        return $response->json();
+        return $data;
     }
 
     /**
@@ -419,7 +481,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      */
     public function deleteRequisition(string $requisitionId): bool
     {
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->request()
             ->delete("{$this->baseUrl}/requisitions/{$requisitionId}/");
 
         $this->handleResponse($response, 'delete requisition');
@@ -441,10 +503,13 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     public function getInstitutions(string $countryCode): array
     {
         $key = "gocardless_institutions_{$countryCode}";
-        if ($this->useCache && Cache::has($key)) {
-            return Cache::get($key);
+        if ($this->useCache) {
+            $cached = Cache::get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
         }
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->request()
             ->get("{$this->baseUrl}/institutions?country={$countryCode}");
 
         $this->handleResponse($response, 'get institutions');
