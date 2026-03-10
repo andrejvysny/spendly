@@ -81,8 +81,12 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
     public function fingerprintExists(int $accountId, string $fingerprint): bool;
 
     /**
-     * Find an existing transaction that looks like a CSV import (IMP- or has import_data)
-     * with the same account, booked_date (day), and amount (±0.01). Used for cross-source deduplication.
+     * Find a unique, strong cross-source match for an imported transaction.
+     *
+     * Used to enrich an existing CSV import with provider metadata only when there is
+     * one high-confidence candidate in the same account.
+     *
+     * @param  array<string, mixed>  $mappedData
      */
-    public function findExistingImportByAmountAndDate(int $accountId, Carbon $bookedDate, float $amount): ?Transaction;
+    public function findStrongMatchingImport(int $accountId, array $mappedData): ?Transaction;
 }

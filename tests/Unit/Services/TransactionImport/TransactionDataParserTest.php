@@ -349,4 +349,43 @@ class TransactionDataParserTest extends UnitTestCase
         $this->assertStringStartsWith('2023-12-25', $result['booked_date']);
         $this->assertStringStartsWith('2023-12-27', $result['processed_date']);
     }
+
+    public function test_parse_transfer_type_marks_transfer_candidate_without_forcing_transfer_type(): void
+    {
+        $row = ['2023-12-25', '-15.00', 'Savings move', 'transfer'];
+        $configuration = [
+            'column_mapping' => [
+                'booked_date' => 0,
+                'amount' => 1,
+                'partner' => 2,
+                'type' => 3,
+            ],
+            'date_format' => 'Y-m-d',
+            'amount_format' => '1,234.56',
+        ];
+
+        $result = $this->parser->parse($row, $configuration);
+
+        $this->assertSame('PAYMENT', $result['type']);
+        $this->assertTrue($result['metadata']['transfer_candidate']);
+    }
+
+    public function test_parse_defaults_balance_after_transaction_to_null_when_not_mapped(): void
+    {
+        $row = ['2023-12-25', '100.00', 'Partner'];
+        $configuration = [
+            'column_mapping' => [
+                'booked_date' => 0,
+                'amount' => 1,
+                'partner' => 2,
+            ],
+            'date_format' => 'Y-m-d',
+            'amount_format' => '1,234.56',
+        ];
+
+        $result = $this->parser->parse($row, $configuration);
+
+        $this->assertArrayHasKey('balance_after_transaction', $result);
+        $this->assertNull($result['balance_after_transaction']);
+    }
 }

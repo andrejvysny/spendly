@@ -7,6 +7,7 @@ namespace App\Repositories;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Transaction;
 use App\Repositories\Concerns\BatchInsert;
+use App\Services\TextSimilarity;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -178,22 +179,57 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     }
 
     /**
-     * Find an existing transaction that looks like a CSV import with same account, date and amount.
-     * Used to attach GoCardless sync to an existing CSV-imported row (cross-source deduplication).
+     * @param  array<string, mixed>  $mappedData
      */
-    public function findExistingImportByAmountAndDate(int $accountId, Carbon $bookedDate, float $amount): ?Transaction
+    public function findStrongMatchingImport(int $accountId, array $mappedData): ?Transaction
     {
+        $bookedDate = $mappedData['booked_date'] instanceof Carbon
+            ? $mappedData['booked_date']
+            : Carbon::parse((string) ($mappedData['booked_date'] ?? now()));
         $dateStr = $bookedDate->format('Y-m-d');
+        $amount = (float) ($mappedData['amount'] ?? 0);
         $tolerance = 0.01;
+        $currency = (string) ($mappedData['currency'] ?? '');
+        $fingerprint = (string) ($mappedData['fingerprint'] ?? '');
+        $description = (string) ($mappedData['description'] ?? '');
+        $partner = (string) ($mappedData['partner'] ?? '');
 
-        return $this->model
+        $candidates = $this->model
             ->where('account_id', $accountId)
             ->whereDate('booked_date', $dateStr)
             ->whereRaw('ABS(amount - ?) <= ?', [$amount, $tolerance])
-            ->where(function ($q) {
-                $q->where('transaction_id', 'like', 'IMP-%')
+            ->where('currency', $currency)
+            ->where(function ($query) {
+                $query->where('transaction_id', 'like', 'IMP-%')
                     ->orWhereNotNull('import_data');
             })
-            ->first();
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        if ($fingerprint !== '') {
+            $exactFingerprintMatches = $candidates
+                ->filter(fn (Transaction $candidate) => $candidate->fingerprint === $fingerprint)
+                ->values();
+
+            if ($exactFingerprintMatches->count() === 1) {
+                return $exactFingerprintMatches->first();
+            }
+
+            if ($exactFingerprintMatches->count() > 1) {
+                return null;
+            }
+        }
+
+        $strongMatches = $candidates->filter(function (Transaction $candidate) use ($description, $partner) {
+            $descriptionSimilarity = TextSimilarity::similarity((string) $candidate->description, $description);
+            $partnerSimilarity = TextSimilarity::similarity((string) ($candidate->partner ?? ''), $partner);
+
+            return max($descriptionSimilarity, $partnerSimilarity) >= 0.9;
+        })->values();
+
+        return $strongMatches->count() === 1 ? $strongMatches->first() : null;
     }
 }

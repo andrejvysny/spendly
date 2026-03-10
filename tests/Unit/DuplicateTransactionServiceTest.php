@@ -100,7 +100,7 @@ class DuplicateTransactionServiceTest extends TestCase
         $this->assertSame($expected, $result);
     }
 
-    public function test_same_amount_date_partner_with_row_disambiguated_fingerprint_not_duplicate(): void
+    public function test_classify_import_row_skips_only_already_persisted_occurrences(): void
     {
         $user = User::factory()->create();
         $account = Account::factory()->create(['user_id' => $user->id]);
@@ -108,7 +108,6 @@ class DuplicateTransactionServiceTest extends TestCase
         $baseData = [
             'account_id' => $account->id,
             'booked_date' => '2024-03-15',
-            'processed_date' => '2024-03-15',
             'amount' => 30.00,
             'currency' => 'EUR',
             'description' => 'FIIT STU',
@@ -116,21 +115,58 @@ class DuplicateTransactionServiceTest extends TestCase
             'type' => 'PAYMENT',
         ];
 
-        $baseFingerprint = Transaction::generateFingerprint($baseData);
-        $fingerprintRow1 = hash('sha256', $baseFingerprint.'|1|1');
-        $fingerprintRow2 = hash('sha256', $baseFingerprint.'|1|2');
-
         Transaction::factory()->create(array_merge($baseData, [
-            'transaction_id' => 'IMP-row1',
-            'fingerprint' => $fingerprintRow1,
+            'transaction_id' => 'IMP-existing',
+            'fingerprint' => Transaction::generateFingerprint($baseData),
         ]));
 
-        $newRowData = array_merge($baseData, [
-            'transaction_id' => 'IMP-row2',
-            'fingerprint' => $fingerprintRow2,
-        ]);
-        $isDup = $this->service->isDuplicate($newRowData, (int) $user->id);
+        $firstOccurrence = $this->service->classifyImportRow($baseData, (int) $user->id, 1);
+        $secondOccurrence = $this->service->classifyImportRow($baseData, (int) $user->id, 2);
 
-        $this->assertFalse($isDup, 'Second row with same amount/date/partner but row-disambiguated fingerprint must not be considered duplicate');
+        $this->assertSame('skip', $firstOccurrence['decision']);
+        $this->assertSame('allow', $secondOccurrence['decision']);
+        $this->assertSame(1, $firstOccurrence['exact_duplicate_count']);
+        $this->assertSame(1, $secondOccurrence['exact_duplicate_count']);
+    }
+
+    public function test_classify_import_row_marks_probable_duplicate_for_review(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        Transaction::factory()->create([
+            'account_id' => $account->id,
+            'transaction_id' => 'IMP-existing',
+            'booked_date' => '2024-04-12',
+            'processed_date' => '2024-04-12',
+            'amount' => -12.90,
+            'currency' => 'EUR',
+            'description' => 'Spotify Subscription',
+            'partner' => 'Spotify',
+            'type' => 'PAYMENT',
+            'fingerprint' => Transaction::generateFingerprint([
+                'account_id' => $account->id,
+                'booked_date' => '2024-04-12',
+                'amount' => -12.90,
+                'currency' => 'EUR',
+                'description' => 'Spotify Subscription',
+                'partner' => 'Spotify',
+                'type' => 'PAYMENT',
+            ]),
+        ]);
+
+        $decision = $this->service->classifyImportRow([
+            'account_id' => $account->id,
+            'booked_date' => '2024-04-12',
+            'amount' => -12.90,
+            'currency' => 'EUR',
+            'description' => 'Spotify Subscription',
+            'partner' => 'Spotify',
+            'type' => 'CARD_PAYMENT',
+        ], (int) $user->id, 1);
+
+        $this->assertSame('review', $decision['decision']);
+        $this->assertNotNull($decision['probable_duplicate']);
+        $this->assertGreaterThanOrEqual(0.75, $decision['probable_duplicate_score'] ?? 0);
     }
 }

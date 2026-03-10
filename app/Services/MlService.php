@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -93,10 +94,12 @@ class MlService
     /**
      * @return array<int, array{transaction_id: int, is_transfer: bool, confidence: float, method: string, suggested_pair_id: ?int}>
      */
-    public function detectTransfers(int $userId, int $limit = 500): array
+    public function detectTransfers(int $userId, ?Carbon $from = null, ?Carbon $to = null, int $limit = 500): array
     {
         return $this->post('/api/v1/detect-transfers', [
             'user_id' => $userId,
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
             'limit' => $limit,
         ]);
     }

@@ -102,10 +102,11 @@ class TransactionRowProcessorTest extends UnitTestCase
         ];
 
         $this->processor->configure($configuration);
+        $configWithRow = array_merge($configuration, ['_row_number' => 1]);
 
         $this->parser->expects($this->once())
             ->method('parse')
-            ->with($row, $configuration)
+            ->with($row, $configWithRow)
             ->willReturn($parsedData);
 
         $validationResult = new ValidationResult(true, []);
@@ -118,9 +119,15 @@ class TransactionRowProcessorTest extends UnitTestCase
         Auth::shouldReceive('id')->andReturn(1);
 
         $this->duplicateService->expects($this->once())
-            ->method('isDuplicate')
-            ->with($parsedData, 1)
-            ->willReturn(false);
+            ->method('classifyImportRow')
+            ->with($parsedData, 1, 1)
+            ->willReturn([
+                'decision' => 'allow',
+                'fingerprint' => 'fp-1',
+                'exact_duplicate_count' => 0,
+                'probable_duplicate' => null,
+                'probable_duplicate_score' => null,
+            ]);
 
         $result = $this->processor->processRow($row, $metadata);
 
@@ -148,10 +155,11 @@ class TransactionRowProcessorTest extends UnitTestCase
         ];
 
         $this->processor->configure($configuration);
+        $configWithRow = array_merge($configuration, ['_row_number' => 2]);
 
         $this->parser->expects($this->once())
             ->method('parse')
-            ->with($row, $configuration)
+            ->with($row, $configWithRow)
             ->willReturn($parsedData);
 
         $validationResult = new ValidationResult(false, ['Amount is required']);
@@ -188,10 +196,11 @@ class TransactionRowProcessorTest extends UnitTestCase
         ];
 
         $this->processor->configure($configuration);
+        $configWithRow = array_merge($configuration, ['_row_number' => 3]);
 
         $this->parser->expects($this->once())
             ->method('parse')
-            ->with($row, $configuration)
+            ->with($row, $configWithRow)
             ->willReturn($parsedData);
 
         $validationResult = new ValidationResult(true, []);
@@ -204,9 +213,15 @@ class TransactionRowProcessorTest extends UnitTestCase
         Auth::shouldReceive('id')->andReturn(1);
 
         $this->duplicateService->expects($this->once())
-            ->method('isDuplicate')
-            ->with($parsedData, 1)
-            ->willReturn(true);
+            ->method('classifyImportRow')
+            ->with($parsedData, 1, 1)
+            ->willReturn([
+                'decision' => 'skip',
+                'fingerprint' => 'fp-duplicate',
+                'exact_duplicate_count' => 1,
+                'probable_duplicate' => null,
+                'probable_duplicate_score' => null,
+            ]);
 
         $result = $this->processor->processRow($row, $metadata);
 
@@ -234,10 +249,11 @@ class TransactionRowProcessorTest extends UnitTestCase
         ];
 
         $this->processor->configure($configuration);
+        $configWithRow = array_merge($configuration, ['_row_number' => 1]);
 
         $this->parser->expects($this->once())
             ->method('parse')
-            ->with($row, $configuration)
+            ->with($row, $configWithRow)
             ->willReturn($parsedData);
 
         $validationResult = new ValidationResult(true, []);
@@ -248,7 +264,7 @@ class TransactionRowProcessorTest extends UnitTestCase
 
         // In preview mode, duplicate check should not be called
         $this->duplicateService->expects($this->never())
-            ->method('isDuplicate');
+            ->method('classifyImportRow');
 
         $result = $this->processor->processRow($row, $metadata);
 
@@ -269,10 +285,11 @@ class TransactionRowProcessorTest extends UnitTestCase
         ];
 
         $this->processor->configure($configuration);
+        $configWithRow = array_merge($configuration, ['_row_number' => 1]);
 
         $this->parser->expects($this->once())
             ->method('parse')
-            ->with($row, $configuration)
+            ->with($row, $configWithRow)
             ->willThrowException(new \Exception('Parsing error'));
 
         $result = $this->processor->processRow($row, $metadata);
@@ -280,6 +297,70 @@ class TransactionRowProcessorTest extends UnitTestCase
         $this->assertInstanceOf(CsvProcessResult::class, $result);
         $this->assertFalse($result->isSuccess());
         $this->assertStringContainsString('Processing error: Parsing error', $result->getMessage());
+    }
+
+    public function test_process_probable_duplicate_row_marks_it_for_review(): void
+    {
+        $row = ['2023-12-25', '100.00', 'John Doe'];
+        $metadata = ['row_number' => 4];
+
+        $parsedData = [
+            'booked_date' => '2023-12-25 00:00:00',
+            'amount' => 100.00,
+            'partner' => 'John Doe',
+            'transaction_id' => 'TX124',
+            'metadata' => ['source' => 'csv'],
+        ];
+
+        $configuration = [
+            'column_mapping' => ['date' => 0, 'amount' => 1, 'partner' => 2],
+            'date_format' => 'Y-m-d',
+            'amount_format' => '1,234.56',
+        ];
+
+        $this->processor->configure($configuration);
+        $configWithRow = array_merge($configuration, ['_row_number' => 4]);
+
+        $this->parser->expects($this->once())
+            ->method('parse')
+            ->with($row, $configWithRow)
+            ->willReturn($parsedData);
+
+        $validationResult = new ValidationResult(true, []);
+        $this->validator->expects($this->once())
+            ->method('validate')
+            ->with($parsedData, $configuration)
+            ->willReturn($validationResult);
+
+        Auth::shouldReceive('id')->andReturn(1);
+
+        $probableDuplicate = new \App\Models\Transaction;
+        $probableDuplicate->id = 99;
+
+        $this->duplicateService->expects($this->once())
+            ->method('classifyImportRow')
+            ->with($parsedData, 1, 1)
+            ->willReturn([
+                'decision' => 'review',
+                'fingerprint' => 'fp-review',
+                'exact_duplicate_count' => 0,
+                'probable_duplicate' => $probableDuplicate,
+                'probable_duplicate_score' => 0.92,
+            ]);
+
+        $result = $this->processor->processRow($row, $metadata);
+
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame('Transaction imported', $result->getMessage());
+        $this->assertInstanceOf(TransactionDto::class, $result->getData());
+
+        /** @var TransactionDto $transactionDto */
+        $transactionDto = $result->getData();
+        $this->assertTrue($transactionDto->get('needs_manual_review'));
+        $this->assertSame('probable_duplicate', $transactionDto->get('review_reason'));
+        $this->assertSame('fp-review', $transactionDto->get('fingerprint'));
+        $this->assertSame(99, $transactionDto->get('metadata')['probable_duplicate_transaction_id']);
+        $this->assertSame(0.92, $transactionDto->get('metadata')['probable_duplicate_score']);
     }
 
     public function test_invoke_method(): void

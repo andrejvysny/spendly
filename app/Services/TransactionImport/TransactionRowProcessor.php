@@ -18,6 +18,11 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
 {
     private array $configuration = [];
 
+    /**
+     * @var array<string, int>
+     */
+    private array $fingerprintOccurrences = [];
+
     public function __construct(
         private readonly TransactionDataParser $parser,
         private readonly TransactionValidator $validator,
@@ -29,6 +34,7 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
         // Configuration logic if needed
         Log::debug('Configuring TransactionRowProcessor', ['configuration' => $configuration]);
         $this->configuration = $configuration;
+        $this->fingerprintOccurrences = [];
 
         if (! $this->canProcess($configuration)) {
             throw new \InvalidArgumentException('Invalid configuration for TransactionRowProcessor');
@@ -88,16 +94,49 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
             if (! is_int($userId)) {
                 throw new \RuntimeException('User must be authenticated to process transactions');
             }
-            if ($this->duplicateService->isDuplicate($parsedData, $userId)) {
+
+            $fingerprint = (string) ($parsedData['fingerprint'] ?? $this->duplicateService->getStableFingerprint($parsedData));
+            $occurrence = ($this->fingerprintOccurrences[$fingerprint] ?? 0) + 1;
+            $this->fingerprintOccurrences[$fingerprint] = $occurrence;
+
+            $duplicateDecision = $this->duplicateService->classifyImportRow($parsedData, $userId, $occurrence);
+            $parsedData['fingerprint'] = $duplicateDecision['fingerprint'];
+
+            if ($duplicateDecision['decision'] === 'skip') {
                 Log::info('Duplicate transaction found', [
                     'row_number' => $rowNumber,
                     'transaction_id' => $parsedData['transaction_id'],
+                    'fingerprint' => $duplicateDecision['fingerprint'],
                 ]);
 
                 return CsvProcessResult::skipped('Duplicate transaction', data: $row, metadata: array_merge(
                     $metadata,
-                    ['duplicate' => true, 'parsedData' => $parsedData]
+                    [
+                        'duplicate' => true,
+                        'fingerprint' => $duplicateDecision['fingerprint'],
+                        'parsedData' => $parsedData,
+                    ]
                 ));
+            }
+
+            if ($duplicateDecision['decision'] === 'review') {
+                $parsedData['needs_manual_review'] = true;
+                $parsedData['review_reason'] = $this->mergeReviewReasons(
+                    $parsedData['review_reason'] ?? null,
+                    'probable_duplicate'
+                );
+
+                $metadataArray = is_array($parsedData['metadata'] ?? null) ? $parsedData['metadata'] : [];
+                $parsedData['metadata'] = array_merge($metadataArray, [
+                    'probable_duplicate_transaction_id' => $duplicateDecision['probable_duplicate']?->id,
+                    'probable_duplicate_score' => $duplicateDecision['probable_duplicate_score'],
+                ]);
+
+                $transactionDto
+                    ->set('needs_manual_review', true)
+                    ->set('review_reason', $parsedData['review_reason'])
+                    ->set('metadata', $parsedData['metadata'])
+                    ->set('fingerprint', $parsedData['fingerprint']);
             }
 
             return CsvProcessResult::success('Transaction imported', $transactionDto, metadata: $metadata);
@@ -141,5 +180,17 @@ class TransactionRowProcessor implements CsvRowProcessor, RowProcessorInterface
         return empty(array_filter($row, function ($value) {
             return ! is_null($value) && trim((string) $value) !== '';
         }));
+    }
+
+    private function mergeReviewReasons(?string $existingReasons, string $newReason): string
+    {
+        $reasons = $existingReasons !== null && trim($existingReasons) !== ''
+            ? explode(',', $existingReasons)
+            : [];
+
+        $reasons[] = $newReason;
+        $reasons = array_values(array_unique(array_filter(array_map('trim', $reasons))));
+
+        return implode(',', $reasons);
     }
 }

@@ -21,7 +21,6 @@ class AnalyticsController extends Controller
 
     public function index(AnalyticsRequest $request): \Inertia\Response
     {
-
         $selectedAccountIds = $request->getAccountIds();
 
         $user_accounts = $this->accountRepository->findByUser($this->getAuthUserId());
@@ -44,12 +43,20 @@ class AnalyticsController extends Controller
         $dateRange = $this->parseDateRange($request);
         $startDate = $dateRange['start'];
         $endDate = $dateRange['end'];
+        $selectedAccounts = $user_accounts->whereIn('id', $accountIds->toArray())->values();
+        $currencyError = $this->getMixedCurrencyError($selectedAccounts);
 
         // Get data for analytics
         $accountIdsArray = $accountIds->toArray();
-        $cashFlow = $this->analyticsRepository->getCashflow($accountIdsArray, $startDate, $endDate);
-        $categorySpending = $this->analyticsRepository->getCategorySpending($accountIdsArray, $startDate, $endDate);
-        $merchantSpending = $this->analyticsRepository->getMerchantSpending($accountIdsArray, $startDate, $endDate);
+        $cashFlow = $currencyError === null
+            ? $this->analyticsRepository->getCashflow($accountIdsArray, $startDate, $endDate)
+            : collect();
+        $categorySpending = $currencyError === null
+            ? $this->analyticsRepository->getCategorySpending($accountIdsArray, $startDate, $endDate)
+            : ['categorized' => collect(), 'uncategorized' => null];
+        $merchantSpending = $currencyError === null
+            ? $this->analyticsRepository->getMerchantSpending($accountIdsArray, $startDate, $endDate)
+            : ['withMerchant' => collect(), 'noMerchant' => null];
 
         return Inertia::render('Analytics/Index', [
             'accounts' => $user_accounts,
@@ -63,6 +70,7 @@ class AnalyticsController extends Controller
                 'end' => $endDate->format('Y-m-d'),
             ],
             'period' => $request->input('period', 'last_month'),
+            'currency_error' => $currencyError,
         ]);
     }
 
@@ -173,6 +181,14 @@ class AnalyticsController extends Controller
             : Carbon::now()->endOfDay();
 
         $granularity = $validated['granularity'] ?? 'month';
+        $selectedAccounts = $userAccounts->whereIn('id', $accountIds)->values();
+        $currencyError = $this->getMixedCurrencyError($selectedAccounts);
+
+        if ($currencyError !== null) {
+            return response()->json([
+                'message' => $currencyError,
+            ], 422);
+        }
 
         // Get balance history
         $balanceHistory = $this->analyticsRepository->getBalanceHistory(
@@ -265,12 +281,20 @@ class AnalyticsController extends Controller
             ->intersect($selectedIds)
             ->values()
             ->toArray();
+        $selectedAccounts = $userAccounts->whereIn('id', $accountIds)->values();
+        $currencyError = $this->getMixedCurrencyError($selectedAccounts);
 
         if (empty($accountIds)) {
             return response()->json([
                 'first_month' => [],
                 'second_month' => [],
             ]);
+        }
+
+        if ($currencyError !== null) {
+            return response()->json([
+                'message' => $currencyError,
+            ], 422);
         }
 
         // Parse months to Carbon dates
@@ -291,5 +315,20 @@ class AnalyticsController extends Controller
             'first_month' => $firstMonthCashflow->values()->all(),
             'second_month' => $secondMonthCashflow->values()->all(),
         ]);
+    }
+
+    private function getMixedCurrencyError(\Illuminate\Support\Collection $accounts): ?string
+    {
+        $currencies = $accounts
+            ->pluck('currency')
+            ->filter(fn ($currency) => $currency !== null && $currency !== '')
+            ->unique()
+            ->values();
+
+        if ($currencies->count() <= 1) {
+            return null;
+        }
+
+        return 'Analytics for multiple currencies is not supported yet. Please select accounts with the same currency.';
     }
 }

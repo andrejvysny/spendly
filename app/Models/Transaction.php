@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Events\TransactionCreated;
 use App\Events\TransactionDeleted;
 use App\Events\TransactionUpdated;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -106,7 +107,7 @@ class Transaction extends BaseModel
         return [
             'amount',
             'currency',
-            'processed_date',
+            'booked_date',
             'description',
             'target_iban',
             'source_iban',
@@ -122,15 +123,15 @@ class Transaction extends BaseModel
         $data = [];
 
         foreach ($attributes as $attribute) {
-
-            if ($attribute === 'processed_date' && isset($model[$attribute])) {
-                // Normalize date to Y-m-d format for fingerprinting
-                $data[$attribute] = date('Y-m-d', strtotime($model[$attribute]));
-
-                continue;
+            if (str_ends_with($attribute, '_date') && isset($model[$attribute])) {
+                try {
+                    $data[$attribute] = Carbon::parse((string) $model[$attribute])->toDateString();
+                } catch (\Throwable) {
+                    $data[$attribute] = null;
+                }
+            } else {
+                $data[$attribute] = $model[$attribute] ?? null;
             }
-
-            $data[$attribute] = $model[$attribute] ?? null;
         }
 
         return hash('sha256', json_encode($data));
