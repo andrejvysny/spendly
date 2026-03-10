@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Unit\Repositories;
 
 use App\Models\Budget;
-use App\Models\Category;
 use App\Models\User;
 use App\Repositories\BudgetRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,8 +36,6 @@ class BudgetRepositoryTest extends TestCase
             'amount' => 100,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 1,
         ]);
         Budget::create([
             'user_id' => $user->id,
@@ -46,8 +43,6 @@ class BudgetRepositoryTest extends TestCase
             'amount' => 200,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 2,
         ]);
         Budget::create([
             'user_id' => $other->id,
@@ -55,8 +50,6 @@ class BudgetRepositoryTest extends TestCase
             'amount' => 300,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 1,
         ]);
 
         $found = $this->repository->findByUser($user->id);
@@ -64,33 +57,59 @@ class BudgetRepositoryTest extends TestCase
         $this->assertTrue($found->every(fn ($b) => $b->user_id === $user->id));
     }
 
-    public function test_find_for_user_and_period_filters_by_period(): void
+    public function test_find_active_by_user_excludes_inactive(): void
     {
         $user = User::factory()->create();
-        $category = $user->categories()->create(['name' => 'Food']);
+        $cat1 = $user->categories()->create(['name' => 'A']);
+        $cat2 = $user->categories()->create(['name' => 'B']);
 
         Budget::create([
             'user_id' => $user->id,
-            'category_id' => $category->id,
+            'category_id' => $cat1->id,
             'amount' => 100,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 3,
+            'is_active' => true,
         ]);
         Budget::create([
             'user_id' => $user->id,
-            'category_id' => $category->id,
+            'category_id' => $cat2->id,
             'amount' => 200,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 4,
+            'is_active' => false,
         ]);
 
-        $found = $this->repository->findForUserAndPeriod($user->id, Budget::PERIOD_MONTHLY, 2025, 3);
+        $found = $this->repository->findActiveByUser($user->id);
         $this->assertCount(1, $found);
-        $this->assertSame(100.0, (float) $found->first()->amount);
+    }
+
+    public function test_find_by_user_and_period_type(): void
+    {
+        $user = User::factory()->create();
+        $cat1 = $user->categories()->create(['name' => 'Food']);
+        $cat2 = $user->categories()->create(['name' => 'Travel']);
+
+        Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $cat1->id,
+            'amount' => 100,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+        Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $cat2->id,
+            'amount' => 2000,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_YEARLY,
+        ]);
+
+        $monthly = $this->repository->findByUserAndPeriodType($user->id, Budget::PERIOD_MONTHLY);
+        $this->assertCount(1, $monthly);
+
+        $yearly = $this->repository->findByUserAndPeriodType($user->id, Budget::PERIOD_YEARLY);
+        $this->assertCount(1, $yearly);
     }
 
     public function test_create_persists_budget(): void
@@ -104,14 +123,11 @@ class BudgetRepositoryTest extends TestCase
             'amount' => 500,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 5,
         ]);
 
         $this->assertDatabaseHas('budgets', [
             'id' => $budget->id,
             'amount' => 500,
-            'month' => 5,
         ]);
     }
 
@@ -125,8 +141,6 @@ class BudgetRepositoryTest extends TestCase
             'amount' => 100,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 1,
         ]);
 
         $updated = $this->repository->update($budget->id, ['amount' => 250]);
@@ -145,12 +159,30 @@ class BudgetRepositoryTest extends TestCase
             'amount' => 100,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
-            'year' => 2025,
-            'month' => 1,
         ]);
 
         $result = $this->repository->delete($budget);
         $this->assertTrue($result);
         $this->assertDatabaseMissing('budgets', ['id' => $budget->id]);
+    }
+
+    public function test_create_budget_with_nullable_category(): void
+    {
+        $user = User::factory()->create();
+
+        $budget = $this->repository->create([
+            'user_id' => $user->id,
+            'category_id' => null,
+            'amount' => 1500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'name' => 'Overall Monthly',
+        ]);
+
+        $this->assertDatabaseHas('budgets', [
+            'id' => $budget->id,
+            'category_id' => null,
+            'name' => 'Overall Monthly',
+        ]);
     }
 }

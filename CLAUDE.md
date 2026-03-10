@@ -52,6 +52,10 @@ Prefer targeted test runs for speed.
     - `RuleEngine/` — `RuleEngine`, `ConditionEvaluator`, `ActionExecutor` with enums for conditions/actions/triggers
     - `TransactionImport/` — CSV import pipeline: parse → validate → deduplicate → persist
     - `RecurringDetectionService` — pattern matching for recurring transactions
+    - `TransferDetectionService` — rule-based + ML transfer pair detection across accounts
+    - `BudgetService` — budget progress tracking, spending aggregation per category/period
+    - `MlService` — Python ML engine client (transaction categorization, transfer detection)
+    - `TransactionImport/FieldMappingService.ts` — auto-mapping columns, reusable import mappings per bank
 - `Repositories/` — 21 repos implementing interfaces from `Contracts/Repositories/`. Concerns: `WithUserScope`, `WithOrdering`, `Paginating`.
 - `Models/` — 26 Eloquent models. `BelongsToUser` trait for soft multi-tenancy (all user-facing tables have `user_id`). Transaction fingerprinting (SHA256) for deduplication.
 - `Policies/` — authorization via `$this->authorize()`.
@@ -65,6 +69,7 @@ Prefer targeted test runs for speed.
 - `hooks/`, `layouts/`, `types/`, `utils/`, `lib/`
 - Path alias: `@/` → `resources/js/`
 - Inertia: `Head`, `router`, `usePage` from `@inertiajs/react`; type page props from controller payload
+- `cn()` utility + CVA for component variants; icons via `lucide-react`
 
 ### Key Subsystems
 
@@ -140,3 +145,7 @@ Key env vars: `DB_CONNECTION=sqlite`, `GOCARDLESS_USE_MOCK=true` (dev), `QUEUE_C
 - Currency codes: ISO 4217 (3-char string, e.g. `EUR`, `USD`).
 - All user-facing resources scoped by `user_id` — use `BelongsToUser` trait on models, `WithUserScope` concern on repositories.
 - `ml/` — Python ML engine (transaction classification). Separate `requirements.txt`, runs independently.
+
+## Deep-Dive Docs
+
+`docs/ai/` contains detailed architecture docs for subsystems (GoCardless, Rule Engine, Budgeting) — consult before complex changes.

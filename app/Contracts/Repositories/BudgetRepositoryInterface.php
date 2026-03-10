@@ -20,7 +20,12 @@ interface BudgetRepositoryInterface extends BaseRepositoryContract
     /**
      * @return Collection<int, Budget>
      */
-    public function findForUserAndPeriod(int $userId, string $periodType, int $year, ?int $month): Collection;
+    public function findActiveByUser(int $userId): Collection;
+
+    /**
+     * @return Collection<int, Budget>
+     */
+    public function findByUserAndPeriodType(int $userId, string $periodType): Collection;
 
     /**
      * @param  array<string, mixed>  $data

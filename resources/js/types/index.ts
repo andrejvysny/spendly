@@ -158,17 +158,29 @@ export interface Category {
 export interface Budget {
     id: number;
     user_id: number;
-    category_id: number;
+    category_id: number | null;
     amount: number;
     currency: string;
+    mode: 'limit' | 'envelope';
     period_type: 'monthly' | 'yearly';
-    year: number;
-    month: number;
     name: string | null;
+    rollover_enabled: boolean;
+    include_subcategories: boolean;
+    is_active: boolean;
+}
+
+export interface BudgetPeriod {
+    id: number;
+    start_date: string;
+    end_date: string;
+    amount_budgeted: number;
+    rollover_amount: number;
+    status: 'active' | 'closed' | 'upcoming';
 }
 
 export interface BudgetWithProgress extends Budget {
     category: { id: number; name: string; color: string | null; icon: string | null } | null;
+    period: BudgetPeriod | null;
     spent: number;
     remaining: number;
     percentage_used: number;
