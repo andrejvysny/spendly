@@ -120,18 +120,18 @@ class RuleEngineTest extends TestCase
 
     public function test_rule_engine_processes_transaction_on_creation(): void
     {
-        $this->markTestIncomplete('Not properly implemented');
         // Create a category
         $category = Category::factory()->create([
             'user_id' => $this->user->id,
             'name' => 'Restaurants',
         ]);
 
-        // Create a rule
-        $rule = $this->ruleRepository->createRule($this->user, [
+        // Create a rule that matches transactions containing "RESTAURANT"
+        $this->ruleRepository->createRule($this->user, [
             'rule_group_id' => $this->createRuleGroup()->id,
             'name' => 'Restaurant Rule',
             'trigger_type' => Trigger::TRANSACTION_CREATED->value,
+            'is_active' => true,
             'condition_groups' => [
                 [
                     'logic_operator' => 'AND',
@@ -160,16 +160,14 @@ class RuleEngineTest extends TestCase
             'amount' => 25.50,
         ]);
 
-        // TODO: not properly implemented
-
-        // Load the account relationship
+        // Load the account relationship (needed for user scoping in rule engine)
         $transaction->load('account.user');
 
         // Process the rule directly since the event listener is queued
         $ruleEngine = app(\App\Contracts\RuleEngine\RuleEngineInterface::class);
         $ruleEngine->setUser($this->user)->processTransaction($transaction, Trigger::TRANSACTION_CREATED);
 
-        // Refresh the transaction and check if the category was set
+        // Refresh the transaction and verify the category was set by the rule
         $transaction->refresh();
         $this->assertEquals($category->id, $transaction->category_id);
     }
