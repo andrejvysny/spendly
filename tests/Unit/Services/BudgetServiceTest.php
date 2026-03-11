@@ -7,6 +7,7 @@ namespace Tests\Unit\Services;
 use App\Models\Account;
 use App\Models\Budget;
 use App\Models\BudgetPeriod;
+use App\Models\Category;
 use App\Models\RecurringGroup;
 use App\Models\Transaction;
 use App\Models\User;
@@ -865,5 +866,468 @@ class BudgetServiceTest extends TestCase
         $this->assertCount(2, $suggestions);
         // Highest suggested_amount must come first
         $this->assertGreaterThan($suggestions[1]['suggested_amount'], $suggestions[0]['suggested_amount']);
+    }
+
+    // -------------------------------------------------------------------------
+    // Subcategory spending
+    // -------------------------------------------------------------------------
+
+    public function test_spent_includes_subcategories(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $parent = $user->categories()->create(['name' => 'Food']);
+        $child = $user->categories()->create(['name' => 'Groceries', 'parent_category_id' => $parent->id]);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $parent->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'include_subcategories' => true,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-01-31',
+            'amount_budgeted' => 500,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-parent',
+            'amount' => -100,
+            'currency' => 'EUR',
+            'booked_date' => '2026-01-10',
+            'processed_date' => '2026-01-10',
+            'description' => 'Restaurant',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $parent->id,
+        ]);
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-child',
+            'amount' => -50,
+            'currency' => 'EUR',
+            'booked_date' => '2026-01-10',
+            'processed_date' => '2026-01-10',
+            'description' => 'Supermarket',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $child->id,
+        ]);
+
+        $spent = $this->service->getSpentForPeriod($budget, $period);
+        $this->assertSame(150.0, $spent);
+    }
+
+    public function test_spent_excludes_subcategories_when_disabled(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $parent = $user->categories()->create(['name' => 'Food']);
+        $child = $user->categories()->create(['name' => 'Groceries', 'parent_category_id' => $parent->id]);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $parent->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'include_subcategories' => false,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-02-28',
+            'amount_budgeted' => 500,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-parent-only',
+            'amount' => -100,
+            'currency' => 'EUR',
+            'booked_date' => '2026-02-10',
+            'processed_date' => '2026-02-10',
+            'description' => 'Restaurant',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $parent->id,
+        ]);
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-child-excluded',
+            'amount' => -50,
+            'currency' => 'EUR',
+            'booked_date' => '2026-02-10',
+            'processed_date' => '2026-02-10',
+            'description' => 'Supermarket',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $child->id,
+        ]);
+
+        $spent = $this->service->getSpentForPeriod($budget, $period);
+        $this->assertSame(100.0, $spent);
+    }
+
+    // -------------------------------------------------------------------------
+    // Rollover calculation
+    // -------------------------------------------------------------------------
+
+    public function test_rollover_surplus(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'rollover_enabled' => true,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-01-31',
+            'amount_budgeted' => 500,
+            'rollover_amount' => 0,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        // Spend 300 of 500 → surplus of 200
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-rollover-1',
+            'amount' => -300,
+            'currency' => 'EUR',
+            'booked_date' => '2026-01-15',
+            'processed_date' => '2026-01-15',
+            'description' => 'Shopping',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $category->id,
+        ]);
+
+        $rollover = $this->service->calculateRollover($budget, $period);
+        $this->assertSame(200.0, $rollover);
+    }
+
+    public function test_rollover_deficit(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'rollover_enabled' => true,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 500,
+            'rollover_amount' => 0,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        // Spend 700 of 500 → deficit of -200
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-rollover-deficit',
+            'amount' => -700,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-15',
+            'processed_date' => '2026-03-15',
+            'description' => 'Shopping',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $category->id,
+        ]);
+
+        $rollover = $this->service->calculateRollover($budget, $period);
+        $this->assertSame(-200.0, $rollover);
+    }
+
+    public function test_rollover_capped_deficit(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'rollover_enabled' => true,
+            'rollover_cap' => 100, // cap at -100
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-04-01',
+            'end_date' => '2026-04-30',
+            'amount_budgeted' => 500,
+            'rollover_amount' => 0,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        // Spend 800 of 500 → raw deficit -300, capped to -100
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-rollover-capped',
+            'amount' => -800,
+            'currency' => 'EUR',
+            'booked_date' => '2026-04-15',
+            'processed_date' => '2026-04-15',
+            'description' => 'Shopping',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $category->id,
+        ]);
+
+        $rollover = $this->service->calculateRollover($budget, $period);
+        $this->assertSame(-100.0, $rollover);
+    }
+
+    public function test_rollover_unlimited_when_cap_null(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 200,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'rollover_enabled' => true,
+            'rollover_cap' => null,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-05-01',
+            'end_date' => '2026-05-31',
+            'amount_budgeted' => 200,
+            'rollover_amount' => 0,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        // Spend 900 of 200 → raw deficit -700, no cap
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-rollover-unlimited',
+            'amount' => -900,
+            'currency' => 'EUR',
+            'booked_date' => '2026-05-15',
+            'processed_date' => '2026-05-15',
+            'description' => 'Shopping',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $category->id,
+        ]);
+
+        $rollover = $this->service->calculateRollover($budget, $period);
+        $this->assertSame(-700.0, $rollover);
+    }
+
+    public function test_rollover_zero_when_disabled(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'rollover_enabled' => false,
+            'auto_create_next' => true,
+        ]);
+
+        BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-06-30',
+            'amount_budgeted' => 500,
+            'rollover_amount' => 0,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-no-rollover',
+            'amount' => -300,
+            'currency' => 'EUR',
+            'booked_date' => '2026-06-15',
+            'processed_date' => '2026-06-15',
+            'description' => 'Shopping',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $category->id,
+        ]);
+
+        // Auto-create July period — rollover should be 0
+        $collection = $this->service->getBudgetsWithProgress($user->id, Budget::PERIOD_MONTHLY, 2026, 7);
+        $row = $collection->first();
+        $this->assertNotNull($row['period']);
+        $this->assertSame(0.0, (float) $row['period']->rollover_amount);
+    }
+
+    // -------------------------------------------------------------------------
+    // Period closing
+    // -------------------------------------------------------------------------
+
+    public function test_auto_create_closes_previous_period(): void
+    {
+        $user = User::factory()->create();
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 300,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'auto_create_next' => true,
+        ]);
+
+        $previousPeriod = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-08-31',
+            'amount_budgeted' => 300,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        // Request September — should close August
+        $this->service->getBudgetsWithProgress($user->id, Budget::PERIOD_MONTHLY, 2026, 9);
+
+        $previousPeriod->refresh();
+        $this->assertSame(BudgetPeriod::STATUS_CLOSED, $previousPeriod->status);
+        $this->assertNotNull($previousPeriod->closed_at);
+    }
+
+    // -------------------------------------------------------------------------
+    // Pace calculation
+    // -------------------------------------------------------------------------
+
+    public function test_get_budgets_with_progress_includes_pace_data(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $category = $user->categories()->create(['name' => 'Food']);
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 100,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => now()->startOfMonth()->format('Y-m-d'),
+            'end_date' => now()->endOfMonth()->format('Y-m-d'),
+            'amount_budgeted' => 100,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        $collection = $this->service->getBudgetsWithProgress(
+            $user->id,
+            Budget::PERIOD_MONTHLY,
+            (int) now()->format('Y'),
+            (int) now()->format('n')
+        );
+
+        $row = $collection->first();
+        $this->assertNotNull($row);
+        $this->assertArrayHasKey('pace_percentage', $row);
+        $this->assertArrayHasKey('projected_total', $row);
+        $this->assertArrayHasKey('days_elapsed', $row);
+        $this->assertArrayHasKey('days_in_period', $row);
+        $this->assertGreaterThan(0, $row['days_elapsed']);
+        $this->assertGreaterThan(0, $row['days_in_period']);
+    }
+
+    // -------------------------------------------------------------------------
+    // Budget history
+    // -------------------------------------------------------------------------
+
+    public function test_get_budget_history_returns_periods_with_spent(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-01-31',
+            'amount_budgeted' => 500,
+            'rollover_amount' => 0,
+            'status' => BudgetPeriod::STATUS_CLOSED,
+        ]);
+
+        BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-02-28',
+            'amount_budgeted' => 500,
+            'rollover_amount' => 50,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-history',
+            'amount' => -200,
+            'currency' => 'EUR',
+            'booked_date' => '2026-02-10',
+            'processed_date' => '2026-02-10',
+            'description' => 'Shop',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => $category->id,
+        ]);
+
+        $history = $this->service->getBudgetHistory($user->id, $budget->id, 6);
+        $this->assertCount(2, $history);
+        $this->assertSame('Jan 2026', $history[0]['label']);
+        $this->assertSame(500.0, $history[0]['budgeted']);
+        $this->assertSame('Feb 2026', $history[1]['label']);
+        $this->assertSame(200.0, $history[1]['spent']);
+        $this->assertSame(50.0, $history[1]['rollover']);
     }
 }

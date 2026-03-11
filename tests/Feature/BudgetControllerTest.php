@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Account;
 use App\Models\Budget;
 use App\Models\BudgetPeriod;
 use App\Models\RecurringGroup;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -304,5 +306,127 @@ class BudgetControllerTest extends TestCase
 
         $this->actingAs($user)->delete("/budgets/{$budget->id}");
         $this->assertDatabaseMissing('budget_periods', ['budget_id' => $budget->id]);
+    }
+
+    public function test_history_endpoint_returns_json(): void
+    {
+        $user = User::factory()->create();
+        $category = $user->categories()->create(['name' => 'Food']);
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 400,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-01-31',
+            'amount_budgeted' => 400,
+            'status' => BudgetPeriod::STATUS_CLOSED,
+        ]);
+
+        $response = $this->actingAs($user)->getJson("/budgets/{$budget->id}/history");
+        $response->assertOk();
+        $response->assertJsonStructure(['history']);
+        $this->assertCount(1, $response->json('history'));
+    }
+
+    public function test_user_cannot_view_other_users_budget_history(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $category = $other->categories()->create(['name' => 'Other']);
+        $budget = Budget::create([
+            'user_id' => $other->id,
+            'category_id' => $category->id,
+            'amount' => 400,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $this->actingAs($user)->getJson("/budgets/{$budget->id}/history")->assertForbidden();
+    }
+
+    public function test_update_period_amount(): void
+    {
+        $user = User::factory()->create();
+        $category = $user->categories()->create(['name' => 'Food']);
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'amount' => 400,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 400,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($user)->put("/budgets/{$budget->id}/periods/{$period->id}", [
+            'amount_budgeted' => 600,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('budget_periods', [
+            'id' => $period->id,
+            'amount_budgeted' => 600,
+        ]);
+    }
+
+    public function test_index_includes_uncategorized_count(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-uncat',
+            'amount' => -50,
+            'currency' => 'EUR',
+            'booked_date' => now()->format('Y-m-d'),
+            'processed_date' => now()->format('Y-m-d'),
+            'description' => 'Unknown',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'category_id' => null,
+        ]);
+
+        $this->withoutVite();
+        $response = $this->actingAs($user)->get('/budgets');
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('budgets/Index')
+            ->where('uncategorizedCount', 1)
+        );
+    }
+
+    public function test_create_budget_with_rollover_cap(): void
+    {
+        $user = User::factory()->create();
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $response = $this->actingAs($user)->post('/budgets', [
+            'category_id' => $category->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'rollover_enabled' => true,
+            'rollover_cap' => 100,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('budgets', [
+            'user_id' => $user->id,
+            'rollover_enabled' => true,
+            'rollover_cap' => 100,
+        ]);
     }
 }

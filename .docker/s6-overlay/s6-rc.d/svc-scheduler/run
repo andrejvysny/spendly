@@ -1,0 +1,3 @@
+#!/command/with-contenv sh
+cd /app
+exec php artisan schedule:work --no-interaction

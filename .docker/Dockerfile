@@ -1,188 +1,145 @@
-# Build frontend assets
-FROM node:20-alpine AS assets
+# Stage 1: Frontend assets
+FROM node:22-alpine AS assets
 WORKDIR /app
-COPY package*.json vite.config.ts ./
-COPY resources ./resources
-RUN npm ci --production
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
 RUN npm run build
 
-# Final image using official PHP-Apache (production stage)
-FROM php:8.4-apache AS production
+# Stage 2: Composer deps
+FROM composer:2 AS vendor
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist --ignore-platform-reqs --no-scripts
 
-# Set Apache document root
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+# Stage 3: Production (FrankenPHP + s6-overlay)
+FROM dunglas/frankenphp:1-php8.4-bookworm AS production
 
-# Configure Apache
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf && \
-    sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf && \
-    sed -ri -e 's!AllowOverride None!AllowOverride All!g' /etc/apache2/apache2.conf && \
-    a2enmod rewrite
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    libzip-dev \
-    zip \
-    unzip \
-    libpq-dev \
-    sqlite3 \
-    libsqlite3-dev \
-    nano \
-    apt-utils && \
-    apt-get clean && \
+# System packages: sqlite3 (WAL pragma), curl (healthcheck + s6 download)
+RUN apt-get update && apt-get install -y --no-install-recommends sqlite3 curl xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy PHP extension installer and install extensions
-COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
-RUN install-php-extensions pdo_pgsql pdo_sqlite pdo_mysql mbstring bcmath zip openssl
+# s6-overlay install (multi-arch)
+ARG S6_OVERLAY_VERSION=3.2.0.2
+RUN case "$(dpkg --print-architecture)" in \
+        amd64) S6_ARCH="x86_64" ;; \
+        arm64) S6_ARCH="aarch64" ;; \
+        *) echo "Unsupported arch" && exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" -o /tmp/s6-overlay-noarch.tar.xz && \
+    curl -fsSL "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz" -o /tmp/s6-overlay-arch.tar.xz && \
+    tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
+    tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz && \
+    rm /tmp/s6-overlay-*.tar.xz
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
-# Set working directory
-WORKDIR /var/www/html
+RUN install-php-extensions \
+    pdo_sqlite \
+    pdo_mysql \
+    pdo_pgsql \
+    mbstring \
+    bcmath \
+    zip \
+    intl \
+    opcache \
+    pcntl \
+    redis
+
+WORKDIR /app
 
 # Create necessary directories
-RUN mkdir -p /var/www/html/storage/logs && \
-    mkdir -p /var/www/html/storage/framework/{sessions,views,cache} && \
-    mkdir -p /var/www/html/bootstrap/cache && \
-    mkdir -p /var/www/html/database
+RUN mkdir -p storage/logs \
+    storage/framework/{sessions,views,cache} \
+    bootstrap/cache \
+    database
 
-# Configure PHP to log to stderr
-RUN echo "error_log = /dev/stderr" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini && \
-    echo "log_errors = On" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini && \
-    echo "error_reporting = E_ALL" >> /usr/local/etc/php/conf.d/docker-php-ext-error-log.ini
-
-# Set up logging to stdout/stderr
-RUN touch /var/www/html/storage/logs/laravel.log && \
-    touch /var/www/html/storage/logs/php.log && \
-    chown www-data:www-data /var/www/html/storage/logs/laravel.log /var/www/html/storage/logs/php.log && \
-    ln -sf /dev/stdout /var/www/html/storage/logs/laravel.log && \
-    ln -sf /dev/stderr /var/www/html/storage/logs/php.log
-
-# Copy and set up entrypoint script
-COPY .docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-# Copy composer files and install dependencies
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-interaction --no-plugins --no-progress --no-scripts --optimize-autoloader
-
-# Copy application files (excluding database)
-COPY . .
+# Copy deps and assets from build stages
+COPY --from=vendor /app/vendor ./vendor
 COPY --from=assets /app/public/build ./public/build
 
-# Set permissions (run as root so entrypoint can chown; Apache binds to 80 and runs workers as www-data)
-RUN chown -R www-data:www-data /var/www/html && \
-    chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
+# Copy application files
+COPY . .
 
-# Expose port 80
-EXPOSE 80
+# Clear any dev-cached package discovery
+RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php
 
-# Set entrypoint
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# PHP config
+COPY .docker/php/php.ini "$PHP_INI_DIR/conf.d/99-custom.ini"
+COPY .docker/php/opcache.ini "$PHP_INI_DIR/conf.d/99-opcache.ini"
 
-# Start Apache
-CMD ["apache2-foreground"]
+# Caddyfile
+COPY .docker/Caddyfile /etc/caddy/Caddyfile
 
-
-
-FROM php:8.4-fpm AS development
-
-# Set working directory
-WORKDIR /var/www/html
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    libzip-dev \
-    zip \
-    unzip \
-    libpq-dev \
-    sqlite3 \
-    libsqlite3-dev \
-    nano \
-    apt-utils && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
-RUN install-php-extensions pdo_pgsql pdo_sqlite pdo_mysql mbstring bcmath zip xdebug openssl
-
-
-
-# Test environment Dockerfile with Xdebug support
-FROM php:8.4-cli AS testing
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    libzip-dev \
-    zip \
-    unzip \
-    libpq-dev \
-    sqlite3 \
-    libsqlite3-dev \
-    nano \
-    apt-utils && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy PHP extension installer and install extensions
-COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
-RUN install-php-extensions pdo_pgsql pdo_sqlite mbstring bcmath zip
-
-# Install Xdebug for code coverage
-RUN pecl install xdebug && docker-php-ext-enable xdebug
-
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
-
-# Set working directory
-WORKDIR /var/www/html
-
-# Create necessary directories
-RUN mkdir -p /var/www/html/storage/logs && \
-    mkdir -p /var/www/html/storage/framework/{sessions,views,cache} && \
-    mkdir -p /var/www/html/bootstrap/cache && \
-    mkdir -p /var/www/html/database
-
-# Configure PHP for testing
-RUN echo "memory_limit = 512M" >> /usr/local/etc/php/conf.d/docker-php-ext-memory-limit.ini && \
-    echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/docker-php-ext-max-execution-time.ini
-
-# Configure Xdebug for coverage
-RUN echo "xdebug.mode=coverage" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
-    echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
-    echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && \
-    echo "xdebug.client_port=9003" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+# s6-overlay service definitions
+COPY .docker/s6-overlay/ /etc/s6-overlay/
+RUN chmod +x /etc/s6-overlay/scripts/init-app \
+    /etc/s6-overlay/s6-rc.d/svc-octane/run \
+    /etc/s6-overlay/s6-rc.d/svc-worker/run \
+    /etc/s6-overlay/s6-rc.d/svc-scheduler/run
 
 # Set permissions
-RUN chown -R www-data:www-data /var/www/html && \
-    chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
+RUN chown -R www-data:www-data /app && \
+    chmod -R 775 storage bootstrap/cache database
 
-# Switch to www-data user
-USER www-data
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:80/up || exit 1
 
-# Default command
+EXPOSE 80 443 443/udp
+
+# s6-overlay: 90s graceful shutdown (must exceed worker --timeout=90)
+ENV S6_KILL_GRACETIME=90000
+# s6-overlay: pass container env to services
+ENV S6_KEEP_ENV=1
+
+ENTRYPOINT ["/init"]
+
+# Stage 4: Development (no s6-overlay)
+FROM production AS development
+RUN install-php-extensions xdebug
+ENV APP_ENV=local
+ENTRYPOINT []
+CMD ["php", "artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=80", "--admin-port=2019", "--watch"]
+
+# Stage 5: Testing
+FROM dunglas/frankenphp:1-php8.4-bookworm AS testing
+
+RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+
+RUN install-php-extensions \
+    pdo_sqlite \
+    mbstring \
+    bcmath \
+    zip \
+    opcache \
+    pcntl \
+    xdebug
+
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
+WORKDIR /app
+
+RUN mkdir -p storage/logs \
+    storage/framework/{sessions,views,cache} \
+    bootstrap/cache \
+    database
+
+RUN echo "xdebug.mode=coverage" >> "$PHP_INI_DIR/conf.d/docker-php-ext-xdebug.ini" && \
+    echo "xdebug.start_with_request=yes" >> "$PHP_INI_DIR/conf.d/docker-php-ext-xdebug.ini"
+
+RUN echo "memory_limit = 512M" >> "$PHP_INI_DIR/conf.d/99-testing.ini" && \
+    echo "max_execution_time = 300" >> "$PHP_INI_DIR/conf.d/99-testing.ini"
+
+COPY . .
+
+RUN chown -R www-data:www-data /app && \
+    chmod -R 775 storage bootstrap/cache database
+
 CMD ["php", "artisan", "test"]
 
-
-
+# Stage 6: Node (dev tooling)
 FROM node:22-alpine AS node
-RUN  npm install -g npm@11.4
+RUN npm install -g npm@11.4
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
-

@@ -35,6 +35,7 @@ class StoreBudgetRequest extends FormRequest
             'period_type' => ['required', 'string', Rule::in([Budget::PERIOD_MONTHLY, Budget::PERIOD_YEARLY])],
             'name' => ['nullable', 'string', 'max:255'],
             'rollover_enabled' => ['sometimes', 'boolean'],
+            'rollover_cap' => ['nullable', 'numeric', 'min:0'],
             'include_subcategories' => ['sometimes', 'boolean'],
             'auto_create_next' => ['sometimes', 'boolean'],
             'overall_limit_mode' => ['nullable', 'string', Rule::in(['independent', 'sum', 'pool'])],

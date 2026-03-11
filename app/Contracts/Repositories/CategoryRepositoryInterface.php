@@ -21,4 +21,9 @@ interface CategoryRepositoryInterface extends NamedRepositoryInterface
      * @return Collection<int, Category>
      */
     public function getRootCategories(int $userId): Collection;
+
+    /**
+     * @return array<int>
+     */
+    public function getAllDescendantIds(int $categoryId): array;
 }

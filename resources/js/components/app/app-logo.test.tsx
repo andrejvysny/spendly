@@ -5,8 +5,8 @@ import AppLogo from './app-logo';
 
 describe('AppLogo', () => {
     it('renders brand name and icon', () => {
-        const { container } = render(<AppLogo />);
+        render(<AppLogo />);
         expect(screen.getByText('Spendly')).toBeInTheDocument();
-        expect(container.querySelector('#logo_svg')).toBeInTheDocument();
+        expect(screen.getByAltText('Spendly')).toBeInTheDocument();
     });
 });
