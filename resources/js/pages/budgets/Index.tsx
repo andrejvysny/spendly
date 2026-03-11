@@ -1,5 +1,6 @@
 import { BudgetCard } from '@/components/budgets/BudgetCard';
 import { BudgetTable } from '@/components/budgets/BudgetTable';
+import { BudgetTrendChart } from '@/components/budgets/BudgetTrendChart';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,7 +11,7 @@ import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
 import type { BudgetWithProgress } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { LayoutGrid, List } from 'lucide-react';
+import { AlertTriangle, LayoutGrid, List, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
@@ -28,6 +29,7 @@ interface Props {
     year: number;
     month: number;
     defaultCurrency: string;
+    uncategorizedCount: number;
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -42,6 +44,7 @@ const formSchema = z.object({
     period_type: z.enum(['monthly', 'yearly']),
     name: z.string().optional(),
     rollover_enabled: z.boolean().optional(),
+    rollover_cap: z.string().optional(),
     include_subcategories: z.boolean().optional(),
 });
 
@@ -51,15 +54,22 @@ function formatAmount(value: number, currency: string): string {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
 }
 
-function periodLabel(b: BudgetWithProgress): string {
-    if (!b.period) {
-        return b.period_type === 'yearly' ? '' : '';
+function periodLabel(b: BudgetWithProgress, year?: number, month?: number): string {
+    if (b.period) {
+        const start = new Date(b.period.start_date);
+        if (b.period_type === 'yearly') {
+            return `${start.getFullYear()}`;
+        }
+        return `${MONTH_NAMES[start.getMonth()]} ${start.getFullYear()}`;
     }
-    const start = new Date(b.period.start_date);
-    if (b.period_type === 'yearly') {
-        return `${start.getFullYear()}`;
+    // Fallback from page-level year/month
+    if (b.period_type === 'yearly' && year) {
+        return `${year}`;
     }
-    return `${MONTH_NAMES[start.getMonth()]} ${start.getFullYear()}`;
+    if (year && month && month >= 1 && month <= 12) {
+        return `${MONTH_NAMES[month - 1]} ${year}`;
+    }
+    return '';
 }
 
 function effectiveAmount(b: BudgetWithProgress): number {
@@ -69,10 +79,11 @@ function effectiveAmount(b: BudgetWithProgress): number {
     return b.amount;
 }
 
-export default function BudgetsIndex({ budgets, categories, periodType, year, month, defaultCurrency }: Props) {
+export default function BudgetsIndex({ budgets, categories, periodType, year, month, defaultCurrency, uncategorizedCount }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [editingBudget, setEditingBudget] = useState<BudgetWithProgress | null>(null);
     const [viewMode, setViewMode] = useState<string>(() => localStorage.getItem('budgets_view_mode') ?? 'cards');
+    const [trendBudgetId, setTrendBudgetId] = useState<number | null>(null);
 
     useEffect(() => {
         localStorage.setItem('budgets_view_mode', viewMode);
@@ -110,6 +121,7 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
         period_type: 'monthly',
         name: '',
         rollover_enabled: false,
+        rollover_cap: '',
         include_subcategories: true,
     };
 
@@ -121,6 +133,7 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
             period_type: values.period_type,
             name: values.name || null,
             rollover_enabled: values.rollover_enabled ?? false,
+            rollover_cap: values.rollover_cap ? Number(values.rollover_cap) : null,
             include_subcategories: values.include_subcategories ?? true,
         };
         if (editingBudget) {
@@ -131,10 +144,19 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
     };
 
     const confirmDelete = (b: BudgetWithProgress) => {
-        if (window.confirm(`Delete budget for ${b.category?.name ?? 'Overall'} (${periodLabel(b)})?`)) {
+        if (window.confirm(`Delete budget for ${b.category?.name ?? 'Overall'} (${periodLabel(b, year, month)})?`)) {
             router.delete(`/budgets/${b.id}`);
         }
     };
+
+    const periodLabelFn = (b: BudgetWithProgress) => periodLabel(b, year, month);
+
+    // Summary calculations (exclude overall budgets)
+    const categoryBudgets = budgets.filter((b) => b.category_id !== null);
+    const totalBudgeted = categoryBudgets.reduce((sum, b) => sum + effectiveAmount(b), 0);
+    const totalSpent = categoryBudgets.reduce((sum, b) => sum + b.spent, 0);
+    const totalRemaining = Math.max(0, totalBudgeted - totalSpent);
+    const totalPercentage = totalBudgeted > 0 ? (totalSpent / totalBudgeted) * 100 : 0;
 
     return (
         <AppLayout>
@@ -148,6 +170,21 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                         { onClick: openCreate, label: 'New Budget' },
                     ]}
                 />
+
+                {uncategorizedCount > 0 && (
+                    <Card className="mb-4 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20">
+                        <CardContent className="flex items-center gap-3 py-3">
+                            <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-600" />
+                            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                <strong>{uncategorizedCount}</strong> uncategorized expense{uncategorizedCount !== 1 ? 's' : ''} in this period.
+                                Budget tracking may be inaccurate.{' '}
+                                <button className="underline hover:no-underline" onClick={() => router.visit('/transactions?uncategorized=1')}>
+                                    Review transactions
+                                </button>
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <Card className="mb-6">
                     <CardHeader className="pb-2">
@@ -205,10 +242,51 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                     </CardContent>
                 </Card>
 
+                {budgets.length > 0 && categoryBudgets.length > 0 && (
+                    <Card className="mb-4">
+                        <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
+                            <div className="flex items-center gap-6">
+                                <div className="text-sm">
+                                    <span className="text-muted-foreground">Total budgeted:</span>{' '}
+                                    <span className="font-medium">{formatAmount(totalBudgeted, defaultCurrency)}</span>
+                                </div>
+                                <div className="text-sm">
+                                    <span className="text-muted-foreground">Total spent:</span>{' '}
+                                    <span className="font-medium">{formatAmount(totalSpent, defaultCurrency)}</span>
+                                </div>
+                                <div className="text-sm">
+                                    <span className="text-muted-foreground">Remaining:</span>{' '}
+                                    <span className={`font-medium ${totalSpent > totalBudgeted ? 'text-destructive' : ''}`}>
+                                        {formatAmount(totalRemaining, defaultCurrency)}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="bg-muted h-2 w-32 overflow-hidden rounded-full">
+                                    <div
+                                        className={`h-full rounded-full ${totalSpent > totalBudgeted ? 'bg-destructive' : totalPercentage >= 80 ? 'bg-yellow-500' : 'bg-primary'}`}
+                                        style={{ width: `${Math.min(100, totalPercentage)}%` }}
+                                    />
+                                </div>
+                                <span className="text-muted-foreground text-xs">{totalPercentage.toFixed(1)}%</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {budgets.length === 0 ? (
                     <Card>
-                        <CardContent className="text-muted-foreground py-8 text-center">
-                            No budgets for this period. Create one to start tracking.
+                        <CardContent className="flex flex-col items-center gap-3 py-12">
+                            <Wallet className="text-muted-foreground h-12 w-12" />
+                            <p className="text-muted-foreground text-center">No budgets for this period.</p>
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={openCreate}>
+                                    Create Budget
+                                </Button>
+                                <Button variant="outline" onClick={() => router.visit('/budgets/builder')}>
+                                    Open Builder
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
                 ) : viewMode === 'table' ? (
@@ -219,8 +297,9 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                                 onEdit={openEdit}
                                 onDelete={confirmDelete}
                                 formatAmount={formatAmount}
-                                periodLabel={periodLabel}
+                                periodLabel={periodLabelFn}
                                 effectiveAmount={effectiveAmount}
+                                onShowTrend={(id) => setTrendBudgetId(id)}
                             />
                         </CardContent>
                     </Card>
@@ -233,12 +312,15 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                                 onEdit={openEdit}
                                 onDelete={confirmDelete}
                                 formatAmount={formatAmount}
-                                periodLabel={periodLabel}
+                                periodLabel={periodLabelFn}
                                 effectiveAmount={effectiveAmount}
+                                onShowTrend={(id) => setTrendBudgetId(id)}
                             />
                         ))}
                     </div>
                 )}
+
+                {trendBudgetId !== null && <BudgetTrendChart budgetId={trendBudgetId} onClose={() => setTrendBudgetId(null)} />}
 
                 <Dialog open={isOpen} onOpenChange={(open) => !open && closeDialog()}>
                     <DialogContent>
@@ -259,6 +341,7 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                                           period_type: editingBudget.period_type,
                                           name: editingBudget.name ?? '',
                                           rollover_enabled: editingBudget.rollover_enabled,
+                                          rollover_cap: editingBudget.rollover_cap != null ? String(editingBudget.rollover_cap) : '',
                                           include_subcategories: editingBudget.include_subcategories,
                                       }
                                     : defaultFormValues
@@ -266,7 +349,7 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                             onSubmit={onSubmit}
                             formProps={{ className: 'space-y-4' }}
                         >
-                            {() => (
+                            {(form) => (
                                 <>
                                     <SelectInput<FormValues>
                                         name="category_id"
@@ -285,6 +368,13 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                                         ]}
                                     />
                                     <TextInput<FormValues> name="name" label="Name (optional)" />
+                                    {form.watch('rollover_enabled') && (
+                                        <TextInput<FormValues>
+                                            name="rollover_cap"
+                                            label="Rollover cap (optional, leave empty for unlimited)"
+                                            type="number"
+                                        />
+                                    )}
                                     <DialogFooter>
                                         <Button type="button" variant="outline" onClick={closeDialog}>
                                             Cancel

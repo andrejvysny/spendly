@@ -18,10 +18,12 @@ class Budget extends BaseModel implements OwnedByUserContract
 
     public const PERIOD_YEARLY = 'yearly';
 
+    /** Reserved for future: user-defined date ranges. Requires custom period start/end UX. */
     public const PERIOD_CUSTOM = 'custom';
 
     public const MODE_LIMIT = 'limit';
 
+    /** Reserved for future: zero-based envelope budgeting. Requires income allocation UX. */
     public const MODE_ENVELOPE = 'envelope';
 
     protected $fillable = [
@@ -33,6 +35,7 @@ class Budget extends BaseModel implements OwnedByUserContract
         'period_type',
         'name',
         'rollover_enabled',
+        'rollover_cap',
         'include_subcategories',
         'auto_create_next',
         'overall_limit_mode',
@@ -47,6 +50,7 @@ class Budget extends BaseModel implements OwnedByUserContract
     protected $casts = [
         'amount' => 'decimal:2',
         'rollover_enabled' => 'boolean',
+        'rollover_cap' => 'decimal:2',
         'include_subcategories' => 'boolean',
         'auto_create_next' => 'boolean',
         'is_active' => 'boolean',

@@ -8,8 +8,11 @@ use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Http\Requests\StoreBudgetRequest;
 use App\Http\Requests\UpdateBudgetRequest;
 use App\Models\Budget;
+use App\Models\BudgetPeriod;
+use App\Models\Transaction;
 use App\Services\BudgetService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -53,6 +56,26 @@ class BudgetController extends Controller
         $firstAccount = $accounts->first();
         $defaultCurrency = $firstAccount !== null ? (string) $firstAccount->currency : 'EUR';
 
+        // Count uncategorized expenses in current period
+        $accountIds = $accounts->pluck('id')->toArray();
+        $uncategorizedCount = 0;
+        if ($accountIds !== []) {
+            $viewStart = $periodType === Budget::PERIOD_MONTHLY && $month > 0
+                ? sprintf('%04d-%02d-01', $year, $month)
+                : sprintf('%04d-01-01', $year);
+            $viewEnd = $periodType === Budget::PERIOD_MONTHLY && $month > 0
+                ? date('Y-m-t', (int) strtotime($viewStart))
+                : sprintf('%04d-12-31', $year);
+
+            $uncategorizedCount = Transaction::whereIn('account_id', $accountIds)
+                ->where('booked_date', '>=', $viewStart)
+                ->where('booked_date', '<=', $viewEnd)
+                ->where('amount', '<', 0)
+                ->where('type', '!=', Transaction::TYPE_TRANSFER)
+                ->whereNull('category_id')
+                ->count();
+        }
+
         return Inertia::render('budgets/Index', [
             'budgets' => $budgetsWithProgress->map(function (array $row) {
                 /** @var Budget $budget */
@@ -76,6 +99,7 @@ class BudgetController extends Controller
                     'period_type' => $budget->period_type,
                     'name' => $budget->name,
                     'rollover_enabled' => $budget->rollover_enabled,
+                    'rollover_cap' => $budget->rollover_cap !== null ? (float) $budget->rollover_cap : null,
                     'include_subcategories' => $budget->include_subcategories,
                     'is_active' => $budget->is_active,
                     'period' => $period ? [
@@ -90,6 +114,10 @@ class BudgetController extends Controller
                     'remaining' => $row['remaining'],
                     'percentage_used' => $row['percentage_used'],
                     'is_exceeded' => $row['is_exceeded'],
+                    'pace_percentage' => $row['pace_percentage'],
+                    'projected_total' => $row['projected_total'],
+                    'days_elapsed' => $row['days_elapsed'],
+                    'days_in_period' => $row['days_in_period'],
                 ];
             })->values()->all(),
             'categories' => $categories->map(fn ($c) => [
@@ -102,6 +130,7 @@ class BudgetController extends Controller
             'year' => $year,
             'month' => $month,
             'defaultCurrency' => $defaultCurrency,
+            'uncategorizedCount' => $uncategorizedCount,
         ]);
     }
 
@@ -185,5 +214,37 @@ class BudgetController extends Controller
         $this->budgetService->delete($budget);
 
         return redirect()->back()->with('success', 'Budget deleted successfully.');
+    }
+
+    public function history(Budget $budget): JsonResponse
+    {
+        $this->authorize('view', $budget);
+
+        $history = $this->budgetService->getBudgetHistory(
+            $this->getAuthUserId(),
+            $budget->id
+        );
+
+        return response()->json(['history' => $history]);
+    }
+
+    public function updatePeriod(Request $request, Budget $budget, BudgetPeriod $period): RedirectResponse
+    {
+        $this->authorize('update', $budget);
+
+        $validated = $request->validate([
+            'amount_budgeted' => ['required', 'numeric', 'min:0.01'],
+        ]);
+
+        // Ensure period belongs to this budget
+        if ($period->budget_id !== $budget->id) {
+            abort(404);
+        }
+
+        $period->update([
+            'amount_budgeted' => $validated['amount_budgeted'],
+        ]);
+
+        return redirect()->back()->with('success', 'Period amount updated.');
     }
 }

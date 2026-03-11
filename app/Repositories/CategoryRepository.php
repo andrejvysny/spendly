@@ -23,7 +23,7 @@ class CategoryRepository extends BaseRepository implements CategoryRepositoryInt
      */
     public function getChildCategories(int $parentId): Collection
     {
-        return $this->model->where('parent_id', $parentId)->get();
+        return $this->model->where('parent_category_id', $parentId)->get();
     }
 
     /**
@@ -32,7 +32,31 @@ class CategoryRepository extends BaseRepository implements CategoryRepositoryInt
     public function getRootCategories(int $userId): Collection
     {
         return $this->model->where('user_id', $userId)
-            ->whereNull('parent_id')
+            ->whereNull('parent_category_id')
             ->get();
+    }
+
+    /**
+     * Get all descendant category IDs (children + grandchildren). Max 2 levels.
+     *
+     * @return array<int>
+     */
+    public function getAllDescendantIds(int $categoryId): array
+    {
+        /** @var array<int> $childIds */
+        $childIds = $this->model->where('parent_category_id', $categoryId)
+            ->pluck('id')
+            ->toArray();
+
+        if ($childIds === []) {
+            return [];
+        }
+
+        /** @var array<int> $grandchildIds */
+        $grandchildIds = $this->model->whereIn('parent_category_id', $childIds)
+            ->pluck('id')
+            ->toArray();
+
+        return array_merge($childIds, $grandchildIds);
     }
 }

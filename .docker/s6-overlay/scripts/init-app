@@ -1,0 +1,40 @@
+#!/command/with-contenv sh
+# One-time init: SQLite setup, migrations, caching
+
+cd /app
+
+DB_DATABASE="${DB_DATABASE:-/app/database/database.sqlite}"
+
+# SQLite: create database file if missing
+if [ "$DB_CONNECTION" = "sqlite" ] && [ ! -f "$DB_DATABASE" ]; then
+    mkdir -p "$(dirname "$DB_DATABASE")"
+    touch "$DB_DATABASE"
+    chmod 664 "$DB_DATABASE"
+    chown www-data:www-data "$DB_DATABASE"
+fi
+
+# External DB: wait for connection
+if [ -n "$DB_HOST" ]; then
+    echo "Waiting for database..."
+    retries=30
+    while ! php artisan db:monitor --timeout=1 > /dev/null 2>&1; do
+        retries=$((retries - 1))
+        if [ "$retries" -le 0 ]; then
+            echo "Database connection timeout"
+            exit 1
+        fi
+        sleep 1
+    done
+fi
+
+php artisan migrate --force
+
+# SQLite: ensure WAL mode is set on the database file
+if [ "$DB_CONNECTION" = "sqlite" ] && [ -f "$DB_DATABASE" ]; then
+    sqlite3 "$DB_DATABASE" "PRAGMA journal_mode=WAL;" > /dev/null 2>&1 || true
+fi
+
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan event:cache

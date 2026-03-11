@@ -1,0 +1,16 @@
+{
+    frankenphp
+    order php_server before file_server
+}
+
+:80 {
+    root * /app/public
+    encode zstd gzip
+
+    @static {
+        path /build/* /assets/*
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    php_server
+}

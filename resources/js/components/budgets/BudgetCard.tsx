@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { BudgetWithProgress } from '@/types';
+import { TrendingUp } from 'lucide-react';
 import { BudgetProgressBar } from './BudgetProgressBar';
 
 interface BudgetCardProps {
@@ -10,10 +11,19 @@ interface BudgetCardProps {
     formatAmount: (value: number, currency: string) => string;
     periodLabel: (b: BudgetWithProgress) => string;
     effectiveAmount: (b: BudgetWithProgress) => number;
+    onShowTrend?: (budgetId: number) => void;
 }
 
-export function BudgetCard({ budget: b, onEdit, onDelete, formatAmount, periodLabel, effectiveAmount }: BudgetCardProps) {
+function paceLabel(pace: number): { text: string; color: string } {
+    if (pace <= 0) return { text: '', color: '' };
+    if (pace <= 90) return { text: 'Ahead', color: 'text-green-600' };
+    if (pace <= 110) return { text: 'On track', color: 'text-blue-600' };
+    return { text: 'Behind', color: 'text-red-600' };
+}
+
+export function BudgetCard({ budget: b, onEdit, onDelete, formatAmount, periodLabel, effectiveAmount, onShowTrend }: BudgetCardProps) {
     const total = effectiveAmount(b);
+    const pace = paceLabel(b.pace_percentage);
 
     return (
         <Card>
@@ -24,10 +34,14 @@ export function BudgetCard({ budget: b, onEdit, onDelete, formatAmount, periodLa
                         <p className="font-medium">{b.name ?? b.category?.name ?? 'Overall'}</p>
                         <p className="text-muted-foreground text-sm">
                             {periodLabel(b)}
-                            {b.rollover_enabled && b.period && b.period.rollover_amount > 0 && (
-                                <span className="ml-2 text-xs text-green-600">+{formatAmount(b.period.rollover_amount, b.currency)} rollover</span>
+                            {b.rollover_enabled && b.period && b.period.rollover_amount !== 0 && (
+                                <span className={`ml-2 text-xs ${b.period.rollover_amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {b.period.rollover_amount > 0 ? '+' : ''}
+                                    {formatAmount(b.period.rollover_amount, b.currency)} rollover
+                                </span>
                             )}
                         </p>
+                        {pace.text && b.days_elapsed > 0 && <p className={`text-xs ${pace.color}`}>{pace.text}</p>}
                     </div>
                 </div>
                 <div className="flex items-center gap-6">
@@ -41,8 +55,17 @@ export function BudgetCard({ budget: b, onEdit, onDelete, formatAmount, periodLa
                                 : `${formatAmount(b.remaining, b.currency)} remaining`}
                         </p>
                     </div>
-                    <BudgetProgressBar percentageUsed={b.percentage_used} isExceeded={b.is_exceeded} />
+                    <BudgetProgressBar
+                        percentageUsed={b.percentage_used}
+                        isExceeded={b.is_exceeded}
+                        pacePosition={b.days_in_period > 0 ? (b.days_elapsed / b.days_in_period) * 100 : undefined}
+                    />
                     <div className="flex gap-2">
+                        {onShowTrend && (
+                            <Button variant="ghost" size="sm" onClick={() => onShowTrend(b.id)} title="Trends">
+                                <TrendingUp className="h-4 w-4" />
+                            </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => onEdit(b)}>
                             Edit
                         </Button>

@@ -70,6 +70,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/budgets/suggestions', [BudgetController::class, 'suggestAmounts'])->name('budgets.suggestions');
     Route::post('/budgets', [BudgetController::class, 'store'])->name('budgets.store');
     Route::put('/budgets/{budget}', [BudgetController::class, 'update'])->name('budgets.update');
+    Route::get('/budgets/{budget}/history', [BudgetController::class, 'history'])->name('budgets.history');
+    Route::put('/budgets/{budget}/periods/{period}', [BudgetController::class, 'updatePeriod'])->name('budgets.periods.update');
     Route::delete('/budgets/{budget}', [BudgetController::class, 'destroy'])->name('budgets.destroy');
 
     // Import routes

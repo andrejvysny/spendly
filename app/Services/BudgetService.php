@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Contracts\Repositories\BudgetPeriodRepositoryInterface;
 use App\Contracts\Repositories\BudgetRepositoryInterface;
+use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Models\Budget;
 use App\Models\BudgetPeriod;
 use App\Models\Transaction;
@@ -19,14 +20,15 @@ class BudgetService
     public function __construct(
         private readonly BudgetRepositoryInterface $budgetRepository,
         private readonly BudgetPeriodRepositoryInterface $budgetPeriodRepository,
-        private readonly AccountRepositoryInterface $accountRepository
+        private readonly AccountRepositoryInterface $accountRepository,
+        private readonly CategoryRepositoryInterface $categoryRepository
     ) {}
 
     /**
      * Get budgets with progress for a given month/year.
      * Auto-creates periods if none exist for the requested timeframe.
      *
-     * @return Collection<int, array{budget: Budget, period: BudgetPeriod|null, spent: float, remaining: float, percentage_used: float, is_exceeded: bool}>
+     * @return Collection<int, array{budget: Budget, period: BudgetPeriod|null, spent: float, remaining: float, percentage_used: float, is_exceeded: bool, pace_percentage: float, projected_total: float, days_elapsed: int, days_in_period: int}>
      */
     public function getBudgetsWithProgress(int $userId, string $periodType, int $year, ?int $month): Collection
     {
@@ -62,7 +64,9 @@ class BudgetService
             )->keyBy('budget_id');
         }
 
-        return $budgets->map(function (Budget $budget) use ($periods) {
+        $now = Carbon::now();
+
+        return $budgets->map(function (Budget $budget) use ($periods, $now) {
             /** @var BudgetPeriod|null $period */
             $period = $periods->get($budget->id);
             $effectiveAmount = $period ? $period->getEffectiveAmount() : (float) $budget->amount;
@@ -71,6 +75,30 @@ class BudgetService
             $percentageUsed = $effectiveAmount > 0 ? round(($spent / $effectiveAmount) * 100, 2) : 0.0;
             $isExceeded = $spent > $effectiveAmount;
 
+            // Pace calculation
+            $daysElapsed = 0;
+            $daysInPeriod = 1;
+            $projectedTotal = 0.0;
+            $pacePercentage = 0.0;
+
+            if ($period !== null) {
+                $periodStart = Carbon::parse($period->start_date)->startOfDay();
+                $periodEnd = Carbon::parse($period->end_date)->endOfDay();
+                $daysInPeriod = max(1, (int) $periodStart->diffInDays($periodEnd) + 1);
+
+                if ($now->gte($periodStart) && $now->lte($periodEnd)) {
+                    $daysElapsed = (int) $periodStart->diffInDays($now) + 1;
+                } elseif ($now->gt($periodEnd)) {
+                    $daysElapsed = $daysInPeriod;
+                }
+
+                if ($daysElapsed > 0) {
+                    $projectedTotal = round(($spent / $daysElapsed) * $daysInPeriod, 2);
+                    $expectedSpent = $effectiveAmount * ($daysElapsed / $daysInPeriod);
+                    $pacePercentage = $expectedSpent > 0 ? round(($spent / $expectedSpent) * 100, 2) : 0.0;
+                }
+            }
+
             return [
                 'budget' => $budget,
                 'period' => $period,
@@ -78,6 +106,10 @@ class BudgetService
                 'remaining' => $remaining,
                 'percentage_used' => $percentageUsed,
                 'is_exceeded' => $isExceeded,
+                'pace_percentage' => $pacePercentage,
+                'projected_total' => $projectedTotal,
+                'days_elapsed' => $daysElapsed,
+                'days_in_period' => $daysInPeriod,
             ];
         });
     }
@@ -101,12 +133,69 @@ class BudgetService
             ->where('currency', $budget->currency);
 
         if ($budget->category_id !== null) {
-            $query->where('category_id', $budget->category_id);
+            if ($budget->include_subcategories) {
+                $ids = $this->categoryRepository->getAllDescendantIds($budget->category_id);
+                $ids[] = $budget->category_id;
+                $query->whereIn('category_id', $ids);
+            } else {
+                $query->where('category_id', $budget->category_id);
+            }
         }
 
         $sum = (float) $query->sum(DB::raw('ABS(amount)'));
 
         return round($sum, 2);
+    }
+
+    /**
+     * Calculate rollover from a previous period.
+     */
+    public function calculateRollover(Budget $budget, BudgetPeriod $previousPeriod): float
+    {
+        $raw = $previousPeriod->getEffectiveAmount() - $this->getSpentForPeriod($budget, $previousPeriod);
+
+        if ($budget->rollover_cap !== null && $raw < 0) {
+            $raw = max(-((float) $budget->rollover_cap), $raw);
+        }
+
+        return round($raw, 2);
+    }
+
+    /**
+     * Get budget history for trend chart.
+     *
+     * @return array<int, array{label: string, budgeted: float, spent: float, rollover: float}>
+     */
+    public function getBudgetHistory(int $userId, int $budgetId, int $months = 6): array
+    {
+        $budget = Budget::where('id', $budgetId)->where('user_id', $userId)->first();
+        if ($budget === null) {
+            return [];
+        }
+
+        $periods = BudgetPeriod::where('budget_id', $budgetId)
+            ->orderBy('start_date', 'desc')
+            ->limit($months)
+            ->get()
+            ->reverse()
+            ->values();
+
+        $result = [];
+        foreach ($periods as $period) {
+            $start = Carbon::parse($period->start_date);
+            $label = $budget->period_type === Budget::PERIOD_YEARLY
+                ? $start->format('Y')
+                : $start->format('M Y');
+
+            $result[] = [
+                'label' => $label,
+                'budgeted' => (float) $period->amount_budgeted,
+                'spent' => $this->getSpentForPeriod($budget, $period),
+                'rollover' => (float) $period->rollover_amount,
+            ];
+        }
+
+        return $result;
     }
 
     /**
@@ -287,12 +376,32 @@ class BudgetService
                 ? (float) $previousPeriod->amount_budgeted
                 : (float) $budget->amount;
 
+            // Calculate rollover if enabled
+            $rolloverAmount = 0.0;
+            if ($budget->rollover_enabled && $previousPeriod !== null) {
+                $rolloverAmount = $this->calculateRollover($budget, $previousPeriod);
+
+                // Close previous period
+                if ($previousPeriod->status === BudgetPeriod::STATUS_ACTIVE) {
+                    $previousPeriod->update([
+                        'status' => BudgetPeriod::STATUS_CLOSED,
+                        'closed_at' => now(),
+                    ]);
+                }
+            } elseif ($previousPeriod !== null && $previousPeriod->status === BudgetPeriod::STATUS_ACTIVE) {
+                // Close previous period even without rollover
+                $previousPeriod->update([
+                    'status' => BudgetPeriod::STATUS_CLOSED,
+                    'closed_at' => now(),
+                ]);
+            }
+
             $this->budgetPeriodRepository->create([
                 'budget_id' => $budget->id,
                 'start_date' => $viewStart->format('Y-m-d'),
                 'end_date' => $viewEnd->format('Y-m-d'),
                 'amount_budgeted' => $amountBudgeted,
-                'rollover_amount' => 0,
+                'rollover_amount' => $rolloverAmount,
                 'status' => BudgetPeriod::STATUS_ACTIVE,
             ]);
         }

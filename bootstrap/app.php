@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,6 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withSchedule(function (Schedule $schedule) {
+        $schedule->command('gocardless:sync-all')->everyFourHours()->withoutOverlapping();
+        $schedule->command('gocardless:retry-failures')->everyThirtyMinutes()->withoutOverlapping();
+        $schedule->command('recurring:detect')->daily()->withoutOverlapping();
+        $schedule->command('queue:prune-failed --hours=72')->daily();
+        $schedule->command('queue:prune-batches --hours=72')->daily();
+    })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 

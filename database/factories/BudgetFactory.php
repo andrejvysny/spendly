@@ -30,6 +30,7 @@ class BudgetFactory extends Factory
             'period_type' => Budget::PERIOD_MONTHLY,
             'name' => null,
             'rollover_enabled' => false,
+            'rollover_cap' => null,
             'include_subcategories' => true,
             'auto_create_next' => true,
             'is_active' => true,

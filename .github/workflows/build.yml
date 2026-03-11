@@ -1,14 +1,14 @@
 name: Build and Push Docker Image
 
 permissions:
-    contents: read
-    packages: write
+  contents: read
+  packages: write
 
 on:
   workflow_dispatch:
 
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
       - '.github/workflows/build.yml'
       - '.docker/**'
@@ -25,7 +25,6 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'vite.config.ts'
-
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -58,7 +57,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
@@ -70,8 +69,8 @@ jobs:
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
+      - name: Build and push (production)
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: .docker/Dockerfile
@@ -80,5 +79,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to:   type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

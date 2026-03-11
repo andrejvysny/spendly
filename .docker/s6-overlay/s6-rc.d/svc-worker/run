@@ -1,0 +1,9 @@
+#!/command/with-contenv sh
+cd /app
+exec php artisan queue:work \
+    --sleep=3 \
+    --tries=3 \
+    --max-time=3600 \
+    --max-jobs=1000 \
+    --memory=256 \
+    --timeout=90

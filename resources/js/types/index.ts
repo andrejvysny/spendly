@@ -165,6 +165,7 @@ export interface Budget {
     period_type: 'monthly' | 'yearly';
     name: string | null;
     rollover_enabled: boolean;
+    rollover_cap: number | null;
     include_subcategories: boolean;
     is_active: boolean;
 }
@@ -185,6 +186,10 @@ export interface BudgetWithProgress extends Budget {
     remaining: number;
     percentage_used: number;
     is_exceeded: boolean;
+    pace_percentage: number;
+    projected_total: number;
+    days_elapsed: number;
+    days_in_period: number;
 }
 
 export interface ImportMapping {
