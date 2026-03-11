@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import useLoadMore from '@/hooks/use-load-more';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
-import { BreadcrumbItem, Category, Counterparty, Transaction } from '@/types/index';
+import { BreadcrumbItem, Category, Counterparty, RecurringGroup, Tag, Transaction } from '@/types/index';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
@@ -41,6 +41,8 @@ interface Props {
     isFiltered?: boolean;
     categories: Category[];
     counterparties: Counterparty[];
+    tags: Tag[];
+    recurringGroups: RecurringGroup[];
     accounts: { id: number; name: string }[];
     filters?: {
         search?: string;
@@ -178,6 +180,8 @@ export default function Index({
     isFiltered: initialIsFiltered,
     categories,
     counterparties,
+    tags,
+    recurringGroups,
     accounts,
     filters = {},
 }: Props) {
@@ -511,31 +515,10 @@ export default function Index({
         },
     ];
 
-    const handleCreateTransaction = (transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'account'>) => {
-        // Create a new object with only the properties we want to send
-        const payload = {
-            transaction_id: transaction.transaction_id,
-            amount: transaction.amount,
-            currency: transaction.currency,
-            booked_date: transaction.booked_date,
-            processed_date: transaction.processed_date,
-            description: transaction.description,
-            target_iban: transaction.target_iban,
-            source_iban: transaction.source_iban,
-            partner: transaction.partner,
-            type: transaction.type,
-            balance_after_transaction: transaction.balance_after_transaction,
-            note: transaction.note,
-            recipient_note: transaction.recipient_note,
-            place: transaction.place,
-            category_id: transaction.category?.id,
-            counterparty_id: transaction.counterparty?.id,
-        };
-
-        router.post('/transactions', payload, {
+    const handleCreateTransaction = (values: object) => {
+        router.post('/transactions-store', values as Record<string, string | number | boolean | File | undefined | null>, {
             onSuccess: () => {
                 setIsCreateModalOpen(false);
-                // Refresh transactions after creating a new one
                 debouncedFetchTransactions(filterValues);
             },
             preserveScroll: true,
@@ -949,6 +932,8 @@ export default function Index({
                                         monthlySummaries={monthlySummaries}
                                         categories={categories}
                                         counterparties={counterparties}
+                                        tags={tags}
+                                        recurringGroups={recurringGroups}
                                         showMonthlySummary={showMonthlySummary}
                                         hasMorePages={hasMorePages}
                                         onLoadMore={handleLoadMore}
@@ -963,6 +948,10 @@ export default function Index({
                                 isOpen={isCreateModalOpen}
                                 onClose={() => setIsCreateModalOpen(false)}
                                 onSubmit={handleCreateTransaction}
+                                accounts={accounts}
+                                categories={categories}
+                                counterparties={counterparties}
+                                tags={tags}
                             />
                         </div>
                     </div>

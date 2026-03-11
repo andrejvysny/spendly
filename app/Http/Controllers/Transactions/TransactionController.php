@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class TransactionController extends Controller
@@ -79,6 +82,7 @@ class TransactionController extends Controller
         $counterparties = Auth::user()->counterparties;
         $tags = Auth::user()->tags;
         $accounts = Auth::user()->accounts;
+        $recurringGroups = Auth::user()->recurringGroups()->where('status', 'confirmed')->get(['id', 'name', 'interval']);
 
         return Inertia::render('transactions/index', [
             'transactions' => [
@@ -95,6 +99,7 @@ class TransactionController extends Controller
             'counterparties' => $counterparties,
             'accounts' => $accounts,
             'tags' => $tags,
+            'recurringGroups' => $recurringGroups,
             'filters' => $request->only([
                 'search', 'account_id', 'transactionType',
                 'amountFilterType', 'amountMin', 'amountMax',
@@ -104,6 +109,65 @@ class TransactionController extends Controller
             ]),
             'totalCount' => $totalCount,
         ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'direction' => 'required|in:income,expense',
+            'currency' => 'required|string|in:EUR,USD,GBP,CZK',
+            'booked_date' => 'required|date',
+            'description' => 'required|string',
+            'type' => 'required|in:PAYMENT,TRANSFER',
+            'account_id' => 'required|exists:accounts,id',
+            'partner' => 'nullable|string',
+            'note' => 'nullable|string',
+            'place' => 'nullable|string',
+            'category_id' => 'nullable|exists:categories,id',
+            'counterparty_id' => 'nullable|exists:counterparties,id',
+            'tags' => 'nullable|array',
+            'tags.*' => 'exists:tags,id',
+            'target_iban' => 'nullable|string',
+            'source_iban' => 'nullable|string',
+        ]);
+
+        // Verify user owns the account
+        $account = Auth::user()->accounts()->findOrFail($validated['account_id']);
+
+        $amount = (float) $validated['amount'];
+        if ($validated['direction'] === 'expense') {
+            $amount = -$amount;
+        }
+
+        $transactionData = [
+            'transaction_id' => 'TRX-'.now()->timestamp.'-'.Str::random(6),
+            'amount' => $amount,
+            'currency' => $validated['currency'],
+            'booked_date' => $validated['booked_date'],
+            'processed_date' => $validated['booked_date'],
+            'description' => $validated['description'],
+            'type' => $validated['type'],
+            'account_id' => $account->id,
+            'balance_after_transaction' => 0,
+            'partner' => $validated['partner'] ?? null,
+            'note' => $validated['note'] ?? null,
+            'place' => $validated['place'] ?? null,
+            'category_id' => $validated['category_id'] ?? null,
+            'counterparty_id' => $validated['counterparty_id'] ?? null,
+            'target_iban' => $validated['target_iban'] ?? null,
+            'source_iban' => $validated['source_iban'] ?? null,
+        ];
+
+        $transactionData['fingerprint'] = Transaction::generateFingerprint($transactionData);
+
+        $transaction = Transaction::create($transactionData);
+
+        if (! empty($validated['tags'])) {
+            $transaction->tags()->sync($validated['tags']);
+        }
+
+        return redirect()->back()->with('success', 'Transaction created successfully');
     }
 
     /**
@@ -317,9 +381,12 @@ class TransactionController extends Controller
                 'transaction_ids.*' => 'exists:transactions,id',
                 'counterparty_id' => 'nullable|string',
                 'category_id' => 'nullable|string',
+                'recurring_group_id' => 'nullable|string',
             ]);
 
-            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])->get();
+            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])
+                ->whereHas('account', fn ($q) => $q->where('user_id', Auth::id()))
+                ->get();
 
             foreach ($transactions as $transaction) {
                 $updateData = [];
@@ -328,6 +395,9 @@ class TransactionController extends Controller
                 }
                 if (array_key_exists('category_id', $validated)) {
                     $updateData['category_id'] = $validated['category_id'] === '' ? null : $validated['category_id'];
+                }
+                if (array_key_exists('recurring_group_id', $validated)) {
+                    $updateData['recurring_group_id'] = $validated['recurring_group_id'] === '' ? null : $validated['recurring_group_id'];
                 }
                 $transaction->update($updateData);
             }
@@ -358,7 +428,9 @@ class TransactionController extends Controller
                 'method' => 'required|string|in:replace,append',
             ]);
 
-            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])->get();
+            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])
+                ->whereHas('account', fn ($q) => $q->where('user_id', Auth::id()))
+                ->get();
             $updatedTransactions = [];
 
             foreach ($transactions as $transaction) {
@@ -387,6 +459,178 @@ class TransactionController extends Controller
             Log::error('Bulk transaction note update failed: '.$e->getMessage());
 
             return response()->json(['error' => 'Failed to update transaction notes'], 500);
+        }
+    }
+
+    /**
+     * Updates tags for multiple transactions in bulk with add/remove/set modes.
+     *
+     * @return JsonResponse JSON response with updated transaction tag data or error details.
+     */
+    public function bulkTagUpdate(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_ids' => 'required|array',
+                'transaction_ids.*' => 'exists:transactions,id',
+                'tag_ids' => 'required|array',
+                'tag_ids.*' => 'exists:tags,id',
+                'mode' => 'required|string|in:add,remove,set',
+            ]);
+
+            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])
+                ->whereHas('account', fn ($q) => $q->where('user_id', Auth::id()))
+                ->get();
+
+            $updatedTransactions = [];
+
+            foreach ($transactions as $transaction) {
+                switch ($validated['mode']) {
+                    case 'add':
+                        $transaction->tags()->syncWithoutDetaching($validated['tag_ids']);
+                        break;
+                    case 'remove':
+                        $transaction->tags()->detach($validated['tag_ids']);
+                        break;
+                    case 'set':
+                        $transaction->tags()->sync($validated['tag_ids']);
+                        break;
+                }
+
+                $transaction->load('tags');
+                $updatedTransactions[] = [
+                    'id' => $transaction->id,
+                    'tags' => $transaction->tags,
+                ];
+            }
+
+            return response()->json([
+                'message' => 'Transaction tags updated successfully',
+                'updated_transactions' => $updatedTransactions,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Bulk transaction tag update failed: '.$e->getMessage());
+
+            return response()->json(['error' => 'Failed to update transaction tags'], 500);
+        }
+    }
+
+    /**
+     * Updates the type for multiple transactions in bulk, with optional transfer pairing.
+     *
+     * @return JsonResponse JSON response with update count and pairing status or error details.
+     */
+    public function bulkTypeUpdate(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_ids' => 'required|array',
+                'transaction_ids.*' => 'exists:transactions,id',
+                'type' => 'required|string|in:TRANSFER,PAYMENT',
+                'clear_transfer_pair' => 'boolean',
+            ]);
+
+            $clearTransferPair = $validated['clear_transfer_pair'] ?? false;
+
+            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])
+                ->whereHas('account', fn ($q) => $q->where('user_id', Auth::id()))
+                ->get();
+
+            $paired = false;
+
+            DB::transaction(function () use ($transactions, $validated, $clearTransferPair, &$paired) {
+                // Clear transfer pairs if requested
+                if ($clearTransferPair) {
+                    $partnerIds = $transactions->pluck('transfer_pair_transaction_id')->filter()->toArray();
+
+                    // Null out on selected transactions
+                    Transaction::whereIn('id', $transactions->pluck('id'))
+                        ->update(['transfer_pair_transaction_id' => null]);
+
+                    // Null out on partner transactions
+                    if (! empty($partnerIds)) {
+                        Transaction::whereIn('id', $partnerIds)
+                            ->update(['transfer_pair_transaction_id' => null]);
+                    }
+
+                    // Refresh after clearing
+                    $transactions->each->refresh();
+                }
+
+                // Update type on all selected
+                foreach ($transactions as $transaction) {
+                    $transaction->update(['type' => $validated['type']]);
+                }
+
+                // Auto-pair: if type=TRANSFER and exactly 2 transactions with inverse amounts
+                if ($validated['type'] === Transaction::TYPE_TRANSFER && $transactions->count() === 2) {
+                    $first = $transactions->first();
+                    $second = $transactions->last();
+                    $sum = abs($first->amount + $second->amount);
+
+                    if ($sum <= 0.01) {
+                        $first->update(['transfer_pair_transaction_id' => $second->id]);
+                        $second->update(['transfer_pair_transaction_id' => $first->id]);
+                        $paired = true;
+                    }
+                }
+            });
+
+            return response()->json([
+                'message' => 'Transaction types updated successfully',
+                'updated_count' => $transactions->count(),
+                'paired' => $paired,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Bulk transaction type update failed: '.$e->getMessage());
+
+            return response()->json(['error' => 'Failed to update transaction types'], 500);
+        }
+    }
+
+    /**
+     * Deletes multiple transactions in bulk, clearing transfer pairs and detaching tags.
+     *
+     * @return JsonResponse JSON response with deleted count and IDs or error details.
+     */
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_ids' => 'required|array',
+                'transaction_ids.*' => 'exists:transactions,id',
+            ]);
+
+            $transactions = Transaction::whereIn('id', $validated['transaction_ids'])
+                ->whereHas('account', fn ($q) => $q->where('user_id', Auth::id()))
+                ->get();
+
+            $deletedIds = [];
+
+            DB::transaction(function () use ($transactions, &$deletedIds) {
+                // Clear transfer pairs on partner transactions
+                $partnerIds = $transactions->pluck('transfer_pair_transaction_id')->filter()->toArray();
+                if (! empty($partnerIds)) {
+                    Transaction::whereIn('id', $partnerIds)
+                        ->update(['transfer_pair_transaction_id' => null]);
+                }
+
+                foreach ($transactions as $transaction) {
+                    $deletedIds[] = $transaction->id;
+                    $transaction->tags()->detach();
+                    $transaction->delete();
+                }
+            });
+
+            return response()->json([
+                'message' => 'Transactions deleted successfully',
+                'deleted_count' => count($deletedIds),
+                'deleted_ids' => $deletedIds,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Bulk transaction delete failed: '.$e->getMessage());
+
+            return response()->json(['error' => 'Failed to delete transactions'], 500);
         }
     }
 
