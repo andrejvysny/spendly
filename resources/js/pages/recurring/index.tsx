@@ -62,6 +62,15 @@ interface RecurringGroup {
         description: string;
     }>;
     detection_config_snapshot?: { transaction_ids?: number[] };
+    suggested_transactions?: Array<{
+        id: number;
+        amount: string;
+        currency: string;
+        booked_date: string;
+        description: string;
+        counterparty?: { id: number; name: string } | null;
+        account?: { id: number; name: string } | null;
+    }>;
     stats?: RecurringGroupStats | null;
 }
 
@@ -385,10 +394,37 @@ export default function RecurringIndex() {
                                                     </div>
                                                 </div>
                                                 {expandedId === group.id && (
-                                                    <div className="text-muted-foreground border-t px-4 py-2 pt-2 pb-3 pl-9 text-sm">
-                                                        {group.detection_config_snapshot?.transaction_ids && (
-                                                            <p>
-                                                                {group.detection_config_snapshot.transaction_ids.length} transaction(s) in this series
+                                                    <div className="border-t px-4 py-3 pl-9">
+                                                        {(group.suggested_transactions ?? []).length > 0 ? (
+                                                            <ul className="space-y-1">
+                                                                {(group.suggested_transactions ?? []).slice(0, 10).map((tx) => (
+                                                                    <li key={tx.id} className="flex items-center justify-between text-sm">
+                                                                        <div className="flex min-w-0 items-center gap-2">
+                                                                            <span className="text-muted-foreground shrink-0">
+                                                                                {formatBookedDate(tx.booked_date)}
+                                                                            </span>
+                                                                            <span className="truncate">{tx.description}</span>
+                                                                            {tx.counterparty?.name && (
+                                                                                <span className="text-muted-foreground text-xs">
+                                                                                    · {tx.counterparty.name}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="ml-2 shrink-0 font-medium">
+                                                                            {formatAmount(Number(tx.amount), tx.currency)}
+                                                                        </span>
+                                                                    </li>
+                                                                ))}
+                                                                {(group.suggested_transactions ?? []).length > 10 && (
+                                                                    <li className="text-muted-foreground text-xs">
+                                                                        … and {(group.suggested_transactions ?? []).length - 10} more
+                                                                    </li>
+                                                                )}
+                                                            </ul>
+                                                        ) : (
+                                                            <p className="text-muted-foreground text-sm">
+                                                                {group.detection_config_snapshot?.transaction_ids?.length ?? 0} transaction(s)
+                                                                detected
                                                             </p>
                                                         )}
                                                     </div>

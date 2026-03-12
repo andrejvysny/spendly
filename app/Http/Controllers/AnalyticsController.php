@@ -1,11 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Contracts\Repositories\AnalyticsRepositoryInterface;
 use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Http\Requests\AnalyticsRequest;
+use App\Models\User;
+use App\Services\ExchangeRateService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +20,8 @@ class AnalyticsController extends Controller
     public function __construct(
         private readonly AccountRepositoryInterface $accountRepository,
         private readonly CategoryRepositoryInterface $categoryRepository,
-        private readonly AnalyticsRepositoryInterface $analyticsRepository
+        private readonly AnalyticsRepositoryInterface $analyticsRepository,
+        private readonly ExchangeRateService $exchangeRateService,
     ) {}
 
     public function index(AnalyticsRequest $request): \Inertia\Response
@@ -32,11 +37,11 @@ class AnalyticsController extends Controller
         } else {
             // Ensure we get only unique, valid account IDs that belong to the user
             $accountIds = collect($selectedAccountIds)
-                ->unique()  // Remove duplicates
+                ->unique()
                 ->filter(function ($id) use ($user_accounts) {
                     return $user_accounts->contains('id', $id);
                 })
-                ->values(); // Reset array keys to prevent issues
+                ->values();
         }
 
         // Parse date range from request
@@ -44,23 +49,22 @@ class AnalyticsController extends Controller
         $startDate = $dateRange['start'];
         $endDate = $dateRange['end'];
         $selectedAccounts = $user_accounts->whereIn('id', $accountIds->toArray())->values();
-        $currencyError = $this->getMixedCurrencyError($selectedAccounts);
+        $isMultiCurrency = $this->isMultiCurrency($selectedAccounts);
+        $useNativeAmount = $isMultiCurrency;
 
-        // Get data for analytics
+        // Get data for analytics — always fetch, use native_amount for multi-currency
         $accountIdsArray = $accountIds->toArray();
-        $cashFlow = $currencyError === null
-            ? $this->analyticsRepository->getCashflow($accountIdsArray, $startDate, $endDate)
-            : collect();
-        $categorySpending = $currencyError === null
-            ? $this->analyticsRepository->getCategorySpending($accountIdsArray, $startDate, $endDate)
-            : ['categorized' => collect(), 'uncategorized' => null];
-        $counterpartySpending = $currencyError === null
-            ? $this->analyticsRepository->getCounterpartySpending($accountIdsArray, $startDate, $endDate)
-            : ['withCounterparty' => collect(), 'noCounterparty' => null];
+        $cashFlow = $this->analyticsRepository->getCashflow($accountIdsArray, $startDate, $endDate, $useNativeAmount);
+        $categorySpending = $this->analyticsRepository->getCategorySpending($accountIdsArray, $startDate, $endDate, $useNativeAmount);
+        $counterpartySpending = $this->analyticsRepository->getCounterpartySpending($accountIdsArray, $startDate, $endDate, $useNativeAmount);
+
+        /** @var User $user */
+        $user = auth()->user();
+        $displayCurrency = $user->base_currency ?? 'EUR';
 
         return Inertia::render('Analytics/Index', [
             'accounts' => $user_accounts,
-            'categories' => $user_categories,  // Add categories to the response
+            'categories' => $user_categories,
             'selectedAccountIds' => $accountIds->toArray(),
             'cashflow' => $cashFlow,
             'categorySpending' => $categorySpending,
@@ -70,7 +74,8 @@ class AnalyticsController extends Controller
                 'end' => $endDate->format('Y-m-d'),
             ],
             'period' => $request->input('period', 'last_month'),
-            'currency_error' => $currencyError,
+            'is_converted' => $isMultiCurrency,
+            'display_currency' => $displayCurrency,
         ]);
     }
 
@@ -101,7 +106,6 @@ class AnalyticsController extends Controller
                 break;
             case 'specific_month':
                 if ($specificMonth) {
-                    // Parse YYYY-MM format
                     $monthDate = Carbon::createFromFormat('Y-m', $specificMonth);
                     $start = $monthDate->copy()->startOfMonth();
                     $end = $monthDate->copy()->endOfMonth()->endOfDay();
@@ -127,7 +131,6 @@ class AnalyticsController extends Controller
                 $start = $now->copy()->subYear()->startOfYear();
                 $end = $now->copy()->subYear()->endOfYear()->endOfDay();
                 break;
-                // Default is last_month
         }
 
         return [
@@ -156,7 +159,6 @@ class AnalyticsController extends Controller
         if (empty($selectedIds)) {
             $accountIds = $userAccounts->pluck('id')->toArray();
         } else {
-            // Filter to only user's accounts
             $accountIds = $userAccounts->pluck('id')
                 ->intersect($selectedIds)
                 ->values()
@@ -179,16 +181,8 @@ class AnalyticsController extends Controller
             : Carbon::now()->endOfDay();
 
         $granularity = $validated['granularity'] ?? 'month';
-        $selectedAccounts = $userAccounts->whereIn('id', $accountIds)->values();
-        $currencyError = $this->getMixedCurrencyError($selectedAccounts);
 
-        if ($currencyError !== null) {
-            return response()->json([
-                'message' => $currencyError,
-            ], 422);
-        }
-
-        // Get balance history
+        // Get balance history (works for any currency mix — each account computed independently)
         $balanceHistory = $this->analyticsRepository->getBalanceHistory(
             $accountIds,
             $currentBalances,
@@ -197,16 +191,25 @@ class AnalyticsController extends Controller
             $granularity
         );
 
-        // Also calculate net worth over time (sum of all accounts at each point)
+        $selectedAccounts = $userAccounts->whereIn('id', $accountIds)->values();
+        $isMultiCurrency = $this->isMultiCurrency($selectedAccounts);
+
+        // For multi-currency: convert each account's balance points to base currency
+        if ($isMultiCurrency) {
+            $balanceHistory = $this->convertBalanceHistoryToBaseCurrency($balanceHistory, $userAccounts, $accountIds);
+        }
+
         $netWorthHistory = $this->calculateNetWorthHistory($balanceHistory);
 
-        // Get account info for frontend
         $accounts = $userAccounts->whereIn('id', $accountIds)->map(fn ($account) => [
             'id' => $account->id,
             'name' => $account->name,
             'currency' => $account->currency,
             'balance' => (float) $account->balance,
         ])->values();
+
+        /** @var User $user */
+        $user = auth()->user();
 
         return response()->json([
             'accounts' => $accounts,
@@ -217,6 +220,8 @@ class AnalyticsController extends Controller
                 'to' => $to->format('Y-m-d'),
             ],
             'granularity' => $granularity,
+            'is_converted' => $isMultiCurrency,
+            'display_currency' => $user->base_currency ?? 'EUR',
         ]);
     }
 
@@ -232,7 +237,6 @@ class AnalyticsController extends Controller
             return [];
         }
 
-        // Get the first account's dates as reference
         $firstAccountHistory = reset($balanceHistory);
         if (empty($firstAccountHistory)) {
             return [];
@@ -257,8 +261,6 @@ class AnalyticsController extends Controller
 
     /**
      * Get monthly comparison data for two specified months.
-     *
-     * Returns daily cashflow data for two months to enable comparison charts.
      */
     public function monthlyComparison(Request $request): JsonResponse
     {
@@ -271,14 +273,11 @@ class AnalyticsController extends Controller
 
         $userAccounts = $this->accountRepository->findByUser($this->getAuthUserId());
 
-        // Filter account IDs to only those belonging to the user
         $selectedIds = $validated['account_ids'];
         $accountIds = $userAccounts->pluck('id')
             ->intersect($selectedIds)
             ->values()
             ->toArray();
-        $selectedAccounts = $userAccounts->whereIn('id', $accountIds)->values();
-        $currencyError = $this->getMixedCurrencyError($selectedAccounts);
 
         if (empty($accountIds)) {
             return response()->json([
@@ -287,13 +286,9 @@ class AnalyticsController extends Controller
             ]);
         }
 
-        if ($currencyError !== null) {
-            return response()->json([
-                'message' => $currencyError,
-            ], 422);
-        }
+        $selectedAccounts = $userAccounts->whereIn('id', $accountIds)->values();
+        $useNativeAmount = $this->isMultiCurrency($selectedAccounts);
 
-        // Parse months to Carbon dates
         $firstMonth = Carbon::createFromFormat('Y-m', $validated['first_month']);
         $secondMonth = Carbon::createFromFormat('Y-m', $validated['second_month']);
 
@@ -303,9 +298,8 @@ class AnalyticsController extends Controller
         $secondStart = $secondMonth->copy()->startOfMonth();
         $secondEnd = $secondMonth->copy()->endOfMonth()->endOfDay();
 
-        // Get cashflow for both months
-        $firstMonthCashflow = $this->analyticsRepository->getCashflow($accountIds, $firstStart, $firstEnd);
-        $secondMonthCashflow = $this->analyticsRepository->getCashflow($accountIds, $secondStart, $secondEnd);
+        $firstMonthCashflow = $this->analyticsRepository->getCashflow($accountIds, $firstStart, $firstEnd, $useNativeAmount);
+        $secondMonthCashflow = $this->analyticsRepository->getCashflow($accountIds, $secondStart, $secondEnd, $useNativeAmount);
 
         return response()->json([
             'first_month' => $firstMonthCashflow->values()->all(),
@@ -313,18 +307,57 @@ class AnalyticsController extends Controller
         ]);
     }
 
-    private function getMixedCurrencyError(\Illuminate\Support\Collection $accounts): ?string
+    /**
+     * Check if selected accounts span multiple currencies.
+     */
+    private function isMultiCurrency(\Illuminate\Support\Collection $accounts): bool
     {
         $currencies = $accounts
             ->pluck('currency')
             ->filter(fn ($currency) => $currency !== null && $currency !== '')
-            ->unique()
-            ->values();
+            ->unique();
 
-        if ($currencies->count() <= 1) {
-            return null;
+        return $currencies->count() > 1;
+    }
+
+    /**
+     * Convert balance history points to user's base currency for multi-currency accounts.
+     *
+     * @param  array<int, array<array{date: string, balance: float}>>  $balanceHistory
+     * @return array<int, array<array{date: string, balance: float}>>
+     */
+    private function convertBalanceHistoryToBaseCurrency(
+        array $balanceHistory,
+        \Illuminate\Support\Collection $userAccounts,
+        array $accountIds
+    ): array {
+        /** @var User $user */
+        $user = auth()->user();
+        $baseCurrency = $user->base_currency ?? 'EUR';
+
+        $result = [];
+        foreach ($balanceHistory as $accountId => $history) {
+            $account = $userAccounts->firstWhere('id', $accountId);
+            $accountCurrency = $account?->currency ?? $baseCurrency;
+
+            if ($accountCurrency === $baseCurrency) {
+                $result[$accountId] = $history;
+
+                continue;
+            }
+
+            // Pre-fetch a single rate for this currency pair (most points share the same rate via cache)
+            $result[$accountId] = array_map(function (array $point) use ($accountCurrency, $baseCurrency): array {
+                $date = Carbon::parse($point['date']);
+                $rate = $this->exchangeRateService->getRate($accountCurrency, $baseCurrency, $date);
+
+                return [
+                    'date' => $point['date'],
+                    'balance' => round($point['balance'] * $rate, 2),
+                ];
+            }, $history);
         }
 
-        return 'Analytics for multiple currencies is not supported yet. Please select accounts with the same currency.';
+        return $result;
     }
 }

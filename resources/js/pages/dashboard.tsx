@@ -54,6 +54,7 @@ interface DashboardProps {
     topCounterparties: { name: string; amount: number; transaction_count: number }[];
     upcomingRecurring: { name: string; amount: number; next_date: string; interval: string; counterparty_name: string | null }[];
     spendingPace: { daily_average: number; projected_total: number; days_elapsed: number; days_in_month: number };
+    is_converted?: boolean;
 }
 
 function momChange(current: number, previous: number): number | null {
@@ -106,6 +107,7 @@ export default function Dashboard({
     topCounterparties,
     upcomingRecurring,
     spendingPace,
+    is_converted: isConverted,
 }: DashboardProps) {
     const { auth } = usePage<{ auth: { user: { base_currency?: string } } }>().props;
     const baseCurrency = auth.user.base_currency || 'EUR';
@@ -213,6 +215,12 @@ export default function Dashboard({
                         <MomBadge change={savingsChange !== 0 ? savingsChange : null} suffix=" pp" />
                     </div>
                 </div>
+
+                {isConverted && (
+                    <div className="text-muted-foreground rounded-lg border border-dashed px-4 py-2 text-xs">
+                        Amounts converted to {baseCurrency} at historical ECB rates
+                    </div>
+                )}
 
                 {/* Row 2: Balance History + Category Doughnut */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

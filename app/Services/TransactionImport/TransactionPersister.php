@@ -23,6 +23,9 @@ class TransactionPersister
 
     private TransactionPersistenceResult $persistenceResult;
 
+    /** @var array<int, string> Cached base currency per account_id */
+    private array $accountBaseCurrencyCache = [];
+
     public function __construct(
         private readonly RuleEngineInterface $ruleEngine,
         private readonly TransactionRepositoryInterface $transactions
@@ -231,10 +234,46 @@ class TransactionPersister
         $data['created_at'] = now();
         $data['updated_at'] = now();
 
+        // Set native_amount if not already set
+        if (! isset($data['native_amount']) && isset($data['amount'], $data['account_id'])) {
+            $accountId = (int) $data['account_id'];
+            $baseCurrency = $this->getBaseCurrencyForAccount($accountId);
+            $txCurrency = $data['currency'] ?? $baseCurrency;
+            if ($txCurrency === $baseCurrency) {
+                $data['native_amount'] = $data['amount'];
+            } else {
+                $bookedDate = isset($data['booked_date']) ? \Carbon\Carbon::parse($data['booked_date']) : now();
+                $data['native_amount'] = app(\App\Services\ExchangeRateService::class)->convert(
+                    (float) $data['amount'],
+                    $txCurrency,
+                    $baseCurrency,
+                    $bookedDate
+                );
+            }
+        }
+
         // Remove any non-fillable fields
         $fillable = (new Transaction)->getFillable();
 
         return array_intersect_key($data, array_flip($fillable));
+    }
+
+    /**
+     * Get the user's base currency for an account, cached per batch.
+     */
+    private function getBaseCurrencyForAccount(int $accountId): string
+    {
+        if (! isset($this->accountBaseCurrencyCache[$accountId])) {
+            $account = \App\Models\Account::find($accountId);
+            if ($account !== null) {
+                $user = \App\Models\User::find($account->user_id);
+                $this->accountBaseCurrencyCache[$accountId] = $user?->base_currency ?? 'EUR';
+            } else {
+                $this->accountBaseCurrencyCache[$accountId] = 'EUR';
+            }
+        }
+
+        return $this->accountBaseCurrencyCache[$accountId];
     }
 
     /**

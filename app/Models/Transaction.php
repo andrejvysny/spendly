@@ -66,6 +66,7 @@ class Transaction extends BaseModel
     protected $fillable = [
         'transaction_id',
         'amount',
+        'native_amount',
         'currency',
         'booked_date',
         'processed_date',
@@ -146,6 +147,7 @@ class Transaction extends BaseModel
         'booked_date' => 'datetime',
         'processed_date' => 'datetime',
         'amount' => 'decimal:2',
+        'native_amount' => 'decimal:2',
         'balance_after_transaction' => 'decimal:2',
         'metadata' => 'json',
         'import_data' => 'json',

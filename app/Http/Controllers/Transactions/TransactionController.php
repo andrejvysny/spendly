@@ -161,6 +161,20 @@ class TransactionController extends Controller
 
         $transactionData['fingerprint'] = Transaction::generateFingerprint($transactionData);
 
+        // Set native_amount (converted to user's base currency)
+        $user = Auth::user();
+        $baseCurrency = $user->base_currency ?? 'EUR';
+        if ($transactionData['currency'] === $baseCurrency) {
+            $transactionData['native_amount'] = $amount;
+        } else {
+            $transactionData['native_amount'] = app(\App\Services\ExchangeRateService::class)->convert(
+                $amount,
+                $transactionData['currency'],
+                $baseCurrency,
+                \Carbon\Carbon::parse($transactionData['booked_date'])
+            );
+        }
+
         $transaction = Transaction::create($transactionData);
 
         if (! empty($validated['tags'])) {

@@ -104,6 +104,10 @@ class TransactionSyncService
         $toCreate = [];
         $toUpdate = [];
 
+        // Pre-fetch user's base currency (same account for all transactions in batch)
+        $accountUser = \App\Models\User::find($account->user_id);
+        $baseCurrency = $accountUser?->base_currency ?? 'EUR';
+
         foreach ($batch as $transaction) {
             $externalTransactionId = $transaction['transactionId'] ?? null;
 
@@ -138,6 +142,22 @@ class TransactionSyncService
                 }
 
                 $mappedData['fingerprint'] = Transaction::generateFingerprint($mappedData);
+
+                // Set native_amount (convert to user's base currency)
+                if (! isset($mappedData['native_amount'])) {
+                    $txCurrency = $mappedData['currency'] ?? $baseCurrency;
+                    if ($txCurrency === $baseCurrency) {
+                        $mappedData['native_amount'] = $mappedData['amount'];
+                    } else {
+                        $bookedDate = isset($mappedData['booked_date']) ? Carbon::parse($mappedData['booked_date']) : $syncDate;
+                        $mappedData['native_amount'] = app(\App\Services\ExchangeRateService::class)->convert(
+                            (float) $mappedData['amount'],
+                            $txCurrency,
+                            $baseCurrency,
+                            $bookedDate
+                        );
+                    }
+                }
 
                 $transactionId = $mappedData['transaction_id'];
 

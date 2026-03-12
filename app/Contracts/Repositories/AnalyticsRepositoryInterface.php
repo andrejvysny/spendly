@@ -15,7 +15,7 @@ interface AnalyticsRepositoryInterface
      * @param  array<int>  $accountIds
      * @return Collection<int, mixed>
      */
-    public function getCashflow(array $accountIds, Carbon $startDate, Carbon $endDate): Collection;
+    public function getCashflow(array $accountIds, Carbon $startDate, Carbon $endDate, bool $useNativeAmount = false): Collection;
 
     /**
      * Get spending by category for the specified date range.
@@ -23,7 +23,7 @@ interface AnalyticsRepositoryInterface
      * @param  array<int>  $accountIds
      * @return array{categorized: \Illuminate\Support\Collection, uncategorized: object|null}
      */
-    public function getCategorySpending(array $accountIds, Carbon $startDate, Carbon $endDate): array;
+    public function getCategorySpending(array $accountIds, Carbon $startDate, Carbon $endDate, bool $useNativeAmount = false): array;
 
     /**
      * Get spending by counterparty for the specified date range.
@@ -31,7 +31,7 @@ interface AnalyticsRepositoryInterface
      * @param  array<int>  $accountIds
      * @return array{withCounterparty: \Illuminate\Support\Collection, noCounterparty: object|null}
      */
-    public function getCounterpartySpending(array $accountIds, Carbon $startDate, Carbon $endDate): array;
+    public function getCounterpartySpending(array $accountIds, Carbon $startDate, Carbon $endDate, bool $useNativeAmount = false): array;
 
     /**
      * Get daily cashflow for a specific month (for account show page).
