@@ -7,7 +7,9 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\Budget;
 use App\Models\BudgetPeriod;
+use App\Models\Counterparty;
 use App\Models\RecurringGroup;
+use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,6 +62,7 @@ class BudgetControllerTest extends TestCase
         $category = $user->categories()->create(['name' => 'Groceries']);
 
         $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'category',
             'category_id' => $category->id,
             'amount' => 500,
             'currency' => 'EUR',
@@ -89,6 +92,7 @@ class BudgetControllerTest extends TestCase
         $category = $user->categories()->create(['name' => 'Travel']);
 
         $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'category',
             'category_id' => $category->id,
             'amount' => 3000,
             'currency' => 'EUR',
@@ -109,6 +113,7 @@ class BudgetControllerTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'overall',
             'amount' => 2000,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
@@ -118,6 +123,7 @@ class BudgetControllerTest extends TestCase
         $this->assertDatabaseHas('budgets', [
             'user_id' => $user->id,
             'category_id' => null,
+            'target_type' => 'overall',
             'amount' => 2000,
         ]);
     }
@@ -204,6 +210,7 @@ class BudgetControllerTest extends TestCase
         $otherCategory = $other->categories()->create(['name' => 'Other']);
 
         $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'category',
             'category_id' => $otherCategory->id,
             'amount' => 500,
             'currency' => 'EUR',
@@ -414,6 +421,7 @@ class BudgetControllerTest extends TestCase
         $category = $user->categories()->create(['name' => 'Food']);
 
         $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'category',
             'category_id' => $category->id,
             'amount' => 500,
             'currency' => 'EUR',
@@ -428,5 +436,186 @@ class BudgetControllerTest extends TestCase
             'rollover_enabled' => true,
             'rollover_cap' => 100,
         ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Multi-target budget types
+    // -------------------------------------------------------------------------
+
+    public function test_user_can_create_tag_budget(): void
+    {
+        $user = User::factory()->create();
+        $tag = Tag::create(['user_id' => $user->id, 'name' => 'Groceries']);
+
+        $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'tag',
+            'tag_id' => $tag->id,
+            'amount' => 200,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('budgets', [
+            'user_id' => $user->id,
+            'tag_id' => $tag->id,
+            'target_type' => 'tag',
+            'target_key' => 'tag:'.$tag->id,
+        ]);
+    }
+
+    public function test_user_can_create_counterparty_budget(): void
+    {
+        $user = User::factory()->create();
+        $cp = Counterparty::create(['user_id' => $user->id, 'name' => 'Amazon', 'type' => 'merchant']);
+
+        $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'counterparty',
+            'counterparty_id' => $cp->id,
+            'amount' => 300,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('budgets', [
+            'user_id' => $user->id,
+            'counterparty_id' => $cp->id,
+            'target_type' => 'counterparty',
+        ]);
+    }
+
+    public function test_user_can_create_subscription_budget(): void
+    {
+        $user = User::factory()->create();
+        $rg = RecurringGroup::create([
+            'user_id' => $user->id,
+            'name' => 'Netflix',
+            'interval' => 'monthly',
+            'interval_days' => 30,
+            'amount_min' => -15,
+            'amount_max' => -15,
+            'scope' => RecurringGroup::SCOPE_PER_USER,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+        ]);
+
+        $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'subscription',
+            'recurring_group_id' => $rg->id,
+            'amount' => 20,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('budgets', [
+            'user_id' => $user->id,
+            'recurring_group_id' => $rg->id,
+            'target_type' => 'subscription',
+        ]);
+    }
+
+    public function test_user_can_create_account_budget(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+
+        $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'account',
+            'account_id' => $account->id,
+            'amount' => 1000,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'include_transfers' => true,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('budgets', [
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'target_type' => 'account',
+            'include_transfers' => true,
+        ]);
+    }
+
+    public function test_user_can_create_all_subscriptions_budget(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'all_subscriptions',
+            'amount' => 100,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('budgets', [
+            'user_id' => $user->id,
+            'target_type' => 'all_subscriptions',
+            'target_key' => 'all_subs',
+        ]);
+    }
+
+    public function test_validation_rejects_tag_id_for_category_budget(): void
+    {
+        $user = User::factory()->create();
+        $tag = Tag::create(['user_id' => $user->id, 'name' => 'Test']);
+        $category = $user->categories()->create(['name' => 'Food']);
+
+        $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'category',
+            'category_id' => $category->id,
+            'tag_id' => $tag->id,
+            'amount' => 200,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $response->assertSessionHasErrors('tag_id');
+    }
+
+    public function test_index_returns_new_entity_collections(): void
+    {
+        $user = User::factory()->create();
+        Tag::create(['user_id' => $user->id, 'name' => 'Test Tag']);
+
+        $this->withoutVite();
+        $response = $this->actingAs($user)->get('/budgets');
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('budgets/Index')
+            ->has('tags')
+            ->has('counterparties')
+            ->has('recurringGroups')
+            ->has('accounts')
+        );
+    }
+
+    public function test_duplicate_target_key_rejected(): void
+    {
+        $user = User::factory()->create();
+        $tag = Tag::create(['user_id' => $user->id, 'name' => 'Test']);
+
+        // Create first tag budget
+        $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'tag',
+            'tag_id' => $tag->id,
+            'amount' => 200,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        // Attempt duplicate
+        $response = $this->actingAs($user)->post('/budgets', [
+            'target_type' => 'tag',
+            'tag_id' => $tag->id,
+            'amount' => 300,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        // Should fail at DB level (unique constraint) or redirect with error
+        $this->assertDatabaseCount('budgets', 1);
     }
 }

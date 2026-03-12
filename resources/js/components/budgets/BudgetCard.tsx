@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import type { BudgetWithProgress } from '@/types';
 import { TrendingUp } from 'lucide-react';
 import { BudgetProgressBar } from './BudgetProgressBar';
+import { budgetTargetDisplay } from './budgetTargetDisplay';
 
 interface BudgetCardProps {
     budget: BudgetWithProgress;
@@ -24,14 +25,25 @@ function paceLabel(pace: number): { text: string; color: string } {
 export function BudgetCard({ budget: b, onEdit, onDelete, formatAmount, periodLabel, effectiveAmount, onShowTrend }: BudgetCardProps) {
     const total = effectiveAmount(b);
     const pace = paceLabel(b.pace_percentage);
+    const target = budgetTargetDisplay(b);
+    const Icon = target.icon;
 
     return (
         <Card>
             <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 shrink-0 rounded-full" style={{ backgroundColor: b.category?.color ?? '#94a3b8' }} />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: target.color }}>
+                        <Icon className="h-5 w-5 text-white" />
+                    </div>
                     <div>
-                        <p className="font-medium">{b.name ?? b.category?.name ?? 'Overall'}</p>
+                        <div className="flex items-center gap-2">
+                            <p className="font-medium">{b.name ?? target.label}</p>
+                            {b.target_type !== 'overall' && b.target_type !== 'category' && (
+                                <span className="text-muted-foreground rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-800">
+                                    {target.typeBadge}
+                                </span>
+                            )}
+                        </div>
                         <p className="text-muted-foreground text-sm">
                             {periodLabel(b)}
                             {b.rollover_enabled && b.period && b.period.rollover_amount !== 0 && (

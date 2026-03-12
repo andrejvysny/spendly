@@ -13,6 +13,8 @@ class BudgetRepository extends BaseRepository implements BudgetRepositoryInterfa
 {
     use UserScoped;
 
+    private const EAGER_LOAD = ['category', 'tag', 'counterparty', 'recurringGroup', 'account'];
+
     public function __construct(Budget $model)
     {
         parent::__construct($model);
@@ -24,7 +26,7 @@ class BudgetRepository extends BaseRepository implements BudgetRepositoryInterfa
     public function findByUser(int $userId): Collection
     {
         return $this->model->where('user_id', $userId)
-            ->with('category')
+            ->with(self::EAGER_LOAD)
             ->orderBy('sort_order')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -37,7 +39,7 @@ class BudgetRepository extends BaseRepository implements BudgetRepositoryInterfa
     {
         return $this->model->where('user_id', $userId)
             ->where('is_active', true)
-            ->with('category')
+            ->with(self::EAGER_LOAD)
             ->orderBy('sort_order')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -51,7 +53,7 @@ class BudgetRepository extends BaseRepository implements BudgetRepositoryInterfa
         return $this->model->where('user_id', $userId)
             ->where('period_type', $periodType)
             ->where('is_active', true)
-            ->with('category')
+            ->with(self::EAGER_LOAD)
             ->orderBy('sort_order')
             ->orderBy('created_at', 'desc')
             ->get();

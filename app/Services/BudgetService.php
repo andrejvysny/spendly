@@ -12,6 +12,7 @@ use App\Models\Budget;
 use App\Models\BudgetPeriod;
 use App\Models\Transaction;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -125,26 +126,65 @@ class BudgetService
         }
 
         $query = Transaction::query()
-            ->whereIn('account_id', $accountIds)
             ->where('booked_date', '>=', $period->start_date)
             ->where('booked_date', '<=', $period->end_date)
             ->where('amount', '<', 0)
-            ->where('type', '!=', Transaction::TYPE_TRANSFER)
             ->where('currency', $budget->currency);
 
-        if ($budget->category_id !== null) {
-            if ($budget->include_subcategories) {
-                $ids = $this->categoryRepository->getAllDescendantIds($budget->category_id);
-                $ids[] = $budget->category_id;
-                $query->whereIn('category_id', $ids);
-            } else {
-                $query->where('category_id', $budget->category_id);
-            }
+        // Transfer exclusion: exclude unless account budget with include_transfers
+        $includeTransfers = $budget->target_type === Budget::TARGET_ACCOUNT && $budget->include_transfers;
+        if (! $includeTransfers) {
+            $query->where('type', '!=', Transaction::TYPE_TRANSFER);
         }
+
+        // Account scope
+        if ($budget->target_type === Budget::TARGET_ACCOUNT && $budget->account_id !== null) {
+            $query->where('account_id', $budget->account_id);
+        } else {
+            $query->whereIn('account_id', $accountIds);
+        }
+
+        // Target-type-specific filter
+        $this->applyTargetFilter($query, $budget);
 
         $sum = (float) $query->sum(DB::raw('ABS(amount)'));
 
         return round($sum, 2);
+    }
+
+    /**
+     * @param  Builder<Transaction>  $query
+     */
+    private function applyTargetFilter(Builder $query, Budget $budget): void
+    {
+        match ($budget->target_type) {
+            Budget::TARGET_CATEGORY => $this->applyCategoryFilter($query, $budget),
+            Budget::TARGET_TAG => $query->whereHas('tags', fn (Builder $q) => $q->where('tags.id', $budget->tag_id)),
+            Budget::TARGET_COUNTERPARTY => $query->where('counterparty_id', $budget->counterparty_id),
+            Budget::TARGET_SUBSCRIPTION => $query->where('recurring_group_id', $budget->recurring_group_id),
+            Budget::TARGET_ACCOUNT => null, // already scoped above
+            Budget::TARGET_ALL_SUBSCRIPTIONS => $query->whereNotNull('recurring_group_id'),
+            Budget::TARGET_OVERALL => null, // no additional filter
+            default => null,
+        };
+    }
+
+    /**
+     * @param  Builder<Transaction>  $query
+     */
+    private function applyCategoryFilter(Builder $query, Budget $budget): void
+    {
+        if ($budget->category_id === null) {
+            return;
+        }
+
+        if ($budget->include_subcategories) {
+            $ids = $this->categoryRepository->getAllDescendantIds($budget->category_id);
+            $ids[] = $budget->category_id;
+            $query->whereIn('category_id', $ids);
+        } else {
+            $query->where('category_id', $budget->category_id);
+        }
     }
 
     /**
@@ -336,6 +376,59 @@ class BudgetService
         usort($result, fn (array $a, array $b) => $b['suggested_amount'] <=> $a['suggested_amount']);
 
         return $result;
+    }
+
+    /**
+     * Get subscription budget suggestions: individual recurring groups + aggregate total.
+     *
+     * @return array{individual: array<int, array{recurring_group_id: int, name: string, suggested_amount: float, currency: string, interval: string}>, aggregate: array{suggested_amount: float, currency: string, count: int}}
+     */
+    public function getSubscriptionSuggestions(int $userId): array
+    {
+        $groups = \App\Models\RecurringGroup::where('user_id', $userId)
+            ->where('status', \App\Models\RecurringGroup::STATUS_CONFIRMED)
+            ->withCount('transactions')
+            ->withSum('transactions', 'amount')
+            ->get();
+
+        $individual = [];
+        $aggregateTotal = 0.0;
+        $currency = 'EUR';
+
+        foreach ($groups as $group) {
+            $stats = $group->stats;
+            $avgAmount = $stats['average_amount'] ?? null;
+            if ($avgAmount === null) {
+                continue;
+            }
+
+            $monthlyAmount = $this->toMonthlyAmount(abs($avgAmount), $group->interval ?? 'monthly');
+            $suggested = round($monthlyAmount * 1.1, 2);
+
+            $latestTx = Transaction::where('recurring_group_id', $group->id)->orderBy('booked_date', 'desc')->first();
+            if ($latestTx !== null) {
+                $currency = $latestTx->currency;
+            }
+
+            $individual[] = [
+                'recurring_group_id' => $group->id,
+                'name' => $group->name ?? 'Unknown',
+                'suggested_amount' => $suggested,
+                'currency' => $currency,
+                'interval' => $group->interval ?? 'monthly',
+            ];
+
+            $aggregateTotal += $suggested;
+        }
+
+        return [
+            'individual' => $individual,
+            'aggregate' => [
+                'suggested_amount' => round($aggregateTotal, 2),
+                'currency' => $currency,
+                'count' => count($individual),
+            ],
+        ];
     }
 
     private function toMonthlyAmount(float $amount, string $interval): float

@@ -135,18 +135,20 @@ export function SelectInput<TFieldValues extends FieldValues>({
                             {required && <span className="text-destructive ml-1">*</span>}
                         </FormLabel>
                     )}
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={disabled}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={disabled}>
                         <FormControl>
                             <SelectTrigger>
                                 <SelectValue placeholder={placeholder} />
                             </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            {options.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                </SelectItem>
-                            ))}
+                            {options
+                                .filter((option) => option.value !== '')
+                                .map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
                         </SelectContent>
                     </Select>
                     {description && <p className="text-muted-foreground text-sm">{description}</p>}

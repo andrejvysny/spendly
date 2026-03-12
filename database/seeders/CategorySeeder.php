@@ -10,7 +10,7 @@ class CategorySeeder extends Seeder
 {
     public function run(): void
     {
-        $user = User::where('email', 'demo@example.com')->first();
+        $user = User::where('email', 'demo@example.com')->firstOrFail();
 
         // Income categories
         $income = Category::create([
@@ -157,6 +157,109 @@ class CategorySeeder extends Seeder
             'color' => '#8b5cf6',
             'icon' => 'Gamepad2',
             'parent_category_id' => $entertainment->id,
+            'user_id' => $user->id,
+        ]);
+
+        // Subscriptions
+        $subscriptions = Category::create([
+            'name' => 'Subscriptions',
+            'description' => 'Recurring subscription services',
+            'color' => '#a855f7',
+            'icon' => 'Repeat',
+            'parent_category_id' => $expenses->id,
+            'user_id' => $user->id,
+        ]);
+
+        Category::create([
+            'name' => 'Streaming',
+            'description' => 'Video and music streaming services',
+            'color' => '#a855f7',
+            'icon' => 'Tv',
+            'parent_category_id' => $subscriptions->id,
+            'user_id' => $user->id,
+        ]);
+
+        Category::create([
+            'name' => 'Software',
+            'description' => 'Software subscriptions',
+            'color' => '#a855f7',
+            'icon' => 'Monitor',
+            'parent_category_id' => $subscriptions->id,
+            'user_id' => $user->id,
+        ]);
+
+        Category::create([
+            'name' => 'Cloud Services',
+            'description' => 'Cloud hosting and services',
+            'color' => '#a855f7',
+            'icon' => 'Cloud',
+            'parent_category_id' => $subscriptions->id,
+            'user_id' => $user->id,
+        ]);
+
+        // Health
+        $health = Category::create([
+            'name' => 'Health',
+            'description' => 'Health and wellness expenses',
+            'color' => '#ef4444',
+            'icon' => 'Heart',
+            'parent_category_id' => $expenses->id,
+            'user_id' => $user->id,
+        ]);
+
+        Category::create([
+            'name' => 'Gym',
+            'description' => 'Gym membership and fitness',
+            'color' => '#ef4444',
+            'icon' => 'Dumbbell',
+            'parent_category_id' => $health->id,
+            'user_id' => $user->id,
+        ]);
+
+        Category::create([
+            'name' => 'Pharmacy',
+            'description' => 'Pharmacy and medication',
+            'color' => '#ef4444',
+            'icon' => 'Pill',
+            'parent_category_id' => $health->id,
+            'user_id' => $user->id,
+        ]);
+
+        // Shopping
+        $shopping = Category::create([
+            'name' => 'Shopping',
+            'description' => 'General shopping expenses',
+            'color' => '#ec4899',
+            'icon' => 'ShoppingCart',
+            'parent_category_id' => $expenses->id,
+            'user_id' => $user->id,
+        ]);
+
+        Category::create([
+            'name' => 'Clothing',
+            'description' => 'Clothing and apparel',
+            'color' => '#ec4899',
+            'icon' => 'Shirt',
+            'parent_category_id' => $shopping->id,
+            'user_id' => $user->id,
+        ]);
+
+        Category::create([
+            'name' => 'Electronics',
+            'description' => 'Electronics and gadgets',
+            'color' => '#ec4899',
+            'icon' => 'Smartphone',
+            'parent_category_id' => $shopping->id,
+            'user_id' => $user->id,
+        ]);
+
+        // Insurance (leaf under Expenses)
+        Category::create([
+            'name' => 'Insurance',
+            'description' => 'Insurance premiums',
+            'color' => '#64748b',
+            'icon' => 'Shield',
+            'parent_category_id' => $expenses->id,
             'user_id' => $user->id,
         ]);
     }

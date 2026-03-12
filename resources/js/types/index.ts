@@ -155,10 +155,18 @@ export interface Category {
     updated_at: string;
 }
 
+export type BudgetTargetType = 'category' | 'tag' | 'counterparty' | 'subscription' | 'account' | 'overall' | 'all_subscriptions';
+
 export interface Budget {
     id: number;
     user_id: number;
     category_id: number | null;
+    tag_id: number | null;
+    counterparty_id: number | null;
+    recurring_group_id: number | null;
+    account_id: number | null;
+    target_type: BudgetTargetType;
+    include_transfers: boolean;
     amount: number;
     currency: string;
     mode: 'limit' | 'envelope';
@@ -181,6 +189,10 @@ export interface BudgetPeriod {
 
 export interface BudgetWithProgress extends Budget {
     category: { id: number; name: string; color: string | null; icon: string | null } | null;
+    tag: { id: number; name: string; color: string | null } | null;
+    counterparty: { id: number; name: string } | null;
+    recurring_group: { id: number; name: string } | null;
+    account: { id: number; name: string } | null;
     period: BudgetPeriod | null;
     spent: number;
     remaining: number;
@@ -234,6 +246,13 @@ export interface Tag {
     id: number;
     name: string;
     user_id: number;
+    color?: string;
+}
+
+export interface RecurringGroup {
+    id: number;
+    name: string;
+    interval: string;
 }
 
 export interface SharedData {

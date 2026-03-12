@@ -8,7 +8,9 @@ use App\Models\Account;
 use App\Models\Budget;
 use App\Models\BudgetPeriod;
 use App\Models\Category;
+use App\Models\Counterparty;
 use App\Models\RecurringGroup;
+use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\BudgetService;
@@ -282,6 +284,8 @@ class BudgetServiceTest extends TestCase
         $budget = Budget::create([
             'user_id' => $user->id,
             'category_id' => null,
+            'target_type' => Budget::TARGET_OVERALL,
+            'target_key' => 'overall',
             'amount' => 2000,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
@@ -331,6 +335,8 @@ class BudgetServiceTest extends TestCase
         $budget = Budget::create([
             'user_id' => $user->id,
             'category_id' => null,
+            'target_type' => Budget::TARGET_OVERALL,
+            'target_key' => 'overall',
             'amount' => 200,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,
@@ -1329,5 +1335,411 @@ class BudgetServiceTest extends TestCase
         $this->assertSame('Feb 2026', $history[1]['label']);
         $this->assertSame(200.0, $history[1]['spent']);
         $this->assertSame(50.0, $history[1]['rollover']);
+    }
+
+    // -------------------------------------------------------------------------
+    // Multi-target budget types
+    // -------------------------------------------------------------------------
+
+    public function test_get_spent_for_tag_budget(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $tag = Tag::create(['user_id' => $user->id, 'name' => 'Groceries']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'tag_id' => $tag->id,
+            'target_type' => Budget::TARGET_TAG,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 500,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        $tx1 = Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-tag-1',
+            'amount' => -80,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-10',
+            'processed_date' => '2026-03-10',
+            'description' => 'Shop',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+        ]);
+        $tx1->tags()->attach($tag->id);
+
+        // Transaction without matching tag — should not count
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-tag-2',
+            'amount' => -40,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-11',
+            'processed_date' => '2026-03-11',
+            'description' => 'Other',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+        ]);
+
+        $spent = $this->service->getSpentForPeriod($budget, $period);
+        $this->assertSame(80.0, $spent);
+    }
+
+    public function test_get_spent_for_counterparty_budget(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $cp = Counterparty::create(['user_id' => $user->id, 'name' => 'Acme Corp', 'type' => 'merchant']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'counterparty_id' => $cp->id,
+            'target_type' => Budget::TARGET_COUNTERPARTY,
+            'amount' => 300,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 300,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-cp-1',
+            'amount' => -120,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-05',
+            'processed_date' => '2026-03-05',
+            'description' => 'Acme',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'counterparty_id' => $cp->id,
+        ]);
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-cp-2',
+            'amount' => -30,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-10',
+            'processed_date' => '2026-03-10',
+            'description' => 'Other vendor',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'counterparty_id' => null,
+        ]);
+
+        $spent = $this->service->getSpentForPeriod($budget, $period);
+        $this->assertSame(120.0, $spent);
+    }
+
+    public function test_get_spent_for_subscription_budget(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $rg = RecurringGroup::create([
+            'user_id' => $user->id,
+            'name' => 'Netflix',
+            'interval' => 'monthly',
+            'interval_days' => 30,
+            'amount_min' => -15,
+            'amount_max' => -15,
+            'scope' => RecurringGroup::SCOPE_PER_USER,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+        ]);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'recurring_group_id' => $rg->id,
+            'target_type' => Budget::TARGET_SUBSCRIPTION,
+            'amount' => 20,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 20,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-sub-1',
+            'amount' => -15,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-05',
+            'processed_date' => '2026-03-05',
+            'description' => 'Netflix',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'recurring_group_id' => $rg->id,
+        ]);
+
+        $spent = $this->service->getSpentForPeriod($budget, $period);
+        $this->assertSame(15.0, $spent);
+    }
+
+    public function test_get_spent_for_account_budget_excludes_transfers(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'target_type' => Budget::TARGET_ACCOUNT,
+            'include_transfers' => false,
+            'amount' => 1000,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 1000,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-acc-1',
+            'amount' => -100,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-05',
+            'processed_date' => '2026-03-05',
+            'description' => 'Payment',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+        ]);
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-acc-transfer',
+            'amount' => -500,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-06',
+            'processed_date' => '2026-03-06',
+            'description' => 'Transfer',
+            'type' => Transaction::TYPE_TRANSFER,
+            'balance_after_transaction' => 0,
+        ]);
+
+        $spent = $this->service->getSpentForPeriod($budget, $period);
+        $this->assertSame(100.0, $spent);
+    }
+
+    public function test_get_spent_for_account_budget_includes_transfers(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'account_id' => $account->id,
+            'target_type' => Budget::TARGET_ACCOUNT,
+            'include_transfers' => true,
+            'amount' => 1000,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 1000,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-acc-inc-1',
+            'amount' => -100,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-05',
+            'processed_date' => '2026-03-05',
+            'description' => 'Payment',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+        ]);
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-acc-inc-transfer',
+            'amount' => -500,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-06',
+            'processed_date' => '2026-03-06',
+            'description' => 'Transfer',
+            'type' => Transaction::TYPE_TRANSFER,
+            'balance_after_transaction' => 0,
+        ]);
+
+        $spent = $this->service->getSpentForPeriod($budget, $period);
+        $this->assertSame(600.0, $spent);
+    }
+
+    public function test_get_spent_for_all_subscriptions_budget(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $rg1 = RecurringGroup::create([
+            'user_id' => $user->id,
+            'name' => 'Netflix',
+            'interval' => 'monthly',
+            'interval_days' => 30,
+            'amount_min' => -15,
+            'amount_max' => -15,
+            'scope' => RecurringGroup::SCOPE_PER_USER,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+        ]);
+        $rg2 = RecurringGroup::create([
+            'user_id' => $user->id,
+            'name' => 'Spotify',
+            'interval' => 'monthly',
+            'interval_days' => 30,
+            'amount_min' => -10,
+            'amount_max' => -10,
+            'scope' => RecurringGroup::SCOPE_PER_USER,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+        ]);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'target_type' => Budget::TARGET_ALL_SUBSCRIPTIONS,
+            'target_key' => 'all_subs',
+            'amount' => 50,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 50,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-allsub-1',
+            'amount' => -15,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-05',
+            'processed_date' => '2026-03-05',
+            'description' => 'Netflix',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'recurring_group_id' => $rg1->id,
+        ]);
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-allsub-2',
+            'amount' => -10,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-10',
+            'processed_date' => '2026-03-10',
+            'description' => 'Spotify',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'recurring_group_id' => $rg2->id,
+        ]);
+        // Non-subscription transaction — should not count
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-allsub-3',
+            'amount' => -100,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-15',
+            'processed_date' => '2026-03-15',
+            'description' => 'Other',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+        ]);
+
+        $spent = $this->service->getSpentForPeriod($budget, $period);
+        $this->assertSame(25.0, $spent);
+    }
+
+    public function test_overlap_transaction_counted_in_multiple_budgets(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $rg = RecurringGroup::create([
+            'user_id' => $user->id,
+            'name' => 'Netflix',
+            'interval' => 'monthly',
+            'interval_days' => 30,
+            'amount_min' => -15,
+            'amount_max' => -15,
+            'scope' => RecurringGroup::SCOPE_PER_USER,
+            'status' => RecurringGroup::STATUS_CONFIRMED,
+        ]);
+
+        $subBudget = Budget::create([
+            'user_id' => $user->id,
+            'recurring_group_id' => $rg->id,
+            'target_type' => Budget::TARGET_SUBSCRIPTION,
+            'amount' => 20,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+        $allSubsBudget = Budget::create([
+            'user_id' => $user->id,
+            'target_type' => Budget::TARGET_ALL_SUBSCRIPTIONS,
+            'target_key' => 'all_subs',
+            'amount' => 50,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+
+        $period1 = BudgetPeriod::create([
+            'budget_id' => $subBudget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 20,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+        $period2 = BudgetPeriod::create([
+            'budget_id' => $allSubsBudget->id,
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-03-31',
+            'amount_budgeted' => 50,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-overlap',
+            'amount' => -15,
+            'currency' => 'EUR',
+            'booked_date' => '2026-03-05',
+            'processed_date' => '2026-03-05',
+            'description' => 'Netflix',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+            'recurring_group_id' => $rg->id,
+        ]);
+
+        // Same transaction counts toward both budgets
+        $this->assertSame(15.0, $this->service->getSpentForPeriod($subBudget, $period1));
+        $this->assertSame(15.0, $this->service->getSpentForPeriod($allSubsBudget, $period2));
     }
 }

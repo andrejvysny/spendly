@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { BudgetWithProgress } from '@/types';
 import { TrendingUp } from 'lucide-react';
 import { BudgetProgressBar } from './BudgetProgressBar';
+import { budgetTargetDisplay } from './budgetTargetDisplay';
 
 interface BudgetTableProps {
     budgets: BudgetWithProgress[];
@@ -26,7 +27,7 @@ export function BudgetTable({ budgets, onEdit, onDelete, formatAmount, periodLab
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Category</TableHead>
+                    <TableHead>Target</TableHead>
                     <TableHead>Period</TableHead>
                     <TableHead className="text-right">Spent</TableHead>
                     <TableHead className="text-right">Budget</TableHead>
@@ -40,12 +41,24 @@ export function BudgetTable({ budgets, onEdit, onDelete, formatAmount, periodLab
                 {budgets.map((b) => {
                     const total = effectiveAmount(b);
                     const pace = paceLabel(b.pace_percentage);
+                    const target = budgetTargetDisplay(b);
+                    const Icon = target.icon;
                     return (
                         <TableRow key={b.id}>
                             <TableCell>
                                 <div className="flex items-center gap-2">
-                                    <div className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: b.category?.color ?? '#94a3b8' }} />
-                                    <span className="font-medium">{b.name ?? b.category?.name ?? 'Overall'}</span>
+                                    <div
+                                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                                        style={{ backgroundColor: target.color }}
+                                    >
+                                        <Icon className="h-3 w-3 text-white" />
+                                    </div>
+                                    <span className="font-medium">{b.name ?? target.label}</span>
+                                    {b.target_type !== 'overall' && b.target_type !== 'category' && (
+                                        <span className="text-muted-foreground rounded bg-slate-100 px-1 py-0.5 text-[10px] dark:bg-slate-800">
+                                            {target.typeBadge}
+                                        </span>
+                                    )}
                                 </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">

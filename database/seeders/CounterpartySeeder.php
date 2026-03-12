@@ -10,7 +10,7 @@ class CounterpartySeeder extends Seeder
 {
     public function run(): void
     {
-        $user = User::where('email', 'demo@example.com')->first();
+        $user = User::where('email', 'demo@example.com')->firstOrFail();
 
         $counterparties = [
             ['name' => 'Netflix', 'description' => 'Streaming service', 'logo' => 'Film', 'type' => 'merchant'],
@@ -26,6 +26,14 @@ class CounterpartySeeder extends Seeder
             ['name' => 'Tax Office', 'description' => 'Government tax authority', 'logo' => 'Building', 'type' => 'institution'],
             ['name' => 'Health Insurance Co.', 'description' => 'Health insurance provider', 'logo' => 'Shield', 'type' => 'institution'],
             ['name' => 'Acme Corp', 'description' => 'Employer', 'logo' => 'Briefcase', 'type' => 'employer'],
+            ['name' => 'Gym & Fitness GmbH', 'description' => 'Gym and fitness center', 'logo' => 'Dumbbell', 'type' => 'merchant'],
+            ['name' => 'Lidl', 'description' => 'Discount supermarket', 'logo' => 'Store', 'type' => 'merchant'],
+            ['name' => 'Apple', 'description' => 'Technology company', 'logo' => 'Smartphone', 'type' => 'merchant'],
+            ['name' => 'Digital Ocean', 'description' => 'Cloud hosting provider', 'logo' => 'Cloud', 'type' => 'merchant'],
+            ['name' => 'Pharmacy Plus', 'description' => 'Pharmacy chain', 'logo' => 'Pill', 'type' => 'merchant'],
+            ['name' => 'Zara', 'description' => 'Clothing retailer', 'logo' => 'Shirt', 'type' => 'merchant'],
+            ['name' => 'Landlord - Schmidt', 'description' => 'Apartment landlord', 'logo' => 'User', 'type' => 'person'],
+            ['name' => 'Freelance Client Inc.', 'description' => 'Freelance client', 'logo' => 'Briefcase', 'type' => 'employer'],
         ];
 
         foreach ($counterparties as $counterparty) {

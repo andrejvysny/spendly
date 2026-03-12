@@ -4,15 +4,16 @@ import { BudgetTrendChart } from '@/components/budgets/BudgetTrendChart';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { SelectInput, TextInput } from '@/components/ui/form-inputs';
+import { CheckboxInput, SelectInput, TextInput } from '@/components/ui/form-inputs';
 import { InferFormValues, SmartForm } from '@/components/ui/smart-form';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
-import type { BudgetWithProgress } from '@/types';
+import type { BudgetTargetType, BudgetWithProgress } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { AlertTriangle, LayoutGrid, List, Wallet } from 'lucide-react';
+import { AlertTriangle, CalendarClock, FolderOpen, Landmark, LayoutGrid, List, RefreshCw, Tag, Users, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 
 interface CategoryOption {
@@ -22,9 +23,37 @@ interface CategoryOption {
     icon: string | null;
 }
 
+interface TagOption {
+    id: number;
+    name: string;
+    color: string | null;
+}
+
+interface CounterpartyOption {
+    id: number;
+    name: string;
+    type: string;
+}
+
+interface RecurringGroupOption {
+    id: number;
+    name: string;
+    interval: string;
+}
+
+interface AccountOption {
+    id: number;
+    name: string;
+    currency: string;
+}
+
 interface Props {
     budgets: BudgetWithProgress[];
     categories: CategoryOption[];
+    tags: TagOption[];
+    counterparties: CounterpartyOption[];
+    recurringGroups: RecurringGroupOption[];
+    accounts: AccountOption[];
     periodType: string;
     year: number;
     month: number;
@@ -34,8 +63,23 @@ interface Props {
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+const TARGET_TYPE_OPTIONS: { value: BudgetTargetType; label: string; icon: typeof FolderOpen }[] = [
+    { value: 'category', label: 'Category', icon: FolderOpen },
+    { value: 'tag', label: 'Tag', icon: Tag },
+    { value: 'counterparty', label: 'Counterparty', icon: Users },
+    { value: 'subscription', label: 'Subscription', icon: RefreshCw },
+    { value: 'account', label: 'Account', icon: Landmark },
+    { value: 'overall', label: 'Overall', icon: Wallet },
+    { value: 'all_subscriptions', label: 'All Subs', icon: CalendarClock },
+];
+
 const formSchema = z.object({
+    target_type: z.enum(['category', 'tag', 'counterparty', 'subscription', 'account', 'overall', 'all_subscriptions']),
     category_id: z.string().optional(),
+    tag_id: z.string().optional(),
+    counterparty_id: z.string().optional(),
+    recurring_group_id: z.string().optional(),
+    account_id: z.string().optional(),
     amount: z
         .string()
         .min(1, 'Amount is required')
@@ -46,9 +90,126 @@ const formSchema = z.object({
     rollover_enabled: z.boolean().optional(),
     rollover_cap: z.string().optional(),
     include_subcategories: z.boolean().optional(),
+    include_transfers: z.boolean().optional(),
 });
 
 type FormValues = InferFormValues<typeof formSchema>;
+
+interface BudgetFormFieldsProps {
+    form: UseFormReturn<FormValues>;
+    editingBudget: BudgetWithProgress | null;
+    accounts: AccountOption[];
+    categoryOptions: { value: string; label: string }[];
+    tagOptions: { value: string; label: string }[];
+    counterpartyOptions: { value: string; label: string }[];
+    recurringGroupOptions: { value: string; label: string }[];
+    accountOptions: { value: string; label: string }[];
+    closeDialog: () => void;
+}
+
+function BudgetFormFields({
+    form,
+    editingBudget,
+    accounts,
+    categoryOptions,
+    tagOptions,
+    counterpartyOptions,
+    recurringGroupOptions,
+    accountOptions,
+    closeDialog,
+}: BudgetFormFieldsProps) {
+    const targetType = form.watch('target_type');
+    const selectedAccountId = form.watch('account_id');
+
+    useEffect(() => {
+        if (targetType === 'account' && selectedAccountId) {
+            const acc = accounts.find((a) => String(a.id) === selectedAccountId);
+            if (acc) {
+                form.setValue('currency', acc.currency);
+            }
+        }
+    }, [targetType, selectedAccountId, accounts, form]);
+
+    return (
+        <>
+            {!editingBudget && (
+                <div className="space-y-1.5">
+                    <label className="text-muted-foreground text-sm font-semibold">Budget Type</label>
+                    <div className="flex flex-wrap gap-1.5">
+                        {TARGET_TYPE_OPTIONS.map((opt) => {
+                            const Icon = opt.icon;
+                            const isSelected = targetType === opt.value;
+                            return (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => form.setValue('target_type', opt.value)}
+                                    className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                                        isSelected ? 'border-primary bg-primary/10 text-primary' : 'border-input hover:bg-muted'
+                                    }`}
+                                >
+                                    <Icon className="h-3.5 w-3.5" />
+                                    {opt.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {editingBudget && (
+                <div className="text-muted-foreground text-sm">
+                    Type: <span className="font-medium capitalize">{editingBudget.target_type.replace('_', ' ')}</span>
+                </div>
+            )}
+
+            {targetType === 'category' && (
+                <>
+                    <SelectInput<FormValues> name="category_id" label="Category" options={categoryOptions} disabled={!!editingBudget} />
+                    <CheckboxInput<FormValues> name="include_subcategories" label="Include subcategories" />
+                </>
+            )}
+
+            {targetType === 'tag' && <SelectInput<FormValues> name="tag_id" label="Tag" options={tagOptions} disabled={!!editingBudget} />}
+
+            {targetType === 'counterparty' && (
+                <SelectInput<FormValues> name="counterparty_id" label="Counterparty" options={counterpartyOptions} disabled={!!editingBudget} />
+            )}
+
+            {targetType === 'subscription' && (
+                <SelectInput<FormValues> name="recurring_group_id" label="Subscription" options={recurringGroupOptions} disabled={!!editingBudget} />
+            )}
+
+            {targetType === 'account' && (
+                <>
+                    <SelectInput<FormValues> name="account_id" label="Account" options={accountOptions} disabled={!!editingBudget} />
+                    <CheckboxInput<FormValues> name="include_transfers" label="Include transfers" />
+                </>
+            )}
+
+            <TextInput<FormValues> name="amount" label="Amount" type="number" required />
+            <TextInput<FormValues> name="currency" label="Currency (e.g. EUR)" required disabled={targetType === 'account' && !!selectedAccountId} />
+            <SelectInput<FormValues>
+                name="period_type"
+                label="Period type"
+                options={[
+                    { value: 'monthly', label: 'Monthly' },
+                    { value: 'yearly', label: 'Yearly' },
+                ]}
+            />
+            <TextInput<FormValues> name="name" label="Name (optional)" />
+            {form.watch('rollover_enabled') && (
+                <TextInput<FormValues> name="rollover_cap" label="Rollover cap (optional, leave empty for unlimited)" type="number" />
+            )}
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeDialog}>
+                    Cancel
+                </Button>
+                <Button type="submit">{editingBudget ? 'Update' : 'Create'}</Button>
+            </DialogFooter>
+        </>
+    );
+}
 
 function formatAmount(value: number, currency: string): string {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
@@ -62,7 +223,6 @@ function periodLabel(b: BudgetWithProgress, year?: number, month?: number): stri
         }
         return `${MONTH_NAMES[start.getMonth()]} ${start.getFullYear()}`;
     }
-    // Fallback from page-level year/month
     if (b.period_type === 'yearly' && year) {
         return `${year}`;
     }
@@ -79,7 +239,19 @@ function effectiveAmount(b: BudgetWithProgress): number {
     return b.amount;
 }
 
-export default function BudgetsIndex({ budgets, categories, periodType, year, month, defaultCurrency, uncategorizedCount }: Props) {
+export default function BudgetsIndex({
+    budgets,
+    categories,
+    tags,
+    counterparties,
+    recurringGroups,
+    accounts,
+    periodType,
+    year,
+    month,
+    defaultCurrency,
+    uncategorizedCount,
+}: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [editingBudget, setEditingBudget] = useState<BudgetWithProgress | null>(null);
     const [viewMode, setViewMode] = useState<string>(() => localStorage.getItem('budgets_view_mode') ?? 'cards');
@@ -112,10 +284,19 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
         router.visit(`/budgets?${params.toString()}`);
     };
 
-    const categoryOptions = [{ value: '', label: 'Overall (no category)' }, ...categories.map((c) => ({ value: String(c.id), label: c.name }))];
+    const categoryOptions = categories.map((c) => ({ value: String(c.id), label: c.name }));
+    const tagOptions = tags.map((t) => ({ value: String(t.id), label: t.name }));
+    const counterpartyOptions = counterparties.map((cp) => ({ value: String(cp.id), label: cp.name }));
+    const recurringGroupOptions = recurringGroups.map((rg) => ({ value: String(rg.id), label: rg.name }));
+    const accountOptions = accounts.map((a) => ({ value: String(a.id), label: `${a.name} (${a.currency})` }));
 
     const defaultFormValues: FormValues = {
-        category_id: '',
+        target_type: 'category',
+        category_id: undefined,
+        tag_id: undefined,
+        counterparty_id: undefined,
+        recurring_group_id: undefined,
+        account_id: undefined,
         amount: '',
         currency: defaultCurrency,
         period_type: 'monthly',
@@ -123,11 +304,12 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
         rollover_enabled: false,
         rollover_cap: '',
         include_subcategories: true,
+        include_transfers: false,
     };
 
     const onSubmit = (values: FormValues) => {
-        const payload = {
-            category_id: values.category_id ? Number(values.category_id) : null,
+        const payload: Record<string, string | number | boolean | null> = {
+            target_type: values.target_type,
             amount: Number(values.amount),
             currency: values.currency,
             period_type: values.period_type,
@@ -135,26 +317,58 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
             rollover_enabled: values.rollover_enabled ?? false,
             rollover_cap: values.rollover_cap ? Number(values.rollover_cap) : null,
             include_subcategories: values.include_subcategories ?? true,
+            include_transfers: values.include_transfers ?? false,
+            category_id: null,
+            tag_id: null,
+            counterparty_id: null,
+            recurring_group_id: null,
+            account_id: null,
         };
+
+        switch (values.target_type) {
+            case 'category':
+                payload.category_id = values.category_id ? Number(values.category_id) : null;
+                break;
+            case 'tag':
+                payload.tag_id = values.tag_id ? Number(values.tag_id) : null;
+                break;
+            case 'counterparty':
+                payload.counterparty_id = values.counterparty_id ? Number(values.counterparty_id) : null;
+                break;
+            case 'subscription':
+                payload.recurring_group_id = values.recurring_group_id ? Number(values.recurring_group_id) : null;
+                break;
+            case 'account':
+                payload.account_id = values.account_id ? Number(values.account_id) : null;
+                break;
+        }
+
         if (editingBudget) {
-            router.put(`/budgets/${editingBudget.id}`, payload as Record<string, string | number | boolean | null>, { onSuccess: closeDialog });
+            // Don't send target_type on update (immutable)
+            delete payload.target_type;
+            delete payload.category_id;
+            delete payload.tag_id;
+            delete payload.counterparty_id;
+            delete payload.recurring_group_id;
+            delete payload.account_id;
+            router.put(`/budgets/${editingBudget.id}`, payload, { onSuccess: closeDialog });
         } else {
-            router.post('/budgets', payload as Record<string, string | number | boolean | null>, { onSuccess: closeDialog });
+            router.post('/budgets', payload, { onSuccess: closeDialog });
         }
     };
 
     const confirmDelete = (b: BudgetWithProgress) => {
-        if (window.confirm(`Delete budget for ${b.category?.name ?? 'Overall'} (${periodLabel(b, year, month)})?`)) {
+        const targetName = b.category?.name ?? b.tag?.name ?? b.counterparty?.name ?? b.recurring_group?.name ?? b.account?.name ?? 'Overall';
+        if (window.confirm(`Delete budget for ${targetName} (${periodLabel(b, year, month)})?`)) {
             router.delete(`/budgets/${b.id}`);
         }
     };
 
     const periodLabelFn = (b: BudgetWithProgress) => periodLabel(b, year, month);
 
-    // Summary calculations (exclude overall budgets)
-    const categoryBudgets = budgets.filter((b) => b.category_id !== null);
-    const totalBudgeted = categoryBudgets.reduce((sum, b) => sum + effectiveAmount(b), 0);
-    const totalSpent = categoryBudgets.reduce((sum, b) => sum + b.spent, 0);
+    // Summary calculations
+    const totalBudgeted = budgets.reduce((sum, b) => sum + effectiveAmount(b), 0);
+    const totalSpent = budgets.reduce((sum, b) => sum + b.spent, 0);
     const totalRemaining = Math.max(0, totalBudgeted - totalSpent);
     const totalPercentage = totalBudgeted > 0 ? (totalSpent / totalBudgeted) * 100 : 0;
 
@@ -242,7 +456,7 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                     </CardContent>
                 </Card>
 
-                {budgets.length > 0 && categoryBudgets.length > 0 && (
+                {budgets.length > 0 && (
                     <Card className="mb-4">
                         <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
                             <div className="flex items-center gap-6">
@@ -327,15 +541,21 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                         <DialogHeader>
                             <DialogTitle>{editingBudget ? 'Edit Budget' : 'New Budget'}</DialogTitle>
                             <DialogDescription>
-                                {editingBudget ? 'Update the budget amount or settings.' : 'Set a spending limit for a category.'}
+                                {editingBudget ? 'Update the budget amount or settings.' : 'Set a spending limit for a target.'}
                             </DialogDescription>
                         </DialogHeader>
                         <SmartForm
+                            key={editingBudget ? `edit-${editingBudget.id}` : 'create'}
                             schema={formSchema}
                             defaultValues={
                                 editingBudget
                                     ? {
-                                          category_id: editingBudget.category_id ? String(editingBudget.category_id) : '',
+                                          target_type: editingBudget.target_type,
+                                          category_id: editingBudget.category_id ? String(editingBudget.category_id) : undefined,
+                                          tag_id: editingBudget.tag_id ? String(editingBudget.tag_id) : undefined,
+                                          counterparty_id: editingBudget.counterparty_id ? String(editingBudget.counterparty_id) : undefined,
+                                          recurring_group_id: editingBudget.recurring_group_id ? String(editingBudget.recurring_group_id) : undefined,
+                                          account_id: editingBudget.account_id ? String(editingBudget.account_id) : undefined,
                                           amount: String(editingBudget.amount),
                                           currency: editingBudget.currency,
                                           period_type: editingBudget.period_type,
@@ -343,6 +563,7 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                                           rollover_enabled: editingBudget.rollover_enabled,
                                           rollover_cap: editingBudget.rollover_cap != null ? String(editingBudget.rollover_cap) : '',
                                           include_subcategories: editingBudget.include_subcategories,
+                                          include_transfers: editingBudget.include_transfers,
                                       }
                                     : defaultFormValues
                             }
@@ -350,38 +571,17 @@ export default function BudgetsIndex({ budgets, categories, periodType, year, mo
                             formProps={{ className: 'space-y-4' }}
                         >
                             {(form) => (
-                                <>
-                                    <SelectInput<FormValues>
-                                        name="category_id"
-                                        label="Category"
-                                        options={categoryOptions}
-                                        disabled={!!editingBudget}
-                                    />
-                                    <TextInput<FormValues> name="amount" label="Amount" type="number" required />
-                                    <TextInput<FormValues> name="currency" label="Currency (e.g. EUR)" required />
-                                    <SelectInput<FormValues>
-                                        name="period_type"
-                                        label="Period type"
-                                        options={[
-                                            { value: 'monthly', label: 'Monthly' },
-                                            { value: 'yearly', label: 'Yearly' },
-                                        ]}
-                                    />
-                                    <TextInput<FormValues> name="name" label="Name (optional)" />
-                                    {form.watch('rollover_enabled') && (
-                                        <TextInput<FormValues>
-                                            name="rollover_cap"
-                                            label="Rollover cap (optional, leave empty for unlimited)"
-                                            type="number"
-                                        />
-                                    )}
-                                    <DialogFooter>
-                                        <Button type="button" variant="outline" onClick={closeDialog}>
-                                            Cancel
-                                        </Button>
-                                        <Button type="submit">{editingBudget ? 'Update' : 'Create'}</Button>
-                                    </DialogFooter>
-                                </>
+                                <BudgetFormFields
+                                    form={form}
+                                    editingBudget={editingBudget}
+                                    accounts={accounts}
+                                    categoryOptions={categoryOptions}
+                                    tagOptions={tagOptions}
+                                    counterpartyOptions={counterpartyOptions}
+                                    recurringGroupOptions={recurringGroupOptions}
+                                    accountOptions={accountOptions}
+                                    closeDialog={closeDialog}
+                                />
                             )}
                         </SmartForm>
                     </DialogContent>
