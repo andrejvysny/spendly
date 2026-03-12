@@ -10,7 +10,7 @@ class AccountSeeder extends Seeder
 {
     public function run(): void
     {
-        $user = User::where('email', 'demo@example.com')->first();
+        $user = User::where('email', 'demo@example.com')->firstOrFail();
 
         $accounts = [
             [
@@ -19,7 +19,8 @@ class AccountSeeder extends Seeder
                 'iban' => 'DE89370400440532013000',
                 'type' => 'checking',
                 'currency' => 'EUR',
-                'balance' => 5000.00,
+                'balance' => 3200.00,
+                'opening_balance' => 3200.00,
                 'is_gocardless_synced' => false,
             ],
             [
@@ -28,7 +29,8 @@ class AccountSeeder extends Seeder
                 'iban' => 'DE89370400440532013001',
                 'type' => 'savings',
                 'currency' => 'EUR',
-                'balance' => 15000.00,
+                'balance' => 12000.00,
+                'opening_balance' => 12000.00,
                 'is_gocardless_synced' => false,
             ],
             [
@@ -37,7 +39,8 @@ class AccountSeeder extends Seeder
                 'iban' => 'DE89370400440532013002',
                 'type' => 'credit',
                 'currency' => 'EUR',
-                'balance' => -2500.00,
+                'balance' => -800.00,
+                'opening_balance' => -800.00,
                 'is_gocardless_synced' => false,
             ],
             [
@@ -46,7 +49,28 @@ class AccountSeeder extends Seeder
                 'iban' => 'DE89370400440532013003',
                 'type' => 'investment',
                 'currency' => 'EUR',
-                'balance' => 25000.00,
+                'balance' => 20000.00,
+                'opening_balance' => 20000.00,
+                'is_gocardless_synced' => false,
+            ],
+            [
+                'name' => 'Revolut USD',
+                'bank_name' => 'Revolut',
+                'iban' => 'LT683250013083708433',
+                'type' => 'checking',
+                'currency' => 'USD',
+                'balance' => 1200.00,
+                'opening_balance' => 1200.00,
+                'is_gocardless_synced' => false,
+            ],
+            [
+                'name' => 'Cash Wallet',
+                'bank_name' => null,
+                'iban' => null,
+                'type' => 'checking',
+                'currency' => 'EUR',
+                'balance' => 200.00,
+                'opening_balance' => 200.00,
                 'is_gocardless_synced' => false,
             ],
         ];
@@ -59,6 +83,7 @@ class AccountSeeder extends Seeder
                 'type' => $account['type'],
                 'currency' => $account['currency'],
                 'balance' => $account['balance'],
+                'opening_balance' => $account['opening_balance'],
                 'is_gocardless_synced' => $account['is_gocardless_synced'],
                 'user_id' => $user->id,
             ]);

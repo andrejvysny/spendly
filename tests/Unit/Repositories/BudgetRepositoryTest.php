@@ -173,6 +173,8 @@ class BudgetRepositoryTest extends TestCase
         $budget = $this->repository->create([
             'user_id' => $user->id,
             'category_id' => null,
+            'target_type' => Budget::TARGET_OVERALL,
+            'target_key' => 'overall',
             'amount' => 1500,
             'currency' => 'EUR',
             'period_type' => Budget::PERIOD_MONTHLY,

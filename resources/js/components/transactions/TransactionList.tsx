@@ -1,7 +1,7 @@
 import TransactionComponent from '@/components/transactions/Transaction';
 import { Button } from '@/components/ui/button';
 import { LoadingDots } from '@/components/ui/loading-dots';
-import { Category, Counterparty, Transaction } from '@/types/index';
+import { Category, Counterparty, RecurringGroup, Tag, Transaction } from '@/types/index';
 import { useEffect, useState } from 'react';
 import BulkActionMenu from './BulkActionMenu';
 
@@ -10,6 +10,8 @@ interface Props {
     monthlySummaries: Record<string, { income: number; expense: number; balance: number }>;
     categories: Category[];
     counterparties: Counterparty[];
+    tags?: Tag[];
+    recurringGroups?: RecurringGroup[];
     showMonthlySummary?: boolean;
     hasMorePages?: boolean;
     onLoadMore?: () => Promise<void>;
@@ -39,6 +41,8 @@ function TransactionList({
     monthlySummaries,
     categories,
     counterparties,
+    tags = [],
+    recurringGroups = [],
     showMonthlySummary = true,
     hasMorePages = false,
     onLoadMore,
@@ -66,29 +70,34 @@ function TransactionList({
         ids: string[];
         category_id?: string | null;
         counterparty_id?: string | null;
-        updated_transactions?: Array<{ id: number; note: string }>;
+        recurring_group_id?: string | null;
+        updated_transactions?: Array<{ id: number; note?: string; tags?: Tag[] }>;
+        type?: string;
+        deleted_ids?: string[];
     }) => {
-        // If we have updated data, update the local transactions
         if (updatedData) {
+            // Handle deletions first — filter out deleted transactions
+            if (updatedData.deleted_ids && updatedData.deleted_ids.length > 0) {
+                setTransactions((prev) => prev.filter((t) => !updatedData.deleted_ids!.includes(String(t.id))));
+                setSelectedTransactions([]);
+                return;
+            }
+
             const updatedTransactions = [...transactions];
 
-            // Find the category object if a category_id was provided
             let selectedCategory: Category | null = null;
             if (updatedData.category_id) {
                 selectedCategory = categories.find((c) => String(c.id) === updatedData.category_id) || null;
             }
 
-            // Find the counterparty object if a counterparty_id was provided
             let selectedCounterparty: Counterparty | null = null;
             if (updatedData.counterparty_id) {
                 selectedCounterparty = counterparties.find((c) => String(c.id) === updatedData.counterparty_id) || null;
             }
 
-            // Update all selected transactions
             updatedData.ids.forEach((id) => {
                 const index = updatedTransactions.findIndex((t) => String(t.id) === id);
                 if (index !== -1) {
-                    // Create a new object to trigger re-render
                     const updates: Partial<Transaction> = {};
 
                     if (updatedData.category_id !== undefined) {
@@ -99,25 +108,30 @@ function TransactionList({
                         updates.counterparty = updatedData.counterparty_id === null ? undefined : selectedCounterparty || undefined;
                     }
 
-                    // Handle note updates
+                    if (updatedData.type !== undefined) {
+                        updates.type = updatedData.type;
+                    }
+
+                    if (updatedData.recurring_group_id !== undefined) {
+                        const groupId = updatedData.recurring_group_id === '' ? null : updatedData.recurring_group_id;
+                        updates.recurring_group_id = groupId === null ? null : Number(groupId);
+                    }
+
                     if (updatedData.updated_transactions) {
-                        const updatedTransaction = updatedData.updated_transactions.find((t) => String(t.id) === id);
-                        if (updatedTransaction) {
-                            updates.note = updatedTransaction.note;
+                        const match = updatedData.updated_transactions.find((t) => String(t.id) === id);
+                        if (match) {
+                            if (match.note !== undefined) updates.note = match.note;
+                            if (match.tags !== undefined) updates.tags = match.tags;
                         }
                     }
 
-                    updatedTransactions[index] = {
-                        ...updatedTransactions[index],
-                        ...updates,
-                    };
+                    updatedTransactions[index] = { ...updatedTransactions[index], ...updates };
                 }
             });
 
             setTransactions(updatedTransactions);
         }
 
-        // Reset selection
         setSelectedTransactions([]);
     };
 
@@ -278,6 +292,8 @@ function TransactionList({
                     transactions={transactions}
                     categories={categories}
                     counterparties={counterparties}
+                    tags={tags}
+                    recurringGroups={recurringGroups}
                     onUpdate={handleResetSelection}
                 />
             )}

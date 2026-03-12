@@ -9,6 +9,7 @@ use App\Http\Requests\StoreBudgetRequest;
 use App\Http\Requests\UpdateBudgetRequest;
 use App\Models\Budget;
 use App\Models\BudgetPeriod;
+use App\Models\RecurringGroup;
 use App\Models\Transaction;
 use App\Services\BudgetService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -78,53 +79,36 @@ class BudgetController extends Controller
 
         return Inertia::render('budgets/Index', [
             'budgets' => $budgetsWithProgress->map(function (array $row) {
-                /** @var Budget $budget */
-                $budget = $row['budget'];
-                /** @var \App\Models\BudgetPeriod|null $period */
-                $period = $row['period'];
-
-                return [
-                    'id' => $budget->id,
-                    'user_id' => $budget->user_id,
-                    'category_id' => $budget->category_id,
-                    'category' => $budget->category ? [
-                        'id' => $budget->category->id,
-                        'name' => $budget->category->name,
-                        'color' => $budget->category->color,
-                        'icon' => $budget->category->icon,
-                    ] : null,
-                    'amount' => (float) $budget->amount,
-                    'currency' => $budget->currency,
-                    'mode' => $budget->mode,
-                    'period_type' => $budget->period_type,
-                    'name' => $budget->name,
-                    'rollover_enabled' => $budget->rollover_enabled,
-                    'rollover_cap' => $budget->rollover_cap !== null ? (float) $budget->rollover_cap : null,
-                    'include_subcategories' => $budget->include_subcategories,
-                    'is_active' => $budget->is_active,
-                    'period' => $period ? [
-                        'id' => $period->id,
-                        'start_date' => $period->start_date->format('Y-m-d'),
-                        'end_date' => $period->end_date->format('Y-m-d'),
-                        'amount_budgeted' => (float) $period->amount_budgeted,
-                        'rollover_amount' => (float) $period->rollover_amount,
-                        'status' => $period->status,
-                    ] : null,
-                    'spent' => $row['spent'],
-                    'remaining' => $row['remaining'],
-                    'percentage_used' => $row['percentage_used'],
-                    'is_exceeded' => $row['is_exceeded'],
-                    'pace_percentage' => $row['pace_percentage'],
-                    'projected_total' => $row['projected_total'],
-                    'days_elapsed' => $row['days_elapsed'],
-                    'days_in_period' => $row['days_in_period'],
-                ];
+                return $this->serializeBudgetWithProgress($row);
             })->values()->all(),
             'categories' => $categories->map(fn ($c) => [
                 'id' => $c->id,
                 'name' => $c->name,
                 'color' => $c->color,
                 'icon' => $c->icon,
+            ])->values()->all(),
+            'tags' => $authUser->tags->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'color' => $t->color ?? null,
+            ])->values()->all(),
+            'counterparties' => $authUser->counterparties->map(fn ($cp) => [
+                'id' => $cp->id,
+                'name' => $cp->name,
+                'type' => $cp->type instanceof \BackedEnum ? $cp->type->value : (string) $cp->type,
+            ])->values()->all(),
+            'recurringGroups' => RecurringGroup::where('user_id', $userId)
+                ->where('status', RecurringGroup::STATUS_CONFIRMED)
+                ->get()
+                ->map(fn ($rg) => [
+                    'id' => $rg->id,
+                    'name' => $rg->name,
+                    'interval' => $rg->interval,
+                ])->values()->all(),
+            'accounts' => $accounts->map(fn ($a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'currency' => $a->currency,
             ])->values()->all(),
             'periodType' => $periodType,
             'year' => $year,
@@ -159,6 +143,29 @@ class BudgetController extends Controller
                 'color' => $c->color,
                 'icon' => $c->icon,
             ])->values()->all(),
+            'tags' => $user->tags->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'color' => $t->color ?? null,
+            ])->values()->all(),
+            'counterparties' => $user->counterparties->map(fn ($cp) => [
+                'id' => $cp->id,
+                'name' => $cp->name,
+                'type' => $cp->type instanceof \BackedEnum ? $cp->type->value : (string) $cp->type,
+            ])->values()->all(),
+            'recurringGroups' => RecurringGroup::where('user_id', $userId)
+                ->where('status', RecurringGroup::STATUS_CONFIRMED)
+                ->get()
+                ->map(fn ($rg) => [
+                    'id' => $rg->id,
+                    'name' => $rg->name,
+                    'interval' => $rg->interval,
+                ])->values()->all(),
+            'accounts' => $user->accounts->map(fn ($a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'currency' => $a->currency,
+            ])->values()->all(),
             'existingBudgets' => $existingBudgets->map(function (array $row) {
                 /** @var Budget $budget */
                 $budget = $row['budget'];
@@ -166,6 +173,12 @@ class BudgetController extends Controller
                 return [
                     'id' => $budget->id,
                     'category_id' => $budget->category_id,
+                    'tag_id' => $budget->tag_id,
+                    'counterparty_id' => $budget->counterparty_id,
+                    'recurring_group_id' => $budget->recurring_group_id,
+                    'account_id' => $budget->account_id,
+                    'target_type' => $budget->target_type,
+                    'target_key' => $budget->target_key,
                     'amount' => (float) $budget->amount,
                     'currency' => $budget->currency,
                     'period_type' => $budget->period_type,
@@ -185,6 +198,15 @@ class BudgetController extends Controller
         $suggestions = $this->budgetService->getSuggestedAmounts($this->getAuthUserId());
 
         return response()->json(['suggestions' => $suggestions]);
+    }
+
+    public function suggestSubscriptionAmounts(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Budget::class);
+
+        $suggestions = $this->budgetService->getSubscriptionSuggestions($this->getAuthUserId());
+
+        return response()->json($suggestions);
     }
 
     public function store(StoreBudgetRequest $request): RedirectResponse
@@ -246,5 +268,79 @@ class BudgetController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Period amount updated.');
+    }
+
+    /**
+     * Serialize a budget row with progress data for frontend.
+     *
+     * @param  array{budget: Budget, period: BudgetPeriod|null, spent: float, remaining: float, percentage_used: float, is_exceeded: bool, pace_percentage: float, projected_total: float, days_elapsed: int, days_in_period: int}  $row
+     * @return array<string, mixed>
+     */
+    private function serializeBudgetWithProgress(array $row): array
+    {
+        /** @var Budget $budget */
+        $budget = $row['budget'];
+        /** @var BudgetPeriod|null $period */
+        $period = $row['period'];
+
+        return [
+            'id' => $budget->id,
+            'user_id' => $budget->user_id,
+            'category_id' => $budget->category_id,
+            'tag_id' => $budget->tag_id,
+            'counterparty_id' => $budget->counterparty_id,
+            'recurring_group_id' => $budget->recurring_group_id,
+            'account_id' => $budget->account_id,
+            'target_type' => $budget->target_type,
+            'include_transfers' => (bool) $budget->include_transfers,
+            'category' => $budget->category ? [
+                'id' => $budget->category->id,
+                'name' => $budget->category->name,
+                'color' => $budget->category->color,
+                'icon' => $budget->category->icon,
+            ] : null,
+            'tag' => $budget->tag ? [
+                'id' => $budget->tag->id,
+                'name' => $budget->tag->name,
+                'color' => $budget->tag->color ?? null,
+            ] : null,
+            'counterparty' => $budget->counterparty ? [
+                'id' => $budget->counterparty->id,
+                'name' => $budget->counterparty->name,
+            ] : null,
+            'recurring_group' => $budget->recurringGroup ? [
+                'id' => $budget->recurringGroup->id,
+                'name' => $budget->recurringGroup->name,
+            ] : null,
+            'account' => $budget->relationLoaded('account') && $budget->account ? [
+                'id' => $budget->account->id,
+                'name' => $budget->account->name,
+            ] : null,
+            'amount' => (float) $budget->amount,
+            'currency' => $budget->currency,
+            'mode' => $budget->mode,
+            'period_type' => $budget->period_type,
+            'name' => $budget->name,
+            'rollover_enabled' => $budget->rollover_enabled,
+            'rollover_cap' => $budget->rollover_cap !== null ? (float) $budget->rollover_cap : null,
+            'include_subcategories' => $budget->include_subcategories,
+            'is_active' => $budget->is_active,
+            'period' => $period ? [
+                'id' => $period->id,
+                'start_date' => $period->start_date->format('Y-m-d'),
+                'end_date' => $period->end_date->format('Y-m-d'),
+                'amount_budgeted' => (float) $period->amount_budgeted,
+                'rollover_amount' => (float) $period->rollover_amount,
+                'status' => $period->status,
+            ] : null,
+            'spent' => $row['spent'],
+            'remaining' => $row['remaining'],
+            'percentage_used' => $row['percentage_used'],
+            'is_exceeded' => $row['is_exceeded'],
+            'pace_percentage' => $row['pace_percentage'],
+            'projected_total' => $row['projected_total'],
+            'days_elapsed' => $row['days_elapsed'],
+            'days_in_period' => $row['days_in_period'],
+        ];
     }
 }

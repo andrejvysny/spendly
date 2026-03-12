@@ -38,6 +38,7 @@ class UpdateBudgetRequest extends FormRequest
             'rollover_enabled' => ['sometimes', 'boolean'],
             'rollover_cap' => ['nullable', 'numeric', 'min:0'],
             'include_subcategories' => ['sometimes', 'boolean'],
+            'include_transfers' => ['sometimes', 'boolean'],
             'auto_create_next' => ['sometimes', 'boolean'],
             'overall_limit_mode' => ['nullable', 'string', Rule::in(['independent', 'sum', 'pool'])],
             'is_active' => ['sometimes', 'boolean'],

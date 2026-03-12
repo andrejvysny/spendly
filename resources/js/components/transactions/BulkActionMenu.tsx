@@ -1,180 +1,70 @@
-import { TextareaInput, TextInput } from '@/components/ui/form-inputs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SmartForm } from '@/components/ui/smart-form';
-import { Category, Counterparty, Transaction } from '@/types/index';
-import axios from 'axios';
+import BulkCategoryPanel from '@/components/transactions/bulk-actions/BulkCategoryPanel';
+import BulkCounterpartyPanel from '@/components/transactions/bulk-actions/BulkCounterpartyPanel';
+import BulkDeletePanel from '@/components/transactions/bulk-actions/BulkDeletePanel';
+import BulkNotePanel from '@/components/transactions/bulk-actions/BulkNotePanel';
+import BulkRecurringPanel from '@/components/transactions/bulk-actions/BulkRecurringPanel';
+import BulkTagPanel from '@/components/transactions/bulk-actions/BulkTagPanel';
+import BulkTransferPanel from '@/components/transactions/bulk-actions/BulkTransferPanel';
+import { Category, Counterparty, RecurringGroup, Tag, Transaction } from '@/types/index';
 import { useState } from 'react';
-import { z } from 'zod';
+
+type ActiveMenu = 'category' | 'counterparty' | 'note' | 'tags' | 'transfer' | 'recurring' | 'delete' | null;
+
+interface BulkUpdateData {
+    ids: string[];
+    category_id?: string | null;
+    counterparty_id?: string | null;
+    recurring_group_id?: string | null;
+    updated_transactions?: Array<{ id: number; note?: string; tags?: Tag[] }>;
+    type?: string;
+    deleted_ids?: string[];
+}
 
 interface Props {
     selectedTransactions: string[];
     transactions?: Transaction[];
     categories?: Category[];
     counterparties?: Counterparty[];
-    onUpdate: (data?: {
-        ids: string[];
-        category_id?: string | null;
-        counterparty_id?: string | null;
-        updated_transactions?: Array<{ id: number; note: string }>;
-    }) => void;
+    tags?: Tag[];
+    recurringGroups?: RecurringGroup[];
+    onUpdate: (data?: BulkUpdateData) => void;
 }
 
-const categorySchema = z.object({
-    name: z.string().min(1, 'Name is required'),
-    color: z.string().min(1, 'Color is required'),
-    icon: z.string().optional(),
-    description: z.string().optional(),
-});
+export default function BulkActionMenu({
+    selectedTransactions,
+    transactions = [],
+    categories = [],
+    counterparties = [],
+    tags = [],
+    recurringGroups = [],
+    onUpdate,
+}: Props) {
+    const [activeMenu, setActiveMenu] = useState<ActiveMenu>(null);
 
-const counterpartySchema = z.object({
-    name: z.string().min(1, 'Name is required'),
-    description: z.string().optional(),
-    logo: z.string().optional(),
-});
-
-const noteSchema = z.object({
-    note: z.string().min(1, 'Note is required'),
-});
-
-type CategoryFormValues = z.infer<typeof categorySchema>;
-type CounterpartyFormValues = z.infer<typeof counterpartySchema>;
-type NoteFormValues = z.infer<typeof noteSchema>;
-
-/**
- * Displays a menu for bulk assigning categories or counterparties to selected transactions, with options to create new categories or counterparties inline.
- *
- * @param selectedTransactions - Array of transaction IDs to update.
- * @param transactions - Array of transaction objects (optional, used for calculating totals).
- * @param categories - Optional list of available categories for assignment.
- * @param counterparties - Optional list of available counterparties for assignment.
- * @param onUpdate - Callback invoked after a successful assignment or when the menu is closed.
- *
- * @returns The bulk action menu UI, or `null` if no transactions are selected.
- */
-export default function BulkActionMenu({ selectedTransactions, transactions = [], categories = [], counterparties = [], onUpdate }: Props) {
-    const [activeMenu, setActiveMenu] = useState<'category' | 'counterparty' | 'note' | null>(null);
-    const [selectedCategory, setSelectedCategory] = useState<string>('');
-    const [selectedCounterparty, setSelectedCounterparty] = useState<string>('');
-    const [isCreatingCategory, setIsCreatingCategory] = useState(false);
-    const [isCreatingCounterparty, setIsCreatingCounterparty] = useState(false);
-
-    // Calculate totals
     const selectedTransactionObjects = transactions.filter((t) => selectedTransactions.includes(String(t.id)));
     const relativeTotal = selectedTransactionObjects.reduce((sum, t) => sum + Number(t.amount), 0);
     const absoluteTotal = selectedTransactionObjects.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
     const currency = selectedTransactionObjects.length > 0 ? selectedTransactionObjects[0].currency : 'EUR';
 
-    const handleAssignCategory = async () => {
-        if (!selectedCategory) return;
-
-        try {
-            const categoryId = selectedCategory === 'none' ? '' : selectedCategory;
-            await axios.post('/transactions/bulk-update', {
-                transaction_ids: selectedTransactions,
-                category_id: categoryId,
-            });
-            onUpdate({
-                ids: selectedTransactions,
-                category_id: categoryId === '' ? null : categoryId,
-            });
-            setActiveMenu(null);
-            setSelectedCategory('');
-        } catch (error) {
-            console.error('Failed to assign category:', error);
-        }
+    const handleComplete = (data?: BulkUpdateData) => {
+        onUpdate(data);
+        setActiveMenu(null);
     };
 
-    const handleAssignCounterparty = async () => {
-        if (!selectedCounterparty) return;
+    const toggleMenu = (menu: ActiveMenu) => setActiveMenu(activeMenu === menu ? null : menu);
 
-        try {
-            const counterpartyId = selectedCounterparty === 'none' ? '' : selectedCounterparty;
-            await axios.post('/transactions/bulk-update', {
-                transaction_ids: selectedTransactions,
-                counterparty_id: counterpartyId,
-            });
-            onUpdate({
-                ids: selectedTransactions,
-                counterparty_id: counterpartyId === '' ? null : counterpartyId,
-            });
-            setActiveMenu(null);
-            setSelectedCounterparty('');
-        } catch (error) {
-            console.error('Failed to assign counterparty:', error);
-        }
-    };
-
-    const handleCreateCategory = async (values: CategoryFormValues) => {
-        try {
-            const response = await axios.post('/categories', values);
-            const newCategory = response.data;
-
-            await axios.post('/transactions/bulk-update', {
-                transaction_ids: selectedTransactions,
-                category_id: newCategory.id,
-            });
-
-            onUpdate({
-                ids: selectedTransactions,
-                category_id: String(newCategory.id),
-            });
-            setActiveMenu(null);
-            setIsCreatingCategory(false);
-        } catch (error) {
-            console.error('Failed to create category:', error);
-        }
-    };
-
-    const handleCreateCounterparty = async (values: CounterpartyFormValues) => {
-        try {
-            const response = await axios.post('/counterparties', values);
-            const newCounterparty = response.data;
-
-            await axios.post('/transactions/bulk-update', {
-                transaction_ids: selectedTransactions,
-                counterparty_id: newCounterparty.id,
-            });
-
-            onUpdate({
-                ids: selectedTransactions,
-                counterparty_id: String(newCounterparty.id),
-            });
-            setActiveMenu(null);
-            setIsCreatingCounterparty(false);
-        } catch (error) {
-            console.error('Failed to create counterparty:', error);
-        }
-    };
-
-    const handleNote = async (values: NoteFormValues, event?: React.BaseSyntheticEvent) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const submitter = (event?.nativeEvent as any)?.submitter;
-        if (submitter?.name === 'replace') {
-            await handleAddNote(values, 'replace');
-        } else if (submitter?.name === 'append') {
-            await handleAddNote(values, 'append');
-        }
-    };
-
-    const handleAddNote = async (values: NoteFormValues, method: 'replace' | 'append') => {
-        try {
-            const response = await axios.post('/transactions/bulk-note-update', {
-                transaction_ids: selectedTransactions,
-                note: values.note,
-                method: method,
-            });
-
-            onUpdate({
-                ids: selectedTransactions,
-                updated_transactions: response.data.updated_transactions,
-            });
-            setActiveMenu(null);
-        } catch (error) {
-            console.error('Failed to update notes:', error);
-        }
-    };
+    const actionButtonClass = (menu: ActiveMenu) =>
+        `w-full rounded-md px-3 py-1.5 text-sm font-medium ${
+            activeMenu === menu ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+        }`;
 
     if (selectedTransactions.length === 0) return null;
+
+    const panelProps = {
+        selectedTransactions,
+        transactions,
+        onComplete: handleComplete,
+    };
 
     return (
         <div className="fixed right-4 bottom-4 z-50">
@@ -217,208 +107,48 @@ export default function BulkActionMenu({ selectedTransactions, transactions = []
                     </div>
                 </div>
 
-                {/* Actions */}
+                {/* Action buttons */}
                 <div className="p-3">
                     <div className="space-y-1.5">
-                        <button
-                            onClick={() => setActiveMenu(activeMenu === 'category' ? null : 'category')}
-                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
-                                activeMenu === 'category'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                            }`}
-                        >
+                        <button onClick={() => toggleMenu('category')} className={actionButtonClass('category')}>
                             Assign Category
                         </button>
-
-                        <button
-                            onClick={() => setActiveMenu(activeMenu === 'counterparty' ? null : 'counterparty')}
-                            className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
-                                activeMenu === 'counterparty'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                            }`}
-                        >
+                        <button onClick={() => toggleMenu('counterparty')} className={actionButtonClass('counterparty')}>
                             Assign Counterparty
                         </button>
-
+                        <button onClick={() => toggleMenu('note')} className={actionButtonClass('note')}>
+                            Add Note
+                        </button>
+                        <button onClick={() => toggleMenu('tags')} className={actionButtonClass('tags')}>
+                            Manage Tags
+                        </button>
+                        <button onClick={() => toggleMenu('transfer')} className={actionButtonClass('transfer')}>
+                            Transfer
+                        </button>
+                        <button onClick={() => toggleMenu('recurring')} className={actionButtonClass('recurring')}>
+                            Recurring Group
+                        </button>
                         <button
-                            onClick={() => setActiveMenu(activeMenu === 'note' ? null : 'note')}
+                            onClick={() => toggleMenu('delete')}
                             className={`w-full rounded-md px-3 py-1.5 text-sm font-medium ${
-                                activeMenu === 'note'
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                                activeMenu === 'delete' ? 'bg-red-600 text-white' : 'bg-secondary hover:bg-secondary/80 text-red-600'
                             }`}
                         >
-                            Add Note
+                            Delete
                         </button>
                     </div>
                 </div>
 
-                {/* Category Selection Panel */}
-                {activeMenu === 'category' && (
+                {/* Active panel */}
+                {activeMenu && (
                     <div className="border-border border-t p-3">
-                        {isCreatingCategory ? (
-                            <SmartForm schema={categorySchema} onSubmit={handleCreateCategory} formProps={{ className: 'space-y-3' }}>
-                                {() => (
-                                    <>
-                                        <TextInput<CategoryFormValues> name="name" placeholder="Category Name" />
-                                        <TextInput<CategoryFormValues> name="color" type="color" label="Color" />
-                                        <TextInput<CategoryFormValues> name="description" placeholder="Description (optional)" />
-                                        <div className="flex gap-2">
-                                            <button
-                                                type="submit"
-                                                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium"
-                                            >
-                                                Create & Assign
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsCreatingCategory(false)}
-                                                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md px-3 py-1.5 text-sm font-medium"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </SmartForm>
-                        ) : (
-                            <div className="space-y-2">
-                                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">None (Remove Category)</SelectItem>
-                                        {categories && categories.length > 0 ? (
-                                            categories.map((category) => (
-                                                <SelectItem key={category.id} value={String(category.id)}>
-                                                    {category.name}
-                                                </SelectItem>
-                                            ))
-                                        ) : (
-                                            <SelectItem value="no-categories" disabled>
-                                                No categories available
-                                            </SelectItem>
-                                        )}
-                                    </SelectContent>
-                                </Select>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={handleAssignCategory}
-                                        disabled={!selectedCategory}
-                                        className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-                                    >
-                                        Apply
-                                    </button>
-                                    <button
-                                        onClick={() => setIsCreatingCategory(true)}
-                                        className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md px-3 py-1.5 text-sm font-medium"
-                                    >
-                                        Create New
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Counterparty Selection Panel */}
-                {activeMenu === 'counterparty' && (
-                    <div className="border-border border-t p-3">
-                        {isCreatingCounterparty ? (
-                            <SmartForm schema={counterpartySchema} onSubmit={handleCreateCounterparty} formProps={{ className: 'space-y-3' }}>
-                                {() => (
-                                    <>
-                                        <TextInput<CounterpartyFormValues> name="name" placeholder="Counterparty Name" />
-                                        <TextInput<CounterpartyFormValues> name="description" placeholder="Description (optional)" />
-                                        <div className="flex gap-2">
-                                            <button
-                                                type="submit"
-                                                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium"
-                                            >
-                                                Create & Assign
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsCreatingCounterparty(false)}
-                                                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md px-3 py-1.5 text-sm font-medium"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </SmartForm>
-                        ) : (
-                            <div className="space-y-2">
-                                <Select value={selectedCounterparty} onValueChange={setSelectedCounterparty}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a counterparty" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">None (Remove Counterparty)</SelectItem>
-                                        {counterparties && counterparties.length > 0 ? (
-                                            counterparties.map((counterparty) => (
-                                                <SelectItem key={counterparty.id} value={String(counterparty.id)}>
-                                                    {counterparty.name}
-                                                </SelectItem>
-                                            ))
-                                        ) : (
-                                            <SelectItem value="no-counterparties" disabled>
-                                                No counterparties available
-                                            </SelectItem>
-                                        )}
-                                    </SelectContent>
-                                </Select>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={handleAssignCounterparty}
-                                        disabled={!selectedCounterparty}
-                                        className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-                                    >
-                                        Apply
-                                    </button>
-                                    <button
-                                        onClick={() => setIsCreatingCounterparty(true)}
-                                        className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md px-3 py-1.5 text-sm font-medium"
-                                    >
-                                        Create New
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-                {/* Note Addition Panel */}
-                {activeMenu === 'note' && (
-                    <div className="border-border border-t p-3">
-                        <div className="space-y-2">
-                            <SmartForm schema={noteSchema} onSubmit={handleNote} formProps={{ className: 'space-y-3' }}>
-                                {() => (
-                                    <>
-                                        <TextareaInput<NoteFormValues> name="note" label="" placeholder="Note" />
-                                        <div className="flex gap-2">
-                                            <button
-                                                type="submit"
-                                                name="replace"
-                                                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium"
-                                            >
-                                                Replace note
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                name="append"
-                                                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-md px-3 py-1.5 text-sm font-medium"
-                                            >
-                                                Append note
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </SmartForm>
-                        </div>
+                        {activeMenu === 'category' && <BulkCategoryPanel {...panelProps} categories={categories} />}
+                        {activeMenu === 'counterparty' && <BulkCounterpartyPanel {...panelProps} counterparties={counterparties} />}
+                        {activeMenu === 'note' && <BulkNotePanel {...panelProps} />}
+                        {activeMenu === 'tags' && <BulkTagPanel {...panelProps} tags={tags} />}
+                        {activeMenu === 'transfer' && <BulkTransferPanel {...panelProps} />}
+                        {activeMenu === 'recurring' && <BulkRecurringPanel {...panelProps} recurringGroups={recurringGroups} />}
+                        {activeMenu === 'delete' && <BulkDeletePanel {...panelProps} />}
                     </div>
                 )}
             </div>

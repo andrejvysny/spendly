@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             CounterpartySeeder::class,
             TagSeeder::class,
             TransactionSeeder::class,
+            BudgetSeeder::class,
         ]);
     }
 }

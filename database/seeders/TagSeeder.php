@@ -10,7 +10,7 @@ class TagSeeder extends Seeder
 {
     public function run(): void
     {
-        $user = User::where('email', 'demo@example.com')->first();
+        $user = User::where('email', 'demo@example.com')->firstOrFail();
 
         $tags = [
             [

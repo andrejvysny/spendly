@@ -34,6 +34,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/transactions-store', [TransactionController::class, 'store'])->name('transactions.store');
     Route::post('/transactions/bulk-update', [TransactionController::class, 'bulkUpdate'])->name('transactions.bulk-update');
     Route::post('/transactions/bulk-note-update', [TransactionController::class, 'bulkNoteUpdate'])->name('transactions.bulk-note-update');
+    Route::post('/transactions/bulk-tag-update', [TransactionController::class, 'bulkTagUpdate'])->name('transactions.bulk-tag-update');
+    Route::post('/transactions/bulk-type-update', [TransactionController::class, 'bulkTypeUpdate'])->name('transactions.bulk-type-update');
+    Route::post('/transactions/bulk-delete', [TransactionController::class, 'bulkDelete'])->name('transactions.bulk-delete');
     Route::put('/transactions/{transaction}', [TransactionController::class, 'updateTransaction'])->name('transactions.update');
 
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
@@ -68,6 +71,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/budgets', [BudgetController::class, 'index'])->name('budgets.index');
     Route::get('/budgets/builder', [BudgetController::class, 'builder'])->name('budgets.builder');
     Route::get('/budgets/suggestions', [BudgetController::class, 'suggestAmounts'])->name('budgets.suggestions');
+    Route::get('/budgets/subscription-suggestions', [BudgetController::class, 'suggestSubscriptionAmounts'])->name('budgets.subscription-suggestions');
     Route::post('/budgets', [BudgetController::class, 'store'])->name('budgets.store');
     Route::put('/budgets/{budget}', [BudgetController::class, 'update'])->name('budgets.update');
     Route::get('/budgets/{budget}/history', [BudgetController::class, 'history'])->name('budgets.history');
