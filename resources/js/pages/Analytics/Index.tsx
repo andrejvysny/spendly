@@ -105,7 +105,8 @@ interface AnalyticsProps extends PageProps {
         end: string;
     };
     period: string;
-    currency_error?: string | null;
+    is_converted?: boolean;
+    display_currency?: string;
 }
 
 // Define breadcrumbs for consistent navigation
@@ -127,7 +128,8 @@ export default function Index({
     counterpartySpending,
     dateRange,
     period: initialPeriod,
-    currency_error: initialCurrencyError,
+    is_converted: isConverted,
+    display_currency: displayCurrency,
 }: AnalyticsProps & {
     categorySpending: CategorySpendingData;
     counterpartySpending: CounterpartySpendingData;
@@ -141,11 +143,7 @@ export default function Index({
     // Balance history state
     const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryData | null>(null);
     const [loadingBalanceHistory, setLoadingBalanceHistory] = useState(false);
-    const [balanceHistoryError, setBalanceHistoryError] = useState<string | null>(initialCurrencyError ?? null);
-
-    useEffect(() => {
-        setBalanceHistoryError(initialCurrencyError ?? null);
-    }, [initialCurrencyError]);
+    const [balanceHistoryError, setBalanceHistoryError] = useState<string | null>(null);
 
     // Recurring overview state
     const [recurringGroups, setRecurringGroups] = useState<RecurringGroupItem[]>([]);
@@ -214,7 +212,7 @@ export default function Index({
                     end_date: value.to,
                     account_ids: selectedAccounts,
                 },
-                only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'currency_error'],
+                only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'is_converted', 'display_currency'],
                 preserveState: true,
             });
         }
@@ -237,7 +235,7 @@ export default function Index({
 
         router.visit('/analytics', {
             data,
-            only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'currency_error'],
+            only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'is_converted', 'display_currency'],
             preserveState: true,
         });
     };
@@ -254,7 +252,7 @@ export default function Index({
                     specific_month: newValue,
                     account_ids: selectedAccounts,
                 } as Record<string, string | number | boolean | File | null | number[]>,
-                only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'currency_error'],
+                only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'is_converted', 'display_currency'],
                 preserveState: true,
             });
         }
@@ -283,7 +281,7 @@ export default function Index({
         // Use router.visit instead of reload to avoid parameter accumulation
         router.visit('/analytics', {
             data,
-            only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'selectedAccountIds', 'currency_error'],
+            only: ['cashflow', 'categorySpending', 'counterpartySpending', 'dateRange', 'selectedAccountIds', 'is_converted', 'display_currency'],
             preserveState: true,
         });
     };
@@ -636,7 +634,7 @@ export default function Index({
     const totalExpenses = cashflow.reduce((sum, item) => sum + item.total_expenses, 0);
     const netBalance = totalIncome - totalExpenses;
     const totalTransactions = cashflow.reduce((sum, item) => sum + item.transaction_count, 0);
-    const analyticsError = initialCurrencyError ?? balanceHistoryError;
+    const analyticsError = balanceHistoryError;
 
     // Format balance history for chart
     const formatBalanceHistoryForChart = (): ChartData<'line'> => {
@@ -851,7 +849,7 @@ export default function Index({
                         <MultiSelect
                             options={accounts.map((account) => ({
                                 value: account.id,
-                                label: account.name,
+                                label: `${account.name} (${account.currency})`,
                                 description: `${formatAmount(account.balance, account.currency)}`,
                             }))}
                             selected={selectedAccounts}
@@ -865,8 +863,10 @@ export default function Index({
                     </div>
                 </div>
 
-                {analyticsError && !noAccountsSelected && (
-                    <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">{analyticsError}</div>
+                {isConverted && !noAccountsSelected && (
+                    <div className="text-muted-foreground rounded-lg border border-dashed px-4 py-2 text-xs">
+                        Amounts converted to {displayCurrency ?? 'EUR'} at historical ECB rates
+                    </div>
                 )}
 
                 {/* Controls and Summary Section */}

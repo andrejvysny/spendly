@@ -11,6 +11,7 @@ use App\Models\RecurringGroup;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\BudgetService;
+use App\Services\ExchangeRateService;
 use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,6 +23,7 @@ class DashboardController extends Controller
         private TransactionRepositoryInterface $transactionRepository,
         private AnalyticsRepositoryInterface $analyticsRepository,
         private BudgetService $budgetService,
+        private ExchangeRateService $exchangeRateService,
     ) {}
 
     public function index(): Response
@@ -33,21 +35,25 @@ class DashboardController extends Controller
         /** @var array<int> $accountIds */
         $accountIds = $accounts->pluck('id')->toArray();
 
+        // Check if accounts span multiple currencies
+        $isMultiCurrency = $accounts->pluck('currency')->filter()->unique()->count() > 1;
+        $baseCurrency = $user->base_currency ?? 'EUR';
+
         // Recent Transactions (5)
         $recentTransactions = $this->transactionRepository->getRecentByAccounts($accountIds, 5);
 
-        // Current month stats
+        // Current month stats (use native_amount for multi-currency)
         $currentMonthStart = now()->startOfMonth();
         $currentMonthEnd = now()->endOfMonth();
-        $currentMonthStats = $this->getMonthStats($accountIds, $currentMonthStart, $currentMonthEnd);
+        $currentMonthStats = $this->getMonthStats($accountIds, $currentMonthStart, $currentMonthEnd, $isMultiCurrency);
 
         // Previous month stats
         $prevMonthStart = now()->subMonth()->startOfMonth();
         $prevMonthEnd = now()->subMonth()->endOfMonth();
-        $previousMonthStats = $this->getMonthStats($accountIds, $prevMonthStart, $prevMonthEnd);
+        $previousMonthStats = $this->getMonthStats($accountIds, $prevMonthStart, $prevMonthEnd, $isMultiCurrency);
 
         // Expenses by Category (Current Month)
-        $expensesByCategory = $this->getExpensesByCategory($accountIds, $currentMonthStart, $currentMonthEnd, $currentMonthStats['expenses']);
+        $expensesByCategory = $this->getExpensesByCategory($accountIds, $currentMonthStart, $currentMonthEnd, $currentMonthStats['expenses'], $isMultiCurrency);
 
         // Balance History (12 months)
         $balanceStart = now()->subMonths(11)->startOfMonth();
@@ -57,6 +63,22 @@ class DashboardController extends Controller
             ->pluck('balance', 'id')
             ->map(fn ($balance) => (float) $balance)
             ->toArray();
+
+        // For multi-currency: convert balances to base currency
+        if ($isMultiCurrency) {
+            $today = Carbon::today();
+            foreach ($accounts as $account) {
+                if ($account->currency !== $baseCurrency && $account->currency !== null) {
+                    $currentBalances[$account->id] = $this->exchangeRateService->convert(
+                        (float) $account->balance,
+                        $account->currency,
+                        $baseCurrency,
+                        $today
+                    );
+                }
+            }
+        }
+
         $monthlyBalances = $this->analyticsRepository->getBalanceHistory(
             $accountIds,
             $currentBalances,
@@ -100,6 +122,7 @@ class DashboardController extends Controller
             'topCounterparties' => $topCounterparties,
             'upcomingRecurring' => $upcomingRecurring,
             'spendingPace' => $spendingPace,
+            'is_converted' => $isMultiCurrency,
         ]);
     }
 
@@ -107,19 +130,21 @@ class DashboardController extends Controller
      * @param  array<int>  $accountIds
      * @return array{income: float, expenses: float}
      */
-    private function getMonthStats(array $accountIds, Carbon $start, Carbon $end): array
+    private function getMonthStats(array $accountIds, Carbon $start, Carbon $end, bool $useNativeAmount = false): array
     {
         if ($accountIds === []) {
             return ['income' => 0.0, 'expenses' => 0.0];
         }
 
+        $amountCol = $useNativeAmount ? 'native_amount' : 'amount';
+
         $stats = Transaction::whereIn('account_id', $accountIds)
             ->whereBetween('booked_date', [$start, $end])
             ->where('type', '!=', Transaction::TYPE_TRANSFER)
-            ->selectRaw('
-                SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as income,
-                SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END) as expenses
-            ')
+            ->selectRaw("
+                SUM(CASE WHEN {$amountCol} > 0 THEN {$amountCol} ELSE 0 END) as income,
+                SUM(CASE WHEN {$amountCol} < 0 THEN {$amountCol} ELSE 0 END) as expenses
+            ")
             ->first();
 
         return [
@@ -132,19 +157,21 @@ class DashboardController extends Controller
      * @param  array<int>  $accountIds
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
      */
-    private function getExpensesByCategory(array $accountIds, Carbon $start, Carbon $end, float $totalExpenses): \Illuminate\Support\Collection
+    private function getExpensesByCategory(array $accountIds, Carbon $start, Carbon $end, float $totalExpenses, bool $useNativeAmount = false): \Illuminate\Support\Collection
     {
         if ($accountIds === []) {
             return collect();
         }
 
+        $amountCol = $useNativeAmount ? 'native_amount' : 'amount';
+
         $expenses = Transaction::whereIn('account_id', $accountIds)
             ->whereBetween('booked_date', [$start, $end])
-            ->where('amount', '<', 0)
+            ->where($amountCol, '<', 0)
             ->where('type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNotNull('category_id')
             ->with('category')
-            ->selectRaw('category_id, SUM(ABS(amount)) as total_amount')
+            ->selectRaw("category_id, SUM(ABS({$amountCol})) as total_amount")
             ->groupBy('category_id')
             ->orderByDesc('total_amount')
             ->limit(5)

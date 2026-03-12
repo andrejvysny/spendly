@@ -12,11 +12,18 @@ use Illuminate\Support\Facades\DB;
 
 class AnalyticsRepository implements AnalyticsRepositoryInterface
 {
+    private const array ALLOWED_AMOUNT_COLUMNS = ['amount', 'native_amount'];
+
+    private function resolveAmountColumn(bool $useNativeAmount): string
+    {
+        return $useNativeAmount ? 'native_amount' : 'amount';
+    }
+
     /**
      * @param  array<int>  $accountIds
      * @return Collection<int, mixed>
      */
-    public function getCashflow(array $accountIds, Carbon $startDate, Carbon $endDate): Collection
+    public function getCashflow(array $accountIds, Carbon $startDate, Carbon $endDate, bool $useNativeAmount = false): Collection
     {
         if ($accountIds === []) {
             return collect();
@@ -28,11 +35,14 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ? $this->initializeDailyCashflowSeries($startDate, $endDate)
             : $this->initializeMonthlyCashflowSeries($startDate, $endDate);
 
+        $amountCol = $this->resolveAmountColumn($useNativeAmount);
+        assert(in_array($amountCol, self::ALLOWED_AMOUNT_COLUMNS, true));
+
         $transactions = DB::table('transactions')
             ->whereIn('account_id', $accountIds)
             ->where('booked_date', '>=', $startDate)
             ->where('booked_date', '<=', $endDate)
-            ->select('booked_date', 'amount', 'type')
+            ->select('booked_date', DB::raw("transactions.{$amountCol} as amount"), 'type')
             ->orderBy('booked_date')
             ->get();
 
@@ -65,23 +75,27 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
      * @param  array<int>  $accountIds
      * @return array{categorized: \Illuminate\Support\Collection, uncategorized: object|null}
      */
-    public function getCategorySpending(array $accountIds, Carbon $startDate, Carbon $endDate): array
+    public function getCategorySpending(array $accountIds, Carbon $startDate, Carbon $endDate, bool $useNativeAmount = false): array
     {
         if ($accountIds === []) {
             return ['categorized' => collect(), 'uncategorized' => null];
         }
 
+        $amountCol = $this->resolveAmountColumn($useNativeAmount);
+        assert(in_array($amountCol, self::ALLOWED_AMOUNT_COLUMNS, true));
+        $qualifiedCol = "transactions.{$amountCol}";
+
         $categorized = DB::table('transactions')
             ->join('categories', 'transactions.category_id', '=', 'categories.id')
             ->select(
                 'categories.name as category',
-                DB::raw('SUM(ABS(amount)) as total'),
+                DB::raw("SUM(ABS({$qualifiedCol})) as total"),
                 DB::raw('COUNT(*) as count')
             )
             ->whereIn('transactions.account_id', $accountIds)
             ->where('transactions.booked_date', '>=', $startDate)
             ->where('transactions.booked_date', '<=', $endDate)
-            ->where('transactions.amount', '<', 0)
+            ->where($qualifiedCol, '<', 0)
             ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNotNull('transactions.category_id')
             ->groupBy('categories.id', 'categories.name')
@@ -91,13 +105,13 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
 
         $uncategorized = DB::table('transactions')
             ->select(
-                DB::raw('SUM(ABS(amount)) as total'),
+                DB::raw("SUM(ABS(transactions.{$amountCol})) as total"),
                 DB::raw('COUNT(*) as count')
             )
             ->whereIn('account_id', $accountIds)
             ->where('booked_date', '>=', $startDate)
             ->where('booked_date', '<=', $endDate)
-            ->where('amount', '<', 0)
+            ->where($amountCol, '<', 0)
             ->where('type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNull('category_id')
             ->first();
@@ -112,23 +126,27 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
      * @param  array<int>  $accountIds
      * @return array{withCounterparty: \Illuminate\Support\Collection, noCounterparty: object|null}
      */
-    public function getCounterpartySpending(array $accountIds, Carbon $startDate, Carbon $endDate): array
+    public function getCounterpartySpending(array $accountIds, Carbon $startDate, Carbon $endDate, bool $useNativeAmount = false): array
     {
         if ($accountIds === []) {
             return ['withCounterparty' => collect(), 'noCounterparty' => null];
         }
 
+        $amountCol = $this->resolveAmountColumn($useNativeAmount);
+        assert(in_array($amountCol, self::ALLOWED_AMOUNT_COLUMNS, true));
+        $qualifiedCol = "transactions.{$amountCol}";
+
         $withCounterparty = DB::table('transactions')
             ->join('counterparties', 'transactions.counterparty_id', '=', 'counterparties.id')
             ->select(
                 'counterparties.name as counterparty',
-                DB::raw('SUM(ABS(transactions.amount)) as total'),
+                DB::raw("SUM(ABS({$qualifiedCol})) as total"),
                 DB::raw('COUNT(*) as count')
             )
             ->whereIn('transactions.account_id', $accountIds)
             ->where('transactions.booked_date', '>=', $startDate)
             ->where('transactions.booked_date', '<=', $endDate)
-            ->where('transactions.amount', '<', 0)
+            ->where($qualifiedCol, '<', 0)
             ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNotNull('transactions.counterparty_id')
             ->groupBy('counterparties.id', 'counterparties.name')
@@ -138,13 +156,13 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
 
         $noCounterparty = DB::table('transactions')
             ->select(
-                DB::raw('SUM(ABS(amount)) as total'),
+                DB::raw("SUM(ABS(transactions.{$amountCol})) as total"),
                 DB::raw('COUNT(*) as count')
             )
             ->whereIn('account_id', $accountIds)
             ->where('booked_date', '>=', $startDate)
             ->where('booked_date', '<=', $endDate)
-            ->where('amount', '<', 0)
+            ->where($amountCol, '<', 0)
             ->where('type', '!=', Transaction::TYPE_TRANSFER)
             ->whereNull('counterparty_id')
             ->first();

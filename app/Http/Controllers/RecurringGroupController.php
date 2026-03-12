@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\RecurringDetectionSetting;
 use App\Models\RecurringGroup;
+use App\Models\Transaction;
 use App\Services\RecurringDetectionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,6 +49,27 @@ class RecurringGroupController extends Controller
 
         $suggested = $groups->where('status', RecurringGroup::STATUS_SUGGESTED)->values();
         $confirmed = $groups->where('status', RecurringGroup::STATUS_CONFIRMED)->values();
+
+        // Batch-load transactions for suggested groups from detection_config_snapshot
+        $suggestedTxIds = $suggested->flatMap(
+            fn (RecurringGroup $g) => $g->detection_config_snapshot['transaction_ids'] ?? []
+        )->unique()->values();
+
+        if ($suggestedTxIds->isNotEmpty()) {
+            $suggestedTxns = Transaction::whereIn('id', $suggestedTxIds)
+                ->select(['id', 'amount', 'currency', 'booked_date', 'description', 'counterparty_id', 'account_id'])
+                ->with(['counterparty:id,name', 'account:id,name'])
+                ->orderBy('booked_date', 'desc')
+                ->get()
+                ->keyBy('id');
+
+            $suggested->each(function (RecurringGroup $group) use ($suggestedTxns): void {
+                $ids = $group->detection_config_snapshot['transaction_ids'] ?? [];
+                $group->setAttribute('suggested_transactions',
+                    collect($ids)->map(fn (int $id) => $suggestedTxns->get($id))->filter()->values()
+                );
+            });
+        }
 
         return response()->json([
             'data' => [
