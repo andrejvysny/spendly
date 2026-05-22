@@ -4,3 +4,10 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .ipynb_checkpoints/
+
+# ML data artifacts (persisted at runtime)
+data/vectors/*.json
+data/models/*.joblib
+data/models/*_manifest.json
+!data/vectors/.gitkeep
+!data/models/.gitkeep
