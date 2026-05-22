@@ -106,9 +106,11 @@ class AnalyticsController extends Controller
                 break;
             case 'specific_month':
                 if ($specificMonth) {
-                    $monthDate = Carbon::createFromFormat('Y-m', $specificMonth);
-                    $start = $monthDate->copy()->startOfMonth();
-                    $end = $monthDate->copy()->endOfMonth()->endOfDay();
+                    $monthDate = Carbon::createFromFormat('Y-m', (string) $specificMonth);
+                    if ($monthDate !== null) {
+                        $start = $monthDate->copy()->startOfMonth();
+                        $end = $monthDate->copy()->endOfMonth()->endOfDay();
+                    }
                 }
                 break;
             case 'current_month':
@@ -291,6 +293,10 @@ class AnalyticsController extends Controller
 
         $firstMonth = Carbon::createFromFormat('Y-m', $validated['first_month']);
         $secondMonth = Carbon::createFromFormat('Y-m', $validated['second_month']);
+
+        if ($firstMonth === null || $secondMonth === null) {
+            return response()->json(['error' => 'Invalid month format'], 422);
+        }
 
         $firstStart = $firstMonth->copy()->startOfMonth();
         $firstEnd = $firstMonth->copy()->endOfMonth()->endOfDay();

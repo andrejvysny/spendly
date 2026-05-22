@@ -308,6 +308,85 @@ class RuleEngineTest extends TestCase
             ->assertJsonPath('data.total_matched', 1);
     }
 
+    /**
+     * stop_processing = true on the first matching rule must prevent subsequent rules from being applied.
+     * Directly exercises RuleEngine::processTransaction without going through the event queue.
+     */
+    public function test_stop_processing_flag_halts_subsequent_rules(): void
+    {
+        $category1 = Category::factory()->create(['user_id' => $this->user->id, 'name' => 'First']);
+        $category2 = Category::factory()->create(['user_id' => $this->user->id, 'name' => 'Second']);
+
+        $ruleGroup = $this->createRuleGroup();
+
+        // Rule 1 — stop_processing = true, sets category1
+        $this->ruleRepository->createRule($this->user, [
+            'rule_group_id' => $ruleGroup->id,
+            'name' => 'Stop Rule',
+            'trigger_type' => Trigger::TRANSACTION_CREATED->value,
+            'is_active' => true,
+            'stop_processing' => true,
+            'condition_groups' => [
+                [
+                    'logic_operator' => 'AND',
+                    'conditions' => [
+                        [
+                            'field' => ConditionField::FIELD_AMOUNT->value,
+                            'operator' => ConditionOperator::OPERATOR_GREATER_THAN->value,
+                            'value' => '0',
+                        ],
+                    ],
+                ],
+            ],
+            'actions' => [
+                [
+                    'action_type' => ActionType::ACTION_SET_CATEGORY->value,
+                    'action_value' => $category1->id,
+                ],
+            ],
+        ]);
+
+        // Rule 2 — also matches, should NOT run because rule 1 stopped processing
+        $this->ruleRepository->createRule($this->user, [
+            'rule_group_id' => $ruleGroup->id,
+            'name' => 'Second Rule',
+            'trigger_type' => Trigger::TRANSACTION_CREATED->value,
+            'is_active' => true,
+            'stop_processing' => false,
+            'condition_groups' => [
+                [
+                    'logic_operator' => 'AND',
+                    'conditions' => [
+                        [
+                            'field' => ConditionField::FIELD_AMOUNT->value,
+                            'operator' => ConditionOperator::OPERATOR_GREATER_THAN->value,
+                            'value' => '0',
+                        ],
+                    ],
+                ],
+            ],
+            'actions' => [
+                [
+                    'action_type' => ActionType::ACTION_SET_CATEGORY->value,
+                    'action_value' => $category2->id,
+                ],
+            ],
+        ]);
+
+        $transaction = Transaction::factory()->create([
+            'account_id' => $this->account->id,
+            'amount' => 50.00,
+        ]);
+        $transaction->load('account.user');
+
+        $ruleEngine = app(\App\Contracts\RuleEngine\RuleEngineInterface::class);
+        $ruleEngine->setUser($this->user)->processTransaction($transaction, Trigger::TRANSACTION_CREATED);
+
+        $transaction->refresh();
+        // Only rule 1 should have applied — category2 must not have been set
+        $this->assertEquals($category1->id, $transaction->category_id);
+    }
+
     private function createRuleGroup(): \App\Models\RuleEngine\RuleGroup
     {
         return $this->ruleRepository->createRuleGroup($this->user, [
