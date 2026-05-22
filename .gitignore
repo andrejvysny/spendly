@@ -32,3 +32,17 @@ yarn-error.log
 
 
 /sample_data
+
+# ml-intern (HuggingFace ML agent)
+/ml-intern/.env
+/ml-intern/data/*.jsonl
+/ml-intern/data/*.csv
+/ml-intern/data/*_mlx/
+/ml-intern/data/*_hf/
+/ml-intern/models/
+
+# Python bytecode caches
+**/__pycache__/
+
+# Postgres/ML compose env override
+.env.pg
