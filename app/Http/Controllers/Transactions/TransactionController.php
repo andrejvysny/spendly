@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Transactions;
 
 use App\Http\Controllers\Controller;
@@ -71,7 +73,7 @@ class TransactionController extends Controller
                 if ($transaction->amount > 0) {
                     $monthlySummaries[$month]['income'] += $transaction->amount;
                 } else {
-                    $monthlySummaries[$month]['expense'] += abs($transaction->amount);
+                    $monthlySummaries[$month]['expense'] += abs((float) $transaction->amount);
                 }
             }
             $monthlySummaries[$month]['balance'] += $transaction->amount;
@@ -580,6 +582,9 @@ class TransactionController extends Controller
                 if ($validated['type'] === Transaction::TYPE_TRANSFER && $transactions->count() === 2) {
                     $first = $transactions->first();
                     $second = $transactions->last();
+                    if ($first === null || $second === null) {
+                        return;
+                    }
                     $sum = abs($first->amount + $second->amount);
 
                     if ($sum <= 0.01) {
@@ -657,6 +662,10 @@ class TransactionController extends Controller
      */
     public function updateTransaction(Request $request, Transaction $transaction): JsonResponse
     {
+        // Verify transaction belongs to authenticated user
+        if ($transaction->account?->user_id !== Auth::id()) {
+            abort(403);
+        }
 
         $validated = $request->validate([
             'description' => 'nullable|string',
@@ -683,7 +692,9 @@ class TransactionController extends Controller
      */
     private function buildTransactionQuery(Request $request): array
     {
-        $userAccounts = Auth::user()->accounts()->pluck('id');
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $userAccounts = $user->accounts()->pluck('id');
 
         $query = Transaction::with([
             'account',
