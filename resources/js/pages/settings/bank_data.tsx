@@ -34,29 +34,16 @@ type BankDataForm = {
     gocardless_secret_key: string;
 };
 
-/**
- * Displays and manages GoCardless bank data settings, including credential management and linked bank account requisitions.
- *
- * Provides a form for updating GoCardless Secret ID and Secret Key, allows users to clear stored credentials, and displays a list of linked bank accounts (requisitions). Users can initiate the process to connect new bank accounts via an import wizard. The component fetches and displays requisition data when valid credentials are present.
- *
- * @param gocardless_secret_id - Optional initial GoCardless Secret ID to prefill the form.
- * @param gocardless_secret_key - Optional initial GoCardless Secret Key to prefill the form.
- * @param gocardless_use_mock - When true, sandbox (mock) is enabled; credentials are hidden and not required.
- *
- * @remark Reloads the page after clearing credentials or successfully connecting a new bank account.
- */
-export default function BankData({
-    gocardless_secret_id,
-    gocardless_secret_key,
-    gocardless_use_mock = false,
-}: {
-    gocardless_secret_id?: string;
-    gocardless_secret_key?: string;
+interface BankDataProps {
+    has_gocardless_credentials: boolean;
+    gocardless_secret_id_masked: string | null;
     gocardless_use_mock?: boolean;
-}) {
+}
+
+export default function BankData({ has_gocardless_credentials, gocardless_secret_id_masked, gocardless_use_mock = false }: BankDataProps) {
     const { data, setData, patch, errors, processing, recentlySuccessful } = useForm<BankDataForm>({
-        gocardless_secret_id: gocardless_secret_id || '',
-        gocardless_secret_key: gocardless_secret_key || '',
+        gocardless_secret_id: '',
+        gocardless_secret_key: '',
     });
 
     const submit: FormEventHandler = (e) => {
@@ -91,19 +78,15 @@ export default function BankData({
     }, []);
 
     useEffect(() => {
-        if (gocardless_use_mock) {
+        if (gocardless_use_mock || has_gocardless_credentials) {
             fetchRequisitions();
             return;
         }
-        if (!gocardless_secret_id || !gocardless_secret_key) {
-            setIsLoading(false);
-            return;
-        }
-        fetchRequisitions();
-    }, [gocardless_use_mock, gocardless_secret_id, gocardless_secret_key, fetchRequisitions]);
+        setIsLoading(false);
+    }, [gocardless_use_mock, has_gocardless_credentials, fetchRequisitions]);
 
     const handleRefreshRequisitions = () => {
-        if (!gocardless_use_mock && (!gocardless_secret_id || !gocardless_secret_key)) return;
+        if (!gocardless_use_mock && !has_gocardless_credentials) return;
         setIsRefreshing(true);
         fetchRequisitions();
     };
@@ -118,7 +101,6 @@ export default function BankData({
             .then(() => {
                 toast.success('GoCardless credentials cleared successfully.');
                 setRequisitions({ count: 0, next: null, previous: null, results: [] });
-                setData({ gocardless_secret_id: '', gocardless_secret_key: '' });
                 router.reload();
             })
             .catch((error) => {
@@ -157,9 +139,20 @@ export default function BankData({
                                 integration allows you to view and manage your bank data directly within the app.
                             </p>
 
+                            {has_gocardless_credentials && gocardless_secret_id_masked && (
+                                <div className="mt-4 rounded-md border p-4">
+                                    <p className="text-sm">
+                                        <span className="text-muted-foreground">Current Secret ID:</span>{' '}
+                                        <code className="text-foreground">{gocardless_secret_id_masked}</code>
+                                    </p>
+                                </div>
+                            )}
+
                             <form onSubmit={submit} className="mt-6 space-y-6">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="gocardless_secret_id">GoCardless Secret ID</Label>
+                                    <Label htmlFor="gocardless_secret_id">
+                                        GoCardless Secret ID {has_gocardless_credentials && '(leave blank to keep current)'}
+                                    </Label>
                                     <Input
                                         id="gocardless_secret_id"
                                         type="password"
@@ -167,13 +160,15 @@ export default function BankData({
                                         value={data.gocardless_secret_id || ''}
                                         onChange={(e) => setData('gocardless_secret_id', e.target.value)}
                                         autoComplete="off"
-                                        placeholder="Enter your GoCardless Secret ID"
+                                        placeholder={has_gocardless_credentials ? 'Enter new Secret ID to update' : 'Enter your GoCardless Secret ID'}
                                     />
                                     <InputError className="mt-2" message={errors.gocardless_secret_id} />
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="gocardless_secret_key">GoCardless Secret Key</Label>
+                                    <Label htmlFor="gocardless_secret_key">
+                                        GoCardless Secret Key {has_gocardless_credentials && '(leave blank to keep current)'}
+                                    </Label>
                                     <Input
                                         id="gocardless_secret_key"
                                         type="password"
@@ -181,7 +176,9 @@ export default function BankData({
                                         value={data.gocardless_secret_key || ''}
                                         onChange={(e) => setData('gocardless_secret_key', e.target.value)}
                                         autoComplete="off"
-                                        placeholder="Enter your GoCardless Secret Key"
+                                        placeholder={
+                                            has_gocardless_credentials ? 'Enter new Secret Key to update' : 'Enter your GoCardless Secret Key'
+                                        }
                                     />
                                     <InputError className="mt-2" message={errors.gocardless_secret_key} />
                                 </div>
@@ -199,11 +196,7 @@ export default function BankData({
                                     </Transition>
                                 </div>
                             </form>
-                            {data.gocardless_secret_id &&
-                            data.gocardless_secret_key &&
-                            !processing &&
-                            !errors.gocardless_secret_id &&
-                            !errors.gocardless_secret_key ? (
+                            {has_gocardless_credentials ? (
                                 <Button variant="destructive" onClick={() => handlePurgeCredentials()}>
                                     Clear credentials
                                 </Button>
@@ -211,10 +204,7 @@ export default function BankData({
                         </div>
                     )}
 
-                    <Button
-                        onClick={() => setIsImportWizardOpen(true)}
-                        disabled={!gocardless_use_mock && (!gocardless_secret_key || !gocardless_secret_id)}
-                    >
+                    <Button onClick={() => setIsImportWizardOpen(true)} disabled={!gocardless_use_mock && !has_gocardless_credentials}>
                         Connect Bank Account
                     </Button>
 
@@ -223,7 +213,7 @@ export default function BankData({
                         <Button
                             variant="outline"
                             onClick={handleRefreshRequisitions}
-                            disabled={(!gocardless_use_mock && (!gocardless_secret_id || !gocardless_secret_key)) || isRefreshing}
+                            disabled={(!gocardless_use_mock && !has_gocardless_credentials) || isRefreshing}
                         >
                             {isRefreshing ? 'Refreshing...' : 'Refresh'}
                         </Button>

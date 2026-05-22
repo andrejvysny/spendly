@@ -21,8 +21,10 @@ class GoCardlessCredentialController extends Controller
         $user = $request->user();
 
         return Inertia::render('settings/bank_data', [
-            'gocardless_secret_id' => $user instanceof User ? $user->gocardless_secret_id : null,
-            'gocardless_secret_key' => $user instanceof User ? $user->gocardless_secret_key : null,
+            'has_gocardless_credentials' => $user instanceof User && $user->gocardless_secret_id !== null,
+            'gocardless_secret_id_masked' => $user instanceof User && $user->gocardless_secret_id
+                ? str_repeat('*', max(0, strlen($user->gocardless_secret_id) - 4)) . substr($user->gocardless_secret_id, -4)
+                : null,
             'gocardless_use_mock' => config('services.gocardless.use_mock'),
         ]);
     }
@@ -41,10 +43,12 @@ class GoCardlessCredentialController extends Controller
         if (! $user instanceof User) {
             return to_route('bank_data.edit');
         }
-        $user->fill([
-            'gocardless_secret_id' => $validated['gocardless_secret_id'] ?? null,
-            'gocardless_secret_key' => $validated['gocardless_secret_key'] ?? null,
-        ]);
+        if (! empty($validated['gocardless_secret_id'])) {
+            $user->gocardless_secret_id = $validated['gocardless_secret_id'];
+        }
+        if (! empty($validated['gocardless_secret_key'])) {
+            $user->gocardless_secret_key = $validated['gocardless_secret_key'];
+        }
         $user->save();
 
         return to_route('bank_data.edit');

@@ -60,7 +60,7 @@ class GoCardlessRequisitionController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json(['error' => 'Failed to fetch institutions: '.$e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to fetch institutions'], 500);
         }
     }
 
@@ -99,7 +99,7 @@ class GoCardlessRequisitionController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json(['error' => 'Failed to fetch requisitions: '.$e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to fetch requisitions'], 500);
         }
     }
 
@@ -157,7 +157,7 @@ class GoCardlessRequisitionController extends Controller
         } catch (\Exception $e) {
             Log::error('GoCardless import error', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
 
-            return response()->json(['error' => 'Failed to import account: '.$e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to import account'], 500);
         }
     }
 
@@ -305,7 +305,7 @@ class GoCardlessRequisitionController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return response()->json(['error' => 'Failed to delete requisition: '.$e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to delete requisition'], 500);
         }
     }
 
@@ -355,9 +355,8 @@ class GoCardlessRequisitionController extends Controller
      */
     public function getExistingGocardlessAccountIDs(Request $request): JsonResponse
     {
-        $accountId = $request->account_id;
-
-        Log::info('Checking if account exists', ['account_id' => $accountId]);
+        $request->validate(['account_id' => 'required|string']);
+        $accountId = $request->input('account_id');
 
         $exists = Account::where('user_id', auth()->id())
             ->where('gocardless_account_id', $accountId)

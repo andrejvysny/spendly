@@ -83,7 +83,7 @@ class GoCardlessSyncController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to sync transactions: '.$e->getMessage(),
+                'error' => 'Failed to sync transactions',
             ], 500);
         }
     }
@@ -142,7 +142,7 @@ class GoCardlessSyncController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to sync accounts: '.$e->getMessage(),
+                'error' => 'Failed to sync accounts',
             ], 500);
         }
     }
@@ -207,7 +207,7 @@ class GoCardlessSyncController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to refresh balance: '.$e->getMessage(),
+                'error' => 'Failed to refresh balance',
             ], 500);
         }
     }
