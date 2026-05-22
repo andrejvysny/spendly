@@ -67,11 +67,15 @@ class BudgetService
 
         $now = Carbon::now();
 
-        return $budgets->map(function (Budget $budget) use ($periods, $now) {
+        // Pull user accounts once and reuse for every budget below to avoid
+        // re-querying inside getSpentForPeriod for each budget (N+1).
+        $userAccounts = $this->accountRepository->findByUser($userId);
+
+        return $budgets->map(function (Budget $budget) use ($periods, $now, $userAccounts) {
             /** @var BudgetPeriod|null $period */
             $period = $periods->get($budget->id);
             $effectiveAmount = $period ? $period->getEffectiveAmount() : (float) $budget->amount;
-            $spent = $period ? $this->getSpentForPeriod($budget, $period) : 0.0;
+            $spent = $period ? $this->getSpentForPeriod($budget, $period, $userAccounts) : 0.0;
             $remaining = max(0.0, $effectiveAmount - $spent);
             $percentageUsed = $effectiveAmount > 0 ? round(($spent / $effectiveAmount) * 100, 2) : 0.0;
             $isExceeded = $spent > $effectiveAmount;
@@ -115,11 +119,13 @@ class BudgetService
         });
     }
 
-    public function getSpentForPeriod(Budget $budget, BudgetPeriod $period): float
+    /**
+     * @param  Collection<int, \App\Models\Account>|null  $accounts  Pre-fetched user accounts; if null, will be loaded.
+     */
+    public function getSpentForPeriod(Budget $budget, BudgetPeriod $period, ?Collection $accounts = null): float
     {
-        $accountIds = $this->accountRepository->findByUser($budget->getUserId())
-            ->pluck('id')
-            ->toArray();
+        $accounts ??= $this->accountRepository->findByUser($budget->getUserId());
+        $accountIds = $accounts->pluck('id')->toArray();
 
         if ($accountIds === []) {
             return 0.0;
@@ -312,17 +318,29 @@ class BudgetService
             return [];
         }
 
+        // Pre-fetch all transactions for these recurring groups in a single query
+        // to avoid N+1 when looking up the latest categorized transaction per group.
+        /** @var array<int> $groupIds */
+        $groupIds = $groups->pluck('id')->all();
+        /** @var \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, \App\Models\Transaction>> $transactionsByGroup */
+        $transactionsByGroup = Transaction::query()
+            ->whereIn('recurring_group_id', $groupIds)
+            ->whereNotNull('category_id')
+            ->with('category')
+            ->orderBy('booked_date', 'desc')
+            ->get()
+            ->groupBy('recurring_group_id');
+
         // Group recurring items by category (via their transactions)
         /** @var array<int|string, array{category_id: int|null, category_name: string, total: float, currency: string, count: int, sources: array<int, array{name: string, amount: float, interval: string}>}> $byCategory */
         $byCategory = [];
 
         foreach ($groups as $group) {
-            // Get the category from the most recent transaction in this group
+            // Get the category from the most recent categorized transaction in this group
+            /** @var \Illuminate\Support\Collection<int, \App\Models\Transaction> $groupTxs */
+            $groupTxs = $transactionsByGroup->get($group->id, collect());
             /** @var \App\Models\Transaction|null $latestTx */
-            $latestTx = \App\Models\Transaction::where('recurring_group_id', $group->id)
-                ->whereNotNull('category_id')
-                ->orderBy('booked_date', 'desc')
-                ->first();
+            $latestTx = $groupTxs->first();
 
             $categoryId = $latestTx !== null ? $latestTx->category_id : null;
             /** @var \App\Models\Category|null $txCategory */
@@ -520,9 +538,9 @@ class BudgetService
     private function computePeriodEnd(string $periodType, int $year, ?int $month): Carbon
     {
         if ($periodType === Budget::PERIOD_MONTHLY && $month !== null && $month >= 1) {
-            return Carbon::createStrict($year, $month, 1)->endOfMonth()->startOfDay();
+            return Carbon::createStrict($year, $month, 1)->endOfMonth()->endOfDay();
         }
 
-        return Carbon::createStrict($year, 12, 31)->startOfDay();
+        return Carbon::createStrict($year, 12, 31)->endOfDay();
     }
 }

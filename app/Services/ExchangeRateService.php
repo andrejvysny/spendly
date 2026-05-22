@@ -109,7 +109,16 @@ class ExchangeRateService
     }
 
     /**
-     * Ensure rates exist for a given date (fetch if missing).
+     * Ensure rates exist for a given date.
+     *
+     * Read-only in request paths: does NOT trigger synchronous HTTP fetches.
+     * The scheduled command `exchange-rates:fetch` (daily 06:00) keeps the
+     * cache warm. If rates are missing, a warning is logged and callers
+     * should fall back to the latest available rate (or 1.0 as a last resort,
+     * handled by ExchangeRate::getRate() returning null).
+     *
+     * For background contexts that legitimately need to fetch on-demand,
+     * call fetchRatesForDate() directly (e.g. from FetchExchangeRatesCommand).
      */
     public function ensureRatesExist(Carbon $date): void
     {
@@ -120,7 +129,9 @@ class ExchangeRateService
             ->exists();
 
         if (! $exists) {
-            $this->fetchRatesForDate($date);
+            Log::warning('Exchange rates missing for '.$date->format('Y-m-d').'; will be fetched by scheduled exchange-rates:fetch command', [
+                'date' => $date->format('Y-m-d'),
+            ]);
         }
     }
 }

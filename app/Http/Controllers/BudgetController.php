@@ -49,10 +49,9 @@ class BudgetController extends Controller
             $month === 0 ? null : $month
         );
 
-        $categories = $this->categoryRepository->findByUser($userId);
-
         /** @var \App\Models\User $authUser */
         $authUser = $user;
+        $selectionLists = $this->serializeBudgetSelectionLists($authUser, $userId);
         $accounts = $authUser->accounts;
         $firstAccount = $accounts->first();
         $defaultCurrency = $firstAccount !== null ? (string) $firstAccount->currency : 'EUR';
@@ -81,35 +80,7 @@ class BudgetController extends Controller
             'budgets' => $budgetsWithProgress->map(function (array $row) {
                 return $this->serializeBudgetWithProgress($row);
             })->values()->all(),
-            'categories' => $categories->map(fn ($c) => [
-                'id' => $c->id,
-                'name' => $c->name,
-                'color' => $c->color,
-                'icon' => $c->icon,
-            ])->values()->all(),
-            'tags' => $authUser->tags->map(fn ($t) => [
-                'id' => $t->id,
-                'name' => $t->name,
-                'color' => $t->color ?? null,
-            ])->values()->all(),
-            'counterparties' => $authUser->counterparties->map(fn ($cp) => [
-                'id' => $cp->id,
-                'name' => $cp->name,
-                'type' => $cp->type instanceof \BackedEnum ? $cp->type->value : (string) $cp->type,
-            ])->values()->all(),
-            'recurringGroups' => RecurringGroup::where('user_id', $userId)
-                ->where('status', RecurringGroup::STATUS_CONFIRMED)
-                ->get()
-                ->map(fn ($rg) => [
-                    'id' => $rg->id,
-                    'name' => $rg->name,
-                    'interval' => $rg->interval,
-                ])->values()->all(),
-            'accounts' => $accounts->map(fn ($a) => [
-                'id' => $a->id,
-                'name' => $a->name,
-                'currency' => $a->currency,
-            ])->values()->all(),
+            ...$selectionLists,
             'periodType' => $periodType,
             'year' => $year,
             'month' => $month,
@@ -123,7 +94,6 @@ class BudgetController extends Controller
         $this->authorize('viewAny', Budget::class);
 
         $userId = $this->getAuthUserId();
-        $categories = $this->categoryRepository->findByUser($userId);
         $existingBudgets = $this->budgetService->getBudgetsWithProgress(
             $userId,
             Budget::PERIOD_MONTHLY,
@@ -136,36 +106,10 @@ class BudgetController extends Controller
         $firstAccount = $user->accounts->first();
         $defaultCurrency = $firstAccount !== null ? (string) $firstAccount->currency : 'EUR';
 
+        $selectionLists = $this->serializeBudgetSelectionLists($user, $userId);
+
         return Inertia::render('budgets/Builder', [
-            'categories' => $categories->map(fn ($c) => [
-                'id' => $c->id,
-                'name' => $c->name,
-                'color' => $c->color,
-                'icon' => $c->icon,
-            ])->values()->all(),
-            'tags' => $user->tags->map(fn ($t) => [
-                'id' => $t->id,
-                'name' => $t->name,
-                'color' => $t->color ?? null,
-            ])->values()->all(),
-            'counterparties' => $user->counterparties->map(fn ($cp) => [
-                'id' => $cp->id,
-                'name' => $cp->name,
-                'type' => $cp->type instanceof \BackedEnum ? $cp->type->value : (string) $cp->type,
-            ])->values()->all(),
-            'recurringGroups' => RecurringGroup::where('user_id', $userId)
-                ->where('status', RecurringGroup::STATUS_CONFIRMED)
-                ->get()
-                ->map(fn ($rg) => [
-                    'id' => $rg->id,
-                    'name' => $rg->name,
-                    'interval' => $rg->interval,
-                ])->values()->all(),
-            'accounts' => $user->accounts->map(fn ($a) => [
-                'id' => $a->id,
-                'name' => $a->name,
-                'currency' => $a->currency,
-            ])->values()->all(),
+            ...$selectionLists,
             'existingBudgets' => $existingBudgets->map(function (array $row) {
                 /** @var Budget $budget */
                 $budget = $row['budget'];
@@ -268,6 +212,49 @@ class BudgetController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Period amount updated.');
+    }
+
+    /**
+     * Build the shared categories/tags/counterparties/recurringGroups/accounts payload
+     * used by both index() and builder() views.
+     *
+     * @return array{categories: array<int, array<string, mixed>>, tags: array<int, array<string, mixed>>, counterparties: array<int, array<string, mixed>>, recurringGroups: array<int, array<string, mixed>>, accounts: array<int, array<string, mixed>>}
+     */
+    private function serializeBudgetSelectionLists(\App\Models\User $user, int $userId): array
+    {
+        $categories = $this->categoryRepository->findByUser($userId);
+
+        return [
+            'categories' => $categories->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'color' => $c->color,
+                'icon' => $c->icon,
+            ])->values()->all(),
+            'tags' => $user->tags->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'color' => $t->color ?? null,
+            ])->values()->all(),
+            'counterparties' => $user->counterparties->map(fn ($cp) => [
+                'id' => $cp->id,
+                'name' => $cp->name,
+                'type' => $cp->type instanceof \BackedEnum ? $cp->type->value : (string) $cp->type,
+            ])->values()->all(),
+            'recurringGroups' => RecurringGroup::where('user_id', $userId)
+                ->where('status', RecurringGroup::STATUS_CONFIRMED)
+                ->get()
+                ->map(fn ($rg) => [
+                    'id' => $rg->id,
+                    'name' => $rg->name,
+                    'interval' => $rg->interval,
+                ])->values()->all(),
+            'accounts' => $user->accounts->map(fn ($a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'currency' => $a->currency,
+            ])->values()->all(),
+        ];
     }
 
     /**
