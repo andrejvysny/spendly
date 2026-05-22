@@ -1,0 +1,105 @@
+services:
+  app:
+    environment:
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=spendly
+      - DB_USERNAME=spendly
+      - DB_PASSWORD=spendly
+      - ML_SERVICE_URL=http://ml-service:8001
+      - REDIS_URL=redis://redis:6379
+      - QUEUE_CONNECTION=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ml-service:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: spendly-postgres
+    environment:
+      POSTGRES_DB: spendly
+      POSTGRES_USER: spendly
+      POSTGRES_PASSWORD: spendly
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U spendly -d spendly']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: spendly-redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - '6379:6379'
+
+  ml-service:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    container_name: spendly-ml
+    environment:
+      - DATABASE_URL=postgresql://spendly:spendly@postgres:5432/spendly
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    ports:
+      - '8001:8001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./ml/app:/app/app
+
+  celery-worker:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    container_name: spendly-celery
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - DATABASE_URL=postgresql://spendly:spendly@postgres:5432/spendly
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ml-service:
+        condition: service_started
+    volumes:
+      - ./ml/app:/app/app
+
+  celery-beat:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    container_name: spendly-celery-beat
+    command: celery -A app.celery_app beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://spendly:spendly@postgres:5432/spendly
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./ml/app:/app/app
+
+volumes:
+  postgres_data:
+  redis_data:

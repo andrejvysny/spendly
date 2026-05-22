@@ -96,7 +96,15 @@ ENTRYPOINT ["/init"]
 
 # Stage 4: Development (no s6-overlay)
 FROM production AS development
-RUN install-php-extensions xdebug
+RUN echo "opcache.jit=disable" >> "$PHP_INI_DIR/conf.d/99-opcache.ini" && \
+    install-php-extensions xdebug
+# Node.js needed for Octane --watch (chokidar installed via npm in project)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+# Install chokidar globally so it's available regardless of volume mounts
+RUN npm install -g chokidar
+ENV NODE_PATH=/usr/lib/node_modules
 ENV APP_ENV=local
 ENTRYPOINT []
 CMD ["php", "artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=80", "--admin-port=2019", "--watch"]
