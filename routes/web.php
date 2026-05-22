@@ -6,6 +6,7 @@ use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CounterpartyController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Admin\SuperAdminController;
 use App\Http\Controllers\Import\ImportController;
 use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\Import\ImportMappingsController;
@@ -38,6 +39,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/transactions/bulk-type-update', [TransactionController::class, 'bulkTypeUpdate'])->name('transactions.bulk-type-update');
     Route::post('/transactions/bulk-delete', [TransactionController::class, 'bulkDelete'])->name('transactions.bulk-delete');
     Route::put('/transactions/{transaction}', [TransactionController::class, 'updateTransaction'])->name('transactions.update');
+    Route::get('/transactions/filter', [TransactionController::class, 'filter'])->name('transactions.filter');
+    Route::get('/transactions/load-more', [TransactionController::class, 'loadMore'])->name('transactions.load-more');
 
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
     Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
@@ -108,16 +111,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('/{mapping}', [ImportMappingsController::class, 'delete'])->name('delete');
         });
     });
+
+});
+
+// Admin Routes (Super Admin only)
+Route::middleware(['auth', 'verified', 'superadmin'])->prefix('admin')->group(function () {
+    Route::get('/', [SuperAdminController::class, 'index'])->name('admin.index');
+    Route::get('transactions', [SuperAdminController::class, 'transactions'])->name('admin.transactions');
+    Route::get('users', [SuperAdminController::class, 'getUsers'])->name('admin.users');
+    Route::post('bulk-label', [SuperAdminController::class, 'bulkLabel'])->name('admin.bulk-label');
+    Route::get('categories', [SuperAdminController::class, 'getCategories'])->name('admin.categories');
+    Route::get('counterparties', [SuperAdminController::class, 'getCounterparties'])->name('admin.counterparties');
+    Route::get('tags', [SuperAdminController::class, 'getTags'])->name('admin.tags');
+    Route::patch('transactions/{transaction}/label', [SuperAdminController::class, 'updateLabel'])->name('admin.transactions.label');
 });
 
 // Health check endpoint for container health monitoring
 Route::get('/health', function () {
     return response('OK', 200);
 });
-
-// Add this route near the end, before any catch-all routes
-Route::get('/transactions/filter', [App\Http\Controllers\Transactions\TransactionController::class, 'filter']);
-Route::get('/transactions/load-more', [App\Http\Controllers\Transactions\TransactionController::class, 'loadMore']);
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

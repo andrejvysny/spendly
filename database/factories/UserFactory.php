@@ -48,4 +48,9 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    public function superadmin(): static
+    {
+        return $this->state(['is_superadmin' => true]);
+    }
 }

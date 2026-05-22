@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SuperAdminMiddleware;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,11 +20,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('gocardless:sync-all')->everyFourHours()->withoutOverlapping();
         $schedule->command('gocardless:retry-failures')->everyThirtyMinutes()->withoutOverlapping();
         $schedule->command('recurring:detect')->daily()->withoutOverlapping();
+        $schedule->command('exchange-rates:fetch')->dailyAt('06:00')->withoutOverlapping();
         $schedule->command('queue:prune-failed --hours=72')->daily();
         $schedule->command('queue:prune-batches --hours=72')->daily();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+
+        $middleware->alias([
+            'superadmin' => SuperAdminMiddleware::class,
+        ]);
 
         $middleware->web(append: [
             HandleAppearance::class,

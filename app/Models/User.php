@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -30,6 +31,7 @@ class User extends Authenticatable
         'gocardless_refresh_token_expires_at',
         'gocardless_access_token_expires_at',
         'gocardless_country',
+        'is_superadmin',
     ];
 
     /**
@@ -62,7 +64,18 @@ class User extends Authenticatable
             'gocardless_refresh_token' => 'encrypted',
             'gocardless_refresh_token_expires_at' => 'datetime',
             'gocardless_access_token_expires_at' => 'datetime',
+            'is_superadmin' => 'boolean',
         ];
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->is_superadmin === true;
+    }
+
+    public function scopeSuperAdmins(Builder $query): Builder
+    {
+        return $query->where('is_superadmin', true);
     }
 
     /**

@@ -2,9 +2,10 @@ import { NavFooter } from '@/components/app/sidebar/nav-footer';
 import { NavMain } from '@/components/app/sidebar/nav-main';
 import { NavUser } from '@/components/app/sidebar/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types/index';
+import { type NavItem, type SharedData } from '@/types/index';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { Banknote, BookOpen, Coins, LayoutGrid, PieChartIcon, Repeat, ShoppingBag, TagIcon, Tags, Users } from 'lucide-react';
+import { usePage } from '@inertiajs/react';
+import { Banknote, BookOpen, Coins, LayoutGrid, PieChartIcon, Repeat, Shield, ShoppingBag, TagIcon, Tags, Users } from 'lucide-react';
 import AppLogoIcon from './app-logo-icon';
 
 const mainNavItems: NavItem[] = [
@@ -79,6 +80,11 @@ const footerNavItems: NavItem[] = [
  * Displays the app logo and name in the header, main navigation links in the content area, and footer links along with user information in the footer. The sidebar is collapsible and uses an inset variant.
  */
 export function AppSidebar() {
+    const { auth } = usePage<SharedData>().props;
+    const isSuperAdmin = auth.user?.is_superadmin === true;
+
+    const navItems = isSuperAdmin ? [...mainNavItems, { title: 'Admin', href: '/admin', icon: Shield }] : mainNavItems;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -89,7 +95,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={navItems} />
             </SidebarContent>
 
             <SidebarFooter>
