@@ -7,6 +7,7 @@ use App\Services\AccountBalanceService;
 use App\Services\Csv\CsvProcessor;
 use App\Services\DuplicateTransactionService;
 use App\Services\GoCardless\BankDataClientInterface;
+use App\Services\MlSuggestionService;
 use App\Services\TransactionImport\ImportFailurePersister;
 use App\Services\TransactionImport\ImportMappingService;
 use App\Services\TransactionImport\TransactionDataParser;
@@ -79,7 +80,8 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(TransactionRowProcessor::class),
                 $app->make(TransactionPersister::class),
                 $app->make(ImportFailurePersister::class),
-                $app->make(AccountBalanceService::class)
+                $app->make(AccountBalanceService::class),
+                $app->make(MlSuggestionService::class)
             );
         });
     }

@@ -8,6 +8,7 @@ use App\Models\Import\Import;
 use App\Models\Import\ImportRowEdit;
 use App\Services\AccountBalanceService;
 use App\Services\Csv\CsvProcessor;
+use App\Services\MlSuggestionService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -22,6 +23,7 @@ readonly class TransactionImportService
         private TransactionPersister $persister,
         private ImportFailurePersister $failurePersister,
         private AccountBalanceService $balanceService,
+        private MlSuggestionService $mlSuggestionService,
     ) {}
 
     /**
@@ -86,6 +88,23 @@ readonly class TransactionImportService
             // Recalculate account balance after import completes
             // This is needed because batch inserts don't trigger Eloquent model events
             $this->recalculateAccountBalance($accountId);
+
+            try {
+                $account = Account::query()->select(['id', 'user_id'])->find($accountId);
+                if ($account !== null) {
+                    $this->mlSuggestionService->annotateTransactions(
+                        (int) $account->user_id,
+                        $persistenceResult->getCreatedTransactionIds(),
+                        'import'
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning('ML suggestion annotation after import failed', [
+                    'import_id' => $import->id,
+                    'account_id' => $accountId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             $this->updateImportStatus($import, $batch, $persistenceResult);
 

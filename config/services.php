@@ -48,4 +48,9 @@ return [
         ],
     ],
 
+    'ml' => [
+        'enabled' => env('ML_ENABLED', false),
+        'url' => env('ML_SERVICE_URL', 'http://ml-service:8001'),
+    ],
+
 ];

@@ -135,6 +135,12 @@ class TransactionPersister
                         $insertedTransactions = $this->transactions->findByAccountAndTransactionIdPairs($idPairs);
 
                         if ($insertedTransactions->isNotEmpty()) {
+                            $this->persistenceResult->addCreatedTransactionIds(
+                                $insertedTransactions->pluck('id')->all()
+                            );
+                        }
+
+                        if ($insertedTransactions->isNotEmpty()) {
                             // Use the user from the first transaction's account; all are same account in an import
                             $user = $insertedTransactions->first()->account->user;
                             $this->ruleEngine
@@ -200,6 +206,8 @@ class TransactionPersister
                     );
 
                     if ($created->isNotEmpty()) {
+                        $this->persistenceResult->addCreatedTransactionIds($created->pluck('id')->all());
+
                         $user = $created->first()->account->user;
                         $this->ruleEngine
                             ->setUser($user)

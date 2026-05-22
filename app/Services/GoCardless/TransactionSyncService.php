@@ -12,6 +12,7 @@ use App\Models\Account;
 use App\Models\GoCardlessSyncFailure;
 use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
+use App\Services\MlSuggestionService;
 use App\Services\TransferDetectionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +25,7 @@ class TransactionSyncService
         private readonly TransactionRepositoryInterface $transactionRepository,
         private readonly GocardlessMapper $mapper,
         private readonly TransferDetectionService $transferDetectionService,
+        private readonly MlSuggestionService $mlSuggestionService,
         private readonly TransactionDataValidator $validator,
         private readonly GoCardlessSyncFailureRepositoryInterface $failureRepository,
         private readonly RuleEngineInterface $ruleEngine
@@ -229,7 +231,9 @@ class TransactionSyncService
             }
         });
 
-        // Process rules on newly created transactions after the DB transaction commits
+        $affectedTransactionIds = [];
+
+        // Process rules on newly created transactions after the DB transaction commits.
         if (! empty($toCreate)) {
             try {
                 $transactionIds = array_column($toCreate, 'transaction_id');
@@ -249,9 +253,40 @@ class TransactionSyncService
                     foreach ($createdTransactions as $t) {
                         event(new TransactionCreated($t, false));
                     }
+
+                    $affectedTransactionIds = array_merge(
+                        $affectedTransactionIds,
+                        $createdTransactions->pluck('id')->all()
+                    );
                 }
             } catch (\Throwable $e) {
                 Log::warning('Rule processing after GoCardless sync failed', [
+                    'account_id' => $account->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if (! empty($toUpdate)) {
+            $updatedTransactions = Transaction::query()
+                ->where('account_id', $account->id)
+                ->whereIn('transaction_id', array_keys($toUpdate))
+                ->pluck('id')
+                ->all();
+
+            $affectedTransactionIds = array_merge($affectedTransactionIds, $updatedTransactions);
+        }
+
+        $affectedTransactionIds = array_values(array_unique(array_filter(array_map('intval', $affectedTransactionIds))));
+        if ($affectedTransactionIds !== []) {
+            try {
+                $this->mlSuggestionService->annotateTransactions(
+                    (int) $account->user_id,
+                    $affectedTransactionIds,
+                    'gocardless'
+                );
+            } catch (\Throwable $e) {
+                Log::warning('ML suggestion annotation after GoCardless sync failed', [
                     'account_id' => $account->id,
                     'error' => $e->getMessage(),
                 ]);

@@ -101,6 +101,7 @@ class Transaction extends BaseModel
         'internal_transaction_id',
         'entry_reference',
         'bank_transaction_code',
+        'duplicate_identifier',
     ];
 
     public static function getFingerprintAttributes(): array
@@ -178,6 +179,10 @@ class Transaction extends BaseModel
     public const TYPE_WITHDRAWAL = 'WITHDRAWAL';
 
     public const TYPE_DEPOSIT = 'DEPOSIT';
+
+    public const TYPE_CREDIT = 'CREDIT';
+
+    public const TYPE_DIRECT_DEBIT = 'DIRECT_DEBIT';
 
     /**
      * Get the account that owns the transaction.

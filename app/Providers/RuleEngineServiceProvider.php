@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
 use App\Contracts\RuleEngine\ConditionEvaluatorInterface;
 use App\Contracts\RuleEngine\RuleEngineInterface;
+use App\Events\TransactionUpdated;
 use App\Listeners\ProcessTransactionRules;
+use App\Listeners\TrackManualCategorization;
 use App\Services\RuleEngine\ActionExecutor;
 use App\Services\RuleEngine\ConditionEvaluator;
 use App\Services\RuleEngine\RuleEngine;
@@ -39,5 +41,6 @@ class RuleEngineServiceProvider extends ServiceProvider
         // Register event listeners
         $events = $this->app->make('events');
         $events->subscribe(ProcessTransactionRules::class);
+        $events->listen(TransactionUpdated::class, TrackManualCategorization::class);
     }
 }

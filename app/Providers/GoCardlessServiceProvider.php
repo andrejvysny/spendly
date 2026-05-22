@@ -18,6 +18,7 @@ use App\Services\GoCardless\Mock\MockGoCardlessFixtureRepository;
 use App\Services\GoCardless\TokenManager;
 use App\Services\GoCardless\TransactionDataValidator;
 use App\Services\GoCardless\TransactionSyncService;
+use App\Services\MlSuggestionService;
 use App\Services\TransferDetectionService;
 use Illuminate\Support\ServiceProvider;
 
@@ -52,6 +53,7 @@ class GoCardlessServiceProvider extends ServiceProvider
                 $app->make(TransactionRepositoryInterface::class),
                 $app->make(GocardlessMapper::class),
                 $app->make(TransferDetectionService::class),
+                $app->make(MlSuggestionService::class),
                 $app->make(TransactionDataValidator::class),
                 $app->make(GoCardlessSyncFailureRepositoryInterface::class),
                 $app->make(RuleEngineInterface::class)

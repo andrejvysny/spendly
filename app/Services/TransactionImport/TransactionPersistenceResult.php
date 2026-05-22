@@ -9,7 +9,8 @@ class TransactionPersistenceResult
 {
     public function __construct(
         private array $sqlFailures = [],
-        private int $successCount = 0
+        private int $successCount = 0,
+        private array $createdTransactionIds = [],
     ) {}
 
     /**
@@ -62,6 +63,27 @@ class TransactionPersistenceResult
     public function getSuccessCount(): int
     {
         return $this->successCount;
+    }
+
+    /**
+     * @param  array<int>  $transactionIds
+     */
+    public function addCreatedTransactionIds(array $transactionIds): void
+    {
+        $normalized = array_values(array_unique(array_filter(array_map('intval', $transactionIds), static fn (int $id): bool => $id > 0)));
+        if ($normalized === []) {
+            return;
+        }
+
+        $this->createdTransactionIds = array_values(array_unique(array_merge($this->createdTransactionIds, $normalized)));
+    }
+
+    /**
+     * @return array<int>
+     */
+    public function getCreatedTransactionIds(): array
+    {
+        return $this->createdTransactionIds;
     }
 
     /**

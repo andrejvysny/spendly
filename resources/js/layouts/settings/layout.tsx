@@ -32,6 +32,11 @@ const sidebarNavItems: NavItem[] = [
         href: '/settings/recurring',
         icon: null,
     },
+    {
+        title: 'ML Engine',
+        href: '/settings/ml_engine',
+        icon: null,
+    },
 ];
 
 /**

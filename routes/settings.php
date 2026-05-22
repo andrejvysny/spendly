@@ -4,6 +4,7 @@ use App\Http\Controllers\Settings\BankDataController;
 use App\Http\Controllers\Settings\GoCardlessCredentialController;
 use App\Http\Controllers\Settings\GoCardlessRequisitionController;
 use App\Http\Controllers\Settings\GoCardlessSyncController;
+use App\Http\Controllers\Settings\MlPersonalizationController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -45,5 +46,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/accounts/{account}/refresh-balance', [GoCardlessSyncController::class, 'refreshAccountBalance'])
             ->name('bank_data.refreshAccountBalance');
     });
+
+    Route::get('settings/ml_engine', [MlPersonalizationController::class, 'edit'])->name('ml_engine.edit');
+    Route::patch('settings/ml_engine', [MlPersonalizationController::class, 'update'])->name('ml_engine.update');
+    Route::post('settings/ml_engine/retrain', [MlPersonalizationController::class, 'retrain'])->name('ml_engine.retrain');
 
 });
