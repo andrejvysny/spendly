@@ -1,6 +1,3 @@
-import { ConfidenceBadge } from '@/pages/import/components/ConfidenceBadge';
-import { FormatConfiguration } from '@/pages/import/components/FormatConfiguration';
-import { InteractiveSampleTable } from '@/pages/import/components/InteractiveSampleTable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,6 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ConfidenceBadge } from '@/pages/import/components/ConfidenceBadge';
+import { FormatConfiguration } from '@/pages/import/components/FormatConfiguration';
+import { InteractiveSampleTable } from '@/pages/import/components/InteractiveSampleTable';
 import { ImportMapping, Transaction } from '@/types/index';
 import axios from 'axios';
 import { Save, Trash2 } from 'lucide-react';
@@ -40,23 +40,6 @@ const transactionFields = [
     { key: 'category', label: 'Category', required: false },
     { key: 'tags', label: 'Tags', required: false },
     { key: 'notes', label: 'Notes', required: false },
-];
-
-// Date formats
-const dateFormats = [
-    { value: 'd.m.Y', label: 'DD.MM.YYYY' },
-    { value: 'Y-m-d', label: 'YYYY-MM-DD' },
-    { value: 'm/d/Y', label: 'MM/DD/YYYY' },
-    { value: 'Y-m-d H:i:s', label: 'YYYY-MM-DD HH:MM:SS' },
-    { value: 'd.m.Y H:i:s', label: 'DD.MM.YYYY HH:MM:SS' },
-];
-
-// Amount formats
-const amountFormats = [
-    { value: '1,234.56', label: '1,234.56' },
-    { value: '1.234,56', label: '1.234,56' },
-    { value: '1234.56', label: '1234.56' },
-    { value: '1234,56', label: '1234,56' },
 ];
 
 // Amount type strategies
@@ -115,7 +98,9 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
     }, []);
 
     const [detectedFormats, setDetectedFormats] = useState<{ date: string | null; amount: string | null }>({ date: null, amount: null });
-    const [mappingConfidence, setMappingConfidence] = useState<Record<number, { field: string; confidence: number; signals: Record<string, number> }>>({});
+    const [mappingConfidence, setMappingConfidence] = useState<
+        Record<number, { field: string; confidence: number; signals: Record<string, number> }>
+    >({});
 
     // Auto-detect column mappings on initial render with enhanced backend logic
     useEffect(() => {
@@ -125,12 +110,15 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 if (importId) {
                     const wizardUrl = route('imports.wizard.auto-detect', { import: importId });
                     const res = await axios.post(wizardUrl);
-                    const mappings = res.data.mappings as Record<number, { field: string | null; confidence: number; signals?: Record<string, number> }> | undefined;
+                    const mappings = res.data.mappings as
+                        | Record<number, { field: string | null; confidence: number; signals?: Record<string, number> }>
+                        | undefined;
                     const formats = res.data.detected_formats as { date?: string | null; amount?: string | null } | undefined;
                     if (formats) {
                         setDetectedFormats({ date: formats.date ?? null, amount: formats.amount ?? null });
                         if (formats.date) setDateFormat(formats.date === 'Y-m-d' ? 'Y-m-d' : formats.date === 'm/d/Y' ? 'm/d/Y' : 'd.m.Y');
-                        if (formats.amount) setAmountFormat(formats.amount === 'us' ? '1,234.56' : formats.amount === 'eu' ? '1.234,56' : amountFormat);
+                        if (formats.amount)
+                            setAmountFormat((prev) => (formats.amount === 'us' ? '1,234.56' : formats.amount === 'eu' ? '1.234,56' : prev));
                     }
                     if (mappings && typeof mappings === 'object') {
                         const newMapping: Record<string, number | null> = {};
@@ -141,7 +129,10 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                                 if (transactionFields.some((f) => f.key === data.field)) {
                                     newMapping[data.field] = col;
                                 }
-                                setMappingConfidence((prev) => ({ ...prev, [col]: { field: data.field!, confidence: data.confidence, signals: data.signals ?? {} } }));
+                                setMappingConfidence((prev) => ({
+                                    ...prev,
+                                    [col]: { field: data.field!, confidence: data.confidence, signals: data.signals ?? {} },
+                                }));
                             }
                         });
                         setColumnMapping(newMapping);
@@ -231,7 +222,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         if (headers.length > 0) {
             autoDetectMapping();
         }
-    }, [headers]);
+    }, [headers, importId]);
 
     // Handle column selection change
     const handleColumnMappingChange = useCallback((field: string, value: string) => {
@@ -422,7 +413,7 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
         } finally {
             setIsLoading(false);
         }
-    }, [columnMapping, dateFormat, amountFormat, amountTypeStrategy, currency, importId, onComplete, saveMapping, mappingName, bankName]);
+    }, [columnMapping, dateFormat, amountFormat, amountTypeStrategy, currency, importId, onComplete, saveMapping, mappingName, bankName, headers]);
 
     // Helper function to calculate mapping compatibility
     const calculateMappingCompatibility = useCallback((mapping: ImportMapping, currentHeaders: string[]): number => {
@@ -550,29 +541,29 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                             const confidenceData = colIndex !== null ? mappingConfidence[colIndex] : null;
                             return (
                                 <div key={field.key} className="space-y-2">
-                                <Label className="flex items-center gap-1">
-                                    {field.label}
-                                    {field.required && <span className="text-red-500">*</span>}
-                                    {confidenceData && confidenceData.field === field.key && (
-                                        <ConfidenceBadge confidence={confidenceData.confidence} signals={confidenceData.signals} showDetails />
-                                    )}
-                                </Label>
-                                <Select
-                                    value={columnMapping[field.key]?.toString() ?? 'none'}
-                                    onValueChange={(value) => handleColumnMappingChange(field.key, value === 'none' ? '' : value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select column" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">Select column</SelectItem>
-                                        {headers.map((header, index) => (
-                                            <SelectItem key={index} value={index.toString()}>
-                                                {header}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    <Label className="flex items-center gap-1">
+                                        {field.label}
+                                        {field.required && <span className="text-red-500">*</span>}
+                                        {confidenceData && confidenceData.field === field.key && (
+                                            <ConfidenceBadge confidence={confidenceData.confidence} signals={confidenceData.signals} showDetails />
+                                        )}
+                                    </Label>
+                                    <Select
+                                        value={columnMapping[field.key]?.toString() ?? 'none'}
+                                        onValueChange={(value) => handleColumnMappingChange(field.key, value === 'none' ? '' : value)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select column" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">Select column</SelectItem>
+                                            {headers.map((header, index) => (
+                                                <SelectItem key={index} value={index.toString()}>
+                                                    {header}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             );
                         })}
@@ -582,7 +573,9 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                     <div className="text-foreground mb-8">
                         <FormatConfiguration
                             detectedDateFormat={detectedFormats.date}
-                            detectedAmountFormat={detectedFormats.amount === 'eu' ? '1.234,56' : detectedFormats.amount === 'us' ? '1,234.56' : detectedFormats.amount}
+                            detectedAmountFormat={
+                                detectedFormats.amount === 'eu' ? '1.234,56' : detectedFormats.amount === 'us' ? '1,234.56' : detectedFormats.amount
+                            }
                             dateFormat={dateFormat}
                             amountFormat={amountFormat}
                             onDateFormatChange={setDateFormat}

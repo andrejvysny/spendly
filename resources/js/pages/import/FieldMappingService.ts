@@ -57,7 +57,8 @@ export function suggestColumnMappings(
     const result: { columnIndex: number; field: string; confidence: number; signals: Record<string, number> }[] = [];
     for (let c = 0; c < headers.length; c++) {
         const header = (headers[c] ?? '').trim().toLowerCase();
-        const values = sampleRows.map((row) => (row[c] ?? '')?.toString().trim()).filter(Boolean);
+        // sample values available for future pattern-based signals
+        sampleRows.map((row) => (row[c] ?? '')?.toString().trim()).filter(Boolean);
         let bestField: string | null = null;
         let bestConfidence = 0;
         const signals: Record<string, number> = {};
@@ -83,6 +84,12 @@ export function suggestColumnMappings(
     }
     return result;
 }
+
+// Runtime shapes from backend API — typed loosely intentionally
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DynamicFieldDef = Record<string, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ImportDataShape = Record<string, any>;
 
 class FieldMappingService {
     private static fieldPatterns = {
@@ -111,12 +118,15 @@ class FieldMappingService {
         account_id: /^(account|ucet|konto|account.*number|numero.*cuenta|numero.*conto|numero.*compte|kontonummer|numer.*konta)$/i,
     };
 
-    static mapFields(failure: ImportFailure, importData: any, fieldDefinitions?: any): any {
+    static mapFields(
+        failure: ImportFailure,
+        importData: ImportDataShape,
+        fieldDefinitions?: DynamicFieldDef,
+    ): { values: Record<string, unknown>; actuallyMappedFields: Set<string> } {
         const { raw_data, metadata, parsed_data } = failure;
         const headers = metadata.headers || [];
 
-
-        const mappings = new Map();
+        const mappings = new Map<string, { confidence: number; suggestedValue: unknown; originalValue: unknown; fieldName: string }>();
         const actuallyMappedFields = new Set<string>(); // Track fields that were actually mapped from raw data
 
         headers.forEach((header, index) => {
@@ -140,14 +150,10 @@ class FieldMappingService {
                     return;
                 }
 
-                // Debug logging for processed_date pattern matching
-                if (fieldName === 'processed_date') {
-                }
-
                 if (pattern.test(header)) {
                     const confidence = this.calculateConfidence(header, fieldName, value);
-                    if (!mappings.has(fieldName) || mappings.get(fieldName).confidence < confidence) {
-                        const transformedValue = this.transformValue(fieldName, value, fieldDefinitions);
+                    if (!mappings.has(fieldName) || (mappings.get(fieldName)?.confidence ?? 0) < confidence) {
+                        const transformedValue = this.transformValue(fieldName, value);
 
                         // Double-check that the transformed value is not empty/invalid
                         const isTransformedValueEmpty =
@@ -174,9 +180,8 @@ class FieldMappingService {
             });
         });
 
-
         // Create default values based on field definitions or fallback to legacy structure
-        const defaultValues: any = {};
+        const defaultValues: Record<string, unknown> = {};
         const finalActuallyMappedFields = new Set<string>(); // Final set of fields that were actually mapped from CSV
 
         if (fieldDefinitions) {
@@ -185,8 +190,7 @@ class FieldMappingService {
                 const fieldDef = fieldDefinitions.fields[fieldName];
                 if (!fieldDef) return;
 
-                let value: any = null;
-                let wasActuallyMapped = false;
+                let value: unknown = null;
 
                 // Try to get value from parsed data first
                 if (parsed_data && parsed_data[fieldName] !== undefined) {
@@ -194,8 +198,7 @@ class FieldMappingService {
                 }
                 // Then try auto-mapping (only if we have a valid mapping from CSV)
                 else if (mappings.has(fieldName) && actuallyMappedFields.has(fieldName)) {
-                    value = mappings.get(fieldName).suggestedValue;
-                    wasActuallyMapped = true;
+                    value = mappings.get(fieldName)!.suggestedValue;
                     finalActuallyMappedFields.add(fieldName);
                 }
                 // Finally use smart defaults
@@ -214,15 +217,10 @@ class FieldMappingService {
 
                 // NEVER mark account_id as actually mapped - it should always come from import metadata
                 if (fieldName === 'account_id') {
-                    wasActuallyMapped = false;
                     // Ensure we use the account from import metadata, not from parsed data
                     if (importData?.metadata?.account_id) {
                         value = importData.metadata.account_id.toString();
                     }
-                }
-
-                // Additional logging for problematic fields
-                if (fieldName === 'account_id' || fieldName === 'currency') {
                 }
 
                 // Final validation to ensure fields have proper values
@@ -253,7 +251,7 @@ class FieldMappingService {
             });
         } else {
             // Legacy fallback - only mark fields as mapped if they actually came from CSV
-            const legacyMappings = {
+            const legacyMappings: Record<string, unknown> = {
                 transaction_id:
                     parsed_data?.transaction_id ||
                     (mappings.has('transaction_id') && actuallyMappedFields.has('transaction_id')
@@ -300,7 +298,8 @@ class FieldMappingService {
             };
 
             // Track which fields were actually mapped in legacy mode
-            Object.entries(legacyMappings).forEach(([fieldName, value]) => {
+            Object.entries(legacyMappings).forEach(([fieldName, fieldValue]) => {
+                let value = fieldValue;
                 // NEVER mark account_id as mapped in legacy mode either
                 if (fieldName === 'account_id') {
                     // Use import metadata for account_id
@@ -338,10 +337,9 @@ class FieldMappingService {
                 const isEmpty = value === '' || value === null || value === undefined;
 
                 if (isEmpty) {
-
                     // Handle based on field type
                     switch (fieldDef.type) {
-                        case 'select':
+                        case 'select': {
                             // For select fields, only set first option if required
                             if (fieldDef.required && fieldDef.options && fieldDef.options.length > 0) {
                                 defaultValues[fieldName] = fieldDef.options[0].value.toString();
@@ -354,6 +352,7 @@ class FieldMappingService {
                                 defaultValues[fieldName] = null;
                             }
                             break;
+                        }
                         case 'text':
                         case 'textarea':
                             // For text fields, empty string is acceptable
@@ -389,7 +388,6 @@ class FieldMappingService {
             });
         }
 
-
         // Return both the values and the tracking of what was actually mapped
         return {
             values: defaultValues,
@@ -397,15 +395,15 @@ class FieldMappingService {
         };
     }
 
-    private static getSmartDefault(fieldName: string, fieldDef: any, failure: ImportFailure, importData: any): any {
+    private static getSmartDefault(fieldName: string, fieldDef: DynamicFieldDef, failure: ImportFailure, importData: ImportDataShape): unknown {
         switch (fieldName) {
             case 'transaction_id':
                 return `TRX-${Date.now()}`;
-            case 'currency':
+            case 'currency': {
                 // For currency, prioritize importData currency, then first valid option from field definitions
                 const importCurrency = importData?.currency;
 
-                if (importCurrency && fieldDef?.options?.some((opt: any) => opt.value.toString() === importCurrency.toString())) {
+                if (importCurrency && fieldDef?.options?.some((opt: { value: unknown }) => opt.value?.toString() === importCurrency.toString())) {
                     return importCurrency.toString();
                 }
                 // Fallback to first valid option
@@ -414,6 +412,7 @@ class FieldMappingService {
                     return firstOption;
                 }
                 return 'EUR';
+            }
             case 'booked_date':
             case 'processed_date':
                 return new Date().toISOString().split('T')[0];
@@ -434,7 +433,7 @@ class FieldMappingService {
                     return fieldDef.options[0].value.toString();
                 }
                 return null;
-            case 'account_id':
+            case 'account_id': {
                 // NEVER auto-map account_id from CSV - always use the account from import metadata
                 const accountFromImport = importData?.metadata?.account_id;
 
@@ -448,6 +447,7 @@ class FieldMappingService {
                     return firstOption;
                 }
                 return fieldDef?.required ? '1' : null;
+            }
             default:
                 if (fieldDef?.type === 'number') return 0;
                 if (fieldDef?.type === 'select') {
@@ -471,7 +471,7 @@ class FieldMappingService {
         }
     }
 
-    private static calculateConfidence(header: string, fieldName: string, value: any): number {
+    private static calculateConfidence(header: string, fieldName: string, value: unknown): number {
         let confidence = 0.5;
 
         if (this.fieldPatterns[fieldName as keyof typeof this.fieldPatterns]?.test(header)) {
@@ -479,20 +479,19 @@ class FieldMappingService {
         }
 
         // Value format validation
-        if (fieldName === 'amount' && !isNaN(parseFloat(value))) confidence += 0.2;
+        if (fieldName === 'amount' && !isNaN(parseFloat(String(value)))) confidence += 0.2;
         if ((fieldName === 'booked_date' || fieldName === 'processed_date') && this.isValidDate(value)) confidence += 0.2;
-        if (fieldName === 'currency' && /^[A-Z]{3}$/.test(value)) confidence += 0.2;
-        if (fieldName === 'transaction_id' && value.toString().length > 3) confidence += 0.1;
+        if (fieldName === 'currency' && /^[A-Z]{3}$/.test(String(value))) confidence += 0.2;
+        if (fieldName === 'transaction_id' && String(value).length > 3) confidence += 0.1;
 
         return Math.min(confidence, 1.0);
     }
 
-    private static transformValue(fieldName: string, value: any, fieldDefinitions?: any): any {
+    private static transformValue(fieldName: string, value: unknown): unknown {
         switch (fieldName) {
             case 'amount': {
                 const numericValue = parseFloat(
-                    value
-                        .toString()
+                    String(value)
                         .replace(/[^\d.,-]/g, '')
                         .replace(',', '.'),
                 );
@@ -502,37 +501,38 @@ class FieldMappingService {
             case 'processed_date':
                 return this.parseDate(value);
             case 'currency':
-                return value.toString().toUpperCase();
-            case 'balance_after_transaction':
+                return String(value).toUpperCase();
+            case 'balance_after_transaction': {
                 const balanceValue = parseFloat(
-                    value
-                        .toString()
+                    String(value)
                         .replace(/[^\d.,-]/g, '')
                         .replace(',', '.'),
                 );
                 return isNaN(balanceValue) ? null : balanceValue;
+            }
             case 'type':
                 // Accept any string value from CSV raw data - no enum mapping
-                return value.toString().trim();
+                return String(value).trim();
             default:
-                return value.toString().trim();
+                return String(value).trim();
         }
     }
 
-    private static isValidDate(dateString: any): boolean {
-        const date = new Date(dateString);
+    private static isValidDate(dateString: unknown): boolean {
+        const date = new Date(String(dateString));
         const isValid = date instanceof Date && !isNaN(date.getTime());
         return isValid;
     }
 
-    private static parseDate(dateString: any): string {
-
+    private static parseDate(dateString: unknown): string {
         if (!dateString || dateString === '') {
             return new Date().toISOString().split('T')[0];
         }
 
+        const str = String(dateString);
+
         // Try parsing DD.MM.YYYY format (common in European/Slovak files) - FIXED FOR TIMEZONE
-        const ddMmYyyyMatch = dateString.toString().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+        const ddMmYyyyMatch = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
         if (ddMmYyyyMatch) {
             const [, day, month, year] = ddMmYyyyMatch;
             // Use UTC to avoid timezone issues - create date in local timezone
@@ -542,13 +542,12 @@ class FieldMappingService {
                 const yyyy = date.getFullYear();
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
-                const formattedDate = `${yyyy}-${mm}-${dd}`;
-                return formattedDate;
+                return `${yyyy}-${mm}-${dd}`;
             }
         }
 
         // Try parsing DD/MM/YYYY format - FIXED FOR TIMEZONE
-        const ddSlashMmYyyyMatch = dateString.toString().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        const ddSlashMmYyyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (ddSlashMmYyyyMatch) {
             const [, day, month, year] = ddSlashMmYyyyMatch;
             const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -556,13 +555,12 @@ class FieldMappingService {
                 const yyyy = date.getFullYear();
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
-                const formattedDate = `${yyyy}-${mm}-${dd}`;
-                return formattedDate;
+                return `${yyyy}-${mm}-${dd}`;
             }
         }
 
         // Try parsing DD-MM-YYYY format - FIXED FOR TIMEZONE
-        const ddDashMmYyyyMatch = dateString.toString().match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+        const ddDashMmYyyyMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
         if (ddDashMmYyyyMatch) {
             const [, day, month, year] = ddDashMmYyyyMatch;
             const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -570,13 +568,12 @@ class FieldMappingService {
                 const yyyy = date.getFullYear();
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
-                const formattedDate = `${yyyy}-${mm}-${dd}`;
-                return formattedDate;
+                return `${yyyy}-${mm}-${dd}`;
             }
         }
 
         // Try parsing YYYY-MM-DD format (already correct format)
-        const yyyyMmDdMatch = dateString.toString().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        const yyyyMmDdMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
         if (yyyyMmDdMatch) {
             const [, year, month, day] = yyyyMmDdMatch;
             const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -584,19 +581,17 @@ class FieldMappingService {
                 const yyyy = date.getFullYear();
                 const mm = String(date.getMonth() + 1).padStart(2, '0');
                 const dd = String(date.getDate()).padStart(2, '0');
-                const formattedDate = `${yyyy}-${mm}-${dd}`;
-                return formattedDate;
+                return `${yyyy}-${mm}-${dd}`;
             }
         }
 
         // Fallback: try direct Date constructor but format manually to avoid timezone issues
-        const date = new Date(dateString);
+        const date = new Date(str);
         if (this.isValidDate(date)) {
             const yyyy = date.getFullYear();
             const mm = String(date.getMonth() + 1).padStart(2, '0');
             const dd = String(date.getDate()).padStart(2, '0');
-            const formattedDate = `${yyyy}-${mm}-${dd}`;
-            return formattedDate;
+            return `${yyyy}-${mm}-${dd}`;
         }
 
         return new Date().toISOString().split('T')[0];

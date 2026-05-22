@@ -1,7 +1,6 @@
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import React from 'react';
 
 export interface FormatConfigurationProps {
     detectedDateFormat?: string | null;
@@ -43,9 +42,7 @@ export function FormatConfiguration({
         <div className={cn('space-y-4', className)}>
             <div className="space-y-2">
                 <Label>Date format</Label>
-                {detectedDateFormat && (
-                    <p className="text-xs text-muted-foreground">Detected: {detectedDateFormat}</p>
-                )}
+                {detectedDateFormat && <p className="text-muted-foreground text-xs">Detected: {detectedDateFormat}</p>}
                 <Select value={dateFormat} onValueChange={onDateFormatChange}>
                     <SelectTrigger>
                         <SelectValue placeholder="Select date format" />
@@ -58,15 +55,11 @@ export function FormatConfiguration({
                         ))}
                     </SelectContent>
                 </Select>
-                {sampleDateValues.length > 0 && (
-                    <p className="text-xs text-muted-foreground">Sample: {sampleDateValues.slice(0, 3).join(', ')}</p>
-                )}
+                {sampleDateValues.length > 0 && <p className="text-muted-foreground text-xs">Sample: {sampleDateValues.slice(0, 3).join(', ')}</p>}
             </div>
             <div className="space-y-2">
                 <Label>Amount format</Label>
-                {detectedAmountFormat && (
-                    <p className="text-xs text-muted-foreground">Detected: {detectedAmountFormat}</p>
-                )}
+                {detectedAmountFormat && <p className="text-muted-foreground text-xs">Detected: {detectedAmountFormat}</p>}
                 <Select value={amountFormat} onValueChange={onAmountFormatChange}>
                     <SelectTrigger>
                         <SelectValue placeholder="Select amount format" />
@@ -80,7 +73,7 @@ export function FormatConfiguration({
                     </SelectContent>
                 </Select>
                 {sampleAmountValues.length > 0 && (
-                    <p className="text-xs text-muted-foreground">Sample: {sampleAmountValues.slice(0, 3).join(', ')}</p>
+                    <p className="text-muted-foreground text-xs">Sample: {sampleAmountValues.slice(0, 3).join(', ')}</p>
                 )}
             </div>
         </div>

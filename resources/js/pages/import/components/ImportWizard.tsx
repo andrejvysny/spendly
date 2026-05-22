@@ -220,8 +220,8 @@ function StepIndicator({ number, title, isActive, isCompleted, onClick }: StepIn
     const bgColor = isActive
         ? 'bg-foreground text-current font-semibold'
         : isCompleted
-            ? 'bg-green-500 text-current font-semibold'
-            : ' text-foreground border font-semibold border-foreground';
+          ? 'bg-green-500 text-current font-semibold'
+          : ' text-foreground border font-semibold border-foreground';
 
     return (
         <div className="flex cursor-pointer flex-col items-center" onClick={onClick}>

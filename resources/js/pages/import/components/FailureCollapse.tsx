@@ -2,12 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ErrorTypeBadge, StatusBadge } from '@/pages/import/components/Badges';
+import { ImportFailure } from '@/types/index';
 import { formatDate } from '@/utils/date';
 import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 
 interface FailureCollapseProps {
-    failure: any;
+    failure: ImportFailure;
     selectedFailures: number[];
     handleSelectFailure: (id: number, checked: boolean) => void;
     handleUnmarkAsPending?: (failureId: number, notes?: string) => void;
@@ -15,7 +16,7 @@ interface FailureCollapseProps {
 }
 
 function FailureCollapse({ failure, selectedFailures, handleSelectFailure, handleUnmarkAsPending, isMarkingReviewed }: FailureCollapseProps) {
-    const [expandedFailure, setExpandedFailure] = useState(false);
+    const [expandedFailure, setExpandedFailure] = useState<number | null>(null);
 
     const canUnmark = failure.status !== 'pending' && handleUnmarkAsPending;
 
@@ -74,7 +75,7 @@ function FailureCollapse({ failure, selectedFailures, handleSelectFailure, handl
                                             {failure.metadata.headers.map((header: string, index: number) => (
                                                 <div key={index} className="botder-b border-muted-foreground flex justify-between border-dashed py-1">
                                                     <span className="text-muted-foreground font-medium">{header}:</span>
-                                                    <span className="text-foreground">{failure.raw_data[index] || '-'}</span>
+                                                    <span className="text-foreground">{String(failure.raw_data[index] ?? '-')}</span>
                                                 </div>
                                             ))}
                                         </div>

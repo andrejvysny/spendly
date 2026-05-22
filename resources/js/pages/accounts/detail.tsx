@@ -115,7 +115,6 @@ export default function Detail({
     categories,
     counterparties,
     monthlySummaries: initialSummaries,
-    total_transactions,
     cashflow_last_month,
     cashflow_this_month,
 }: Props) {

@@ -236,6 +236,7 @@ export default function Builder({ categories, tags, counterparties, recurringGro
         setLoadingSuggestions(true);
         try {
             const res = await fetch('/budgets/suggestions');
+            if (!res.ok) throw new Error('Failed to load suggestions');
             const data = (await res.json()) as { suggestions: Suggestion[] };
             setSuggestions(data.suggestions);
 

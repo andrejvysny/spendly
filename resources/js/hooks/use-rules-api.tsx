@@ -12,6 +12,14 @@ import {
 import axios from 'axios';
 import { useCallback, useState } from 'react';
 
+export interface RuleExecutionResult {
+    data: {
+        total_rules_matched: number;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
 interface UseRulesApiReturn {
     // State
     loading: boolean;
@@ -40,11 +48,11 @@ interface UseRulesApiReturn {
     fetchRuleStatistics: (id: number, days?: number) => Promise<RuleStatisticsResponse['data'] | null>;
 
     // Rule Execution
-    executeRulesOnTransactions: (transactionIds: number[], ruleIds?: number[], dryRun?: boolean) => Promise<any>;
-    executeRulesOnDateRange: (startDate: string, endDate: string, ruleIds?: number[], dryRun?: boolean) => Promise<any>;
-    testRule: (transactionIds: number[], ruleData: Omit<CreateRuleForm, 'rule_group_id' | 'name'>) => Promise<any>;
-    executeRule: (ruleId: number, dryRun?: boolean) => Promise<any>;
-    executeRuleGroup: (groupId: number, dryRun?: boolean) => Promise<any>;
+    executeRulesOnTransactions: (transactionIds: number[], ruleIds?: number[], dryRun?: boolean) => Promise<unknown>;
+    executeRulesOnDateRange: (startDate: string, endDate: string, ruleIds?: number[], dryRun?: boolean) => Promise<unknown>;
+    testRule: (transactionIds: number[], ruleData: Omit<CreateRuleForm, 'rule_group_id' | 'name'>) => Promise<unknown>;
+    executeRule: (ruleId: number, dryRun?: boolean) => Promise<RuleExecutionResult | null>;
+    executeRuleGroup: (groupId: number, dryRun?: boolean) => Promise<RuleExecutionResult | null>;
 
     // Utility
     clearError: () => void;
@@ -54,21 +62,24 @@ export function useRulesApi(): UseRulesApiReturn {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleError = (err: any) => {
+    const handleError = (err: unknown) => {
+        // err is unknown; narrow via axios AxiosError check
+        const axiosErr = err as import('axios').AxiosError<{ message?: string; errors?: Record<string, string[]> }>;
+
         // Handle authentication errors specifically
-        if (err?.response?.status === 401 || err?.message === 'Unauthenticated.') {
+        if (axiosErr?.response?.status === 401 || (err instanceof Error && err.message === 'Unauthenticated.')) {
             setError('Your session has expired. Please refresh the page and try again.');
             return;
         }
 
         // Handle axios validation errors
-        if (err?.response?.data?.errors) {
-            const firstError = Object.values(err.response.data.errors)[0] as string[];
-            setError(firstError?.[0] || err.message || 'An error occurred');
-        } else if (err?.response?.data?.message) {
-            setError(err.response.data.message);
+        if (axiosErr?.response?.data?.errors) {
+            const firstError = Object.values(axiosErr.response.data.errors)[0] as string[];
+            setError(firstError?.[0] || (err instanceof Error ? err.message : null) || 'An error occurred');
+        } else if (axiosErr?.response?.data?.message) {
+            setError(axiosErr.response.data.message);
         } else {
-            setError(err?.message || 'An error occurred');
+            setError((err instanceof Error ? err.message : null) || 'An error occurred');
         }
     };
 
@@ -292,7 +303,7 @@ export function useRulesApi(): UseRulesApiReturn {
     }, []);
 
     // Rule Execution API
-    const executeRulesOnTransactions = useCallback(async (transactionIds: number[], ruleIds?: number[], dryRun = false): Promise<any> => {
+    const executeRulesOnTransactions = useCallback(async (transactionIds: number[], ruleIds?: number[], dryRun = false): Promise<unknown> => {
         try {
             setLoading(true);
             setError(null);
@@ -312,7 +323,7 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
-    const executeRulesOnDateRange = useCallback(async (startDate: string, endDate: string, ruleIds?: number[], dryRun = false): Promise<any> => {
+    const executeRulesOnDateRange = useCallback(async (startDate: string, endDate: string, ruleIds?: number[], dryRun = false): Promise<unknown> => {
         try {
             setLoading(true);
             setError(null);
@@ -333,7 +344,7 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
-    const testRule = useCallback(async (transactionIds: number[], ruleData: Omit<CreateRuleForm, 'rule_group_id' | 'name'>): Promise<any> => {
+    const testRule = useCallback(async (transactionIds: number[], ruleData: Omit<CreateRuleForm, 'rule_group_id' | 'name'>): Promise<unknown> => {
         try {
             setLoading(true);
             setError(null);
@@ -352,7 +363,7 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
-    const executeRule = useCallback(async (ruleId: number, dryRun?: boolean): Promise<any> => {
+    const executeRule = useCallback(async (ruleId: number, dryRun?: boolean): Promise<RuleExecutionResult | null> => {
         try {
             setLoading(true);
             setError(null);
@@ -370,7 +381,7 @@ export function useRulesApi(): UseRulesApiReturn {
         }
     }, []);
 
-    const executeRuleGroup = useCallback(async (groupId: number, dryRun?: boolean): Promise<any> => {
+    const executeRuleGroup = useCallback(async (groupId: number, dryRun?: boolean): Promise<RuleExecutionResult | null> => {
         try {
             setLoading(true);
             setError(null);

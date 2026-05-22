@@ -57,6 +57,8 @@ export interface Transaction {
     note?: string;
     recipient_note?: string;
     place?: string;
+    needs_manual_review?: boolean;
+    review_reason?: string;
     account?: Account;
     counterparty?: Counterparty;
     category?: Category;
@@ -95,6 +97,7 @@ export interface Import {
         failed_rows?: number;
         processed_rows?: number;
         total_rows?: number;
+        account_id?: number;
     };
     processed_at: string | null;
     created_at: string;
@@ -105,7 +108,7 @@ export interface ImportFailure {
     id: number;
     import_id: number;
     row_number: number | null;
-    raw_data: any[];
+    raw_data: unknown[];
     error_type: 'validation_failed' | 'duplicate' | 'processing_error' | 'parsing_error';
     error_message: string;
     error_details: {
@@ -125,7 +128,7 @@ export interface ImportFailure {
         currency?: string;
         account_id?: number;
         transaction_id?: string;
-        [key: string]: any;
+        [key: string]: unknown;
     } | null;
     metadata: {
         row_number?: number;
@@ -133,7 +136,7 @@ export interface ImportFailure {
         delimiter?: string;
         quote_char?: string;
         duplicate?: boolean;
-        [key: string]: any;
+        [key: string]: unknown;
     };
     status: 'pending' | 'reviewed' | 'resolved' | 'ignored';
     review_notes: string | null;
@@ -226,6 +229,7 @@ export interface User {
     email_verified_at: string;
     avatar?: string;
     base_currency?: string;
+    is_superadmin?: boolean;
 }
 
 export interface PageProps {

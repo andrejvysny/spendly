@@ -107,7 +107,7 @@ export function MultiSelect<T extends string | number>({
     // Handle selection toggle
     const handleSelect = (value: T) => {
         // Create a new array to avoid mutating the original
-        let newSelected;
+        let newSelected: T[];
         if (selected.includes(value)) {
             newSelected = selected.filter((item) => item !== value);
         } else {

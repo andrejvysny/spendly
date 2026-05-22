@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import ErrorDetailsPanel from '@/pages/import/components/ErrorDetailsPanel';
 import RawDataViewer from '@/pages/import/components/RawDataViewer';
+import { Import, ImportFailure } from '@/types/index';
 import { zodResolver } from '@hookform/resolvers/zod';
 import axios from 'axios';
 import { ArrowLeft, CheckCircle, Eye, XCircle } from 'lucide-react';
@@ -111,7 +112,7 @@ const createDynamicSchema = (fieldDefs: FieldDefinitions) => {
     return z.object(schemaObject);
 };
 
-type FormValues = Record<string, any>;
+type FormValues = Record<string, unknown>;
 
 import FieldMappingService from '@/pages/import/FieldMappingService';
 import { toast } from 'react-toastify';
@@ -126,18 +127,18 @@ function ReviewInterface({
     handleNextFailure, // Default to no-op if not provided
     importData,
 }: {
-    pendingFailures: any[];
+    pendingFailures: ImportFailure[];
     currentReviewIndex: number;
     setReviewMode: (mode: string) => void;
     handleMarkAsReviewed: () => void;
     handleMarkAsIgnored: () => void;
     handleNextFailure: () => Promise<void>; // Function to handle moving to next failure
-    importData: any;
+    importData: Import;
 }) {
     // ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL RETURNS
     const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinitions | null>(null);
     const [isLoadingFields, setIsLoadingFields] = useState(true);
-    const [mappedValues, setMappedValues] = useState<Record<string, any>>({});
+    const [mappedValues, setMappedValues] = useState<Record<string, unknown>>({});
     const [actuallyMappedFields, setActuallyMappedFields] = useState<Set<string>>(new Set());
     const [accountDetails, setAccountDetails] = useState<{ id: number; name: string; iban: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -260,7 +261,7 @@ function ReviewInterface({
             setActuallyMappedFields(newActuallyMappedFields);
 
             // Transform values for form compatibility (especially select fields)
-            const formValues: Record<string, any> = {};
+            const formValues: Record<string, unknown> = {};
 
             fieldDefinitions.field_order.forEach((fieldName) => {
                 // Skip account_id from form values since it's read-only
@@ -292,7 +293,7 @@ function ReviewInterface({
                         }
                     } else {
                         // Value exists, ensure it's a string
-                        value = value.toString();
+                        value = String(value);
                         console.log(`✅ Select field ${fieldName} has value:`, value);
                     }
                 }
@@ -360,7 +361,7 @@ function ReviewInterface({
 
     const handleSubmit = async (values: FormValues) => {
         // Transform form values back for submission
-        const submitValues: Record<string, any> = {};
+        const submitValues: Record<string, unknown> = {};
 
         Object.entries(values).forEach(([fieldName, value]) => {
             const fieldDef = fieldDefinitions.fields[fieldName];
@@ -411,13 +412,13 @@ function ReviewInterface({
                 return <Input {...commonProps} type="number" step={fieldDef.step || '0.01'} {...form.register(fieldName, { valueAsNumber: true })} />;
             case 'date':
                 return <Input {...commonProps} type="date" {...form.register(fieldName)} />;
-            case 'select':
+            case 'select': {
                 // Handle empty string explicitly - treat it as no value
                 let selectValue: string;
 
                 if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
                     // We have a value, use it
-                    selectValue = currentValue.toString();
+                    selectValue = String(currentValue);
                 } else {
                     // No value - determine what to show
                     if (!fieldDef.required) {
@@ -456,6 +457,7 @@ function ReviewInterface({
                         </SelectContent>
                     </Select>
                 );
+            }
             case 'textarea':
                 return <Textarea {...commonProps} {...form.register(fieldName)} rows={3} />;
             default:
@@ -528,10 +530,12 @@ function ReviewInterface({
                                             return (
                                                 <div key={fieldName} className="flex justify-between">
                                                     <span className="font-medium">{fieldDef?.label || fieldName}:</span>
-                                                    <span className="ml-2 max-w-20 truncate" title={value?.toString()}>
-                                                        {value?.toString().length > 15
-                                                            ? `${value.toString().substring(0, 15)}...`
-                                                            : value?.toString()}
+                                                    <span className="ml-2 max-w-20 truncate" title={value != null ? String(value) : undefined}>
+                                                        {value != null && String(value).length > 15
+                                                            ? `${String(value).substring(0, 15)}...`
+                                                            : value != null
+                                                              ? String(value)
+                                                              : ''}
                                                     </span>
                                                 </div>
                                             );

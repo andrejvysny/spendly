@@ -229,7 +229,7 @@ export default function TransactionDetails({ transaction }: Props) {
  * @param title - The title displayed in the summary of the collapsible section.
  * @param children - The content shown when the section is expanded.
  */
-export function SimpleCollapse({ children, title, ...props }: { children: React.ReactNode; title: string }) {
+export function SimpleCollapse({ children, title, ...props }: { children: React.ReactNode; title: string; className?: string }) {
     return (
         <div {...props}>
             <details className="group">

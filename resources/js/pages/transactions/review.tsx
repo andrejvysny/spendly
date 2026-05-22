@@ -6,7 +6,7 @@ import PageHeader from '@/layouts/page-header';
 import { Transaction } from '@/types/index';
 import { Head, router } from '@inertiajs/react';
 import { Check, ChevronLeft } from 'lucide-react';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import '../../bootstrap';
 
 interface Props {
@@ -21,7 +21,7 @@ interface Props {
     filters?: { review_reason?: string };
 }
 
-export default function ReviewQueuePage({ transactions, filters }: Props) {
+export default function ReviewQueuePage({ transactions }: Props) {
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
     const handleApprove = (id: number) => {
@@ -42,13 +42,7 @@ export default function ReviewQueuePage({ transactions, filters }: Props) {
     return (
         <AppLayout>
             <Head title="Review queue" />
-            <PageHeader
-                title="Review queue"
-                breadcrumbs={[
-                    { label: 'Transactions', href: route('transactions.index') },
-                    { label: 'Review queue' },
-                ]}
-            />
+            <PageHeader title="Review queue" subtitle="Transactions flagged during import" />
             <div className="mx-auto max-w-6xl space-y-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -69,7 +63,7 @@ export default function ReviewQueuePage({ transactions, filters }: Props) {
                         <div className="overflow-x-auto rounded-md border">
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="border-b bg-muted/50">
+                                    <tr className="bg-muted/50 border-b">
                                         <th className="w-10 px-2 py-2 text-left" />
                                         <th className="px-3 py-2 text-left font-medium">Date</th>
                                         <th className="px-3 py-2 text-left font-medium">Amount</th>
@@ -82,7 +76,7 @@ export default function ReviewQueuePage({ transactions, filters }: Props) {
                                 <tbody>
                                     {transactions.data.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                                            <td colSpan={7} className="text-muted-foreground px-3 py-8 text-center">
                                                 No transactions need review.
                                             </td>
                                         </tr>
@@ -97,16 +91,12 @@ export default function ReviewQueuePage({ transactions, filters }: Props) {
                                                         className="rounded"
                                                     />
                                                 </td>
-                                                <td className="px-3 py-2">
-                                                    {tx.booked_date
-                                                        ? new Date(tx.booked_date).toLocaleDateString()
-                                                        : '—'}
-                                                </td>
+                                                <td className="px-3 py-2">{tx.booked_date ? new Date(tx.booked_date).toLocaleDateString() : '—'}</td>
                                                 <td className="px-3 py-2">{tx.amount != null ? Number(tx.amount).toFixed(2) : '—'}</td>
                                                 <td className="max-w-[200px] truncate px-3 py-2" title={tx.description ?? ''}>
                                                     {tx.description ?? '—'}
                                                 </td>
-                                                <td className="px-3 py-2">{(tx as any).account?.name ?? '—'}</td>
+                                                <td className="px-3 py-2">{tx.account?.name ?? '—'}</td>
                                                 <td className="px-3 py-2">
                                                     {tx.review_reason ? (
                                                         <Badge variant="secondary" className="text-xs">
@@ -134,7 +124,7 @@ export default function ReviewQueuePage({ transactions, filters }: Props) {
                         </div>
                         {transactions.last_page > 1 && (
                             <div className="mt-4 flex items-center justify-between">
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-muted-foreground text-sm">
                                     Page {transactions.current_page} of {transactions.last_page}
                                 </p>
                                 <div className="flex gap-2">

@@ -21,18 +21,26 @@ interface BudgetTrendChartProps {
 export function BudgetTrendChart({ budgetId, onClose }: BudgetTrendChartProps) {
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         setLoading(true);
+        setError(false);
         fetch(`/budgets/${budgetId}/history`, {
             headers: { Accept: 'application/json' },
         })
-            .then((res) => res.json())
+            .then((res) => {
+                if (!res.ok) throw new Error('Failed to load');
+                return res.json();
+            })
             .then((data) => {
                 setHistory(data.history ?? []);
                 setLoading(false);
             })
-            .catch(() => setLoading(false));
+            .catch(() => {
+                setError(true);
+                setLoading(false);
+            });
     }, [budgetId]);
 
     const data = {
@@ -76,6 +84,8 @@ export function BudgetTrendChart({ budgetId, onClose }: BudgetTrendChartProps) {
             <CardContent>
                 {loading ? (
                     <p className="text-muted-foreground py-8 text-center text-sm">Loading...</p>
+                ) : error ? (
+                    <p className="py-8 text-center text-sm text-red-500">Failed to load trend data.</p>
                 ) : history.length === 0 ? (
                     <p className="text-muted-foreground py-8 text-center text-sm">No history data available.</p>
                 ) : (

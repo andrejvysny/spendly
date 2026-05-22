@@ -88,7 +88,7 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
                 setIsLoading(false);
             }
         },
-        [file, accountId, delimiter, quoteChar, onComplete],
+        [file, accountId, delimiter, quoteChar, onComplete, isNewAccount, newAccountName, newAccountCurrency],
     );
 
     return (
@@ -106,10 +106,9 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
                     <div className="flex space-x-4 border-b">
                         <button
                             type="button"
-                            className={`border-b-2 px-4 py-2 text-sm font-medium ${!isNewAccount
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-muted-foreground hover:text-foreground'
-                                }`}
+                            className={`border-b-2 px-4 py-2 text-sm font-medium ${
+                                !isNewAccount ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground border-transparent'
+                            }`}
                             onClick={() => {
                                 setIsNewAccount(false);
                                 setAccountId(accounts.length > 0 ? accounts[0].id.toString() : '');
@@ -119,10 +118,9 @@ export default function UploadStep({ onComplete }: UploadStepProps) {
                         </button>
                         <button
                             type="button"
-                            className={`border-b-2 px-4 py-2 text-sm font-medium ${isNewAccount
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-muted-foreground hover:text-foreground'
-                                }`}
+                            className={`border-b-2 px-4 py-2 text-sm font-medium ${
+                                isNewAccount ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground border-transparent'
+                            }`}
                             onClick={() => {
                                 setIsNewAccount(true);
                                 setAccountId('');

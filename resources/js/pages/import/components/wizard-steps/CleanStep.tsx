@@ -14,7 +14,7 @@ interface ColumnStat {
 }
 
 export default function CleanStep({ importId, onComplete }: CleanStepProps) {
-    const [rows, setRows] = useState<any[]>([]);
+    const [rows, setRows] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(0);
     const [limit] = useState(50);
@@ -22,24 +22,24 @@ export default function CleanStep({ importId, onComplete }: CleanStepProps) {
     const [columnStats, setColumnStats] = useState<{ column: string; stats: ColumnStat[] } | null>(null);
     const [statsLoading, setStatsLoading] = useState(false);
 
-    const fetchRows = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.get(route('imports.wizard.rows', { import: importId }), {
-                params: {
-                    limit,
-                    offset: page * limit,
-                },
-            });
-            setRows(response.data.rows);
-        } catch (error) {
-            console.error('Failed to load rows', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
+        const fetchRows = async () => {
+            setLoading(true);
+            try {
+                const response = await axios.get(route('imports.wizard.rows', { import: importId }), {
+                    params: {
+                        limit,
+                        offset: page * limit,
+                    },
+                });
+                setRows(response.data.rows);
+            } catch (error) {
+                console.error('Failed to load rows', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
         fetchRows();
     }, [page, limit, importId]);
 
@@ -86,19 +86,11 @@ export default function CleanStep({ importId, onComplete }: CleanStepProps) {
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => setPage((p) => Math.max(0, p - 1))}
-                        disabled={page === 0 || loading}
-                    >
+                    <Button variant="outline" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0 || loading}>
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="flex items-center px-2">Page {page + 1}</span>
-                    <Button
-                        variant="outline"
-                        onClick={() => setPage((p) => p + 1)}
-                        disabled={rows.length < limit || loading}
-                    >
+                    <Button variant="outline" onClick={() => setPage((p) => p + 1)} disabled={rows.length < limit || loading}>
                         <ChevronRight className="h-4 w-4" />
                     </Button>
                 </div>
@@ -110,7 +102,7 @@ export default function CleanStep({ importId, onComplete }: CleanStepProps) {
                         <Loader2 className="h-8 w-8 animate-spin" />
                     </div>
                 ) : (
-                    <table className="w-full relative">
+                    <table className="relative w-full">
                         <thead className="bg-foreground border-foreground sticky top-0 border-b">
                             <tr>
                                 {rows.length > 0 &&
@@ -130,13 +122,13 @@ export default function CleanStep({ importId, onComplete }: CleanStepProps) {
                         </thead>
                         <tbody>
                             {rows.map((row, rowIndex) => (
-                                <tr key={rowIndex} className="border-muted-foreground border-b last:border-0 hover:bg-muted/50">
+                                <tr key={rowIndex} className="border-muted-foreground hover:bg-muted/50 border-b last:border-0">
                                     {Object.entries(row)
                                         .filter(([key]) => !key.startsWith('_'))
                                         .map(([key, value]) => (
                                             <td key={key} className="p-0">
                                                 <input
-                                                    className="w-full bg-transparent px-4 py-2 outline-none focus:bg-background focus:ring-1 focus:ring-inset"
+                                                    className="focus:bg-background w-full bg-transparent px-4 py-2 outline-none focus:ring-1 focus:ring-inset"
                                                     value={value as string}
                                                     onChange={(e) => handleCellEdit(rowIndex, key, e.target.value)}
                                                 />
@@ -154,7 +146,10 @@ export default function CleanStep({ importId, onComplete }: CleanStepProps) {
                     {/* Column Stats Popover/Display */}
                     {columnStats && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setColumnStats(null)}>
-                            <div className="bg-background max-h-[80vh] w-96 overflow-auto rounded-lg p-6 shadow-lg" onClick={e => e.stopPropagation()}>
+                            <div
+                                className="bg-background max-h-[80vh] w-96 overflow-auto rounded-lg p-6 shadow-lg"
+                                onClick={(e) => e.stopPropagation()}
+                            >
                                 <h4 className="mb-4 text-lg font-bold">Values in '{columnStats.column}'</h4>
                                 {statsLoading ? (
                                     <Loader2 className="mx-auto animate-spin" />
@@ -162,7 +157,9 @@ export default function CleanStep({ importId, onComplete }: CleanStepProps) {
                                     <div className="space-y-2">
                                         {columnStats.stats.map((stat, i) => (
                                             <div key={i} className="flex justify-between border-b border-gray-100 py-1 last:border-0">
-                                                <span className="truncate pr-4" title={stat.value}>{stat.value || '(Active Empty)'}</span>
+                                                <span className="truncate pr-4" title={stat.value}>
+                                                    {stat.value || '(Active Empty)'}
+                                                </span>
                                                 <span className="text-muted-foreground font-mono">{stat.count}</span>
                                             </div>
                                         ))}

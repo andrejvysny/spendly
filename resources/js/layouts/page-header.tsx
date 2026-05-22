@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import type { LucideProps } from 'lucide-react';
 
 function PageHeader({
     title,
@@ -11,7 +12,7 @@ function PageHeader({
     buttons?: {
         onClick: () => void;
         label: string;
-        icon?: React.ComponentType<any>;
+        icon?: React.ComponentType<LucideProps>;
         disabled?: boolean;
         tooltipContent?: string;
     }[];
@@ -20,7 +21,7 @@ function PageHeader({
         <div className="mb-6 flex items-center justify-between">
             <div>
                 <h1 className="mb-0 text-2xl font-semibold">{title}</h1>
-                {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+                {subtitle && <p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>}
             </div>
             {buttons.length > 0 && (
                 <div>

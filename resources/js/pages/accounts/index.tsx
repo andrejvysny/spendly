@@ -1,4 +1,5 @@
 import GoCardlessSyncModal from '@/components/accounts/GoCardlessSyncModal';
+import { Badge } from '@/components/ui/badge';
 import ValueSplit from '@/components/ui/value-split';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
@@ -6,7 +7,6 @@ import { Account } from '@/types/index';
 import { formatAmount } from '@/utils/currency';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
 
 interface Flash {
     success?: string;

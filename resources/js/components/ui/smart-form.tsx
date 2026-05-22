@@ -23,7 +23,8 @@ export function SmartForm<TFieldValues extends FieldValues, Schema extends z.Zod
     formOptions,
 }: SmartFormProps<TFieldValues, Schema>) {
     const methods = useForm<TFieldValues>({
-        resolver: zodResolver(schema),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        resolver: zodResolver(schema as any),
         defaultValues,
         ...formOptions,
     });

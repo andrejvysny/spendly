@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Copy } from 'lucide-react';
 import { toast } from 'react-toastify';
 
-function RawDataViewer({ headers, data, highlightedFields }: { headers: string[]; data: any[]; highlightedFields: Set<string> }) {
+function RawDataViewer({ headers, data, highlightedFields }: { headers: string[]; data: unknown[]; highlightedFields: Set<string> }) {
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         toast.success('Copied to clipboard');
@@ -42,14 +42,14 @@ function RawDataViewer({ headers, data, highlightedFields }: { headers: string[]
                                     )}
                                 </div>
                                 <div className={`text-sm break-all ${isHighlighted ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                                    {value || '-'}
+                                    {value != null && value !== '' ? String(value) : '-'}
                                 </div>
                             </div>
-                            {value && (
+                            {value != null && value !== '' && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => copyToClipboard(value.toString())}
+                                    onClick={() => copyToClipboard(String(value))}
                                     className="hover:bg-accent h-6 w-6 p-0"
                                 >
                                     <Copy className="h-3 w-3" />

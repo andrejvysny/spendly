@@ -61,7 +61,7 @@ export interface RuleAction {
     id: number;
     rule_id: number;
     action_type: ActionType;
-    action_value?: any;
+    action_value?: string | number | null;
     order: number;
     stop_processing: boolean;
     created_at: string;
@@ -215,7 +215,7 @@ export interface CreateRuleConditionForm {
 
 export interface CreateRuleActionForm {
     action_type: ActionType;
-    action_value?: any;
+    action_value?: string | number | null;
     order?: number;
     stop_processing?: boolean;
 }

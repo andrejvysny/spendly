@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useRulesApi } from '@/hooks/use-rules-api';
 import AppLayout from '@/layouts/app-layout';
 import PageHeader from '@/layouts/page-header';
+import type { RuleOptionsResponse } from '@/types/rules';
 import { Rule, RuleGroup } from '@/types/rules';
 import { Head, router } from '@inertiajs/react';
 import { ChevronDown, ChevronRight, Copy, Edit, MoreHorizontal, Play, Plus, Power, PowerOff, Trash2 } from 'lucide-react';
@@ -26,22 +27,7 @@ import { toast } from 'react-toastify';
 
 interface RulesIndexProps {
     initialRuleGroups: RuleGroup[];
-    ruleOptions: {
-        trigger_types: string[];
-        fields: string[];
-        operators: string[];
-        logic_operators: string[];
-        action_types: string[];
-        field_operators: {
-            numeric: string[];
-            string: string[];
-            boolean: string[];
-        };
-        categories: Array<{ id: number; name: string }>;
-        counterparties: Array<{ id: number; name: string }>;
-        tags: Array<{ id: number; name: string }>;
-        transaction_types: Record<string, string>;
-    };
+    ruleOptions: RuleOptionsResponse['data'];
     actionInputConfig: Record<
         string,
         {
@@ -84,7 +70,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
         if (ruleGroups.length > 0) {
             setExpandedGroups(new Set([ruleGroups[0].id]));
         }
-    }, []);
+    }, [ruleGroups]);
 
     // Update state when initialRuleGroups prop changes (after Inertia reload)
     useEffect(() => {
@@ -105,9 +91,10 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
         // Use Inertia reload to get fresh server-side data
         router.reload({
             only: ['initialRuleGroups'],
-            onSuccess: (page: any) => {
-                if (page.props.initialRuleGroups) {
-                    setRuleGroups(page.props.initialRuleGroups);
+            onSuccess: (page) => {
+                const props = page.props as unknown as RulesIndexProps;
+                if (props.initialRuleGroups) {
+                    setRuleGroups(props.initialRuleGroups);
                 }
             },
             onError: async () => {
@@ -181,7 +168,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
             if (result) {
                 toast.success(`Rule "${rule.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
             }
-        } catch (error) {
+        } catch {
             toast.error(`Failed to execute rule "${rule.name}". Please try again.`);
         } finally {
             setExecutingRuleId(null);
@@ -195,7 +182,7 @@ export default function RulesIndex({ initialRuleGroups, ruleOptions, actionInput
             if (result) {
                 toast.success(`Rule group "${group.name}" executed successfully! ${result.data.total_rules_matched} transactions were processed.`);
             }
-        } catch (error) {
+        } catch {
             toast.error(`Failed to execute rule group "${group.name}". Please try again.`);
         } finally {
             setExecutingGroupId(null);

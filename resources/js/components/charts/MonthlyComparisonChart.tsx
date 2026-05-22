@@ -1,7 +1,7 @@
-import { CategoryScale, Chart as ChartJS, ChartOptions, Legend, LinearScale, LineElement, PointElement, Title, Tooltip } from 'chart.js';
-import { Line } from 'react-chartjs-2';
 import { formatAmount } from '@/utils/currency';
+import { CategoryScale, Chart as ChartJS, ChartOptions, Legend, LinearScale, LineElement, PointElement, Title, Tooltip } from 'chart.js';
 import { useMemo } from 'react';
+import { Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -102,7 +102,7 @@ function MonthlyComparisonChart({
                     callbacks: {
                         label: function (context) {
                             const value = context.parsed.y;
-                            if (value === null) return null;
+                            if (value === null) return '';
                             return `${context.dataset.label}: ${formatAmount(value, currency)}`;
                         },
                     },
@@ -146,7 +146,7 @@ function MonthlyComparisonChart({
                 intersect: false,
             },
         }),
-        [currency, title]
+        [currency, title],
     );
 
     const data = useMemo(
@@ -179,7 +179,7 @@ function MonthlyComparisonChart({
                 },
             ],
         }),
-        [allDays, firstMonthCumulative, secondMonthCumulative, firstMonthLabel, secondMonthLabel]
+        [allDays, firstMonthCumulative, secondMonthCumulative, firstMonthLabel, secondMonthLabel],
     );
 
     return (

@@ -38,7 +38,20 @@ export default [
         },
     },
     {
-        ignores: ['vendor', 'node_modules', 'public', 'bootstrap/ssr', 'tailwind.config.js'],
+        ignores: [
+            'vendor',
+            'node_modules',
+            'public',
+            'bootstrap/ssr',
+            'tailwind.config.js',
+            'venv',
+            'landing',
+            'ml',
+            'ml-intern',
+            'spendly-research',
+            'scripts',
+            'coverage',
+        ],
     },
     prettier, // Turn off all rules that might conflict with Prettier
 ];

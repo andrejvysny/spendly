@@ -4,7 +4,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { InferFormValues } from '@/components/ui/smart-form';
 import AppLayout from '@/layouts/app-layout';
 import FailureCollapse from '@/pages/import/components/FailureCollapse';
 import ReviewInterface from '@/pages/import/components/ReviewInterface';
@@ -12,9 +11,8 @@ import { BreadcrumbItem, Import, ImportFailure } from '@/types/index';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { AlertCircle, AlertTriangle, CheckCircle, Eye, FileX, Loader2, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { z } from 'zod';
 
 interface Props {
     import: Import;
@@ -35,24 +33,6 @@ interface Props {
     };
 }
 
-const transactionSchema = z.object({
-    transaction_id: z.string().min(1, { message: 'Transaction ID is required' }),
-    amount: z.coerce.number().min(0.01, { message: 'Amount must be greater than 0' }),
-    currency: z.string().min(1, { message: 'Currency is required' }),
-    booked_date: z.string().min(1, { message: 'Booked date is required' }),
-    processed_date: z.string().min(1, { message: 'Processed date is required' }),
-    description: z.string().min(1, { message: 'Description is required' }),
-    target_iban: z.string().nullable(),
-    source_iban: z.string().nullable(),
-    partner: z.string().min(1, { message: 'Partner is required' }),
-    type: z.enum(['TRANSFER', 'DEPOSIT', 'WITHDRAWAL', 'PAYMENT'], {
-        required_error: 'Type is required',
-    }),
-    account_id: z.number(),
-});
-
-type FormValues = InferFormValues<typeof transactionSchema>;
-
 export default function ImportFailures({ import: importData, failures: initialFailures, stats: initialStats }: Props) {
     const [failures, setFailures] = useState(initialFailures);
     const [stats, setStats] = useState(initialStats);
@@ -69,7 +49,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
     // Enhanced review mode state
     const [reviewMode, setReviewMode] = useState<'list' | 'review'>('list');
     const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [, setIsSubmitting] = useState(false);
 
     // Get pending failures for review mode
     const pendingFailures = failures.data.filter((f) => f.status === 'pending');
@@ -80,7 +60,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
         { title: 'Review Failures', href: `/imports/${importData.id}/failures` },
     ];
 
-    const loadFailures = async () => {
+    const loadFailures = useCallback(async () => {
         try {
             setIsLoadingFilters(true);
             const params = new URLSearchParams();
@@ -91,12 +71,12 @@ export default function ImportFailures({ import: importData, failures: initialFa
             const response = await axios.get(`/api/imports/${importData.id}/failures?${params.toString()}`);
             setFailures(response.data.failures);
             setStats(response.data.stats);
-        } catch (error) {
+        } catch {
             toast.error('Failed to load failures');
         } finally {
             setIsLoadingFilters(false);
         }
-    };
+    }, [filters, importData.id]);
 
     const loadMoreFailures = async () => {
         try {
@@ -115,7 +95,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
                 data: [...prevFailures.data, ...response.data.failures.data],
             }));
             setStats(response.data.stats);
-        } catch (error) {
+        } catch {
             toast.error('Failed to load more failures');
         } finally {
             setIsLoadingFilters(false);
@@ -128,7 +108,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
         }, 300);
 
         return () => clearTimeout(debounceTimer);
-    }, [filters]);
+    }, [loadFailures]);
 
     const handleSelectFailure = (failureId: number, checked: boolean) => {
         if (checked) {
@@ -164,7 +144,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
             toast.success(`Marked ${selectedFailures.length} failures as ${actionName}`);
             setSelectedFailures([]);
             await loadFailures();
-        } catch (error) {
+        } catch {
             const actionName = action === 'pending' ? 'unmark' : `mark as ${action}`;
             toast.error(`Failed to ${actionName} failures`);
         } finally {
@@ -181,7 +161,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
 
             toast.success('Failure unmarked and reverted to pending');
             await loadFailures();
-        } catch (error) {
+        } catch {
             toast.error('Failed to unmark failure');
         } finally {
             setIsMarkingReviewed(false);
@@ -219,7 +199,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
 
             toast.success('Marked as reviewed');
             await handleNextFailure();
-        } catch (error) {
+        } catch {
             toast.error('Failed to mark as reviewed');
         } finally {
             setIsSubmitting(false);
@@ -239,7 +219,7 @@ export default function ImportFailures({ import: importData, failures: initialFa
 
             toast.success('Marked as ignored');
             await handleNextFailure();
-        } catch (error) {
+        } catch {
             toast.error('Failed to mark as ignored');
         } finally {
             setIsSubmitting(false);
