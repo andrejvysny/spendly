@@ -4,14 +4,14 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
+from app.core.config import settings
 from app.core.database import get_user_categorization_history
 
 logger = logging.getLogger(__name__)
 
-VECTORS_DIR = Path(__file__).parent.parent.parent / "data" / "vectors"
+VECTORS_DIR = settings.vectors_dir
 
 
 def _normalize_text(value: str | None) -> str:
@@ -96,7 +96,7 @@ class UserPersonalizationVector:
                 "count": count,
             }
 
-        self.last_trained_at = datetime.now(timezone.utc).isoformat()
+        self.last_trained_at = datetime.now(UTC).isoformat()
 
     def get_vector(self) -> dict:
         return {

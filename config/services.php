@@ -51,6 +51,8 @@ return [
     'ml' => [
         'enabled' => env('ML_ENABLED', false),
         'url' => env('ML_SERVICE_URL', 'http://ml-service:8001'),
+        'token' => env('ML_SERVICE_TOKEN', ''),
+        'timeout' => env('ML_TIMEOUT', 30),
     ],
 
 ];

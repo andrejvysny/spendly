@@ -6,6 +6,7 @@ services:
     container_name: ml-service
     environment:
       - DATABASE_URL=sqlite:////app/db/database.sqlite
+      - ML_SERVICE_TOKEN=${ML_SERVICE_TOKEN:-dev-token}
       - LOG_LEVEL=DEBUG
     ports:
       - '8001:8001'

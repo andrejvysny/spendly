@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import re
-from typing import Dict, List, Optional
-
 from app.modules.model_training import get_categorizer
 
 KEYWORD_PATTERNS = {
@@ -29,8 +26,8 @@ def suggest_category(
     user_id: int,
     description: str,
     amount: float,
-    counterparty_name: Optional[str] = None,
-) -> Dict:
+    counterparty_name: str | None = None,
+) -> dict:
     """Suggest category — tries ML model first, falls back to keywords."""
     # Try ML model first
     model = get_categorizer(user_id)
@@ -50,8 +47,8 @@ def suggest_category(
 
 
 def categorize_transactions_batch(
-    user_id: int, transactions: List[Dict]
-) -> List[Dict]:
+    user_id: int, transactions: list[dict]
+) -> list[dict]:
     """Batch categorize — tries ML model first, falls back to keywords."""
     # Try ML model for batch
     model = get_categorizer(user_id)
@@ -80,8 +77,8 @@ def categorize_transactions_batch(
 
 
 def _keyword_suggest(
-    description: str, counterparty_name: Optional[str] = None
-) -> Dict:
+    description: str, counterparty_name: str | None = None
+) -> dict:
     """Keyword-based category suggestion (fallback)."""
     text = " ".join(filter(None, [description, counterparty_name])).lower()
 

@@ -16,6 +16,7 @@ class MlServiceTest extends TestCase
             'services.ml.enabled' => true,
             'services.ml.url' => $baseUrl,
             'services.ml.timeout' => 5,
+            'services.ml.token' => 'test-service-token',
         ]);
 
         return new MlService;
@@ -30,6 +31,22 @@ class MlServiceTest extends TestCase
         ]);
 
         return new MlService;
+    }
+
+    // -- auth --
+
+    public function test_post_requests_carry_bearer_token(): void
+    {
+        Http::fake([
+            'ml-test:8001/api/v1/categorize' => Http::response([], 200),
+        ]);
+
+        $this->enabledService()->categorize(1);
+
+        Http::assertSent(function ($request) {
+            return $request->hasHeader('Authorization', 'Bearer test-service-token')
+                && str_contains($request->url(), '/api/v1/categorize');
+        });
     }
 
     // -- isAvailable --

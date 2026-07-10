@@ -10,18 +10,17 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import joblib
 import numpy as np
 from scipy.sparse import hstack
-from sklearn.linear_model import SGDClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder
 from unidecode import unidecode
 
@@ -29,7 +28,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-MODELS_DIR = Path(__file__).parent.parent.parent / "data" / "models"
+MODELS_DIR = settings.models_dir
 MIN_TRAINING_SAMPLES = 50
 MIN_SAMPLES_PER_CLASS = 3
 
@@ -98,7 +97,7 @@ class TransactionCategorizer:
         self.version = 1
         self.trained_at: str | None = None
         self.training_samples = 0
-        self.metrics: dict[str, float] = {}
+        self.metrics: dict[str, float | str] = {}
         self.classes_: list[str] = []
 
     def _extract_features(
@@ -146,7 +145,10 @@ class TransactionCategorizer:
         if len(valid) < MIN_TRAINING_SAMPLES:
             return {
                 "success": False,
-                "error": f"Need at least {MIN_TRAINING_SAMPLES} labeled transactions, got {len(valid)}",
+                "error": (
+                    f"Need at least {MIN_TRAINING_SAMPLES} labeled transactions, "
+                    f"got {len(valid)}"
+                ),
                 "training_samples": len(valid),
             }
 
@@ -206,7 +208,7 @@ class TransactionCategorizer:
 
         self.is_fitted = True
         self.training_samples = len(valid)
-        self.trained_at = datetime.now(timezone.utc).isoformat()
+        self.trained_at = datetime.now(UTC).isoformat()
         self.version += 1
 
         logger.info(
@@ -266,9 +268,11 @@ class TransactionCategorizer:
         )
 
         self.training_samples += len(valid)
-        self.trained_at = datetime.now(timezone.utc).isoformat()
+        self.trained_at = datetime.now(UTC).isoformat()
 
-        logger.info("Partial trained with %d new samples (total: %d)", len(valid), self.training_samples)
+        logger.info(
+            "Partial trained with %d new samples (total: %d)", len(valid), self.training_samples
+        )
 
         return {
             "success": True,
@@ -346,7 +350,7 @@ class TransactionCategorizer:
         probas = self.classifier.predict_proba(X)
 
         results = []
-        for i, (txn, proba) in enumerate(zip(transactions, probas)):
+        for txn, proba in zip(transactions, probas, strict=False):
             top_indices = np.argsort(proba)[::-1]
             best_idx = top_indices[0]
             best_class = self.classes_[best_idx]

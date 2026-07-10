@@ -20,6 +20,9 @@ from app.modules.model_training import get_or_create_categorizer, update_cache
 from app.modules.recurring_detection import detect_recurring_patterns
 from app.modules.transfer_detection import detect_transfer_pairs
 
+# Health stays tokenless so Laravel's isAvailable() and Docker healthchecks work.
+health_router = APIRouter()
+
 router = APIRouter()
 
 
@@ -37,6 +40,7 @@ class CounterpartyRequest(BaseModel):
 
 class RecurringRequest(BaseModel):
     user_id: int
+    months_lookback: int = Field(default=12, ge=1, le=36)
 
 
 class TransfersRequest(BaseModel):
@@ -67,7 +71,7 @@ def _as_date(value: str | None) -> date | None:
     return parsed.date()
 
 
-@router.get("/health")
+@health_router.get("/health")
 async def health_v1() -> dict:
     return {"status": "ok", "service": "spendly-ml"}
 
@@ -175,7 +179,7 @@ async def detect_counterparties_v1(request: CounterpartyRequest) -> list[dict]:
 @router.post("/detect-recurring")
 async def detect_recurring_v1(request: RecurringRequest) -> list[dict]:
     patterns = await detect_recurring_patterns(
-        user_id=request.user_id, months_lookback=12
+        user_id=request.user_id, months_lookback=request.months_lookback
     )
 
     mapped: list[dict] = []

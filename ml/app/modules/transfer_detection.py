@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Dict, List
 
 from app.core.database import get_transactions_for_user
 
 
-async def detect_transfer_pairs(user_id: int, days_lookback: int = 30) -> List[Dict]:
+async def detect_transfer_pairs(user_id: int, days_lookback: int = 30) -> list[dict]:
     """Detect cross-account transfer pairs by matching debits to credits."""
     transactions = await get_transactions_for_user(user_id, limit=5000)
 
@@ -62,7 +61,7 @@ async def detect_transfer_pairs(user_id: int, days_lookback: int = 30) -> List[D
                 best_time_diff = time_diff
 
         if best_match and best_score > 0.7:
-            matched_in_ids.add(best_match.get("id"))
+            matched_in_ids.add(int(best_match["id"]))
 
             pairs.append(
                 {

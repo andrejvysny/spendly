@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from datetime import datetime
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -11,6 +12,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_datetime(value: datetime | str | None) -> datetime | None:
+    """aiosqlite returns datetime columns as strings; asyncpg returns datetime."""
+    if value is None or isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
 
 
 def _build_async_url(url: str) -> str:
@@ -38,12 +49,28 @@ def _create_engine() -> AsyncEngine:
     return create_async_engine(url, **kwargs)
 
 
-engine: AsyncEngine = _create_engine()
+_engine: AsyncEngine | None = None
+
+
+def get_engine() -> AsyncEngine:
+    """Return the shared engine, creating it lazily (import-safe for tests)."""
+    global _engine
+    if _engine is None:
+        _engine = _create_engine()
+    return _engine
+
+
+async def reset_engine() -> None:
+    """Dispose and drop the shared engine so the next call rebuilds it."""
+    global _engine
+    if _engine is not None:
+        await _engine.dispose()
+        _engine = None
 
 
 async def get_transactions_for_user(user_id: int, limit: int = 1000) -> list[dict]:
     """Fetch transactions for ML processing."""
-    async with engine.connect() as conn:
+    async with get_engine().connect() as conn:
         result = await conn.execute(
             text("""
                 SELECT
@@ -52,32 +79,38 @@ async def get_transactions_for_user(user_id: int, limit: int = 1000) -> list[dic
                     t.amount,
                     t.currency,
                     t.description,
-                    t.counterparty_name,
-                    t.counterparty_iban,
+                    COALESCE(cp.name, t.partner) AS counterparty_name,
+                    t.source_iban,
+                    t.target_iban,
+                    t.type,
+                    t.transfer_pair_transaction_id,
                     t.booked_date as transaction_date,
                     t.category_id,
                     c.name as category_name,
-                    c.type as category_type,
                     a.name as account_name,
                     a.currency as account_currency
                 FROM transactions t
+                LEFT JOIN counterparties cp ON t.counterparty_id = cp.id
                 LEFT JOIN categories c ON t.category_id = c.id
-                LEFT JOIN accounts a ON t.account_id = a.id
+                INNER JOIN accounts a ON t.account_id = a.id
                 WHERE a.user_id = :user_id
                 ORDER BY t.booked_date DESC
                 LIMIT :limit
             """),
             {"user_id": user_id, "limit": limit},
         )
-        return [dict(row) for row in result.mappings()]
+        rows = [dict(row) for row in result.mappings()]
+        for row in rows:
+            row["transaction_date"] = _coerce_datetime(row["transaction_date"])
+        return rows
 
 
 async def get_user_categories(user_id: int) -> list[dict]:
     """Fetch user's custom categories."""
-    async with engine.connect() as conn:
+    async with get_engine().connect() as conn:
         result = await conn.execute(
             text("""
-                SELECT id, name, type, parent_id, keywords
+                SELECT id, name, parent_category_id
                 FROM categories
                 WHERE user_id = :user_id
                 ORDER BY name
@@ -90,19 +123,26 @@ async def get_user_categories(user_id: int) -> list[dict]:
 async def get_user_categorization_history(
     user_id: int, limit: int = 1000
 ) -> list[dict]:
-    """Fetch labeled transactions for training."""
-    async with engine.connect() as conn:
+    """Fetch labeled transactions for training.
+
+    Uses the same counterparty_name source as the prediction queries
+    (COALESCE of linked counterparty name and raw partner string) so
+    train-time and predict-time features stay consistent.
+    """
+    async with get_engine().connect() as conn:
         result = await conn.execute(
             text("""
                 SELECT
                     t.description,
-                    t.counterparty_name,
+                    COALESCE(cp.name, t.partner) AS counterparty_name,
                     t.amount,
+                    t.booked_date,
                     t.category_id,
                     c.name AS category_name
                 FROM transactions t
                 INNER JOIN categories c ON t.category_id = c.id
                 INNER JOIN accounts a ON t.account_id = a.id
+                LEFT JOIN counterparties cp ON t.counterparty_id = cp.id
                 WHERE a.user_id = :user_id
                   AND t.category_id IS NOT NULL
                 ORDER BY t.booked_date DESC
@@ -110,7 +150,10 @@ async def get_user_categorization_history(
             """),
             {"user_id": user_id, "limit": limit},
         )
-        return [dict(row) for row in result.mappings()]
+        rows = [dict(row) for row in result.mappings()]
+        for row in rows:
+            row["booked_date"] = _coerce_datetime(row["booked_date"])
+        return rows
 
 
 def _normalize_ids(ids: Sequence[int] | None) -> list[int]:
@@ -163,7 +206,7 @@ async def get_transactions_for_categorization(
         "transaction_ids": tx_ids or [0],
     }
 
-    async with engine.connect() as conn:
+    async with get_engine().connect() as conn:
         result = await conn.execute(sql, params)
         return [dict(row) for row in result.mappings()]
 
@@ -202,14 +245,14 @@ async def get_transactions_for_counterparty_detection(
         "transaction_ids": tx_ids or [0],
     }
 
-    async with engine.connect() as conn:
+    async with get_engine().connect() as conn:
         result = await conn.execute(sql, params)
         return [dict(row) for row in result.mappings()]
 
 
 async def get_user_counterparties(user_id: int) -> list[dict]:
     """Fetch existing counterparties for user-side matching."""
-    async with engine.connect() as conn:
+    async with get_engine().connect() as conn:
         result = await conn.execute(
             text(
                 """

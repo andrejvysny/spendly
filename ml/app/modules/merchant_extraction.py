@@ -1,8 +1,5 @@
 import re
-from typing import List, Dict, Optional, Tuple
 import unicodedata
-
-from rapidfuzz import fuzz, process
 
 IBAN_RE = re.compile(r"[A-Z]{2}\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{0,4}")
 CARD_MASK_RE = re.compile(r"\d{6}\*{4,}\d{4}")
@@ -59,7 +56,7 @@ def normalize_merchant(text: str) -> str:
     return t
 
 
-def extract_domain(text: str) -> Optional[str]:
+def extract_domain(text: str) -> str | None:
     if not text:
         return None
     m = DOMAIN_RE.search(text)
@@ -68,7 +65,7 @@ def extract_domain(text: str) -> Optional[str]:
     return None
 
 
-def score_entity_type(text: str, norm: str) -> Tuple[str, float]:
+def score_entity_type(text: str, norm: str) -> tuple[str, float]:
     score = 0
 
     if LEGAL_SUFFIX_RE.search(text):
@@ -107,8 +104,8 @@ def score_entity_type(text: str, norm: str) -> Tuple[str, float]:
 
 
 def extract_merchant_single(
-    description: str, counterparty_name: Optional[str] = None
-) -> Dict:
+    description: str, counterparty_name: str | None = None
+) -> dict:
     raw = counterparty_name if counterparty_name else description
     if not raw:
         return {
@@ -142,7 +139,7 @@ def extract_merchant_single(
     }
 
 
-def extract_merchants_batch(user_id: int, transactions: List[Dict]) -> List[Dict]:
+def extract_merchants_batch(user_id: int, transactions: list[dict]) -> list[dict]:
     results = []
     for txn in transactions:
         result = extract_merchant_single(

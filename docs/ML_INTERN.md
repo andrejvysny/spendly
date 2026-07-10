@@ -1,5 +1,7 @@
 # ML-Intern for Spendly: Local-Only ML Workflow
 
+> **Status: PARKED (2026-07).** Datasets were exported and prepared, but no MLX models were trained and none are planned. Decision: Spendly targets any self-hosted Docker host (CPU-only Linux), which MLX inference (Apple Silicon only) cannot serve; the shipped `ml/` scikit-learn stack is the strategic model path (see `docs/v1.1-roadmap.md`). Kept for reference in case a local-LLM track is revisited. Prepared datasets under `ml-intern/data/` contain real personal data — keep local, never commit.
+
 [ml-intern](https://github.com/huggingface/ml-intern) is used here as a local autonomous ML engineer for Spendly. It researches, plans, and writes training code, but the actual dataset prep and model training stay on your Apple Silicon machine.
 
 ## Goals

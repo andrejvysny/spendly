@@ -27,7 +27,7 @@ class MlTrainCommand extends Command
         }
 
         if (! $ml->isAvailable()) {
-            $this->error('ML service is not available. Check ML_ENABLED and ML_API_URL.');
+            $this->error('ML service is not available. Check ML_ENABLED, ML_SERVICE_URL and ML_SERVICE_TOKEN.');
 
             return self::FAILURE;
         }

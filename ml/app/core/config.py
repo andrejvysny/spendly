@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import List
+from pathlib import Path
 
 from pydantic_settings import BaseSettings
+
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -12,18 +14,25 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///database/database.sqlite"
 
-    CORS_ORIGINS: List[str] = ["*"]
-
-    ML_TIMEOUT: int = 300
+    # Shared secret required by all non-health endpoints. Empty = fail closed (503).
+    ML_SERVICE_TOKEN: str = ""
 
     LOG_LEVEL: str = "INFO"
 
-    # Filesystem paths for ML data
-    ML_DATA_DIR: str = "data"
+    # Filesystem root for model artifacts and personalization vectors
+    ML_DATA_DIR: str = str(_PACKAGE_ROOT / "data")
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+    @property
+    def models_dir(self) -> Path:
+        return Path(self.ML_DATA_DIR) / "models"
+
+    @property
+    def vectors_dir(self) -> Path:
+        return Path(self.ML_DATA_DIR) / "vectors"
 
 
 settings = Settings()

@@ -41,7 +41,8 @@ services:
       GOCARDLESS_SECRET_ID: ${GOCARDLESS_SECRET_ID:-}
       GOCARDLESS_SECRET_KEY: ${GOCARDLESS_SECRET_KEY:-}
       ML_ENABLED: ${ML_ENABLED:-false}
-      ML_API_URL: ${ML_API_URL:-}
+      ML_SERVICE_URL: ${ML_SERVICE_URL:-}
+      ML_SERVICE_TOKEN: ${ML_SERVICE_TOKEN:-}
       GOMEMLIMIT: '450MiB'
     volumes:
       - app_database:/app/database

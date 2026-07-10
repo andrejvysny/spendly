@@ -2,27 +2,18 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI
 
-from app.api import (
-    categorization,
-    health,
-    merchants,
-    personalization,
-    recurring,
-    transfers,
-    v1,
-)
-from app.core.config import settings
-from app.core.database import engine
+from app.api import health, v1
+from app.core.auth import require_service_token
+from app.core.database import reset_engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     yield
-    await engine.dispose()
+    await reset_engine()
 
 
 app = FastAPI(
@@ -32,22 +23,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app.include_router(health.router, tags=["health"])
-app.include_router(merchants.router, prefix="/merchants", tags=["merchants"])
+app.include_router(v1.health_router, prefix="/api/v1", tags=["v1"])
 app.include_router(
-    categorization.router, prefix="/categorization", tags=["categorization"]
+    v1.router,
+    prefix="/api/v1",
+    tags=["v1"],
+    dependencies=[Depends(require_service_token)],
 )
-app.include_router(
-    personalization.router, prefix="/personalization", tags=["personalization"]
-)
-app.include_router(recurring.router, prefix="/recurring", tags=["recurring"])
-app.include_router(transfers.router, prefix="/transfers", tags=["transfers"])
-app.include_router(v1.router, prefix="/api/v1", tags=["v1"])

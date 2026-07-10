@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Dict, List
 
 from app.core.database import get_transactions_for_user
 
 
 async def detect_recurring_patterns(
     user_id: int, months_lookback: int = 6
-) -> List[Dict]:
+) -> list[dict]:
     """Detect recurring payment patterns from transaction history."""
     transactions = await get_transactions_for_user(user_id, limit=5000)
 

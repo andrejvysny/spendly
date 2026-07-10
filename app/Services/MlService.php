@@ -16,11 +16,17 @@ class MlService
 
     private int $timeout;
 
+    private string $token;
+
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.ml.url', env('ML_API_URL', 'http://localhost:8001')), '/');
-        $this->enabled = (bool) config('services.ml.enabled', env('ML_ENABLED', false));
-        $this->timeout = (int) config('services.ml.timeout', 30);
+        $url = config('services.ml.url', 'http://ml-service:8001');
+        $this->baseUrl = rtrim(is_string($url) ? $url : 'http://ml-service:8001', '/');
+        $this->enabled = (bool) config('services.ml.enabled', false);
+        $timeout = config('services.ml.timeout', 30);
+        $this->timeout = is_numeric($timeout) ? (int) $timeout : 30;
+        $token = config('services.ml.token');
+        $this->token = is_string($token) ? $token : '';
     }
 
     public function isAvailable(): bool
@@ -140,6 +146,7 @@ class MlService
 
         try {
             $response = Http::timeout($this->timeout)
+                ->withToken($this->token)
                 ->acceptJson()
                 ->post("{$this->baseUrl}{$path}", $data);
 
