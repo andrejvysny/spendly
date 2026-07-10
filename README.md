@@ -7,26 +7,21 @@ SPDX-License-Identifier: GPL-3.0-or-later
 SPDX-FileCopyrightText: 2024 Spendly Contributors
 -->
 
-
-
 [![Build and Push Docker Image](https://github.com/andrejvysny/spendly/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/andrejvysny/spendly/actions/workflows/build.yml)
 [![tests](https://github.com/andrejvysny/spendly/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/andrejvysny/spendly/actions/workflows/tests.yml)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/andrejvysny/spendly?utm_source=oss&utm_medium=github&utm_campaign=andrejvysny%2Fspendly&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
-
 ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/andrejvysny/spendly)
 ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues-pr/andrejvysny/spendly)
-
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![SPDX](https://img.shields.io/badge/SPDX-GPL--3.0--or--later-blue.svg)](https://spdx.org/licenses/GPL-3.0-or-later.html)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red.svg)](https://laravel.com)
 [![React](https://img.shields.io/badge/React-19.x-blue.svg)](https://reactjs.org)
 [![Self-Hosting](https://img.shields.io/badge/Self--Hosting-Ready-blue.svg)](docs/DEPLOYMENT.md)
+[![Release](https://img.shields.io/badge/Release-v1.0.0--rc.1-orange.svg)](CHANGELOG.md)
 
-> ⚠️ **Development Status Notice**
-> 
-> This project is currently in active development with no official release yet. The codebase and documentation have been significantly developed using AI assistance and require extensive refactoring and thorough code review before being production-ready. Use at your own risk and contributions are welcome to help improve the code quality and stability.
+> 🧪 **Release candidate** — `v1.0.0-rc.1` is published for self-hosting feedback. Core features are stable; ML categorization ships as experimental opt-in (default model only — per-user training lands in v1.1). Please report issues before the final `v1.0.0` tag.
 
 Spendly is an open-source personal finance tracker that helps you manage your finances, analyze spending patterns, and maintain budgets. It integrates with GoCardless for seamless bank account imports and provides powerful financial analysis tools.
 
@@ -61,10 +56,10 @@ Spendly is an open-source personal finance tracker that helps you manage your fi
 ## 🐳 Quick Start - One line (Recommended)
 
 Download and run setup script scripts/setup.sh
+
 ```bash
 curl -sSL https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/scripts/setup.sh | bash
 ```
-
 
 ## Manual Docker setup
 
@@ -72,6 +67,7 @@ curl -sSL https://raw.githubusercontent.com/andrejvysny/spendly/refs/heads/main/
 2. Download compose.prod.yml.
 3. Create .env file using .env.example and adjust settings as needed.
 4. Generate app key using docker or use one from https://laravel-encryption-key-generator.vercel.app/.
+
 ```bash
 docker run --rm \
         --entrypoint="" \
@@ -81,17 +77,19 @@ docker run --rm \
         ghcr.io/andrejvysny/spendly:main \
         php artisan key:generate --force
 ```
-5. Start Spendly 
+
+5. Start Spendly
+
 ```bash
 docker compose up -d
 ```
-6. Visit `http://localhost` in your browser and enjoy.
 
+6. Visit `http://localhost` in your browser and enjoy.
 
 ---
 
 ## 📚 Documentation (WIP)
- 
+
 - **[Installation Guide](docs/ai/INSTALLATION.md)** - Detailed setup instructions
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Self-hosting and production deployment
 - **[Development Setup](docs/DEVELOPMENT.md)** - Local development environment
@@ -102,7 +100,6 @@ docker compose up -d
 
 See [Development Guide](docs/DEVELOPMENT.md) for detailed instructions.
 See [Testing Guide](docs/TESTING.md) for testing setup.
-
 
 ## 🔒 Security
 
@@ -115,7 +112,6 @@ Spendly takes security seriously, especially when handling financial data:
 - **Secure authentication** with Laravel Sanctum
 - **Input validation** and SQL injection prevention
 - **Security headers** and CSRF protection
-
 
 ## 🤝 Contributing
 

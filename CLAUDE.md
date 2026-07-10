@@ -59,6 +59,7 @@ Prefer targeted test runs for speed.
     - `RecurringDetectionService` — pattern matching for recurring transactions
     - `TransferDetectionService` — rule-based + ML transfer pair detection across accounts
     - `BudgetService` — budget progress tracking, spending aggregation per category/period
+    - `Transactions/` — `TransactionFilterService` (query/filter building), `TransactionBulkService` (bulk ops), `TransactionSummaryService` (aggregates). `TransactionController` delegates here, stays thin.
     - `ExchangeRateService` — multi-currency support via ECB/Frankfurter rates
     - `MlService` (HTTP client to Python FastAPI) + `MlSuggestionService` (writes ML predictions into `Transaction.metadata.ml`). Per-user opt-in via `MlPersonalizationSetting` model. `TrackManualCategorization` listener counts manual category changes; threshold triggers `RetrainMlModelJob`.
 - `Repositories/` — 23 interfaces in `Contracts/Repositories/`, 21 concrete implementations. Concerns: `WithUserScope`, `WithOrdering`, `Paginating`.
