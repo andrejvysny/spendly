@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Import\Import;
 use App\Models\Import\ImportFailure;
 use App\Policies\Ability;
+use App\Rules\OwnedByUser;
 use App\Services\Import\ImportFailureResolutionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -399,14 +400,14 @@ class ImportFailureController extends Controller
                 foreach ($failures as $failure) {
                     fputcsv($file, [
                         $failure->row_number,
-                        $failure->error_type,
-                        $failure->error_message,
-                        is_array($failure->raw_data) ? json_encode($failure->raw_data) : $failure->raw_data,
+                        $this->csvSafe($failure->error_type),
+                        $this->csvSafe($failure->error_message),
+                        $this->csvSafe(is_array($failure->raw_data) ? json_encode($failure->raw_data) : $failure->raw_data),
                         $failure->status,
                         $failure->created_at?->format('Y-m-d H:i:s'),
                         $failure->reviewed_at?->format('Y-m-d H:i:s'),
-                        $failure->reviewer?->name,
-                        $failure->review_notes,
+                        $this->csvSafe($failure->reviewer?->name),
+                        $this->csvSafe($failure->review_notes),
                     ]);
                 }
             });
@@ -443,11 +444,12 @@ class ImportFailureController extends Controller
             'type' => 'required|string|max:255',
             'metadata' => 'nullable|array',
             'balance_after_transaction' => 'required|numeric',
-            'account_id' => 'required|exists:accounts,id',
-            'counterparty_id' => 'nullable|exists:counterparties,id',
-            'category_id' => 'nullable|exists:categories,id',
+            // Foreign keys must belong to the authenticated user (no cross-tenant writes).
+            'account_id' => ['required', 'integer', new OwnedByUser('accounts')],
+            'counterparty_id' => ['nullable', 'integer', new OwnedByUser('counterparties')],
+            'category_id' => ['nullable', 'integer', new OwnedByUser('categories')],
             'tags' => 'nullable|array',
-            'tags.*' => 'exists:tags,id',
+            'tags.*' => [new OwnedByUser('tags')],
             'note' => 'nullable|string',
             'recipient_note' => 'nullable|string',
             'place' => 'nullable|string|max:255',
@@ -505,5 +507,19 @@ class ImportFailureController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Neutralize CSV/spreadsheet formula injection by prefixing cells that begin
+     * with a formula trigger (=, +, -, @, tab, CR) with a single quote.
+     */
+    private function csvSafe(mixed $value): string
+    {
+        $str = (string) ($value ?? '');
+        if ($str !== '' && in_array($str[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            return "'".$str;
+        }
+
+        return $str;
     }
 }

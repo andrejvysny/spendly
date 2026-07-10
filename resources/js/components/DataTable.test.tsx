@@ -21,7 +21,7 @@ describe('DataTable', () => {
     });
 
     it('shows empty message', () => {
-        render(<DataTable columns={columns} data={[]} rowKey={(r) => r.name} />);
+        render(<DataTable<(typeof data)[number]> columns={columns} data={[]} rowKey={(r) => r.name} />);
         expect(screen.getByText('No data.')).toBeInTheDocument();
     });
 });

@@ -24,6 +24,7 @@ interface TransactionLabelingTableProps {
     onPatch: (id: number, patch: TransactionPatch) => void;
     onAcceptML: (id: number, field: 'category' | 'counterparty') => void;
     onSelectAll: () => void;
+    onCreateCategory?: (name: string) => Promise<number | null>;
 }
 
 const typeStyles: Record<string, { bg: string; color: string; label: string }> = {
@@ -48,6 +49,7 @@ export function TransactionLabelingTable({
     onPatch,
     onAcceptML,
     onSelectAll,
+    onCreateCategory,
 }: TransactionLabelingTableProps) {
     const formatAmount = (amount: number, currency: string) => {
         const formatted = new Intl.NumberFormat('en-US', {
@@ -147,6 +149,7 @@ export function TransactionLabelingTable({
                                             suggestion={row.ml.category}
                                             categories={categories}
                                             onChange={(value) => onPatch(row.id, { category_id: value })}
+                                            onCreate={onCreateCategory}
                                         />
                                     </TableCell>
                                     <TableCell onClick={(e) => e.stopPropagation()}>

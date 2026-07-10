@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CategoryRequest;
 use App\Models\Category;
+use App\Rules\OwnedByUser;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -35,16 +37,8 @@ class CategoryController extends Controller
 
     public function store(CategoryRequest $request): RedirectResponse
     {
-        $validated = $request->validated();
-
-        $data = $validated;
-        if ($data['parent_category_id'] === '0') {
-            $data['parent_category_id'] = null;
-        } elseif ($data['parent_category_id'] !== null) {
-            $data['parent_category_id'] = (int) $data['parent_category_id'];
-        }
-
-        Auth::user()->categories()->create($data);
+        // parent_category_id is normalized + ownership-validated in CategoryRequest.
+        Auth::user()->categories()->create($request->validated());
 
         return redirect()->back()->with('success', 'Category created successfully');
     }
@@ -56,23 +50,11 @@ class CategoryController extends Controller
     {
         $this->authorize('update', $category);
 
-        $validated = $request->validated();
+        $data = $request->validated();
 
-        $data = $validated;
-        if ($data['parent_category_id'] === '0') {
-            $data['parent_category_id'] = null;
-        } elseif ($data['parent_category_id'] !== null) {
-            $data['parent_category_id'] = (int) $data['parent_category_id'];
-        }
-
-        // Additional validation for parent_category_id
-        if ($data['parent_category_id'] !== null) {
-            $request->validate([
-                'parent_category_id' => [
-                    'exists:categories,id',
-                    Rule::notIn([$category->id]), // Prevent setting itself as parent
-                ],
-            ]);
+        $newParentId = $data['parent_category_id'] ?? null;
+        if ($newParentId !== null) {
+            $this->assertNoCycle($category, (int) $newParentId);
         }
 
         $category->update($data);
@@ -87,23 +69,44 @@ class CategoryController extends Controller
     {
         $this->authorize('delete', $category);
 
-        // Check if we need to handle transactions with this category
-        if ($request->has('replacement_action')) {
-            if ($request->replacement_action === 'replace' && $request->has('replacement_category_id')) {
-                // Replace this category with another category in all transactions
-                $category->transactions()->update([
-                    'category_id' => $request->replacement_category_id,
-                ]);
-            } else {
-                // Remove the category from all transactions
-                $category->transactions()->update([
-                    'category_id' => null,
-                ]);
-            }
+        if ($request->input('replacement_action') === 'replace' && $request->filled('replacement_category_id')) {
+            // Replacement must be one of the caller's own categories (no cross-tenant retarget).
+            $request->validate([
+                'replacement_category_id' => [
+                    'integer',
+                    Rule::notIn([$category->id]),
+                    new OwnedByUser('categories'),
+                ],
+            ]);
+            $category->transactions()->update([
+                'category_id' => (int) $request->input('replacement_category_id'),
+            ]);
+        } elseif ($request->has('replacement_action')) {
+            $category->transactions()->update(['category_id' => null]);
         }
 
         $category->delete();
 
         return redirect()->back()->with('success', 'Category deleted successfully');
+    }
+
+    /**
+     * Guard against hierarchy cycles: the proposed parent must not be the category
+     * itself or any of its descendants. Walks ancestors of the proposed parent.
+     *
+     * @throws ValidationException
+     */
+    private function assertNoCycle(Category $category, int $newParentId): void
+    {
+        $ancestorId = $newParentId;
+        $guard = 0;
+        while ($ancestorId !== null && $guard++ < 1000) {
+            if ((int) $ancestorId === (int) $category->id) {
+                throw ValidationException::withMessages([
+                    'parent_category_id' => 'A category cannot be set as a child of itself or one of its descendants.',
+                ]);
+            }
+            $ancestorId = Category::where('id', $ancestorId)->value('parent_category_id');
+        }
     }
 }

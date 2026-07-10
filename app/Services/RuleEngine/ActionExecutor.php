@@ -6,6 +6,7 @@ use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Contracts\Repositories\CounterpartyRepositoryInterface;
 use App\Contracts\Repositories\TagRepositoryInterface;
 use App\Contracts\RuleEngine\ActionExecutorInterface;
+use App\Models\Counterparty;
 use App\Models\RuleEngine\ActionType;
 use App\Models\RuleEngine\RuleAction;
 use App\Models\Transaction;
@@ -321,13 +322,23 @@ class ActionExecutor implements ActionExecutorInterface
 
     private function createCounterpartyIfNotExists(RuleAction $action, Transaction $transaction): bool
     {
-        $counterpartyName = $action->getDecodedValue();
-        $userId = $transaction->account->user_id;
+        $counterpartyName = trim((string) $action->getDecodedValue());
+        $userId = (int) $transaction->account->user_id;
+        $normalized = Counterparty::normalizeName($counterpartyName);
 
-        $counterparty = $this->counterpartyRepository->firstOrCreate(
-            ['name' => $counterpartyName, 'user_id' => $userId],
-            ['description' => 'Created by rule engine']
-        );
+        // Match case- and whitespace-insensitively so "Netflix", "netflix " and
+        // "NETFLIX" resolve to a single counterparty instead of proliferating.
+        $counterparty = Counterparty::where('user_id', $userId)
+            ->where('normalized_name', $normalized)
+            ->first();
+
+        if ($counterparty === null) {
+            $counterparty = Counterparty::create([
+                'name' => $counterpartyName,
+                'user_id' => $userId,
+                'description' => 'Created by rule engine',
+            ]);
+        }
 
         $transaction->counterparty_id = $counterparty->id;
         $transaction->save();

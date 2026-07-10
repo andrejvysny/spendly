@@ -9,3 +9,5 @@ parameters:
         - database
         - config
         - tests
+    parallel:
+        maximumNumberOfProcesses: 1

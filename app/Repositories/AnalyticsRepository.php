@@ -42,7 +42,7 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->whereIn('account_id', $accountIds)
             ->where('booked_date', '>=', $startDate)
             ->where('booked_date', '<=', $endDate)
-            ->select('booked_date', DB::raw("transactions.{$amountCol} as amount"), 'type')
+            ->select('booked_date', DB::raw("transactions.{$amountCol} as amount"), 'type', 'transfer_pair_transaction_id')
             ->orderBy('booked_date')
             ->get();
 
@@ -55,7 +55,8 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
 
             $series[$key]['transaction_count']++;
 
-            $isTransfer = $transaction->type === Transaction::TYPE_TRANSFER;
+            $isTransfer = $transaction->type === Transaction::TYPE_TRANSFER
+                || $transaction->transfer_pair_transaction_id !== null;
             if (! $isTransfer) {
                 if ((float) $transaction->amount > 0) {
                     $series[$key]['total_income'] += (float) $transaction->amount;
@@ -97,6 +98,7 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->where('transactions.booked_date', '<=', $endDate)
             ->where($qualifiedCol, '<', 0)
             ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
+            ->whereNull('transactions.transfer_pair_transaction_id')
             ->whereNotNull('transactions.category_id')
             ->groupBy('categories.id', 'categories.name')
             ->orderBy('total', 'desc')
@@ -113,6 +115,7 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->where('booked_date', '<=', $endDate)
             ->where($amountCol, '<', 0)
             ->where('type', '!=', Transaction::TYPE_TRANSFER)
+            ->whereNull('transfer_pair_transaction_id')
             ->whereNull('category_id')
             ->first();
 
@@ -148,6 +151,7 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->where('transactions.booked_date', '<=', $endDate)
             ->where($qualifiedCol, '<', 0)
             ->where('transactions.type', '!=', Transaction::TYPE_TRANSFER)
+            ->whereNull('transactions.transfer_pair_transaction_id')
             ->whereNotNull('transactions.counterparty_id')
             ->groupBy('counterparties.id', 'counterparties.name')
             ->orderBy('total', 'desc')
@@ -164,6 +168,7 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->where('booked_date', '<=', $endDate)
             ->where($amountCol, '<', 0)
             ->where('type', '!=', Transaction::TYPE_TRANSFER)
+            ->whereNull('transfer_pair_transaction_id')
             ->whereNull('counterparty_id')
             ->first();
 
@@ -191,7 +196,7 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             ->whereIn('account_id', $accountIds)
             ->where('booked_date', '>=', $startDate)
             ->where('booked_date', '<=', $endDate)
-            ->select('booked_date', 'amount', 'type')
+            ->select('booked_date', 'amount', 'type', 'transfer_pair_transaction_id')
             ->orderBy('booked_date')
             ->get();
 
@@ -203,7 +208,9 @@ class AnalyticsRepository implements AnalyticsRepositoryInterface
             }
 
             $series[$key]['transaction_count']++;
-            if ($transaction->type !== Transaction::TYPE_TRANSFER) {
+            $isTransfer = $transaction->type === Transaction::TYPE_TRANSFER
+                || $transaction->transfer_pair_transaction_id !== null;
+            if (! $isTransfer) {
                 if ((float) $transaction->amount > 0) {
                     $series[$key]['daily_income'] += (float) $transaction->amount;
                 } else {

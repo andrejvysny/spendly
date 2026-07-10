@@ -270,16 +270,29 @@ class Transaction extends BaseModel
         });
     }
 
-    public function setCategory(Category $category): void
+    /**
+     * Scope a query to exclude transfers.
+     *
+     * Canonical transfer predicate: a transaction is a transfer when its type is
+     * TRANSFER *or* it is linked to a paired transfer leg via
+     * transfer_pair_transaction_id. Both must be excluded to avoid counting
+     * transfer money as income/expense/budget spend.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Transaction>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<Transaction>
+     */
+    public function scopeExcludingTransfers($query)
     {
-        $this->category_id = $category->id;
-        $this->save();
+        return $query->where('type', '!=', self::TYPE_TRANSFER)
+            ->whereNull('transfer_pair_transaction_id');
     }
 
-    public function setCounterparty(Counterparty $counterparty): void
+    /**
+     * Whether this transaction is a transfer (by type or by being paired with another leg).
+     */
+    public function isTransfer(): bool
     {
-        $this->counterparty_id = $counterparty->id;
-        $this->save();
+        return $this->type === self::TYPE_TRANSFER || $this->transfer_pair_transaction_id !== null;
     }
 
     public function markReconciled(?string $note = null): void

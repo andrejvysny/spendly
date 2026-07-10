@@ -9,11 +9,14 @@ interface CategoryInlineSelectProps {
     suggestion: MlSuggestion | null;
     categories: Category[];
     onChange: (value: number | null) => void;
+    /** Persist a new category server-side; resolves with the created id (selected automatically). */
+    onCreate?: (name: string) => Promise<number | null>;
 }
 
-export function CategoryInlineSelect({ value, suggestion, categories, onChange }: CategoryInlineSelectProps) {
+export function CategoryInlineSelect({ value, suggestion, categories, onChange, onCreate }: CategoryInlineSelectProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newValue, setNewValue] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
     const hasSuggestion = suggestion && suggestion.confidence >= 70 && !value;
     const confidence = suggestion?.confidence ?? 0;
@@ -30,10 +33,22 @@ export function CategoryInlineSelect({ value, suggestion, categories, onChange }
         onChange(parseInt(selectedValue, 10));
     };
 
-    const handleAddNew = () => {
-        if (newValue.trim()) {
-            // TODO: Create new category via API
-            // For now, just close
+    const handleAddNew = async () => {
+        const name = newValue.trim();
+        if (!name || !onCreate || isSaving) {
+            setIsAdding(false);
+            setNewValue('');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const createdId = await onCreate(name);
+            if (createdId != null) {
+                onChange(createdId);
+            }
+        } finally {
+            setIsSaving(false);
             setIsAdding(false);
             setNewValue('');
         }
@@ -46,12 +61,17 @@ export function CategoryInlineSelect({ value, suggestion, categories, onChange }
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddNew();
+                    if (e.key === 'Enter') {
+                        void handleAddNew();
+                    }
                     if (e.key === 'Escape') setIsAdding(false);
                 }}
-                onBlur={() => setIsAdding(false)}
+                onBlur={() => {
+                    void handleAddNew();
+                }}
                 placeholder="New category..."
-                className="focus:ring-primary/50 w-32 rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none"
+                disabled={isSaving}
+                className="focus:ring-primary/50 w-32 rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none disabled:opacity-50"
                 autoFocus
             />
         );

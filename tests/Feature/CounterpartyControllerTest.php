@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\Counterparty;
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,6 +19,29 @@ class CounterpartyControllerTest extends TestCase
     public function test_guests_cannot_access_counterparties_index(): void
     {
         $this->get('/counterparties')->assertRedirect('/login');
+    }
+
+    public function test_counterparty_name_is_normalized_and_deduplicated(): void
+    {
+        $user = User::factory()->create();
+        $a = Counterparty::create(['user_id' => $user->id, 'name' => 'Netflix', 'type' => 'merchant']);
+        $this->assertSame('netflix', $a->normalized_name);
+
+        // Same normalized name for the same user is rejected by the unique constraint,
+        // so case/whitespace variants cannot create duplicate merchants.
+        $this->expectException(QueryException::class);
+        Counterparty::create(['user_id' => $user->id, 'name' => '  netflix ', 'type' => 'merchant']);
+    }
+
+    public function test_same_counterparty_name_allowed_for_different_users(): void
+    {
+        $userA = User::factory()->create();
+        $userB = User::factory()->create();
+        Counterparty::create(['user_id' => $userA->id, 'name' => 'Netflix', 'type' => 'merchant']);
+        $b = Counterparty::create(['user_id' => $userB->id, 'name' => 'Netflix', 'type' => 'merchant']);
+
+        $this->assertSame('netflix', $b->normalized_name);
+        $this->assertDatabaseCount('counterparties', 2);
     }
 
     public function test_user_can_create_counterparty(): void

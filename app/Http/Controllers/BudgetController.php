@@ -260,7 +260,7 @@ class BudgetController extends Controller
     /**
      * Serialize a budget row with progress data for frontend.
      *
-     * @param  array{budget: Budget, period: BudgetPeriod|null, spent: float, remaining: float, percentage_used: float, is_exceeded: bool, pace_percentage: float, projected_total: float, days_elapsed: int, days_in_period: int}  $row
+     * @param  array{budget: Budget, period: BudgetPeriod|null, spent: float, remaining: float, percentage_used: float, is_exceeded: bool, is_orphaned: bool, pace_percentage: float, projected_total: float, days_elapsed: int, days_in_period: int}  $row
      * @return array<string, mixed>
      */
     private function serializeBudgetWithProgress(array $row): array
@@ -324,6 +324,7 @@ class BudgetController extends Controller
             'remaining' => $row['remaining'],
             'percentage_used' => $row['percentage_used'],
             'is_exceeded' => $row['is_exceeded'],
+            'is_orphaned' => $row['is_orphaned'] ?? false,
             'pace_percentage' => $row['pace_percentage'],
             'projected_total' => $row['projected_total'],
             'days_elapsed' => $row['days_elapsed'],

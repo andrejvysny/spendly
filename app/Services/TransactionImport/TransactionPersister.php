@@ -251,12 +251,23 @@ class TransactionPersister
                 $data['native_amount'] = $data['amount'];
             } else {
                 $bookedDate = isset($data['booked_date']) ? \Carbon\Carbon::parse($data['booked_date']) : now();
-                $data['native_amount'] = app(\App\Services\ExchangeRateService::class)->convert(
-                    (float) $data['amount'],
-                    $txCurrency,
+                $rate = app(\App\Services\ExchangeRateService::class)->getRateOrNull(
+                    (string) $txCurrency,
                     $baseCurrency,
                     $bookedDate
                 );
+
+                if ($rate !== null) {
+                    $data['native_amount'] = round((float) $data['amount'] * $rate, 2);
+                } else {
+                    // No FX rate available: leave native_amount unset rather than
+                    // fabricating a 1:1 conversion, and flag the row for manual review.
+                    $data['native_amount'] = null;
+                    $data['needs_manual_review'] = true;
+                    $reason = trim((string) ($data['review_reason'] ?? ''));
+                    $note = "Missing FX rate {$txCurrency}->{$baseCurrency}";
+                    $data['review_reason'] = $reason === '' ? $note : $reason.'; '.$note;
+                }
             }
         }
 

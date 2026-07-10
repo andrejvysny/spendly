@@ -25,6 +25,23 @@ class Counterparty extends BaseModel implements OwnedByUserContract
         'type' => CounterpartyType::class,
     ];
 
+    protected static function booted(): void
+    {
+        // Keep normalized_name in sync so (user_id, normalized_name) dedups
+        // case- and whitespace-insensitively.
+        static::saving(function (Counterparty $counterparty): void {
+            $counterparty->normalized_name = self::normalizeName((string) $counterparty->name);
+        });
+    }
+
+    /**
+     * Canonical form used for duplicate detection (trim, collapse whitespace, lowercase).
+     */
+    public static function normalizeName(string $name): string
+    {
+        return mb_strtolower(trim((string) preg_replace('/\s+/u', ' ', $name)));
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

@@ -95,6 +95,24 @@ class ExchangeRateService
     }
 
     /**
+     * Get the exchange rate, or null when none is available.
+     *
+     * Unlike getRate(), this does NOT fabricate a 1.0 fallback for missing
+     * cross-currency rates — callers can then choose to flag the row for review
+     * rather than silently storing a wrong 1:1 conversion.
+     */
+    public function getRateOrNull(string $from, string $to, Carbon $date): ?float
+    {
+        if ($from === $to) {
+            return 1.0;
+        }
+
+        $this->ensureRatesExist($date);
+
+        return ExchangeRate::getRate($from, $to, $date);
+    }
+
+    /**
      * Convert an amount between currencies.
      */
     public function convert(float $amount, string $from, string $to, Carbon $date): float

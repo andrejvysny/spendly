@@ -37,26 +37,36 @@ class CategoryRepository extends BaseRepository implements CategoryRepositoryInt
     }
 
     /**
-     * Get all descendant category IDs (children + grandchildren). Max 2 levels.
+     * Get all descendant category IDs at any depth (breadth-first), guarding
+     * against cycles. Excludes the category itself.
      *
      * @return array<int>
      */
     public function getAllDescendantIds(int $categoryId): array
     {
-        /** @var array<int> $childIds */
-        $childIds = $this->model->where('parent_category_id', $categoryId)
-            ->pluck('id')
-            ->toArray();
+        $descendants = [];
+        $visited = [$categoryId => true];
+        $frontier = [$categoryId];
 
-        if ($childIds === []) {
-            return [];
+        while ($frontier !== []) {
+            /** @var array<int> $children */
+            $children = $this->model->newQuery()
+                ->whereIn('parent_category_id', $frontier)
+                ->pluck('id')
+                ->all();
+
+            $frontier = [];
+            foreach ($children as $childId) {
+                $childId = (int) $childId;
+                if (isset($visited[$childId])) {
+                    continue; // already seen — cycle guard
+                }
+                $visited[$childId] = true;
+                $descendants[] = $childId;
+                $frontier[] = $childId;
+            }
         }
 
-        /** @var array<int> $grandchildIds */
-        $grandchildIds = $this->model->whereIn('parent_category_id', $childIds)
-            ->pluck('id')
-            ->toArray();
-
-        return array_merge($childIds, $grandchildIds);
+        return $descendants;
     }
 }

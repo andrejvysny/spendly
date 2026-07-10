@@ -84,6 +84,41 @@ class RecurringDetectionTest extends TestCase
         $this->assertSame(RecurringGroup::INTERVAL_MONTHLY, $netflixGroup->interval);
     }
 
+    public function test_rerunning_detection_does_not_duplicate_suggestions(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $dates = [
+            Carbon::parse('2025-11-01')->startOfDay(),
+            Carbon::parse('2025-12-01')->startOfDay(),
+            Carbon::parse('2026-01-01')->startOfDay(),
+        ];
+        foreach ($dates as $i => $date) {
+            Transaction::factory()->create([
+                'account_id' => $account->id,
+                'transaction_id' => 'SPOTIFY-DUP-'.$user->id.'-'.$i,
+                'description' => 'Spotify',
+                'amount' => -9.99,
+                'booked_date' => $date,
+                'processed_date' => $date,
+                'type' => 'PAYMENT',
+            ]);
+        }
+
+        $service = $this->app->make(RecurringDetectionService::class);
+        $service->runForUser((int) $user->id, null);
+        $service->runForUser((int) $user->id, null);
+        $service->runForUser((int) $user->id, null);
+
+        $suggested = RecurringGroup::where('user_id', $user->id)
+            ->where('status', RecurringGroup::STATUS_SUGGESTED)
+            ->get();
+
+        // Three runs must still yield exactly one suggestion, not three.
+        $this->assertCount(1, $suggested);
+    }
+
     public function test_groups_variant_descriptions_under_same_payee(): void
     {
         $user = User::factory()->create();

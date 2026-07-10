@@ -6,6 +6,7 @@ use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CounterpartyController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\SuperAdminController;
 use App\Http\Controllers\Import\ImportController;
 use App\Http\Controllers\Import\ImportFailureController;
@@ -121,6 +122,7 @@ Route::middleware(['auth', 'verified', 'superadmin'])->prefix('admin')->group(fu
     Route::get('users', [SuperAdminController::class, 'getUsers'])->name('admin.users');
     Route::post('bulk-label', [SuperAdminController::class, 'bulkLabel'])->name('admin.bulk-label');
     Route::get('categories', [SuperAdminController::class, 'getCategories'])->name('admin.categories');
+    Route::post('categories', [AdminCategoryController::class, 'store'])->name('admin.categories.store');
     Route::get('counterparties', [SuperAdminController::class, 'getCounterparties'])->name('admin.counterparties');
     Route::get('tags', [SuperAdminController::class, 'getTags'])->name('admin.tags');
     Route::patch('transactions/{transaction}/label', [SuperAdminController::class, 'updateLabel'])->name('admin.transactions.label');

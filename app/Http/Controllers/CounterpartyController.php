@@ -8,10 +8,12 @@ use App\Http\Requests\CounterpartyRequest;
 use App\Models\Counterparty;
 use App\Policies\Ability;
 use App\Repositories\CounterpartyRepository;
+use App\Rules\OwnedByUser;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -63,16 +65,20 @@ class CounterpartyController extends Controller
     {
         $this->authorize('delete', $counterparty);
 
-        if ($request->has('replacement_action')) {
-            if ($request->replacement_action === 'replace' && $request->has('replacement_counterparty_id')) {
-                $counterparty->transactions()->update([
-                    'counterparty_id' => $request->replacement_counterparty_id,
-                ]);
-            } else {
-                $counterparty->transactions()->update([
-                    'counterparty_id' => null,
-                ]);
-            }
+        if ($request->input('replacement_action') === 'replace' && $request->filled('replacement_counterparty_id')) {
+            // Replacement must be one of the caller's own counterparties.
+            $request->validate([
+                'replacement_counterparty_id' => [
+                    'integer',
+                    Rule::notIn([$counterparty->id]),
+                    new OwnedByUser('counterparties', $this->getAuthUserId()),
+                ],
+            ]);
+            $counterparty->transactions()->update([
+                'counterparty_id' => (int) $request->input('replacement_counterparty_id'),
+            ]);
+        } elseif ($request->has('replacement_action')) {
+            $counterparty->transactions()->update(['counterparty_id' => null]);
         }
 
         $counterparty->delete();

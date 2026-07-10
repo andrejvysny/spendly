@@ -15,6 +15,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\BudgetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class BudgetServiceTest extends TestCase
@@ -78,11 +79,11 @@ class BudgetServiceTest extends TestCase
             'balance_after_transaction' => 0,
             'category_id' => $category->id,
         ]);
-        // Deposit should not be counted
+        // Refund in the same category nets against spend (150 - 30 = 120).
         Transaction::create([
             'account_id' => $account->id,
             'transaction_id' => 'tx-3',
-            'amount' => 200,
+            'amount' => 30,
             'currency' => 'EUR',
             'booked_date' => '2025-02-01',
             'processed_date' => '2025-02-01',
@@ -93,7 +94,7 @@ class BudgetServiceTest extends TestCase
         ]);
 
         $spent = $this->service->getSpentForPeriod($budget, $period);
-        $this->assertSame(150.0, $spent);
+        $this->assertSame(120.0, $spent);
     }
 
     public function test_get_spent_for_period_excludes_transfers(): void
@@ -134,9 +135,12 @@ class BudgetServiceTest extends TestCase
         $this->assertSame(0.0, $spent);
     }
 
-    public function test_get_spent_for_period_only_includes_matching_currency(): void
+    public function test_get_spent_for_period_includes_cross_currency_spend_via_native_amount(): void
     {
-        $user = User::factory()->create();
+        // Foreign-currency spend is normalized to the user's base currency through
+        // native_amount, not silently dropped. USD -100 == EUR -92 (native), plus
+        // EUR -80 native => 172 spent in the EUR budget.
+        $user = User::factory()->create(['base_currency' => 'EUR']);
         $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
         $category = $user->categories()->create(['name' => 'Food']);
         $budget = Budget::create([
@@ -159,6 +163,7 @@ class BudgetServiceTest extends TestCase
             'account_id' => $account->id,
             'transaction_id' => 'tx-usd',
             'amount' => -100,
+            'native_amount' => -92,
             'currency' => 'USD',
             'booked_date' => '2025-04-01',
             'processed_date' => '2025-04-01',
@@ -171,6 +176,7 @@ class BudgetServiceTest extends TestCase
             'account_id' => $account->id,
             'transaction_id' => 'tx-eur',
             'amount' => -80,
+            'native_amount' => -80,
             'currency' => 'EUR',
             'booked_date' => '2025-04-01',
             'processed_date' => '2025-04-01',
@@ -181,7 +187,7 @@ class BudgetServiceTest extends TestCase
         ]);
 
         $spent = $this->service->getSpentForPeriod($budget, $period);
-        $this->assertSame(80.0, $spent);
+        $this->assertSame(172.0, $spent);
     }
 
     public function test_get_spent_for_period_returns_zero_when_user_has_no_accounts(): void
@@ -984,6 +990,94 @@ class BudgetServiceTest extends TestCase
         $this->assertSame(100.0, $spent);
     }
 
+    public function test_spent_includes_deeply_nested_subcategories(): void
+    {
+        // Three levels deep: Food > Groceries > Organic. include_subcategories must
+        // capture spend at any depth, not just two levels.
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        $l1 = $user->categories()->create(['name' => 'Food']);
+        $l2 = $user->categories()->create(['name' => 'Groceries', 'parent_category_id' => $l1->id]);
+        $l3 = $user->categories()->create(['name' => 'Organic', 'parent_category_id' => $l2->id]);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => $l1->id,
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+            'include_subcategories' => true,
+        ]);
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-01-31',
+            'amount_budgeted' => 500,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        foreach ([$l1->id, $l2->id, $l3->id] as $i => $catId) {
+            Transaction::create([
+                'account_id' => $account->id,
+                'transaction_id' => "tx-deep-{$i}",
+                'amount' => -50,
+                'currency' => 'EUR',
+                'booked_date' => '2026-01-10',
+                'processed_date' => '2026-01-10',
+                'description' => 'Nested',
+                'type' => Transaction::TYPE_PAYMENT,
+                'balance_after_transaction' => 0,
+                'category_id' => $catId,
+            ]);
+        }
+
+        $this->assertSame(150.0, $this->service->getSpentForPeriod($budget, $period));
+    }
+
+    public function test_orphaned_category_budget_matches_nothing(): void
+    {
+        // A category-target budget whose category was deleted (category_id null) must
+        // match no spend rather than silently becoming an "all spending" budget.
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+
+        $budget = Budget::create([
+            'user_id' => $user->id,
+            'category_id' => null,
+            'target_type' => Budget::TARGET_CATEGORY,
+            'target_key' => 'cat:999',
+            'amount' => 500,
+            'currency' => 'EUR',
+            'period_type' => Budget::PERIOD_MONTHLY,
+        ]);
+        $period = BudgetPeriod::create([
+            'budget_id' => $budget->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-01-31',
+            'amount_budgeted' => 500,
+            'status' => BudgetPeriod::STATUS_ACTIVE,
+        ]);
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'transaction_id' => 'tx-orphan',
+            'amount' => -100,
+            'currency' => 'EUR',
+            'booked_date' => '2026-01-10',
+            'processed_date' => '2026-01-10',
+            'description' => 'Spend',
+            'type' => Transaction::TYPE_PAYMENT,
+            'balance_after_transaction' => 0,
+        ]);
+
+        $this->assertSame(0.0, $this->service->getSpentForPeriod($budget, $period));
+
+        $row = $this->service->getBudgetsWithProgress($user->id, Budget::PERIOD_MONTHLY, 2026, 1)->first();
+        $this->assertNotNull($row);
+        $this->assertTrue($row['is_orphaned']);
+        $this->assertSame(0.0, $row['spent']);
+    }
+
     // -------------------------------------------------------------------------
     // Rollover calculation
     // -------------------------------------------------------------------------
@@ -1741,5 +1835,71 @@ class BudgetServiceTest extends TestCase
         // Same transaction counts toward both budgets
         $this->assertSame(15.0, $this->service->getSpentForPeriod($subBudget, $period1));
         $this->assertSame(15.0, $this->service->getSpentForPeriod($allSubsBudget, $period2));
+    }
+
+    // -------------------------------------------------------------------------
+    // Query count — N+1 regression guard
+    // -------------------------------------------------------------------------
+
+    public function test_get_budgets_with_progress_does_not_scale_query_count_with_budget_count(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+
+        // Create 5 category budgets — historically each triggered its own SUM query.
+        for ($i = 0; $i < 5; $i++) {
+            $category = $user->categories()->create(['name' => "Cat {$i}"]);
+            $budget = Budget::create([
+                'user_id' => $user->id,
+                'category_id' => $category->id,
+                'amount' => 100,
+                'currency' => 'EUR',
+                'period_type' => Budget::PERIOD_MONTHLY,
+            ]);
+            BudgetPeriod::create([
+                'budget_id' => $budget->id,
+                'start_date' => '2026-05-01',
+                'end_date' => '2026-05-31',
+                'amount_budgeted' => 100,
+                'status' => BudgetPeriod::STATUS_ACTIVE,
+            ]);
+            Transaction::create([
+                'account_id' => $account->id,
+                'transaction_id' => "tx-perf-{$i}",
+                'amount' => -10,
+                'currency' => 'EUR',
+                'booked_date' => '2026-05-10',
+                'processed_date' => '2026-05-10',
+                'description' => "Shop {$i}",
+                'type' => Transaction::TYPE_PAYMENT,
+                'balance_after_transaction' => 0,
+                'category_id' => $category->id,
+            ]);
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $collection = $this->service->getBudgetsWithProgress($user->id, Budget::PERIOD_MONTHLY, 2026, 5);
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertCount(5, $collection);
+        // Each row should show 10 spent.
+        foreach ($collection as $row) {
+            $this->assertSame(10.0, $row['spent']);
+        }
+
+        // Spending is now computed in a single transactions fetch instead of one per budget.
+        // We don't lock the exact number (other queries: budgets, periods, accounts);
+        // we only assert it stays well below "N queries per budget".
+        $spendingQueries = array_filter(
+            $queries,
+            fn (array $q) => stripos((string) $q['query'], 'from "transactions"') !== false
+        );
+        $this->assertLessThanOrEqual(
+            2,
+            count($spendingQueries),
+            'Expected ≤2 transactions queries (single batched fetch + optional tag pivot), got '.count($spendingQueries)
+        );
     }
 }

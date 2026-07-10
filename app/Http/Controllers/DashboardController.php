@@ -102,7 +102,7 @@ class DashboardController extends Controller
         $budgetProgress = $this->getBudgetProgress($userId);
 
         // Top counterparties
-        $topCounterparties = $this->getTopCounterparties($accountIds, $currentMonthStart, $currentMonthEnd);
+        $topCounterparties = $this->getTopCounterparties($accountIds, $currentMonthStart, $currentMonthEnd, $isMultiCurrency);
 
         // Upcoming recurring payments
         $upcomingRecurring = $this->getUpcomingRecurring($userId);
@@ -140,7 +140,7 @@ class DashboardController extends Controller
 
         $stats = Transaction::whereIn('account_id', $accountIds)
             ->whereBetween('booked_date', [$start, $end])
-            ->where('type', '!=', Transaction::TYPE_TRANSFER)
+            ->excludingTransfers()
             ->selectRaw("
                 SUM(CASE WHEN {$amountCol} > 0 THEN {$amountCol} ELSE 0 END) as income,
                 SUM(CASE WHEN {$amountCol} < 0 THEN {$amountCol} ELSE 0 END) as expenses
@@ -168,7 +168,7 @@ class DashboardController extends Controller
         $expenses = Transaction::whereIn('account_id', $accountIds)
             ->whereBetween('booked_date', [$start, $end])
             ->where($amountCol, '<', 0)
-            ->where('type', '!=', Transaction::TYPE_TRANSFER)
+            ->excludingTransfers()
             ->whereNotNull('category_id')
             ->with('category')
             ->selectRaw("category_id, SUM(ABS({$amountCol})) as total_amount")
@@ -258,9 +258,9 @@ class DashboardController extends Controller
      * @param  array<int>  $accountIds
      * @return array<int, array{name: string, amount: float, transaction_count: int}>
      */
-    private function getTopCounterparties(array $accountIds, Carbon $start, Carbon $end): array
+    private function getTopCounterparties(array $accountIds, Carbon $start, Carbon $end, bool $useNativeAmount = false): array
     {
-        $result = $this->analyticsRepository->getCounterpartySpending($accountIds, $start, $end);
+        $result = $this->analyticsRepository->getCounterpartySpending($accountIds, $start, $end, $useNativeAmount);
 
         /** @var array<int, array{name: string, amount: float, transaction_count: int}> $counterparties */
         $counterparties = $result['withCounterparty']->take(5)->map(function (mixed $m): array {

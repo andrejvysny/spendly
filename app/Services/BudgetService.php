@@ -11,25 +11,95 @@ use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Models\Budget;
 use App\Models\BudgetPeriod;
 use App\Models\Transaction;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class BudgetService
 {
+    /** @var array<int, string> Cached user base currency keyed by user_id. */
+    private array $baseCurrencyCache = [];
+
     public function __construct(
         private readonly BudgetRepositoryInterface $budgetRepository,
         private readonly BudgetPeriodRepositoryInterface $budgetPeriodRepository,
         private readonly AccountRepositoryInterface $accountRepository,
-        private readonly CategoryRepositoryInterface $categoryRepository
+        private readonly CategoryRepositoryInterface $categoryRepository,
+        private readonly ExchangeRateService $exchangeRates
     ) {}
+
+    /**
+     * The user's base currency (the currency native_amount is denominated in).
+     */
+    private function baseCurrencyForUser(int $userId): string
+    {
+        if (! isset($this->baseCurrencyCache[$userId])) {
+            $base = User::whereKey($userId)->value('base_currency');
+            $this->baseCurrencyCache[$userId] = is_string($base) && $base !== '' ? $base : 'EUR';
+        }
+
+        return $this->baseCurrencyCache[$userId];
+    }
+
+    /**
+     * Express a base-currency amount in the budget's currency.
+     * No-op when the budget currency already equals the user's base currency.
+     */
+    private function toBudgetCurrency(float $amountInBase, Budget $budget, int $userId): float
+    {
+        $base = $this->baseCurrencyForUser($userId);
+        if ($budget->currency === $base) {
+            return round($amountInBase, 2);
+        }
+
+        return round($this->exchangeRates->convert($amountInBase, $base, $budget->currency, Carbon::now()), 2);
+    }
+
+    /**
+     * Whether a budget targets a specific entity but the target id is missing
+     * (e.g. the targeted category/tag/counterparty/subscription was deleted,
+     * leaving a dangling nullOnDelete FK). Such budgets must NOT silently fall
+     * back to "match everything".
+     */
+    private function isOrphanedTarget(Budget $budget): bool
+    {
+        return match ($budget->target_type) {
+            Budget::TARGET_CATEGORY => $budget->category_id === null,
+            Budget::TARGET_TAG => $budget->tag_id === null,
+            Budget::TARGET_COUNTERPARTY => $budget->counterparty_id === null,
+            Budget::TARGET_SUBSCRIPTION => $budget->recurring_group_id === null,
+            Budget::TARGET_ACCOUNT => $budget->account_id === null,
+            default => false,
+        };
+    }
+
+    /**
+     * Whether positive (inflow) transactions should net against spend for this budget.
+     *
+     * Refunds net only for entity-scoped targets, where a positive amount in the
+     * same category/tag/counterparty/subscription is genuinely a refund. For
+     * ACCOUNT and OVERALL budgets a positive amount is income (salary etc.), which
+     * must not offset spend, so those count outflows gross.
+     */
+    private function budgetNetsRefunds(Budget $budget): bool
+    {
+        return in_array($budget->target_type, [
+            Budget::TARGET_CATEGORY,
+            Budget::TARGET_TAG,
+            Budget::TARGET_COUNTERPARTY,
+            Budget::TARGET_SUBSCRIPTION,
+            Budget::TARGET_ALL_SUBSCRIPTIONS,
+        ], true);
+    }
 
     /**
      * Get budgets with progress for a given month/year.
      * Auto-creates periods if none exist for the requested timeframe.
      *
-     * @return Collection<int, array{budget: Budget, period: BudgetPeriod|null, spent: float, remaining: float, percentage_used: float, is_exceeded: bool, pace_percentage: float, projected_total: float, days_elapsed: int, days_in_period: int}>
+     * @return Collection<int, array{budget: Budget, period: BudgetPeriod|null, spent: float, remaining: float, percentage_used: float, is_exceeded: bool, is_orphaned: bool, pace_percentage: float, projected_total: float, days_elapsed: int, days_in_period: int}>
      */
     public function getBudgetsWithProgress(int $userId, string $periodType, int $year, ?int $month): Collection
     {
@@ -71,11 +141,16 @@ class BudgetService
         // re-querying inside getSpentForPeriod for each budget (N+1).
         $userAccounts = $this->accountRepository->findByUser($userId);
 
-        return $budgets->map(function (Budget $budget) use ($periods, $now, $userAccounts) {
+        // Single-fetch spending for every budget in one transactions query +
+        // in-memory aggregation (avoids N SUM queries per page render).
+        $spentMap = $this->getSpentForBudgets($budgets, $periods, $userAccounts);
+
+        return $budgets->map(function (Budget $budget) use ($periods, $now, $spentMap) {
             /** @var BudgetPeriod|null $period */
             $period = $periods->get($budget->id);
             $effectiveAmount = $period ? $period->getEffectiveAmount() : (float) $budget->amount;
-            $spent = $period ? $this->getSpentForPeriod($budget, $period, $userAccounts) : 0.0;
+            $isOrphaned = $this->isOrphanedTarget($budget);
+            $spent = ($period && ! $isOrphaned) ? ($spentMap[$budget->id] ?? 0.0) : 0.0;
             $remaining = max(0.0, $effectiveAmount - $spent);
             $percentageUsed = $effectiveAmount > 0 ? round(($spent / $effectiveAmount) * 100, 2) : 0.0;
             $isExceeded = $spent > $effectiveAmount;
@@ -111,6 +186,7 @@ class BudgetService
                 'remaining' => $remaining,
                 'percentage_used' => $percentageUsed,
                 'is_exceeded' => $isExceeded,
+                'is_orphaned' => $isOrphaned,
                 'pace_percentage' => $pacePercentage,
                 'projected_total' => $projectedTotal,
                 'days_elapsed' => $daysElapsed,
@@ -124,23 +200,30 @@ class BudgetService
      */
     public function getSpentForPeriod(Budget $budget, BudgetPeriod $period, ?Collection $accounts = null): float
     {
-        $accounts ??= $this->accountRepository->findByUser($budget->getUserId());
+        // A budget whose target entity was deleted must not silently match everything.
+        if ($this->isOrphanedTarget($budget)) {
+            return 0.0;
+        }
+
+        $userId = $budget->getUserId();
+        $accounts ??= $this->accountRepository->findByUser($userId);
         $accountIds = $accounts->pluck('id')->toArray();
 
         if ($accountIds === []) {
             return 0.0;
         }
 
+        // Inclusive of the whole last day: end_date casts to midnight, so append a
+        // time component, otherwise transactions booked after 00:00:00 on the last
+        // day are silently dropped (and disagree with the in-memory aggregation).
         $query = Transaction::query()
-            ->where('booked_date', '>=', $period->start_date)
-            ->where('booked_date', '<=', $period->end_date)
-            ->where('amount', '<', 0)
-            ->where('currency', $budget->currency);
+            ->where('booked_date', '>=', $this->dateString($period->start_date))
+            ->where('booked_date', '<=', $this->dateString($period->end_date).' 23:59:59');
 
-        // Transfer exclusion: exclude unless account budget with include_transfers
+        // Transfer exclusion: exclude unless an account budget opted in via include_transfers.
         $includeTransfers = $budget->target_type === Budget::TARGET_ACCOUNT && $budget->include_transfers;
         if (! $includeTransfers) {
-            $query->where('type', '!=', Transaction::TYPE_TRANSFER);
+            $query->excludingTransfers();
         }
 
         // Account scope
@@ -153,9 +236,212 @@ class BudgetService
         // Target-type-specific filter
         $this->applyTargetFilter($query, $budget);
 
-        $sum = (float) $query->sum(DB::raw('ABS(amount)'));
+        // For gross targets (account/overall) only count outflows; scoped targets net refunds.
+        if (! $this->budgetNetsRefunds($budget)) {
+            $query->whereRaw('COALESCE(native_amount, amount) < 0');
+        }
 
-        return round($sum, 2);
+        // Net spend in the user's base currency (native_amount), then expressed in
+        // the budget currency. COALESCE keeps single-currency rows correct when
+        // native_amount has not been backfilled.
+        $netSignedBase = (float) $query->sum(DB::raw('COALESCE(native_amount, amount)'));
+        $spentBase = max(0.0, -$netSignedBase);
+
+        return $this->toBudgetCurrency($spentBase, $budget, $userId);
+    }
+
+    /**
+     * Compute spent amount for many budgets in a single transactions fetch.
+     *
+     * Loads every outgoing transaction across the spanning date range once,
+     * then applies each budget's filter in PHP. Avoids one SUM query per
+     * budget when rendering the budgets-with-progress view.
+     *
+     * @param  Collection<int, Budget>                  $budgets
+     * @param  Collection<int|string, BudgetPeriod>     $periodsByBudgetId  Keyed by budget_id.
+     * @param  Collection<int, \App\Models\Account>     $accounts
+     * @return array<int, float>                        budget_id => spent (2dp)
+     */
+    private function getSpentForBudgets(Collection $budgets, Collection $periodsByBudgetId, Collection $accounts): array
+    {
+        if ($budgets->isEmpty()) {
+            return [];
+        }
+
+        /** @var array<int> $accountIds */
+        $accountIds = $accounts->pluck('id')->all();
+        if ($accountIds === []) {
+            /** @var array<int, float> $empty */
+            $empty = array_fill_keys($budgets->pluck('id')->all(), 0.0);
+
+            return $empty;
+        }
+
+        // Only consider budgets that actually have a period.
+        $relevant = $budgets->filter(fn (Budget $b) => $periodsByBudgetId->has($b->id));
+        if ($relevant->isEmpty()) {
+            return [];
+        }
+
+        // Spanning date range across all periods.
+        $starts = [];
+        $ends = [];
+        foreach ($relevant as $budget) {
+            /** @var BudgetPeriod $period */
+            $period = $periodsByBudgetId->get($budget->id);
+            $starts[] = $this->dateString($period->start_date);
+            $ends[] = $this->dateString($period->end_date);
+        }
+        // @phpstan-ignore-next-line — guarded by $relevant->isEmpty() check above
+        $minStart = min($starts);
+        // @phpstan-ignore-next-line — same as above
+        $maxEnd = max($ends);
+
+        $needsTags = $relevant->contains(fn (Budget $b) => $b->target_type === Budget::TARGET_TAG);
+
+        // Load all transactions in range (both signs: refunds net against spend for
+        // scoped targets). Transfer/sign/target filtering happens per-budget below.
+        $query = Transaction::query()
+            ->whereIn('account_id', $accountIds)
+            ->where('booked_date', '>=', $minStart)
+            ->where('booked_date', '<=', $maxEnd.' 23:59:59');
+
+        if ($needsTags) {
+            $query->with('tags:id');
+        }
+
+        $allTransactions = $query->get();
+
+        // Pre-compute descendant category id sets (one DB hit per unique parent id).
+        /** @var array<int, array<int, true>> $descendantCache  parent_id => [id => true] */
+        $descendantCache = [];
+        foreach ($relevant as $budget) {
+            if (
+                $budget->target_type === Budget::TARGET_CATEGORY
+                && $budget->include_subcategories
+                && $budget->category_id !== null
+                && ! isset($descendantCache[$budget->category_id])
+            ) {
+                $ids = $this->categoryRepository->getAllDescendantIds($budget->category_id);
+                $ids[] = $budget->category_id;
+                $descendantCache[$budget->category_id] = array_fill_keys($ids, true);
+            }
+        }
+
+        $result = [];
+        foreach ($budgets as $budget) {
+            /** @var BudgetPeriod|null $period */
+            $period = $periodsByBudgetId->get($budget->id);
+            if ($period === null || $this->isOrphanedTarget($budget)) {
+                $result[$budget->id] = 0.0;
+                continue;
+            }
+
+            $start = $this->dateString($period->start_date);
+            $end = $this->dateString($period->end_date);
+            $includeTransfers = $budget->target_type === Budget::TARGET_ACCOUNT && $budget->include_transfers;
+            $netsRefunds = $this->budgetNetsRefunds($budget);
+            $accountScope = ($budget->target_type === Budget::TARGET_ACCOUNT && $budget->account_id !== null)
+                ? (int) $budget->account_id
+                : null;
+
+            $sumSignedBase = 0.0;
+            foreach ($allTransactions as $tx) {
+                $txDate = $this->dateString($tx->booked_date);
+                if ($txDate < $start || $txDate > $end) {
+                    continue;
+                }
+                if (! $includeTransfers && $tx->isTransfer()) {
+                    continue;
+                }
+                if ($accountScope !== null && (int) $tx->account_id !== $accountScope) {
+                    continue;
+                }
+
+                $matches = match ($budget->target_type) {
+                    Budget::TARGET_CATEGORY => $this->matchesCategoryTarget($tx, $budget, $descendantCache),
+                    Budget::TARGET_TAG => $this->matchesTagTarget($tx, $budget),
+                    Budget::TARGET_COUNTERPARTY => (int) $tx->counterparty_id === (int) $budget->counterparty_id && $tx->counterparty_id !== null,
+                    Budget::TARGET_SUBSCRIPTION => (int) $tx->recurring_group_id === (int) $budget->recurring_group_id && $tx->recurring_group_id !== null,
+                    Budget::TARGET_ACCOUNT => true,
+                    Budget::TARGET_ALL_SUBSCRIPTIONS => $tx->recurring_group_id !== null,
+                    Budget::TARGET_OVERALL => true,
+                    default => false,
+                };
+                if (! $matches) {
+                    continue;
+                }
+
+                // native_amount is already in the user's base currency; fall back to
+                // amount only when it has not been backfilled (single-currency case).
+                $valueBase = (float) ($tx->native_amount ?? $tx->amount);
+
+                // Gross targets ignore inflows; scoped targets net refunds.
+                if (! $netsRefunds && $valueBase > 0) {
+                    continue;
+                }
+
+                $sumSignedBase += $valueBase;
+            }
+
+            $spentBase = max(0.0, -$sumSignedBase);
+            $result[$budget->id] = $this->toBudgetCurrency($spentBase, $budget, $budget->getUserId());
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array<int, array<int, true>>  $descendantCache
+     */
+    private function matchesCategoryTarget(Transaction $tx, Budget $budget, array $descendantCache): bool
+    {
+        // Orphaned category target (category deleted): match nothing rather than everything.
+        if ($budget->category_id === null) {
+            return false;
+        }
+
+        if ($budget->include_subcategories) {
+            $set = $descendantCache[$budget->category_id] ?? [(int) $budget->category_id => true];
+
+            return $tx->category_id !== null && isset($set[(int) $tx->category_id]);
+        }
+
+        return (int) $tx->category_id === (int) $budget->category_id;
+    }
+
+    private function matchesTagTarget(Transaction $tx, Budget $budget): bool
+    {
+        if ($budget->tag_id === null) {
+            return false;
+        }
+
+        // tags relation is eager-loaded in getSpentForBudgets when any TAG budget exists.
+        if ($tx->relationLoaded('tags')) {
+            /** @var \App\Models\Tag $tag */
+            foreach ($tx->tags as $tag) {
+                if ((int) $tag->id === (int) $budget->tag_id) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return $tx->tags()->where('tags.id', $budget->tag_id)->exists();
+    }
+
+    private function dateString(mixed $value): string
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        if (is_string($value)) {
+            return substr($value, 0, 10);
+        }
+
+        return '';
     }
 
     /**
@@ -180,7 +466,10 @@ class BudgetService
      */
     private function applyCategoryFilter(Builder $query, Budget $budget): void
     {
+        // Orphaned category target (category deleted): match nothing rather than everything.
         if ($budget->category_id === null) {
+            $query->whereRaw('1 = 0');
+
             return;
         }
 
@@ -507,14 +796,23 @@ class BudgetService
                 ]);
             }
 
-            $this->budgetPeriodRepository->create([
-                'budget_id' => $budget->id,
-                'start_date' => $viewStart->format('Y-m-d'),
-                'end_date' => $viewEnd->format('Y-m-d'),
-                'amount_budgeted' => $amountBudgeted,
-                'rollover_amount' => $rolloverAmount,
-                'status' => BudgetPeriod::STATUS_ACTIVE,
-            ]);
+            try {
+                $this->budgetPeriodRepository->create([
+                    'budget_id' => $budget->id,
+                    'start_date' => $viewStart->format('Y-m-d'),
+                    'end_date' => $viewEnd->format('Y-m-d'),
+                    'amount_budgeted' => $amountBudgeted,
+                    'rollover_amount' => $rolloverAmount,
+                    'status' => BudgetPeriod::STATUS_ACTIVE,
+                ]);
+            } catch (QueryException $e) {
+                // A concurrent request may have created this period first; the unique
+                // (budget_id, start_date) constraint guards against duplicates. Ignore
+                // that specific race (caller re-fetches periods) but rethrow anything else.
+                if (! in_array((string) $e->getCode(), ['23000', '23505'], true)) {
+                    throw $e;
+                }
+            }
         }
     }
 

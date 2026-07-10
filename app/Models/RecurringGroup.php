@@ -144,8 +144,16 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
 
         $nextExpectedPayment = null;
         if ($lastPaymentDate !== null) {
-            $days = $this->interval_days ?? (self::INTERVAL_DAYS_DEFAULT[$interval] ?? 30);
-            $next = Carbon::parse($lastPaymentDate)->addDays((int) $days);
+            $last = Carbon::parse($lastPaymentDate);
+            // Calendar-accurate next occurrence (handles month-end, e.g. Jan 31 -> Feb 28),
+            // instead of adding a fixed day count that drifts for monthly/quarterly/yearly.
+            $next = match ($interval) {
+                self::INTERVAL_WEEKLY => $last->copy()->addWeek(),
+                self::INTERVAL_MONTHLY => $last->copy()->addMonthNoOverflow(),
+                self::INTERVAL_QUARTERLY => $last->copy()->addMonthsNoOverflow(3),
+                self::INTERVAL_YEARLY => $last->copy()->addYearNoOverflow(),
+                default => $last->copy()->addDays((int) ($this->interval_days ?? self::INTERVAL_DAYS_DEFAULT[$interval] ?? 30)),
+            };
             $nextExpectedPayment = $next->format('Y-m-d');
         }
 

@@ -80,6 +80,8 @@ class User extends Authenticatable
 
     /**
      * Get the accounts for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Account, $this>
      */
     public function accounts(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
@@ -88,6 +90,8 @@ class User extends Authenticatable
 
     /**
      * Get the categories for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Category, $this>
      */
     public function categories(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
@@ -96,6 +100,8 @@ class User extends Authenticatable
 
     /**
      * Get the budgets for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Budget, $this>
      */
     public function budgets(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
@@ -104,6 +110,8 @@ class User extends Authenticatable
 
     /**
      * Get the counterparties for the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Counterparty, $this>
      */
     public function counterparties(): \Illuminate\Database\Eloquent\Relations\HasMany
     {

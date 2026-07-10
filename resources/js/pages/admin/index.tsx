@@ -114,6 +114,30 @@ export default function AdminTransactionLabeling() {
         state.filters.per_page,
     ]);
 
+    // Create a new category from the inline labeling UI.
+    // Server scopes the new category to the currently filtered user when one is selected.
+    const createCategory = useCallback(
+        async (name: string): Promise<number | null> => {
+            try {
+                const payload: Record<string, unknown> = { name };
+                if (state.filters.user_id) {
+                    payload.target_user_id = state.filters.user_id;
+                }
+                const response = await axios.post('/admin/categories', payload);
+                const created = response.data?.category;
+                if (!created?.id) return null;
+                setCategories((prev) => [...prev, { id: created.id, name: created.name, color: created.color ?? null } as Category]);
+                toast.success(`Category "${created.name}" created`);
+                return created.id as number;
+            } catch (error) {
+                console.error('Failed to create category:', error);
+                toast.error('Failed to create category');
+                return null;
+            }
+        },
+        [state.filters.user_id],
+    );
+
     // Debounced patch update
     const patchTransaction = useCallback(async (id: number, patch: TransactionPatch) => {
         dispatch({ type: 'PATCH_TRANSACTION', payload: { id, patch } });
@@ -300,6 +324,7 @@ export default function AdminTransactionLabeling() {
                         }
                     }}
                     onSelectAll={() => dispatch({ type: 'SELECT_ALL' })}
+                    onCreateCategory={createCategory}
                 />
 
                 {/* Load More */}

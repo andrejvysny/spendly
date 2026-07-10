@@ -11,6 +11,7 @@ use App\Models\RecurringGroup;
 use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class RecurringDetectionService
 {
@@ -74,6 +75,12 @@ class RecurringDetectionService
         ?int $accountId
     ): int {
         $transactions = $this->transactionRepository->getForRecurringDetection($userId, $from, $to, $accountId);
+
+        // Clear stale suggestions for this scope first so re-runs regenerate a clean
+        // set instead of accumulating duplicates as amounts drift between runs.
+        // SUGGESTED groups have no linked transactions, so deletion is safe; CONFIRMED
+        // and DISMISSED groups (and dismissal records) are untouched.
+        $this->clearSuggestionsForScope($userId, $accountId);
 
         if ($transactions->count() < $settings->min_occurrences) {
             return 0;
@@ -374,6 +381,25 @@ class RecurringDetectionService
             ->exists();
     }
 
+    /**
+     * Delete existing SUGGESTED groups for the given scope so a detection re-run
+     * regenerates them cleanly (avoids duplicate suggestions accumulating).
+     */
+    private function clearSuggestionsForScope(int $userId, ?int $accountId): void
+    {
+        $query = RecurringGroup::where('user_id', $userId)
+            ->where('status', RecurringGroup::STATUS_SUGGESTED);
+
+        if ($accountId !== null) {
+            $query->where('scope', RecurringGroup::SCOPE_PER_ACCOUNT)
+                ->where('account_id', $accountId);
+        } else {
+            $query->where('scope', RecurringGroup::SCOPE_PER_USER);
+        }
+
+        $query->delete();
+    }
+
     private function deriveName(Transaction $tx): string
     {
         if ($tx->counterparty_id !== null && $tx->relationLoaded('counterparty') && $tx->counterparty !== null) {
@@ -397,18 +423,39 @@ class RecurringDetectionService
         }
 
         $snapshot = $group->detection_config_snapshot;
+        /** @var array<int> $transactionIds */
         $transactionIds = $snapshot['transaction_ids'] ?? [];
+        $userId = $group->getUserId();
 
-        $group->update(['status' => RecurringGroup::STATUS_CONFIRMED]);
+        DB::transaction(function () use ($group, $transactionIds, $userId, $addRecurringTag): void {
+            $group->update(['status' => RecurringGroup::STATUS_CONFIRMED]);
 
-        if (! empty($transactionIds)) {
-            Transaction::whereIn('id', $transactionIds)
-                ->update(['recurring_group_id' => $group->id]);
+            if ($transactionIds === []) {
+                return;
+            }
+
+            // Re-resolve eligibility instead of trusting snapshot ids blindly: only
+            // link transactions that belong to this user (and, for a per-account
+            // group, to that account).
+            $query = Transaction::whereIn('id', $transactionIds)
+                ->whereHas('account', fn ($q) => $q->where('user_id', $userId));
+
+            if ($group->scope === RecurringGroup::SCOPE_PER_ACCOUNT && $group->account_id !== null) {
+                $query->where('account_id', $group->account_id);
+            }
+
+            /** @var array<int> $eligibleIds */
+            $eligibleIds = $query->pluck('id')->all();
+            if ($eligibleIds === []) {
+                return;
+            }
+
+            Transaction::whereIn('id', $eligibleIds)->update(['recurring_group_id' => $group->id]);
 
             if ($addRecurringTag) {
-                $this->attachRecurringTagToTransactionIds($group->getUserId(), $transactionIds);
+                $this->attachRecurringTagToTransactionIds($userId, $eligibleIds);
             }
-        }
+        });
     }
 
     /**
