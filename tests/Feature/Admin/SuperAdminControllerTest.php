@@ -7,6 +7,7 @@ namespace Tests\Feature\Admin;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Counterparty;
+use App\Models\RecurringGroup;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
@@ -18,6 +19,7 @@ class SuperAdminControllerTest extends TestCase
     use RefreshDatabase;
 
     private User $superadmin;
+
     private User $regularUser;
 
     protected function setUp(): void
@@ -266,7 +268,7 @@ class SuperAdminControllerTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'id' => $tx->id,
-            'duplicate_identifier' => 'superadmin:' . $tx->id,
+            'duplicate_identifier' => 'superadmin:'.$tx->id,
         ]);
     }
 
@@ -274,7 +276,7 @@ class SuperAdminControllerTest extends TestCase
     {
         $account = Account::factory()->for($this->regularUser)->create();
         $tx = Transaction::factory()->for($account, 'account')->create([
-            'duplicate_identifier' => 'superadmin:' . 999,
+            'duplicate_identifier' => 'superadmin:'. 999,
         ]);
 
         $this->actingAs($this->superadmin)
@@ -323,7 +325,8 @@ class SuperAdminControllerTest extends TestCase
     public function test_bulk_label_clears_recurring_group_when_is_recurring_false(): void
     {
         $account = Account::factory()->for($this->regularUser)->create();
-        $tx = Transaction::factory()->for($account, 'account')->create(['recurring_group_id' => 42]);
+        $group = $this->createRecurringGroup();
+        $tx = Transaction::factory()->for($account, 'account')->create(['recurring_group_id' => $group->id]);
 
         $this->actingAs($this->superadmin)
             ->postJson(route('admin.bulk-label'), [
@@ -413,14 +416,15 @@ class SuperAdminControllerTest extends TestCase
             ->assertOk();
 
         $updated = Transaction::find($tx->id);
-        $this->assertSame('superadmin:' . $tx->id, $updated->duplicate_identifier);
+        $this->assertSame('superadmin:'.$tx->id, $updated->duplicate_identifier);
         $this->assertTrue($updated->metadata['superadmin_labels']['is_duplicate']);
     }
 
     public function test_update_label_sets_is_recurring_false_clears_recurring_group(): void
     {
         $account = Account::factory()->for($this->regularUser)->create();
-        $tx = Transaction::factory()->for($account, 'account')->create(['recurring_group_id' => 7]);
+        $group = $this->createRecurringGroup();
+        $tx = Transaction::factory()->for($account, 'account')->create(['recurring_group_id' => $group->id]);
 
         $this->actingAs($this->superadmin)
             ->patchJson(route('admin.transactions.label', $tx), ['is_recurring' => false])
@@ -462,6 +466,18 @@ class SuperAdminControllerTest extends TestCase
             ->patchJson(route('admin.transactions.label', $tx), ['tags' => [$tag->id]])
             ->assertOk();
 
-        $this->assertDatabaseHas('transaction_tag', ['transaction_id' => $tx->id, 'tag_id' => $tag->id]);
+        $this->assertDatabaseHas('tag_transaction', ['transaction_id' => $tx->id, 'tag_id' => $tag->id]);
+    }
+
+    private function createRecurringGroup(): RecurringGroup
+    {
+        return RecurringGroup::create([
+            'user_id' => $this->regularUser->id,
+            'name' => 'Test group',
+            'interval' => 'monthly',
+            'amount_min' => 10.00,
+            'amount_max' => 12.00,
+            'scope' => 'per_user',
+        ]);
     }
 }
