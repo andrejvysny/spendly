@@ -152,6 +152,43 @@ class ImportMappingServiceTest extends UnitTestCase
         $this->assertEquals(3, $result['description']); // 'Popis' should match description
     }
 
+    public function test_auto_detect_mapping_slsp_style_headers(): void
+    {
+        $headers = ['Dátum splatnosti', 'Suma', 'Mena', 'Partner', 'IBAN partnera', 'Typ transakcie'];
+
+        $result = $this->service->autoDetectMapping($headers);
+
+        $this->assertEquals(0, $result['booked_date']);
+        $this->assertEquals(1, $result['amount']);
+        $this->assertEquals(3, $result['partner']); // the name column, not "IBAN partnera"
+        $this->assertEquals(4, $result['partner_iban']);
+        $this->assertEquals(5, $result['type']);
+        $this->assertNull($result['target_iban']);
+        $this->assertNull($result['source_iban']);
+    }
+
+    public function test_auto_detect_mapping_directional_ibans_unaffected_by_partner_iban(): void
+    {
+        $headers = ['Date', 'Amount', 'From IBAN', 'To IBAN'];
+
+        $result = $this->service->autoDetectMapping($headers);
+
+        $this->assertEquals(2, $result['source_iban']);
+        $this->assertEquals(3, $result['target_iban']);
+        $this->assertNull($result['partner_iban']);
+    }
+
+    public function test_auto_detect_mapping_own_iban_column_not_mapped_as_partner_iban(): void
+    {
+        $headers = ['Vlastný IBAN', 'Dátum', 'Suma', 'Partner'];
+
+        $result = $this->service->autoDetectMapping($headers);
+
+        $this->assertNull($result['partner_iban']);
+        $this->assertNull($result['target_iban']);
+        $this->assertNull($result['source_iban']);
+    }
+
     public function test_validate_mapping_success(): void
     {
         $columnMapping = [

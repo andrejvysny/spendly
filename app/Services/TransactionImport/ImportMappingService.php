@@ -90,7 +90,7 @@ class ImportMappingService
         // Initialize all fields as null
         $transactionFields = [
             'transaction_id', 'booked_date', 'amount', 'description', 'partner',
-            'type', 'target_iban', 'source_iban', 'category', 'tags', 'notes',
+            'type', 'target_iban', 'source_iban', 'partner_iban', 'category', 'tags', 'notes',
             'balance_after_transaction',
         ];
 
@@ -115,9 +115,16 @@ class ImportMappingService
             'partner' => [
                 'patterns' => ['partner', 'payee', 'recipient', 'merchant', 'counterparty'],
                 'exact_matches' => ['transaction partner', 'beneficiary name'],
+                // Partner-adjacent columns that are not the partner's name
+                // (e.g. "IBAN partnera", "BIC SWIFT kod banky partnera").
+                'not_conditions' => ['iban', 'bic', 'swift', 'cislo', 'kod', 'adresa'],
+            ],
+            'type' => [
+                'patterns' => ['type', 'typ'],
+                'exact_matches' => ['transaction type', 'typ transakcie'],
             ],
             'category' => [
-                'patterns' => ['category', 'type', 'kategorie'],
+                'patterns' => ['category', 'kategorie', 'kategoria'],
                 'exact_matches' => ['transaction category', 'expense category'],
             ],
             'transaction_id' => [
@@ -132,6 +139,13 @@ class ImportMappingService
                 'patterns' => ['iban', 'account'],
                 'conditions' => ['source', 'from', 'sender'],
             ],
+            // Direction-agnostic counterparty IBAN (e.g. SLSP "IBAN partnera");
+            // resolved to target/source at parse time based on the amount sign.
+            // Must come after the directional rules so explicit columns win.
+            'partner_iban' => [
+                'patterns' => ['iban'],
+                'conditions' => ['partner', 'protistran', 'counterparty', 'beneficiary', 'payee'],
+            ],
             'tags' => [
                 'patterns' => ['tag', 'label', 'tags'],
                 'exact_matches' => ['transaction tags'],
@@ -143,11 +157,17 @@ class ImportMappingService
         ];
 
         foreach ($headers as $index => $header) {
-            $headerLower = strtolower(trim($header));
+            // Diacritics-insensitive matching (e.g. "Dátum", "IBAN partnera").
+            $headerLower = strtolower(\Illuminate\Support\Str::ascii(trim($header)));
 
             foreach ($mappingRules as $field => $rules) {
                 // Skip if field already mapped
                 if ($mapping[$field] !== null) {
+                    continue;
+                }
+
+                // Disqualifying substrings (e.g. "IBAN partnera" is not the partner's name)
+                if (isset($rules['not_conditions']) && $this->containsAny($headerLower, $rules['not_conditions'])) {
                     continue;
                 }
 
@@ -162,14 +182,7 @@ class ImportMappingService
                     if (str_contains($headerLower, $pattern)) {
                         // Check conditions for IBAN fields
                         if (isset($rules['conditions'])) {
-                            $hasCondition = false;
-                            foreach ($rules['conditions'] as $condition) {
-                                if (str_contains($headerLower, $condition)) {
-                                    $hasCondition = true;
-                                    break;
-                                }
-                            }
-                            if ($hasCondition) {
+                            if ($this->containsAny($headerLower, $rules['conditions'])) {
                                 $mapping[$field] = $index;
                                 break 2;
                             }
@@ -183,6 +196,20 @@ class ImportMappingService
         }
 
         return $mapping;
+    }
+
+    /**
+     * @param  array<int, string>  $needles
+     */
+    private function containsAny(string $haystack, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if ($needle !== '' && str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -105,4 +105,51 @@ class ImportCsvCommandTest extends TestCase
         // Column 0 "Date" = 15.01.2025 should be the booked_date (first column wins tie)
         $this->assertSame('2025-01-15', $tx->booked_date->format('Y-m-d'));
     }
+
+    public function test_import_csv_command_maps_partner_iban_and_survives_mixed_optional_columns(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create([
+            'user_id' => $user->id,
+            'name' => 'Partner IBAN Test',
+        ]);
+
+        // Rows alternate between filled and empty "IBAN partnera" - the batch
+        // insert must tolerate the differing optional keys, and metadata must
+        // survive as a proper json object (no double encoding via any fallback).
+        $result = $this->artisan('import:csv', [
+            'file' => 'tests/fixtures/import_partner_iban_mixed.csv',
+            '--account' => (string) $account->id,
+            '--delimiter' => ';',
+            '--date-format' => 'd.m.Y',
+        ]);
+        assert($result instanceof \Illuminate\Testing\PendingCommand);
+        // PendingCommand executes lazily (on destruct) - run explicitly before
+        // asserting against the database.
+        $result->assertSuccessful()->run();
+
+        $txs = Transaction::where('account_id', $account->id)->orderBy('booked_date')->get();
+        $this->assertCount(3, $txs);
+
+        $outgoing = $txs[0];
+        $this->assertInstanceOf(Transaction::class, $outgoing);
+        $this->assertSame('DE89370400440532013000', $outgoing->target_iban);
+        $this->assertNull($outgoing->source_iban);
+        $this->assertIsArray($outgoing->metadata);
+        $this->assertTrue((bool) ($outgoing->metadata['transfer_candidate'] ?? false));
+
+        $card = $txs[1];
+        $this->assertInstanceOf(Transaction::class, $card);
+        $this->assertNull($card->target_iban);
+        $this->assertNull($card->source_iban);
+        $metadata = $card->metadata;
+        $this->assertIsArray($metadata);
+        $this->assertArrayHasKey('import_id', $metadata);
+
+        $incoming = $txs[2];
+        $this->assertInstanceOf(Transaction::class, $incoming);
+        $this->assertSame('GB29NWBK60161331926819', $incoming->source_iban);
+        $this->assertNull($incoming->target_iban);
+        $this->assertIsArray($incoming->metadata);
+    }
 }

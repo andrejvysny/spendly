@@ -37,6 +37,7 @@ const transactionFields = [
     { key: 'type', label: 'Type', required: false },
     { key: 'target_iban', label: 'Target IBAN', required: false },
     { key: 'source_iban', label: 'Source IBAN', required: false },
+    { key: 'partner_iban', label: 'Partner IBAN (direction by amount sign)', required: false },
     { key: 'category', label: 'Category', required: false },
     { key: 'tags', label: 'Tags', required: false },
     { key: 'notes', label: 'Notes', required: false },
@@ -185,9 +186,23 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                 ) {
                     initialMapping['description'] = index;
                 }
+                // Match transaction type fields (before category: a "Type" column is a transaction type)
+                else if (headerLower.includes('typ')) {
+                    initialMapping['type'] = index;
+                }
                 // Match category fields
-                else if (headerLower.includes('category') || headerLower.includes('type')) {
+                else if (headerLower.includes('category') || headerLower.includes('kateg')) {
                     initialMapping['category'] = index;
+                }
+                // Match IBAN fields (before partner: "IBAN partnera" is an IBAN, not the partner name)
+                else if (headerLower.includes('iban') || headerLower.includes('account')) {
+                    if (headerLower.includes('source') || headerLower.includes('from')) {
+                        initialMapping['source_iban'] = index;
+                    } else if (headerLower.includes('target') || headerLower.includes('to') || headerLower.includes('destination')) {
+                        initialMapping['target_iban'] = index;
+                    } else if (headerLower.includes('partner') || headerLower.includes('counterparty') || headerLower.includes('protistran')) {
+                        initialMapping['partner_iban'] = index;
+                    }
                 }
                 // Match partner/payee fields
                 else if (
@@ -197,14 +212,6 @@ export default function ConfigureStep({ headers, sampleRows, importId, onComplet
                     headerLower.includes('merchant')
                 ) {
                     initialMapping['partner'] = index;
-                }
-                // Match IBAN fields
-                else if (headerLower.includes('iban') || headerLower.includes('account')) {
-                    if (headerLower.includes('source') || headerLower.includes('from')) {
-                        initialMapping['source_iban'] = index;
-                    } else if (headerLower.includes('target') || headerLower.includes('to') || headerLower.includes('destination')) {
-                        initialMapping['target_iban'] = index;
-                    }
                 }
                 // Match transaction ID fields
                 else if (headerLower.includes('id') || headerLower.includes('reference')) {

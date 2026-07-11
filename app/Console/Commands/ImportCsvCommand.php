@@ -134,15 +134,18 @@ class ImportCsvCommand extends Command
             $columnMapping = $this->convertDetectedMappingsToFieldIndex($detected['mappings']);
             $dateFormat = $dateFormatOverride ?: ($detected['detected_date_format'] ?? $dateFormat);
             $amountFormat = $detected['detected_amount_format'] ?? $amountFormat;
+            // Fill fields the value-based detector does not know (partner_iban,
+            // type, directional IBANs) from the header-based mapper - never
+            // overriding what was already detected.
+            $fallback = $this->mappingService->autoDetectMapping($headers);
+            foreach ($fallback as $field => $columnIndex) {
+                if ($columnIndex !== null && (! isset($columnMapping[$field]) || $columnMapping[$field] === null)) {
+                    $columnMapping[$field] = $columnIndex;
+                }
+            }
             $validation = $this->mappingService->validateMapping($columnMapping, $headers);
             if (! $validation['valid']) {
-                $fallback = $this->mappingService->autoDetectMapping($headers);
-                foreach (['booked_date', 'amount', 'partner'] as $required) {
-                    if (! isset($columnMapping[$required]) || $columnMapping[$required] === null) {
-                        $columnMapping[$required] = $fallback[$required] ?? null;
-                    }
-                }
-                // If partner still unmapped but description is mapped, use description column for partner (parser will copy)
+                // If partner is unmapped but description is mapped, use description column for partner (parser will copy)
                 if (($columnMapping['partner'] ?? null) === null && ($columnMapping['description'] ?? null) !== null) {
                     $columnMapping['partner'] = $columnMapping['description'];
                 }

@@ -103,21 +103,9 @@ class TransactionPersister
                 foreach ($chunks as $chunk) {
                     $insertData = [];
                     $idPairs = [];
-                    $firstRowColumns = null;
                     foreach ($chunk as $data) {
                         assert($data instanceof TransactionDto);
                         $prepared = $this->prepareForInsert($data->toArray());
-
-                        // Validate column consistency
-                        if ($firstRowColumns === null) {
-                            $firstRowColumns = array_keys($prepared);
-                        } elseif (array_keys($prepared) !== $firstRowColumns) {
-                            Log::critical('Inconsistent columns in batch data', [
-                                'expected_columns' => $firstRowColumns,
-                                'actual_columns' => array_keys($prepared),
-                            ]);
-                            throw new \RuntimeException('Inconsistent columns in batch data');
-                        }
 
                         // Track identifiers for fetching models after insert (composite)
                         if (isset($prepared['transaction_id']) && isset($prepared['account_id'])) {
@@ -126,6 +114,11 @@ class TransactionPersister
 
                         $insertData[] = $prepared;
                     }
+
+                    // Rows may carry different optional keys (e.g. an IBAN column
+                    // empty on some rows). A multi-row insert needs uniform
+                    // columns, so pad every row with the union of keys.
+                    $insertData = $this->normalizeInsertColumns($insertData);
 
                     // Bulk insert via repository
                     $this->transactions->createBatch($insertData);
@@ -180,7 +173,7 @@ class TransactionPersister
                         assert($data instanceof TransactionDto, 'Expected TransactionDto in batch results');
                         try {
                             $transaction = $this->transactions->createOne(
-                                $this->prepareForInsert($data->toArray())
+                                $this->prepareForModel($data->toArray())
                             );
                             // Eager load needed relations for rule processing
                             $transaction->load(['account.user', 'tags', 'category', 'counterparty']);
@@ -222,6 +215,50 @@ class TransactionPersister
                 }
             });
         }
+    }
+
+    /**
+     * Pad every row with the union of columns (missing optional keys => null)
+     * and a stable key order, as required by multi-row INSERT statements.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeInsertColumns(array $rows): array
+    {
+        $columns = [];
+        foreach ($rows as $row) {
+            foreach (array_keys($row) as $column) {
+                $columns[$column] = true;
+            }
+        }
+        $template = array_fill_keys(array_keys($columns), null);
+
+        return array_map(fn (array $row): array => array_replace($template, $row), $rows);
+    }
+
+    /**
+     * Prepare transaction data for Eloquent create (fallback path). Same as
+     * prepareForInsert but keeps json columns as arrays - the model's casts
+     * encode them; pre-encoding here would double-encode.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function prepareForModel(array $data): array
+    {
+        $prepared = $this->prepareForInsert($data);
+
+        foreach (['metadata', 'import_data'] as $jsonColumn) {
+            if (isset($prepared[$jsonColumn]) && is_string($prepared[$jsonColumn])) {
+                $decoded = json_decode($prepared[$jsonColumn], true);
+                if (is_array($decoded)) {
+                    $prepared[$jsonColumn] = $decoded;
+                }
+            }
+        }
+
+        return $prepared;
     }
 
     /**

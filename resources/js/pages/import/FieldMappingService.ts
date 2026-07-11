@@ -105,6 +105,7 @@ class FieldMappingService {
         target_iban:
             /^(target.*iban|empf[aä]nger.*iban|ziel.*iban|destination.*iban|recipient.*iban|to.*iban|beneficiary.*iban|payee.*iban|credit.*iban)$/i,
         source_iban: /^(source.*iban|sender.*iban|auftraggeber.*iban|from.*iban|origin.*iban|debtor.*iban|payer.*iban|debit.*iban)$/i,
+        partner_iban: /^(iban.*partnera|partner.*iban|counterparty.*iban|iban.*protistrany|gegenkonto.*iban)$/i,
         currency: /^(currency|w[aä]hrung|curr|mena|valuta|devise|moneda|divisa|waluta|ccur|ccy)$/i,
         transaction_id:
             /^(transaction.*id|trans.*id|id|referenz|reference|ref|cislo.*transakce|numero|numero.*transaccion|transaction.*ref|trans.*ref|txn.*id|operation.*id)$/i,

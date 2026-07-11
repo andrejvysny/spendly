@@ -5,6 +5,7 @@ namespace App\Services\TransactionImport;
 use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Parses raw data into transaction format.
@@ -103,44 +104,36 @@ class TransactionDataParser
     private function parseDate(string $dateString, string $format): ?string
     {
         // Clean the input
-        $dateString = trim(preg_replace('/[\x00-\x1F\x7F]/', '', $dateString));
+        $dateString = trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $dateString));
 
-        if (empty($dateString)) {
+        if ($dateString === '') {
             return null;
         }
 
-        try {
-            $date = Carbon::createFromFormat($format, $dateString);
+        // Carbon::createFromFormat throws on mismatch, so each format needs its
+        // own attempt - the configured format first, then common alternatives.
+        $formats = array_values(array_unique(array_merge([$format], [
+            'd.m.Y', 'Y-m-d', 'd/m/Y', 'm/d/Y', 'Y.m.d',
+            'd.m.Y H:i:s', 'Y-m-d H:i:s',
+        ])));
 
-            if (! $date) {
-                // Try alternative formats
-                $alternativeFormats = [
-                    'd.m.Y', 'Y-m-d', 'd/m/Y', 'm/d/Y', 'Y.m.d',
-                    'd.m.Y H:i:s', 'Y-m-d H:i:s',
-                ];
-
-                foreach ($alternativeFormats as $altFormat) {
-                    try {
-                        $date = Carbon::createFromFormat($altFormat, $dateString);
-                        if ($date) {
-                            break;
-                        }
-                    } catch (\Exception $e) {
-                        continue;
-                    }
-                }
+        foreach ($formats as $tryFormat) {
+            try {
+                $date = Carbon::createFromFormat($tryFormat, $dateString);
+            } catch (\Exception) {
+                continue;
             }
-
-            return $date ? $date->format('Y-m-d H:i:s') : null;
-        } catch (\Exception $e) {
-            Log::warning('Failed to parse date', [
-                'date_string' => $dateString,
-                'format' => $format,
-                'error' => $e->getMessage(),
-            ]);
-
-            return null;
+            if ($date instanceof Carbon) {
+                return $date->format('Y-m-d H:i:s');
+            }
         }
+
+        Log::warning('Failed to parse date', [
+            'date_string' => $dateString,
+            'format' => $format,
+        ]);
+
+        return null;
     }
 
     /**
@@ -200,8 +193,15 @@ class TransactionDataParser
     /**
      * Handle required fields and set defaults.
      */
+    /**
+     * @param  array<string, mixed>  $data
+     */
     private function handleRequiredFields(array &$data): void
     {
+        // Resolve a direction-agnostic partner IBAN column (e.g. SLSP "IBAN partnera")
+        // into the directional field implied by the amount sign.
+        $this->resolvePartnerIban($data);
+
         // Set defaults for optional fields first (so partner can be derived)
         if (! isset($data['processed_date'])) {
             $data['processed_date'] = $data['booked_date'];
@@ -212,21 +212,20 @@ class TransactionDataParser
         }
 
         // Partner fallback for CSVs without a partner column (e.g. Revolut: use description)
-        $partnerEmpty = ! isset($data['partner']) || $data['partner'] === null || trim((string) $data['partner']) === '';
-        if ($partnerEmpty && ! empty($data['description'])) {
-            $desc = is_string($data['description']) ? $data['description'] : (string) $data['description'];
+        if ($this->blankValue($data['partner'] ?? null) && ! empty($data['description'])) {
+            $desc = $this->stringValue($data['description']);
             $data['partner'] = strlen($desc) > 255 ? substr($desc, 0, 252).'...' : $desc;
         }
         // If partner still empty (e.g. description was empty string), use type or default
-        $partnerEmpty = ! isset($data['partner']) || $data['partner'] === null || trim((string) $data['partner']) === '';
-        if ($partnerEmpty) {
-            $data['partner'] = trim((string) ($data['type'] ?? '')) !== '' ? ($data['type'] ?? '') : 'Imported transaction';
+        if ($this->blankValue($data['partner'] ?? null)) {
+            $typeValue = $this->stringValue($data['type'] ?? '');
+            $data['partner'] = trim($typeValue) !== '' ? $typeValue : 'Imported transaction';
         }
 
         // Validate required fields
         $requiredFields = ['booked_date', 'amount', 'partner'];
         foreach ($requiredFields as $field) {
-            if (! isset($data[$field]) || $data[$field] === null || trim((string) $data[$field]) === '') {
+            if ($this->blankValue($data[$field] ?? null)) {
                 throw new \Exception("Missing required field: {$field}");
             }
         }
@@ -235,15 +234,25 @@ class TransactionDataParser
         if (empty($data['type'])) {
             $data['type'] = 'Imported';
         } else {
-            if ($this->isTransferType($data['type'])) {
+            $classification = $this->classifyTransferType($this->stringValue($data['type']));
+            if ($classification === 'strong') {
                 $metadata = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
                 $metadata['transfer_candidate'] = true;
+                if ($this->matchesSingleLegPattern($this->stringValue($data['description'] ?? ''))) {
+                    // Pocket/vault moves have no pairable credit leg; flag them
+                    // so the detector can mark them as single-leg transfers.
+                    $metadata['single_leg_transfer_candidate'] = true;
+                }
                 $data['metadata'] = $metadata;
-                $data['type'] = (float) $data['amount'] < 0
+                $data['type'] = is_numeric($data['amount']) && (float) $data['amount'] < 0
                     ? Transaction::TYPE_PAYMENT
                     : Transaction::TYPE_DEPOSIT;
-            } else {
-                $data['type'] = $this->normalizeTransactionType($data['type']);
+            } elseif ($classification === 'weak') {
+                // Standing orders / payment orders are often bills, not transfers.
+                // A weak hint feeds the heuristic scorer without review-queue noise.
+                $metadata = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
+                $metadata['transfer_type_hint'] = true;
+                $data['metadata'] = $metadata;
             }
         }
 
@@ -258,28 +267,99 @@ class TransactionDataParser
     }
 
     /**
-     * Normalize CSV-mapped type to standard TRANSFER when value indicates a transfer.
+     * Classify a raw CSV type string as transfer evidence.
      *
-     * @param  string  $type  Raw type value from CSV (e.g. "Transfer", "transfer", "TRANSFER").
-     * @return string Transaction::TYPE_TRANSFER or unchanged type.
+     * 'strong' - the row explicitly says it is a transfer ("Transfer",
+     * "SEPA prevod", ...): becomes a transfer_candidate.
+     * 'weak' - transfer-shaped but frequently used for bills (standing orders,
+     * payment orders, top-ups): only hints the heuristic scorer.
+     * Matching is case- and diacritics-insensitive contains.
      */
-    private function normalizeTransactionType(string $type): string
+    private function classifyTransferType(string $type): ?string
     {
-        return $type;
+        $normalized = strtolower(Str::ascii(trim($type)));
+        if ($normalized === '') {
+            return null;
+        }
+
+        $strongAliases = ['transfer', 'prevod', 'presun', 'uberweisung', 'virement', 'bonifico'];
+        foreach ($strongAliases as $alias) {
+            if (str_contains($normalized, $alias)) {
+                return 'strong';
+            }
+        }
+
+        $weakAliases = [
+            'trvalym prikazom', 'trvaly platobny prikaz', 'platobny prikaz na uhradu',
+            'standing order', 'standingorder', 'topup',
+        ];
+        foreach ($weakAliases as $alias) {
+            if (str_contains($normalized, $alias)) {
+                return 'weak';
+            }
+        }
+
+        return null;
     }
 
-    private function isTransferType(string $type): bool
+    private function stringValue(mixed $value): string
     {
-        $normalized = strtolower(trim($type));
-        $transferAliases = ['transfer', 'prevod', 'überweisung', 'virement', 'bonifico'];
+        return is_scalar($value) ? (string) $value : '';
+    }
 
-        foreach ($transferAliases as $alias) {
-            if ($normalized === $alias) {
+    /** True when the value is missing, non-scalar, or trims to an empty string. */
+    private function blankValue(mixed $value): bool
+    {
+        return ! is_scalar($value) || trim((string) $value) === '';
+    }
+
+    private function matchesSingleLegPattern(string $description): bool
+    {
+        $normalized = strtolower(Str::ascii(trim($description)));
+        if ($normalized === '') {
+            return false;
+        }
+
+        /** @var array<int, string> $patterns */
+        $patterns = config('transfers.single_leg.patterns', []);
+        foreach ($patterns as $pattern) {
+            $needle = strtolower(Str::ascii(trim($pattern)));
+            if ($needle !== '' && str_contains($normalized, $needle)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Fill target_iban (outgoing) or source_iban (incoming) from a mapped
+     * partner_iban column, based on the amount sign. Explicit directional
+     * mappings win.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function resolvePartnerIban(array &$data): void
+    {
+        if (! array_key_exists('partner_iban', $data)) {
+            return;
+        }
+
+        $partnerIban = trim((string) $data['partner_iban']);
+        unset($data['partner_iban']);
+
+        $amount = $data['amount'] ?? null;
+        if ($partnerIban === '' || ! is_numeric($amount)) {
+            return;
+        }
+
+        if ((float) $amount < 0) {
+            if (empty($data['target_iban'])) {
+                $data['target_iban'] = $partnerIban;
+            }
+        } elseif (empty($data['source_iban'])) {
+            $data['source_iban'] = $partnerIban;
+        }
     }
 
     /**

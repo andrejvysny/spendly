@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\MlPersonalizationSetting;
 use App\Models\Category;
 use App\Models\Counterparty;
+use App\Models\MlPersonalizationSetting;
 use App\Models\Transaction;
 
 class MlSuggestionService
@@ -85,8 +85,15 @@ class MlSuggestionService
 
         foreach ($transactions as $transaction) {
             $txId = (int) $transaction->id;
-            $metadata = (array) ($transaction->metadata ?? []);
-            $mlMetadata = (array) ($metadata['ml'] ?? []);
+            // Defensive: metadata can be a still-encoded JSON string on rows
+            // written through a raw-insert path; (array)-casting a string
+            // would wrap it and corrupt the column on save.
+            $rawMetadata = $transaction->getAttribute('metadata');
+            if (is_string($rawMetadata)) {
+                $rawMetadata = json_decode($rawMetadata, true);
+            }
+            $metadata = is_array($rawMetadata) ? $rawMetadata : [];
+            $mlMetadata = is_array($metadata['ml'] ?? null) ? $metadata['ml'] : [];
 
             $existingCategorySuggestion = is_array($mlMetadata['category_suggestion'] ?? null)
                 ? $mlMetadata['category_suggestion']

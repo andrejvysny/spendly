@@ -49,4 +49,20 @@ class DateParserTest extends TestCase
         $format = $this->parser->detectFormatFromSamples($samples);
         $this->assertSame(DateParser::FORMAT_DMY, $format);
     }
+
+    public function test_detect_format_from_samples_keeps_dot_separator(): void
+    {
+        // Slovak bank exports use dotted dates; the returned format must be
+        // parseable against the samples themselves.
+        $samples = ['05.02.2026', '31.01.2026', '15.06.2025'];
+        $format = $this->parser->detectFormatFromSamples($samples);
+        $this->assertSame(DateParser::FORMAT_DMY_DOT, $format);
+    }
+
+    public function test_detect_format_from_samples_dotted_mdy(): void
+    {
+        $samples = ['12.31.2025', '06.15.2025'];
+        $format = $this->parser->detectFormatFromSamples($samples);
+        $this->assertSame(DateParser::FORMAT_MDY_DOT, $format);
+    }
 }

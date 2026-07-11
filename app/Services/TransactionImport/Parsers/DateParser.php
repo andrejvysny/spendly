@@ -16,6 +16,8 @@ class DateParser
 
     public const string FORMAT_MDY = 'm/d/Y';
 
+    public const string FORMAT_MDY_DOT = 'm.d.Y';
+
     private const string MIN_REASONABLE = '2000-01-01';
 
     /**
@@ -56,6 +58,8 @@ class DateParser
     {
         $dmyCount = 0;
         $mdyCount = 0;
+        $dotCount = 0;
+        $slashCount = 0;
         foreach ($values as $v) {
             $v = trim((string) $v);
             if ($v === '') {
@@ -64,9 +68,10 @@ class DateParser
             if (preg_match('/^\d{4}-\d{2}-\d{2}/', $v)) {
                 return self::FORMAT_ISO;
             }
-            if (preg_match('#^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$#', $v, $m)) {
+            if (preg_match('#^(\d{1,2})([/.])(\d{1,2})\2(\d{4})$#', $v, $m)) {
+                $m[2] === '.' ? $dotCount++ : $slashCount++;
                 $a = (int) $m[1];
-                $b = (int) $m[2];
+                $b = (int) $m[3];
                 if ($a > 12) {
                     $dmyCount++;
                 } elseif ($b > 12) {
@@ -74,14 +79,14 @@ class DateParser
                 }
             }
         }
-        if ($dmyCount > $mdyCount) {
-            return self::FORMAT_DMY;
-        }
+        // The returned format must carry the separator actually seen in the
+        // samples ("05.02.2026" is d.m.Y, not d/m/Y).
+        $dotted = $dotCount > 0 && $dotCount >= $slashCount;
         if ($mdyCount > $dmyCount) {
-            return self::FORMAT_MDY;
+            return $dotted ? self::FORMAT_MDY_DOT : self::FORMAT_MDY;
         }
 
-        return self::FORMAT_DMY;
+        return $dotted ? self::FORMAT_DMY_DOT : self::FORMAT_DMY;
     }
 
     private function parseIso(string $value): DateParseResult

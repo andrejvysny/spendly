@@ -12,6 +12,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Import\Import;
 use App\Models\RecurringDetectionSetting;
+use App\Models\Transaction;
 use App\Services\Csv\CsvProcessor;
 use App\Services\TransactionImport\FieldDetection\AutoDetectionService;
 use App\Services\TransactionImport\ImportMappingService;
@@ -19,6 +20,7 @@ use App\Services\TransactionImport\Parsers\AmountParser;
 use App\Services\TransactionImport\Parsers\DateParser;
 use App\Services\TransactionImport\TransactionImportService;
 use App\Services\TransferDetectionService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -413,9 +415,19 @@ class ImportWizardController extends Controller
             // Process the import
             $results = $this->importService->processImport($import, $account->getKey());
 
-            // Run transfer detection so same-day pairs across user accounts are marked as TRANSFER
+            // Run transfer detection so same-day pairs across user accounts are marked as TRANSFER.
+            // Windowed to the imported rows (with padding) instead of full history.
             try {
-                $this->transferDetectionService->detectAndMarkTransfersForUser((int) Auth::id());
+                $minBooked = Transaction::query()
+                    ->where('account_id', $account->getKey())
+                    ->where('created_at', '>=', $import->created_at)
+                    ->min('booked_date');
+                if (is_string($minBooked) && $minBooked !== '') {
+                    $padding = config('transfers.detection_window_padding_days', 3);
+                    $paddingDays = is_numeric($padding) ? (int) $padding : 3;
+                    $from = Carbon::parse($minBooked)->subDays($paddingDays);
+                    $this->transferDetectionService->detectAndMarkTransfersForUser((int) Auth::id(), $from);
+                }
             } catch (\Throwable $e) {
                 Log::warning('Transfer detection after import failed', [
                     'import_id' => $import->id,

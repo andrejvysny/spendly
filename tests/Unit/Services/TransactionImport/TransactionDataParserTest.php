@@ -45,6 +45,23 @@ class TransactionDataParserTest extends UnitTestCase
         $this->assertEquals(456, $result['import_id']);
     }
 
+    public function test_parse_date_falls_back_when_configured_format_mismatches(): void
+    {
+        // A mis-detected separator (d/m/Y vs dotted samples) must not fail the
+        // row - the parser retries common alternative formats.
+        $row = ['05.02.2026', '100', 'Partner'];
+        $configuration = [
+            'column_mapping' => ['booked_date' => 0, 'amount' => 1, 'partner' => 2],
+            'date_format' => 'd/m/Y',
+            'amount_format' => '1,234.56',
+            'currency' => 'EUR',
+        ];
+
+        $result = $this->parser->parse($row, $configuration);
+
+        $this->assertStringStartsWith('2026-02-05', $result['booked_date']);
+    }
+
     public function test_parse_date_formats(): void
     {
         $testCases = [
@@ -387,5 +404,121 @@ class TransactionDataParserTest extends UnitTestCase
 
         $this->assertArrayHasKey('balance_after_transaction', $result);
         $this->assertNull($result['balance_after_transaction']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function typeConfiguration(): array
+    {
+        return [
+            'column_mapping' => [
+                'booked_date' => 0,
+                'amount' => 1,
+                'partner' => 2,
+                'type' => 3,
+            ],
+            'date_format' => 'Y-m-d',
+            'amount_format' => '1,234.56',
+        ];
+    }
+
+    public function test_parse_slovak_transfer_string_is_strong_candidate(): void
+    {
+        $row = ['2023-12-25', '-200.00', 'Own account', 'SEPA prevod medzi účtami'];
+
+        $result = $this->parser->parse($row, $this->typeConfiguration());
+
+        $this->assertSame('PAYMENT', $result['type']);
+        $this->assertTrue($result['metadata']['transfer_candidate']);
+        $this->assertArrayNotHasKey('transfer_type_hint', $result['metadata']);
+    }
+
+    public function test_parse_standing_order_is_weak_hint_only(): void
+    {
+        $row = ['2023-12-25', '-200.00', 'Own account', 'SEPA platba trvalým príkazom'];
+
+        $result = $this->parser->parse($row, $this->typeConfiguration());
+
+        // Standing orders are often rent/bills: no candidate flag, no type rewrite.
+        $this->assertSame('SEPA platba trvalým príkazom', $result['type']);
+        $this->assertArrayNotHasKey('transfer_candidate', $result['metadata']);
+        $this->assertTrue($result['metadata']['transfer_type_hint']);
+    }
+
+    public function test_parse_payment_order_is_weak_hint_only(): void
+    {
+        $row = ['2023-12-25', '-15.00', 'Own account', 'Platobný príkaz na úhradu / FIT 2.0 (EB)'];
+
+        $result = $this->parser->parse($row, $this->typeConfiguration());
+
+        $this->assertArrayNotHasKey('transfer_candidate', $result['metadata']);
+        $this->assertTrue($result['metadata']['transfer_type_hint']);
+    }
+
+    public function test_parse_pocket_transfer_gets_single_leg_candidate(): void
+    {
+        $row = ['2023-12-25', '-10.00', '', 'Transfer', 'To pocket EUR Savings from EUR'];
+        $configuration = [
+            'column_mapping' => [
+                'booked_date' => 0,
+                'amount' => 1,
+                'partner' => 2,
+                'type' => 3,
+                'description' => 4,
+            ],
+            'date_format' => 'Y-m-d',
+            'amount_format' => '1,234.56',
+        ];
+
+        $result = $this->parser->parse($row, $configuration);
+
+        $this->assertTrue($result['metadata']['transfer_candidate']);
+        $this->assertTrue($result['metadata']['single_leg_transfer_candidate']);
+    }
+
+    public function test_parse_partner_iban_resolves_by_amount_sign(): void
+    {
+        $configuration = [
+            'column_mapping' => [
+                'booked_date' => 0,
+                'amount' => 1,
+                'partner' => 2,
+                'partner_iban' => 3,
+            ],
+            'date_format' => 'Y-m-d',
+            'amount_format' => '1,234.56',
+        ];
+
+        $outgoing = $this->parser->parse(['2023-12-25', '-50.00', 'Partner', 'SK9999000000009999999999'], $configuration);
+        $this->assertSame('SK9999000000009999999999', $outgoing['target_iban']);
+        $this->assertArrayNotHasKey('source_iban', $outgoing);
+        $this->assertArrayNotHasKey('partner_iban', $outgoing);
+
+        $incoming = $this->parser->parse(['2023-12-25', '50.00', 'Partner', 'SK9999000000009999999999'], $configuration);
+        $this->assertSame('SK9999000000009999999999', $incoming['source_iban']);
+        $this->assertArrayNotHasKey('target_iban', $incoming);
+    }
+
+    public function test_parse_explicit_directional_iban_wins_over_partner_iban(): void
+    {
+        $configuration = [
+            'column_mapping' => [
+                'booked_date' => 0,
+                'amount' => 1,
+                'partner' => 2,
+                'partner_iban' => 3,
+                'target_iban' => 4,
+            ],
+            'date_format' => 'Y-m-d',
+            'amount_format' => '1,234.56',
+        ];
+
+        $result = $this->parser->parse(
+            ['2023-12-25', '-50.00', 'Partner', 'SK9999000000009999999999', 'SK1111000000001111111111'],
+            $configuration
+        );
+
+        $this->assertSame('SK1111000000001111111111', $result['target_iban']);
     }
 }
