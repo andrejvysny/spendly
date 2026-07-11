@@ -64,17 +64,51 @@ class TransactionSyncService
             $stats['needs_review'] += $batchStats['needs_review'] ?? 0;
         }
 
-        // Run transfer detection for this user so new same-day pairs are marked
-        try {
-            $this->transferDetectionService->detectAndMarkTransfersForUser((int) $account->user_id);
-        } catch (\Throwable $e) {
-            Log::warning('Transfer detection after sync failed', [
-                'account_id' => $account->id,
-                'error' => $e->getMessage(),
-            ]);
+        // Run transfer detection for this user so new same-day pairs are marked.
+        // Windowed to the synced batch (with padding) instead of full history.
+        if ($stats['created'] + $stats['updated'] > 0) {
+            try {
+                $padding = config('transfers.detection_window_padding_days', 3);
+                $paddingDays = is_numeric($padding) ? (int) $padding : 3;
+                $from = $this->earliestBookedDate($transactions)?->subDays($paddingDays);
+                $this->transferDetectionService->detectAndMarkTransfersForUser((int) $account->user_id, $from);
+            } catch (\Throwable $e) {
+                Log::warning('Transfer detection after sync failed', [
+                    'account_id' => $account->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return $stats;
+    }
+
+    /**
+     * Earliest booking date among the raw GoCardless transactions, used to
+     * window the post-sync transfer detection run.
+     *
+     * @param  array<int, array<string, mixed>>  $transactions
+     */
+    private function earliestBookedDate(array $transactions): ?Carbon
+    {
+        $earliest = null;
+
+        foreach ($transactions as $transaction) {
+            $raw = $transaction['bookingDateTime'] ?? $transaction['bookingDate'] ?? null;
+            if (! is_string($raw) || trim($raw) === '') {
+                continue;
+            }
+            try {
+                $date = Carbon::parse($raw);
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($earliest === null || $date->lt($earliest)) {
+                $earliest = $date;
+            }
+        }
+
+        return $earliest;
     }
 
     /**

@@ -163,6 +163,49 @@ class RevolutFieldExtractor implements BankFieldExtractorInterface
             $metadata['additional_data'] = $additional;
         }
 
+        if ($this->isPocketOrVaultMove($transaction)) {
+            // Pocket/vault moves have no counterparty account and no pairable
+            // credit leg; the transfer detector marks them as single-leg transfers.
+            $metadata['single_leg_transfer_candidate'] = true;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * @param  array<string, mixed>  $transaction
+     */
+    private function isPocketOrVaultMove(array $transaction): bool
+    {
+        $codeRaw = self::get($transaction, 'proprietaryBankTransactionCode');
+        $code = is_string($codeRaw) ? strtoupper(trim($codeRaw)) : '';
+        if ($code !== 'TRANSFER') {
+            return false;
+        }
+
+        if (self::get($transaction, 'debtorAccount.iban') !== null || self::get($transaction, 'creditorAccount.iban') !== null) {
+            return false;
+        }
+
+        $remittance = self::get($transaction, 'remittanceInformationUnstructuredArray');
+        if (! is_array($remittance) || $remittance === []) {
+            return false;
+        }
+
+        /** @var array<int, string> $patterns */
+        $patterns = config('transfers.single_leg.patterns', []);
+        $haystack = strtolower(implode(' | ', array_map(
+            static fn ($line): string => is_scalar($line) ? (string) $line : '',
+            $remittance
+        )));
+
+        foreach ($patterns as $pattern) {
+            $needle = strtolower(trim($pattern));
+            if ($needle !== '' && str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

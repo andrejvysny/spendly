@@ -44,7 +44,7 @@ class TransactionBulkService
      *
      * @param  Collection<int, Transaction>  $transactions
      * @param  array{counterparty_id?: ?string, category_id?: ?string, recurring_group_id?: ?string}  $patch
-     * @return int  number of rows updated
+     * @return int number of rows updated
      */
     public function applyAssignments(Collection $transactions, array $patch, User $user): int
     {
@@ -157,16 +157,18 @@ class TransactionBulkService
 
     /**
      * Update the type and optionally auto-pair two transactions whose amounts
-     * sum to ~0 as a transfer pair.
+     * sum to ~0 as a transfer pair. Pairing is refused (types still applied)
+     * when both rows sit on the same account or their currencies differ.
      *
      * @param  Collection<int, Transaction>  $transactions
-     * @return array{paired: bool}
+     * @return array{paired: bool, pair_blocked_reason?: string}
      */
     public function applyType(Collection $transactions, string $type, bool $clearTransferPair): array
     {
         $paired = false;
+        $pairBlockedReason = null;
 
-        DB::transaction(function () use ($transactions, $type, $clearTransferPair, &$paired): void {
+        DB::transaction(function () use ($transactions, $type, $clearTransferPair, &$paired, &$pairBlockedReason): void {
             if ($clearTransferPair) {
                 /** @var array<int, int> $partnerIds */
                 $partnerIds = $transactions->pluck('transfer_pair_transaction_id')->filter()->values()->all();
@@ -199,22 +201,62 @@ class TransactionBulkService
                 if ($first === null || $second === null) {
                     return;
                 }
-                if (abs((float) $first->amount + (float) $second->amount) <= 0.01) {
-                    $first->update(['transfer_pair_transaction_id' => $second->id]);
-                    $second->update(['transfer_pair_transaction_id' => $first->id]);
-                    $paired = true;
+                if (abs((float) $first->amount + (float) $second->amount) > 0.01) {
+                    return;
                 }
+                if ($first->account_id === $second->account_id) {
+                    $pairBlockedReason = 'same_account';
+
+                    return;
+                }
+                if ((string) $first->currency !== (string) $second->currency) {
+                    $pairBlockedReason = 'currency_mismatch';
+
+                    return;
+                }
+
+                $first->update([
+                    'transfer_pair_transaction_id' => $second->id,
+                    'metadata' => $this->withTransferDetectionEvidence($first, (int) $second->id),
+                ]);
+                $second->update([
+                    'transfer_pair_transaction_id' => $first->id,
+                    'metadata' => $this->withTransferDetectionEvidence($second, (int) $first->id),
+                ]);
+                $paired = true;
             }
         });
 
-        return ['paired' => $paired];
+        $result = ['paired' => $paired];
+        if ($pairBlockedReason !== null) {
+            $result['pair_blocked_reason'] = $pairBlockedReason;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function withTransferDetectionEvidence(Transaction $transaction, int $pairId): array
+    {
+        $metadata = is_array($transaction->metadata) ? $transaction->metadata : [];
+        $metadata['transfer_detection'] = [
+            'method' => 'manual',
+            'score' => null,
+            'signals' => [],
+            'pair_id' => $pairId,
+            'matched_at' => now()->toIso8601String(),
+        ];
+
+        return $metadata;
     }
 
     /**
      * Delete transactions, detaching tags and clearing partner transfer pairs.
      *
      * @param  Collection<int, Transaction>  $transactions
-     * @return array<int, int>  Deleted ids
+     * @return array<int, int> Deleted ids
      */
     public function deleteAll(Collection $transactions): array
     {

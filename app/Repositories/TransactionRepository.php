@@ -160,7 +160,7 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
             ->with(['counterparty', 'account'])
             ->whereHas('account', fn ($q) => $q->where('user_id', $userId))
             ->whereBetween('booked_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
-            ->where('type', '!=', Transaction::TYPE_TRANSFER);
+            ->excludingTransfers();
 
         if ($accountId !== null) {
             $query->where('account_id', $accountId);

@@ -388,6 +388,7 @@ class TransactionController extends Controller
                 'message' => 'Transaction types updated successfully',
                 'updated_count' => $transactions->count(),
                 'paired' => $result['paired'],
+                'pair_blocked_reason' => $result['pair_blocked_reason'] ?? null,
             ]);
         } catch (\Exception $e) {
             Log::error('Bulk transaction type update failed: '.$e->getMessage());

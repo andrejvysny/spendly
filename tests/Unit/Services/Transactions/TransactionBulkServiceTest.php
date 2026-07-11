@@ -24,6 +24,8 @@ class TransactionBulkServiceTest extends TestCase
 
     private Account $account;
 
+    private Account $secondAccount;
+
     private Account $otherAccount;
 
     protected function setUp(): void
@@ -33,6 +35,7 @@ class TransactionBulkServiceTest extends TestCase
         $this->user = User::factory()->create();
         $this->otherUser = User::factory()->create();
         $this->account = Account::factory()->create(['user_id' => $this->user->id, 'currency' => 'EUR']);
+        $this->secondAccount = Account::factory()->create(['user_id' => $this->user->id, 'currency' => 'EUR']);
         $this->otherAccount = Account::factory()->create(['user_id' => $this->otherUser->id, 'currency' => 'EUR']);
     }
 
@@ -154,7 +157,7 @@ class TransactionBulkServiceTest extends TestCase
     public function test_apply_type_auto_pairs_two_inverse_transactions(): void
     {
         $debit = $this->makeTransaction($this->account, ['amount' => -100.0]);
-        $credit = $this->makeTransaction($this->account, ['amount' => 100.0]);
+        $credit = $this->makeTransaction($this->secondAccount, ['amount' => 100.0]);
 
         $owned = $this->service->ownedTransactions($this->user, [$debit->id, $credit->id]);
         $result = $this->service->applyType($owned, Transaction::TYPE_TRANSFER, false);
@@ -164,6 +167,41 @@ class TransactionBulkServiceTest extends TestCase
         $credit->refresh();
         $this->assertSame($credit->id, $debit->transfer_pair_transaction_id);
         $this->assertSame($debit->id, $credit->transfer_pair_transaction_id);
+        $this->assertSame('manual', $debit->metadata['transfer_detection']['method'] ?? null);
+        $this->assertSame($debit->id, $credit->metadata['transfer_detection']['pair_id'] ?? null);
+    }
+
+    public function test_apply_type_refuses_pairing_on_same_account(): void
+    {
+        $debit = $this->makeTransaction($this->account, ['amount' => -100.0]);
+        $credit = $this->makeTransaction($this->account, ['amount' => 100.0]);
+
+        $owned = $this->service->ownedTransactions($this->user, [$debit->id, $credit->id]);
+        $result = $this->service->applyType($owned, Transaction::TYPE_TRANSFER, false);
+
+        $this->assertFalse($result['paired']);
+        $this->assertSame('same_account', $result['pair_blocked_reason'] ?? null);
+        $debit->refresh();
+        $credit->refresh();
+        // Types are still applied (soft block), only the pairing is refused.
+        $this->assertSame(Transaction::TYPE_TRANSFER, $debit->type);
+        $this->assertNull($debit->transfer_pair_transaction_id);
+        $this->assertNull($credit->transfer_pair_transaction_id);
+    }
+
+    public function test_apply_type_refuses_pairing_on_currency_mismatch(): void
+    {
+        $usdAccount = Account::factory()->create(['user_id' => $this->user->id, 'currency' => 'USD']);
+        $debit = $this->makeTransaction($this->account, ['amount' => -100.0]);
+        $credit = $this->makeTransaction($usdAccount, ['amount' => 100.0, 'currency' => 'USD']);
+
+        $owned = $this->service->ownedTransactions($this->user, [$debit->id, $credit->id]);
+        $result = $this->service->applyType($owned, Transaction::TYPE_TRANSFER, false);
+
+        $this->assertFalse($result['paired']);
+        $this->assertSame('currency_mismatch', $result['pair_blocked_reason'] ?? null);
+        $debit->refresh();
+        $this->assertNull($debit->transfer_pair_transaction_id);
     }
 
     public function test_apply_type_does_not_pair_when_sums_dont_cancel(): void

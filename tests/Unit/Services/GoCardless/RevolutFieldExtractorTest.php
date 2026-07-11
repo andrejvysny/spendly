@@ -131,4 +131,45 @@ class RevolutFieldExtractorTest extends TestCase
         $type = $this->extractor->extractTransactionType($tx, 100.0);
         $this->assertSame(Transaction::TYPE_DEPOSIT, $type);
     }
+
+    public function test_extract_metadata_flags_vault_move_as_single_leg_candidate(): void
+    {
+        $tx = [
+            'transactionAmount' => ['amount' => '-0.06', 'currency' => 'EUR'],
+            'proprietaryBankTransactionCode' => 'TRANSFER',
+            'remittanceInformationUnstructuredArray' => ['Revolut Vault', 'To EUR RoundUps'],
+            'internalTransactionId' => 'test-internal-id',
+        ];
+
+        $metadata = $this->extractor->extractMetadata($tx);
+
+        $this->assertTrue($metadata['single_leg_transfer_candidate'] ?? false);
+    }
+
+    public function test_extract_metadata_does_not_flag_transfer_with_counterparty_iban(): void
+    {
+        $tx = [
+            'transactionAmount' => ['amount' => '-200.00', 'currency' => 'EUR'],
+            'proprietaryBankTransactionCode' => 'TRANSFER',
+            'remittanceInformationUnstructuredArray' => ['To pocket EUR Savings'],
+            'creditorAccount' => ['iban' => 'SK1111000000001111111111'],
+        ];
+
+        $metadata = $this->extractor->extractMetadata($tx);
+
+        $this->assertArrayNotHasKey('single_leg_transfer_candidate', $metadata);
+    }
+
+    public function test_extract_metadata_does_not_flag_ordinary_transfer_remittance(): void
+    {
+        $tx = [
+            'transactionAmount' => ['amount' => '-50.00', 'currency' => 'EUR'],
+            'proprietaryBankTransactionCode' => 'TRANSFER',
+            'remittanceInformationUnstructuredArray' => ['To John Smith'],
+        ];
+
+        $metadata = $this->extractor->extractMetadata($tx);
+
+        $this->assertArrayNotHasKey('single_leg_transfer_candidate', $metadata);
+    }
 }

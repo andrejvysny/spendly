@@ -279,10 +279,15 @@ class TransactionControllerTest extends TestCase
     public function test_bulk_type_update_auto_pairs_two_matching_transfer_transactions(): void
     {
         $user = User::factory()->create();
+        /** @var Account $account */
         $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+        /** @var Account $otherAccount */
+        $otherAccount = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
 
+        /** @var Transaction $txCredit */
         $txCredit = Transaction::factory()->create(['account_id' => $account->id, 'amount' => 100.00]);
-        $txDebit = Transaction::factory()->create(['account_id' => $account->id, 'amount' => -100.00]);
+        /** @var Transaction $txDebit */
+        $txDebit = Transaction::factory()->create(['account_id' => $otherAccount->id, 'amount' => -100.00]);
 
         $this->actingAs($user)
             ->postJson(route('transactions.bulk-type-update'), [
@@ -291,5 +296,25 @@ class TransactionControllerTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonFragment(['paired' => true]);
+    }
+
+    public function test_bulk_type_update_blocks_pairing_on_same_account(): void
+    {
+        $user = User::factory()->create();
+        /** @var Account $account */
+        $account = Account::factory()->create(['user_id' => $user->id, 'currency' => 'EUR']);
+
+        /** @var Transaction $txCredit */
+        $txCredit = Transaction::factory()->create(['account_id' => $account->id, 'amount' => 100.00]);
+        /** @var Transaction $txDebit */
+        $txDebit = Transaction::factory()->create(['account_id' => $account->id, 'amount' => -100.00]);
+
+        $this->actingAs($user)
+            ->postJson(route('transactions.bulk-type-update'), [
+                'transaction_ids' => [$txCredit->id, $txDebit->id],
+                'type' => 'TRANSFER',
+            ])
+            ->assertOk()
+            ->assertJsonFragment(['paired' => false, 'pair_blocked_reason' => 'same_account']);
     }
 }
