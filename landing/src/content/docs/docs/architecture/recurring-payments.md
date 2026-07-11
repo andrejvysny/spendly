@@ -9,19 +9,22 @@ Spendly automatically detects recurring payments (subscriptions and repeating tr
 
 ## Data Model
 
-- **RecurringGroup** — One recurring series (e.g., "Netflix"). Fields: `name`, `interval` (weekly/monthly/quarterly/yearly), `amount_min`/`amount_max`, `scope` (per_account/per_user), `status` (suggested/confirmed/dismissed), optional `merchant_id`
+- **RecurringGroup** — One recurring series (e.g., "Netflix"). Fields: `name`, `interval` (weekly/biweekly/monthly/quarterly/semiannual/yearly), `amount_min`/`amount_max`, `amount_current`, `confidence` (0–100), `currency`, `scope` (per_account/per_user), `status` (suggested/confirmed/dismissed), optional `counterparty_id`
 - **Transaction.recurring_group_id** — Set when the transaction belongs to a confirmed RecurringGroup
-- **RecurringDetectionSetting** — Per-user settings (scope, group_by, amount variance, min_occurrences, run_after_import, scheduled_enabled)
+- **RecurringDetectionSetting** — Per-user settings (scope, group_by, amount variance, min_occurrences, lookback_months, run_after_import, scheduled_enabled)
 - **DismissedRecurringSuggestion** — Stores a fingerprint when dismissed to prevent re-suggestion
 
-## Detection Algorithm
+## Detection Algorithm (v2)
 
-1. Load transactions for the user (optionally per account) in a lookback window (default 12 months)
-2. Group by payee: merchant_id or normalized description
-3. For each group: sort by date, compute consecutive date deltas, infer interval with allowed variance; check amounts against configured variance
-4. Keep only series with at least 3 occurrences and consistent interval + amount
-5. Skip if matching an existing confirmed/dismissed group
-6. Create RecurringGroup with status `suggested` — does not set `recurring_group_id` on transactions until confirmed
+1. Load transactions for the user (optionally per account) in the lookback window (per-user `lookback_months`, default 24)
+2. Group by payee **and currency**: counterparty or normalized description (strict counterparty-only mode available)
+3. **Interval fit**: date gaps matched against windows for weekly/biweekly/monthly/quarterly/semiannual/yearly; a gap may span k missed occurrences (skipped month ≠ rejection); a 75% quorum of gaps must fit with a bounded number of outliers (refunds/double charges tolerated)
+4. **Amount plateaus**: price changes start a new plateau instead of rejecting the series (`amount_current` tracks the latest price); interleaved same-payee subscriptions split via amount clustering
+5. **Confidence** 0–100 from interval fit, amount stability, occurrence count, recency, and day-of-month consistency; suggestions below the threshold are not created; yearly/semiannual need only 2 occurrences
+6. Skip if matching an existing confirmed/dismissed group (amount-independent v2 fingerprint — dismissals survive price changes)
+7. Create or update RecurringGroup with status `suggested` (stable upsert; stale suggestions reconciled) — does not set `recurring_group_id` on transactions until confirmed
+
+Tunables live in `config/recurring.php`.
 
 ## When Detection Runs
 
@@ -55,7 +58,7 @@ Confirmed groups include computed statistics:
 - **Recurring page** (`/recurring`) — Suggested list (confirm/dismiss), confirmed list with per-subscription statistics, monthly total
 - **Analytics page** (`/analytics`) — Recurring overview card with projected yearly cost, total paid, top 5 subscriptions
 - **Transactions list** — "Recurring" badge on linked transactions, "Recurring only" filter
-- **Settings** (`/settings/recurring`) — Scope, group by, amount variance, auto-detection toggles
+- **Settings** (`/settings/recurring`) — Scope, group by, amount variance, lookback months, auto-detection toggles
 
 ## Tag Sync
 

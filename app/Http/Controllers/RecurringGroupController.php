@@ -45,7 +45,11 @@ class RecurringGroupController extends Controller
             $query->dismissed();
         }
 
-        $groups = $query->orderBy('updated_at', 'desc')->get();
+        $groups = $query
+            ->orderByRaw('confidence IS NULL')
+            ->orderBy('confidence', 'desc')
+            ->orderBy('updated_at', 'desc')
+            ->get();
 
         $suggested = $groups->where('status', RecurringGroup::STATUS_SUGGESTED)->values();
         $confirmed = $groups->where('status', RecurringGroup::STATUS_CONFIRMED)->values();
@@ -324,6 +328,7 @@ class RecurringGroupController extends Controller
             'amount_variance_type' => ['nullable', Rule::in([RecurringDetectionSetting::AMOUNT_VARIANCE_PERCENT, RecurringDetectionSetting::AMOUNT_VARIANCE_FIXED])],
             'amount_variance_value' => ['nullable', 'numeric', 'min:0'],
             'min_occurrences' => ['nullable', 'integer', 'min:2', 'max:10'],
+            'lookback_months' => ['nullable', 'integer', 'min:6', 'max:48'],
             'run_after_import' => ['nullable', 'boolean'],
             'scheduled_enabled' => ['nullable', 'boolean'],
         ]);

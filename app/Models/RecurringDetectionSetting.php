@@ -32,6 +32,7 @@ class RecurringDetectionSetting extends Model implements OwnedByUserContract
         'amount_variance_type',
         'amount_variance_value',
         'min_occurrences',
+        'lookback_months',
         'run_after_import',
         'scheduled_enabled',
     ];
@@ -42,6 +43,7 @@ class RecurringDetectionSetting extends Model implements OwnedByUserContract
     protected $casts = [
         'amount_variance_value' => 'decimal:2',
         'min_occurrences' => 'integer',
+        'lookback_months' => 'integer',
         'run_after_import' => 'boolean',
         'scheduled_enabled' => 'boolean',
     ];
@@ -74,6 +76,7 @@ class RecurringDetectionSetting extends Model implements OwnedByUserContract
             'amount_variance_type' => self::AMOUNT_VARIANCE_PERCENT,
             'amount_variance_value' => 5.00,
             'min_occurrences' => 3,
+            'lookback_months' => 24,
             'run_after_import' => true,
             'scheduled_enabled' => true,
         ]);

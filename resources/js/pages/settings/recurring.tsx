@@ -19,6 +19,7 @@ interface RecurringSettings {
     amount_variance_type: string;
     amount_variance_value: string;
     min_occurrences: number;
+    lookback_months: number;
     run_after_import: boolean;
     scheduled_enabled: boolean;
 }
@@ -56,6 +57,7 @@ export default function RecurringSettingsPage() {
                 amount_variance_type: settings.amount_variance_type,
                 amount_variance_value: settings.amount_variance_value,
                 min_occurrences: settings.min_occurrences,
+                lookback_months: settings.lookback_months,
                 run_after_import: settings.run_after_import,
                 scheduled_enabled: settings.scheduled_enabled,
             });
@@ -110,12 +112,13 @@ export default function RecurringSettingsPage() {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="merchant_only">Counterparty only</SelectItem>
-                                    <SelectItem value="merchant_and_description">Counterparty + description fallback</SelectItem>
+                                    <SelectItem value="counterparty_only">Counterparty only (strict)</SelectItem>
+                                    <SelectItem value="counterparty_and_description">Counterparty + description fallback</SelectItem>
                                 </SelectContent>
                             </Select>
                             <p className="text-muted-foreground mt-1 text-sm">
-                                How to identify the same payee (counterparty only, or use description when no counterparty).
+                                Strict mode only considers transactions with an assigned counterparty; the fallback also groups by normalized
+                                description.
                             </p>
                         </div>
 
@@ -144,6 +147,22 @@ export default function RecurringSettingsPage() {
                             />
                             <p className="text-muted-foreground mt-1 text-sm">
                                 {settings.amount_variance_type === 'percent' ? 'E.g. 5 for ±5%' : 'E.g. 2.00 for ±2 in account currency'}
+                            </p>
+                        </div>
+
+                        <div>
+                            <Label>Lookback window (months)</Label>
+                            <input
+                                type="number"
+                                step="1"
+                                min="6"
+                                max="48"
+                                className="border-input mt-1 h-9 w-full max-w-xs rounded-md border bg-transparent px-3 py-1 text-sm"
+                                value={settings.lookback_months}
+                                onChange={(e) => update('lookback_months', Number(e.target.value))}
+                            />
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                How far back detection looks. At least 24 months is needed to detect yearly subscriptions.
                             </p>
                         </div>
 

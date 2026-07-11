@@ -15,22 +15,26 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
     use HasFactory;
 
     /**
-     * @var array<int, int> interval => payments per year
+     * @var array<string, int> interval => payments per year
      */
     private const INTERVAL_PAYMENTS_PER_YEAR = [
         self::INTERVAL_WEEKLY => 52,
+        self::INTERVAL_BIWEEKLY => 26,
         self::INTERVAL_MONTHLY => 12,
         self::INTERVAL_QUARTERLY => 4,
+        self::INTERVAL_SEMIANNUAL => 2,
         self::INTERVAL_YEARLY => 1,
     ];
 
     /**
-     * @var array<int, int> interval => typical days between payments
+     * @var array<string, int> interval => typical days between payments
      */
     private const INTERVAL_DAYS_DEFAULT = [
         self::INTERVAL_WEEKLY => 7,
+        self::INTERVAL_BIWEEKLY => 14,
         self::INTERVAL_MONTHLY => 30,
         self::INTERVAL_QUARTERLY => 91,
+        self::INTERVAL_SEMIANNUAL => 182,
         self::INTERVAL_YEARLY => 365,
     ];
 
@@ -46,9 +50,13 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
 
     public const string INTERVAL_WEEKLY = 'weekly';
 
+    public const string INTERVAL_BIWEEKLY = 'biweekly';
+
     public const string INTERVAL_MONTHLY = 'monthly';
 
     public const string INTERVAL_QUARTERLY = 'quarterly';
+
+    public const string INTERVAL_SEMIANNUAL = 'semiannual';
 
     public const string INTERVAL_YEARLY = 'yearly';
 
@@ -62,6 +70,9 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
         'interval_days',
         'amount_min',
         'amount_max',
+        'confidence',
+        'amount_current',
+        'currency',
         'scope',
         'account_id',
         'counterparty_id',
@@ -79,6 +90,8 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
     protected $casts = [
         'amount_min' => 'decimal:2',
         'amount_max' => 'decimal:2',
+        'amount_current' => 'decimal:2',
+        'confidence' => 'integer',
         'first_date' => 'date',
         'last_date' => 'date',
         'detection_config_snapshot' => 'json',
@@ -149,8 +162,10 @@ class RecurringGroup extends BaseModel implements OwnedByUserContract
             // instead of adding a fixed day count that drifts for monthly/quarterly/yearly.
             $next = match ($interval) {
                 self::INTERVAL_WEEKLY => $last->copy()->addWeek(),
+                self::INTERVAL_BIWEEKLY => $last->copy()->addWeeks(2),
                 self::INTERVAL_MONTHLY => $last->copy()->addMonthNoOverflow(),
                 self::INTERVAL_QUARTERLY => $last->copy()->addMonthsNoOverflow(3),
+                self::INTERVAL_SEMIANNUAL => $last->copy()->addMonthsNoOverflow(6),
                 self::INTERVAL_YEARLY => $last->copy()->addYearNoOverflow(),
                 default => $last->copy()->addDays((int) ($this->interval_days ?? self::INTERVAL_DAYS_DEFAULT[$interval] ?? 30)),
             };

@@ -49,6 +49,9 @@ interface RecurringGroup {
     interval_days: number | null;
     amount_min: string;
     amount_max: string;
+    amount_current?: string | null;
+    confidence?: number | null;
+    currency?: string | null;
     scope: string;
     status: string;
     first_date: string | null;
@@ -367,9 +370,38 @@ export default function RecurringIndex() {
                                                         <Badge variant="secondary" className="shrink-0 text-xs">
                                                             {group.interval}
                                                         </Badge>
+                                                        {typeof group.confidence === 'number' && (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={`shrink-0 text-xs ${
+                                                                    group.confidence >= 80
+                                                                        ? 'border-green-500/50 text-green-600 dark:text-green-400'
+                                                                        : group.confidence >= 60
+                                                                          ? 'border-yellow-500/50 text-yellow-600 dark:text-yellow-400'
+                                                                          : 'border-red-500/50 text-red-600 dark:text-red-400'
+                                                                }`}
+                                                                title="Detection confidence"
+                                                            >
+                                                                {group.confidence}%
+                                                            </Badge>
+                                                        )}
                                                         <span className="text-muted-foreground shrink-0 text-sm">
-                                                            {formatAmount(Number(group.amount_min), 'EUR')} –{' '}
-                                                            {formatAmount(Number(group.amount_max), 'EUR')}
+                                                            {group.amount_current != null ? (
+                                                                <>
+                                                                    <span className="text-foreground font-medium">
+                                                                        {formatAmount(Number(group.amount_current), group.currency ?? 'EUR')}
+                                                                    </span>{' '}
+                                                                    <span className="text-xs">
+                                                                        ({formatAmount(Number(group.amount_min), group.currency ?? 'EUR')} –{' '}
+                                                                        {formatAmount(Number(group.amount_max), group.currency ?? 'EUR')})
+                                                                    </span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    {formatAmount(Number(group.amount_min), group.currency ?? 'EUR')} –{' '}
+                                                                    {formatAmount(Number(group.amount_max), group.currency ?? 'EUR')}
+                                                                </>
+                                                            )}
                                                         </span>
                                                     </button>
                                                     <div className="flex shrink-0 gap-2">
@@ -455,6 +487,7 @@ export default function RecurringIndex() {
                                             const amountMin = Number(group.amount_min);
                                             const amountMax = Number(group.amount_max);
                                             const sameAmount = Math.abs(amountMin - amountMax) < 0.02;
+                                            const groupCurrency = group.currency ?? 'EUR';
                                             return (
                                                 <li key={group.id} className="bg-background hover:bg-muted/30 rounded-lg border transition-colors">
                                                     <div className="flex flex-wrap items-center justify-between gap-2 p-3">
@@ -475,9 +508,11 @@ export default function RecurringIndex() {
                                                                 {group.interval}
                                                             </Badge>
                                                             <span className="text-muted-foreground shrink-0 text-sm">
-                                                                {sameAmount
-                                                                    ? formatAmount(amountMin, 'EUR')
-                                                                    : `${formatAmount(amountMin, 'EUR')} – ${formatAmount(amountMax, 'EUR')}`}
+                                                                {group.amount_current != null
+                                                                    ? formatAmount(Number(group.amount_current), groupCurrency)
+                                                                    : sameAmount
+                                                                      ? formatAmount(amountMin, groupCurrency)
+                                                                      : `${formatAmount(amountMin, groupCurrency)} – ${formatAmount(amountMax, groupCurrency)}`}
                                                             </span>
                                                         </button>
                                                         <Button
@@ -495,7 +530,7 @@ export default function RecurringIndex() {
                                                             Started {formatShortDate(group.stats.first_payment_date)} ·{' '}
                                                             {group.stats.transactions_count} payment
                                                             {group.stats.transactions_count !== 1 ? 's' : ''} ·{' '}
-                                                            {formatAmount(group.stats.total_paid, 'EUR')} total
+                                                            {formatAmount(group.stats.total_paid, groupCurrency)} total
                                                         </p>
                                                     )}
                                                     {expandedId === group.id && (
@@ -521,16 +556,16 @@ export default function RecurringIndex() {
                                                                         <dt className="text-muted-foreground">Average amount</dt>
                                                                         <dd className="tabular-nums">
                                                                             {group.stats.average_amount != null
-                                                                                ? formatAmount(group.stats.average_amount, 'EUR')
+                                                                                ? formatAmount(group.stats.average_amount, groupCurrency)
                                                                                 : '—'}
                                                                         </dd>
                                                                         <dt className="text-muted-foreground">Total paid</dt>
                                                                         <dd className="tabular-nums">
-                                                                            {formatAmount(group.stats.total_paid, 'EUR')}
+                                                                            {formatAmount(group.stats.total_paid, groupCurrency)}
                                                                         </dd>
                                                                         <dt className="text-muted-foreground">Projected yearly</dt>
                                                                         <dd className="tabular-nums">
-                                                                            {formatAmount(group.stats.projected_yearly_cost, 'EUR')}
+                                                                            {formatAmount(group.stats.projected_yearly_cost, groupCurrency)}
                                                                         </dd>
                                                                         {group.stats.next_expected_payment && (
                                                                             <>
@@ -562,7 +597,7 @@ export default function RecurringIndex() {
                                                                             <span className="min-w-0 truncate">{tx.description}</span>
                                                                             <span className="flex shrink-0 items-center gap-2 tabular-nums">
                                                                                 {formatBookedDate(tx.booked_date)} ·{' '}
-                                                                                {formatAmount(Number(tx.amount), 'EUR')}
+                                                                                {formatAmount(Number(tx.amount), groupCurrency)}
                                                                                 <Button
                                                                                     type="button"
                                                                                     size="sm"
