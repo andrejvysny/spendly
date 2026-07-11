@@ -15,8 +15,14 @@ from app.core.database import (
     get_user_counterparties,
 )
 from app.modules.categorization import categorize_transactions_batch
+from app.modules.evaluation import evaluate_categorizer
 from app.modules.merchant_extraction import extract_merchant_single
-from app.modules.model_training import get_or_create_categorizer, update_cache
+from app.modules.model_training import (
+    TransactionCategorizer,
+    get_categorizer,
+    get_or_create_categorizer,
+    update_cache,
+)
 from app.modules.recurring_detection import detect_recurring_patterns
 from app.modules.transfer_detection import detect_transfer_pairs
 
@@ -99,10 +105,17 @@ async def categorize_v1(request: CategorizeRequest) -> list[dict]:
 
     suggestions = categorize_transactions_batch(request.user_id, ml_input)
 
+    # Per-class thresholds learned from CV out-of-fold precision (evaluation.py);
+    # fall back to the historical 0.75 when a class has no threshold yet.
+    model = get_categorizer(request.user_id)
+    thresholds = model.class_thresholds if model is not None else {}
+
     result: list[dict] = []
     for suggestion in suggestions:
         confidence = float(suggestion.get("confidence", 0.0))
         predicted = suggestion.get("suggested_category_id")
+        threshold = float(thresholds.get(str(predicted), 0.75))
+        confident = predicted is not None and confidence >= threshold
         result.append(
             {
                 "transaction_id": int(suggestion.get("transaction_id", 0)),
@@ -111,7 +124,8 @@ async def categorize_v1(request: CategorizeRequest) -> list[dict]:
                 else None,
                 "confidence": confidence,
                 "method": suggestion.get("method", "keyword"),
-                "needs_review": predicted is None or confidence < 0.75,
+                "needs_review": not confident,
+                "auto_apply": confident,
             }
         )
 
@@ -261,6 +275,10 @@ async def train_categorizer_v1(request: TrainRequest) -> dict:
             "message": "No labeled transactions found for training",
         }
 
+    # Evaluate on held-out splits first (temporal + CV thresholds),
+    # then refit the production model on all data.
+    evaluation = evaluate_categorizer(history)
+
     categorizer = get_or_create_categorizer(request.user_id)
     train_result = categorizer.train(history)
     if not train_result.get("success"):
@@ -269,13 +287,27 @@ async def train_categorizer_v1(request: TrainRequest) -> dict:
             "message": train_result.get("error", "Training failed"),
         }
 
+    categorizer.class_thresholds = evaluation.get("thresholds", {})
     categorizer.save(user_id=request.user_id)
+    categorizer.append_metrics_entry(request.user_id, evaluation)
     update_cache(request.user_id, categorizer)
 
     return {
         "status": "success",
         "message": "Categorizer trained",
         "metrics": train_result.get("metrics", {}),
+        "evaluation": evaluation,
+    }
+
+
+@router.get("/models/categorizer/metrics")
+async def categorizer_metrics_v1(user_id: int) -> dict:
+    history = TransactionCategorizer.read_metrics_history(user_id)
+
+    return {
+        "user_id": user_id,
+        "history": history,
+        "latest": history[-1] if history else None,
     }
 
 

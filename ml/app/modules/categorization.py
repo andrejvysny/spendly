@@ -35,12 +35,13 @@ def suggest_category(
         model = get_categorizer(None)  # Try global model
 
     if model and model.is_fitted:
+        # Return the ML result with its raw confidence; per-class thresholds
+        # decide needs_review/auto_apply downstream — no arbitrary gate here.
         result = model.predict(description, amount, counterparty_name)
-        if result["confidence"] > 0.3:
-            result["transaction_id"] = 0
-            result["suggested_category_id"] = result.pop("category_id")
-            result["suggested_category_name"] = result.pop("category_name")
-            return result
+        result["transaction_id"] = 0
+        result["suggested_category_id"] = result.pop("category_id")
+        result["suggested_category_name"] = result.pop("category_name")
+        return result
 
     # Keyword fallback
     return _keyword_suggest(description, counterparty_name)

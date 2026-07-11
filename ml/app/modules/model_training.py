@@ -1,9 +1,9 @@
 """ML model training pipeline for transaction categorization.
 
-Uses TF-IDF (word + char n-grams) + SGDClassifier for:
-- Fast training and inference (<10ms per transaction)
-- Incremental learning via partial_fit()
-- Calibrated probability estimates via modified_huber loss
+TF-IDF (word + char n-grams + merchant token + amount bucket) fed into
+LogisticRegression: fast training and inference at personal-finance scale
+with genuinely calibrated probability estimates (needed for per-class
+needs_review / auto-apply thresholds).
 """
 
 from __future__ import annotations
@@ -18,13 +18,14 @@ import joblib
 import numpy as np
 from scipy.sparse import hstack
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import SGDClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from unidecode import unidecode
 
 from app.core.config import settings
+from app.modules.merchant_extraction import clean_text, normalize_merchant
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +35,21 @@ MIN_SAMPLES_PER_CLASS = 3
 
 
 def _prepare_text(description: str, counterparty: str | None = None) -> str:
-    """Combine and normalize text features for TF-IDF."""
+    """Combine and normalize text features for TF-IDF.
+
+    clean_text strips IBANs, VS/SS/KS symbols, card masks and dates — real
+    noise in Slovak/Czech bank strings; the mtok_ token gives the word
+    vectorizer an exact merchant identity feature instead of relying on
+    char n-grams to reassemble it.
+    """
     parts = []
     if description:
-        parts.append(description.strip())
+        parts.append(clean_text(description.strip()))
     if counterparty:
         parts.append(counterparty.strip())
+        merchant = normalize_merchant(counterparty)
+        if merchant:
+            parts.append(f"mtok_{merchant.replace(' ', '_')}")
     text = " ".join(parts).lower()
     # ASCII-fold for diacritics (Slovak/Czech text)
     text = unidecode(text)
@@ -68,7 +78,7 @@ def _direction(amount: float) -> str:
 
 
 class TransactionCategorizer:
-    """TF-IDF + SGDClassifier for transaction categorization."""
+    """TF-IDF + LogisticRegression for transaction categorization."""
 
     def __init__(self) -> None:
         self.word_vectorizer = TfidfVectorizer(
@@ -83,12 +93,12 @@ class TransactionCategorizer:
             max_features=10000,
             sublinear_tf=True,
         )
-        self.classifier = SGDClassifier(
-            loss="modified_huber",  # Gives calibrated probabilities
-            penalty="l2",
-            alpha=1e-4,
+        # LogisticRegression over SGD(modified_huber): genuinely calibrated
+        # probabilities (huber "probs" are clipped decision values) and the
+        # dataset is small enough that the exact solver is instant.
+        self.classifier = LogisticRegression(
+            C=1.0,
             max_iter=1000,
-            tol=1e-3,
             random_state=42,
             class_weight="balanced",
         )
@@ -99,6 +109,8 @@ class TransactionCategorizer:
         self.training_samples = 0
         self.metrics: dict[str, float | str] = {}
         self.classes_: list[str] = []
+        # per-class needs_review/auto-apply thresholds (category_id -> min confidence)
+        self.class_thresholds: dict[str, float] = {}
 
     def _extract_features(
         self,
@@ -227,60 +239,6 @@ class TransactionCategorizer:
             "version": self.version,
         }
 
-    def partial_train(self, transactions: list[dict]) -> dict:
-        """Incrementally update the model with new labeled data.
-
-        Uses SGDClassifier.partial_fit() for online learning.
-        """
-        if not self.is_fitted:
-            return self.train(transactions)
-
-        valid = [
-            t for t in transactions
-            if t.get("category_id") is not None and t.get("category_name")
-        ]
-        if not valid:
-            return {"success": False, "error": "No valid labeled transactions"}
-
-        texts = [
-            _prepare_text(t.get("description", ""), t.get("counterparty_name"))
-            for t in valid
-        ]
-        amounts = [float(t.get("amount", 0)) for t in valid]
-        labels = [str(t["category_id"]) for t in valid]
-
-        # Update category names
-        for t in valid:
-            self._category_names[str(t["category_id"])] = str(t["category_name"])
-
-        # Handle new classes
-        new_classes = set(labels) - set(self.classes_)
-        if new_classes:
-            all_classes = sorted(set(self.classes_) | new_classes)
-            self.label_encoder.classes_ = np.array(all_classes)
-            self.classes_ = all_classes
-
-        encoded_labels = self.label_encoder.transform(labels)
-        X = self._extract_features(texts, amounts, fit=False)
-
-        self.classifier.partial_fit(
-            X, encoded_labels, classes=np.arange(len(self.classes_))
-        )
-
-        self.training_samples += len(valid)
-        self.trained_at = datetime.now(UTC).isoformat()
-
-        logger.info(
-            "Partial trained with %d new samples (total: %d)", len(valid), self.training_samples
-        )
-
-        return {
-            "success": True,
-            "new_samples": len(valid),
-            "total_samples": self.training_samples,
-            "version": self.version,
-        }
-
     def predict(
         self,
         description: str,
@@ -394,6 +352,7 @@ class TransactionCategorizer:
             "trained_at": self.trained_at,
             "training_samples": self.training_samples,
             "metrics": self.metrics,
+            "class_thresholds": self.class_thresholds,
         }
         joblib.dump(model_data, model_path)
 
@@ -406,6 +365,7 @@ class TransactionCategorizer:
             "training_samples": self.training_samples,
             "num_classes": len(self.classes_),
             "metrics": self.metrics,
+            "class_thresholds": self.class_thresholds,
         }
         manifest_path.write_text(json.dumps(manifest, indent=2))
 
@@ -422,6 +382,42 @@ class TransactionCategorizer:
 
         logger.info("Saved model to %s", model_path)
         return model_path
+
+    @staticmethod
+    def _metrics_path(user_id: int | None) -> Path:
+        suffix = f"user_{user_id}" if user_id else "global"
+        return MODELS_DIR / f"categorizer_{suffix}_metrics.json"
+
+    def append_metrics_entry(self, user_id: int | None, evaluation: dict) -> None:
+        """Append one evaluation snapshot to the per-model metrics history file."""
+        path = self._metrics_path(user_id)
+        history: list[dict] = []
+        if path.exists():
+            try:
+                history = json.loads(path.read_text())
+            except json.JSONDecodeError:
+                history = []
+        history.append(
+            {
+                "version": self.version,
+                "trained_at": self.trained_at,
+                "training_samples": self.training_samples,
+                "evaluation": evaluation,
+            }
+        )
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(history, indent=2))
+
+    @classmethod
+    def read_metrics_history(cls, user_id: int | None = None) -> list[dict]:
+        path = cls._metrics_path(user_id)
+        if not path.exists():
+            return []
+        try:
+            data = json.loads(path.read_text())
+            return data if isinstance(data, list) else []
+        except json.JSONDecodeError:
+            return []
 
     @classmethod
     def load(cls, user_id: int | None = None) -> TransactionCategorizer | None:
@@ -450,6 +446,7 @@ class TransactionCategorizer:
             categorizer.label_encoder = data["label_encoder"]
             categorizer.classes_ = data.get("classes", [])
             categorizer._category_names = data.get("category_names", {})
+            categorizer.class_thresholds = data.get("class_thresholds", {})
             categorizer.version = data.get("version", 1)
             categorizer.trained_at = data.get("trained_at")
             categorizer.training_samples = data.get("training_samples", 0)

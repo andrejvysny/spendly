@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\RetrainMlModelJob;
 use App\Models\MlPersonalizationSetting;
 use App\Models\User;
+use App\Services\MlService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,19 +17,23 @@ use Inertia\Response;
 
 class MlPersonalizationController extends Controller
 {
-    public function edit(Request $request): Response
+    public function edit(Request $request, MlService $ml): Response
     {
         $user = $request->user();
         if (! $user instanceof User) {
             return Inertia::render('settings/ml_engine', [
                 'settings' => null,
+                'metrics' => null,
             ]);
         }
 
         $settings = MlPersonalizationSetting::forUser($user->id);
+        $metrics = $ml->getCategorizerMetrics($user->id);
 
         return Inertia::render('settings/ml_engine', [
             'settings' => $settings,
+            'metrics' => $metrics['latest'] ?? null,
+            'categoryNames' => $user->categories()->pluck('name', 'id'),
         ]);
     }
 

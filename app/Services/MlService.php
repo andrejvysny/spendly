@@ -134,6 +134,57 @@ class MlService
     }
 
     /**
+     * Latest evaluation metrics for the user's categorizer model
+     * ({user_id, history[], latest} — see ml/app/api/v1.py).
+     *
+     * @return array<string, mixed>
+     */
+    public function getCategorizerMetrics(int $userId): array
+    {
+        return $this->get('/api/v1/models/categorizer/metrics', ['user_id' => $userId]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
+     */
+    private function get(string $path, array $query): array
+    {
+        if (! $this->enabled) {
+            Log::debug('ML service disabled, skipping request', ['path' => $path]);
+
+            return [];
+        }
+
+        try {
+            $response = Http::timeout($this->timeout)
+                ->withToken($this->token)
+                ->acceptJson()
+                ->get("{$this->baseUrl}{$path}", $query);
+
+            if ($response->successful()) {
+                $json = $response->json();
+
+                return is_array($json) ? $json : [];
+            }
+
+            Log::warning('ML service returned error', [
+                'path' => $path,
+                'status' => $response->status(),
+            ]);
+
+            return [];
+        } catch (\Throwable $e) {
+            Log::warning('ML service unavailable', [
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function post(string $path, array $data): array

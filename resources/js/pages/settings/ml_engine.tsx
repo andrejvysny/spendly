@@ -25,11 +25,38 @@ interface MlSettings {
     last_trained_at: string | null;
 }
 
-interface Props {
-    settings: MlSettings | null;
+interface PerClassMetrics {
+    precision: number;
+    recall: number;
+    f1: number;
+    support: number;
 }
 
-export default function MlEngine({ settings }: Props) {
+interface MlMetrics {
+    version: number;
+    trained_at: string | null;
+    training_samples: number;
+    evaluation: {
+        samples: number;
+        temporal?: {
+            error?: string;
+            samples?: number;
+            accuracy?: number;
+            f1_weighted?: number;
+            f1_macro?: number;
+            per_class?: Record<string, PerClassMetrics>;
+        };
+        thresholds?: Record<string, number>;
+    };
+}
+
+interface Props {
+    settings: MlSettings | null;
+    metrics: MlMetrics | null;
+    categoryNames?: Record<string, string>;
+}
+
+export default function MlEngine({ settings, metrics, categoryNames = {} }: Props) {
     const { data, setData, patch, processing } = useForm<{
         auto_retrain: boolean;
         retrain_threshold: number;
@@ -135,6 +162,76 @@ export default function MlEngine({ settings }: Props) {
                             {isRetraining ? 'Retraining...' : 'Retrain Model Now'}
                         </Button>
                     </div>
+
+                    {metrics?.evaluation && (
+                        <div className="space-y-4 rounded-lg border p-4">
+                            <HeadingSmall
+                                title="Model Quality"
+                                description="Temporal holdout: trained on the oldest 80% of your labels, tested on the newest 20% — how the model performs on future imports"
+                            />
+
+                            {metrics.evaluation.temporal?.error ? (
+                                <p className="text-muted-foreground text-sm">{metrics.evaluation.temporal.error}</p>
+                            ) : (
+                                <>
+                                    <div className="grid gap-4 sm:grid-cols-4">
+                                        <div>
+                                            <p className="text-muted-foreground text-sm font-medium">Accuracy</p>
+                                            <p className="text-lg font-semibold">
+                                                {((metrics.evaluation.temporal?.accuracy ?? 0) * 100).toFixed(1)}%
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-muted-foreground text-sm font-medium">F1 (weighted)</p>
+                                            <p className="text-lg font-semibold">
+                                                {((metrics.evaluation.temporal?.f1_weighted ?? 0) * 100).toFixed(1)}%
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-muted-foreground text-sm font-medium">Training Samples</p>
+                                            <p className="text-lg font-semibold">{metrics.training_samples}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-muted-foreground text-sm font-medium">Model Version</p>
+                                            <p className="text-lg font-semibold">v{metrics.version}</p>
+                                        </div>
+                                    </div>
+
+                                    {metrics.evaluation.temporal?.per_class && (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="text-muted-foreground border-b text-left">
+                                                        <th className="py-1 pr-4 font-medium">Category</th>
+                                                        <th className="py-1 pr-4 font-medium">Precision</th>
+                                                        <th className="py-1 pr-4 font-medium">Recall</th>
+                                                        <th className="py-1 pr-4 font-medium">F1</th>
+                                                        <th className="py-1 pr-4 font-medium">Samples</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {Object.entries(metrics.evaluation.temporal.per_class)
+                                                        .sort(([, a], [, b]) => b.support - a.support)
+                                                        .map(([id, c]) => (
+                                                            <tr key={id} className="border-b last:border-0">
+                                                                <td className="py-1 pr-4">{categoryNames[id] ?? `#${id}`}</td>
+                                                                <td className="py-1 pr-4">{(c.precision * 100).toFixed(0)}%</td>
+                                                                <td className="py-1 pr-4">{(c.recall * 100).toFixed(0)}%</td>
+                                                                <td className="py-1 pr-4">{(c.f1 * 100).toFixed(0)}%</td>
+                                                                <td className="py-1 pr-4">{c.support}</td>
+                                                            </tr>
+                                                        ))}
+                                                </tbody>
+                                            </table>
+                                            <p className="text-muted-foreground mt-2 text-xs">
+                                                Weak categories (low F1, few samples) improve fastest by labeling more of their transactions.
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
             </SettingsLayout>
         </AppLayout>

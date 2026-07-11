@@ -36,15 +36,18 @@ async def test_categorize_contract_shape(client: httpx.AsyncClient, seed: Seeder
     rows = response.json()
     assert len(rows) == 1
     row = rows[0]
-    # Exact keys MlSuggestionService::annotateTransactions expects.
+    # Exact keys MlSuggestionService::annotateTransactions expects
+    # (auto_apply is additive — computed sidecar-side, ignored by Laravel for now).
     assert set(row.keys()) == {
         "transaction_id",
         "predicted_category_id",
         "confidence",
         "method",
         "needs_review",
+        "auto_apply",
     }
     assert row["transaction_id"] == 1
+    assert isinstance(row["auto_apply"], bool)
 
 
 async def test_train_categorizer_success_and_artifacts(
@@ -155,6 +158,40 @@ async def test_detect_transfers_emits_both_directions(
         (100, 101),
         (101, 100),
     }
+
+
+async def test_train_writes_metrics_history_and_endpoint_serves_it(
+    client: httpx.AsyncClient, seed: Seeder
+) -> None:
+    _seed_labeled_corpus(seed, n_per_class=60)
+
+    train = await client.post("/api/v1/train/categorizer", json={"user_id": 1}, headers=AUTH)
+    assert train.status_code == 200
+    body = train.json()
+    assert body["status"] == "success"
+    assert "evaluation" in body
+
+    response = await client.get("/api/v1/models/categorizer/metrics?user_id=1", headers=AUTH)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["user_id"] == 1
+    assert payload["latest"] is not None
+    entry = payload["latest"]
+    assert {"version", "trained_at", "training_samples", "evaluation"} <= set(entry.keys())
+
+
+async def test_metrics_endpoint_empty_without_model(
+    client: httpx.AsyncClient, seed: Seeder
+) -> None:
+    seed.user(1)
+    response = await client.get("/api/v1/models/categorizer/metrics?user_id=99", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json() == {"user_id": 99, "history": [], "latest": None}
+
+
+async def test_metrics_endpoint_requires_auth(client: httpx.AsyncClient) -> None:
+    response = await client.get("/api/v1/models/categorizer/metrics?user_id=1")
+    assert response.status_code == 401
 
 
 async def test_stub_endpoints_answer_without_5xx(

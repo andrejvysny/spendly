@@ -49,6 +49,32 @@ class MlServiceTest extends TestCase
         });
     }
 
+    public function test_get_categorizer_metrics_returns_payload(): void
+    {
+        Http::fake([
+            'ml-test:8001/api/v1/models/categorizer/metrics*' => Http::response([
+                'user_id' => 1,
+                'history' => [['version' => 2]],
+                'latest' => ['version' => 2],
+            ], 200),
+        ]);
+
+        $result = $this->enabledService()->getCategorizerMetrics(1);
+
+        $this->assertSame(2, $result['latest']['version']);
+        Http::assertSent(fn ($request) => $request->hasHeader('Authorization', 'Bearer test-service-token'));
+    }
+
+    public function test_get_categorizer_metrics_empty_when_disabled_or_failing(): void
+    {
+        Http::fake([
+            'ml-test:8001/*' => Http::response('err', 500),
+        ]);
+
+        $this->assertSame([], $this->disabledService()->getCategorizerMetrics(1));
+        $this->assertSame([], $this->enabledService()->getCategorizerMetrics(1));
+    }
+
     // -- isAvailable --
 
     public function test_is_available_returns_true_when_health_ok(): void

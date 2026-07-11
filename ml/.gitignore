@@ -5,9 +5,9 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 
-# ML data artifacts (persisted at runtime)
-data/vectors/*.json
-data/models/*.joblib
-data/models/*_manifest.json
+# ML data artifacts (persisted at runtime) — may derive from real user data,
+# never commit anything under data/ except the .gitkeep placeholders.
+data/vectors/*
+data/models/*
 !data/vectors/.gitkeep
 !data/models/.gitkeep

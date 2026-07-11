@@ -6,7 +6,6 @@ namespace App\Console\Commands;
 
 use App\Models\Transaction;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 class MlExportDatasetCommand extends Command
 {
@@ -19,7 +18,7 @@ class MlExportDatasetCommand extends Command
     ];
 
     protected $signature = 'ml:export-dataset
-        {task : Dataset type (categories, transfers, partners)}
+        {task : Dataset type (categories, transfers, transfer-pairs, partners)}
         {--user= : User ID to export for (all users if omitted)}
         {--output=ml-intern/data : Output directory}
         {--format=jsonl : Output format (jsonl, csv)}
@@ -46,8 +45,9 @@ class MlExportDatasetCommand extends Command
         return match ($task) {
             'categories' => $this->exportCategories($userId, $outputDir, $format, $minSamples),
             'transfers' => $this->exportTransfers($userId, $outputDir, $format),
+            'transfer-pairs' => $this->exportTransferPairs($userId, $outputDir, $format),
             'partners' => $this->exportPartners($userId, $outputDir, $format),
-            default => $this->failCommand("Unknown task: {$task}. Valid: categories, transfers, partners"),
+            default => $this->failCommand("Unknown task: {$task}. Valid: categories, transfers, transfer-pairs, partners"),
         };
     }
 
@@ -82,6 +82,8 @@ class MlExportDatasetCommand extends Command
                 'amount' => (float) $txn->amount,
                 'currency' => $txn->currency ?? 'EUR',
                 'type' => $txn->type ?? '',
+                'booked_date' => $txn->booked_date?->toDateTimeString() ?? '',
+                'account_id' => $txn->account_id,
                 'category' => $txn->category?->name ?? 'Unknown',
                 'category_id' => $txn->category_id,
             ];
@@ -100,7 +102,7 @@ class MlExportDatasetCommand extends Command
         $this->writeDataset($rows, $file, $format);
 
         $categoryStats = collect($rows)->groupBy('category')->map->count()->sortDesc();
-        $this->info("Exported " . count($rows) . " transactions across {$categoryStats->count()} categories to {$file}");
+        $this->info('Exported '.count($rows)." transactions across {$categoryStats->count()} categories to {$file}");
         $this->table(['Category', 'Count'], $categoryStats->map(fn ($c, $k) => [$k, $c])->values()->all());
 
         return self::SUCCESS;
@@ -151,7 +153,63 @@ class MlExportDatasetCommand extends Command
 
         $transferCount = collect($rows)->where('is_transfer', true)->count();
         $nonTransferCount = count($rows) - $transferCount;
-        $this->info("Exported " . count($rows) . " transactions ({$transferCount} transfers, {$nonTransferCount} non-transfers) to {$file}");
+        $this->info('Exported '.count($rows)." transactions ({$transferCount} transfers, {$nonTransferCount} non-transfers) to {$file}");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Confirmed transfer pairs (positive labels for a future pairwise scorer).
+     * One row per linked leg pair; blocking/negative sampling happens trainside.
+     */
+    private function exportTransferPairs(?int $userId, string $outputDir, string $format): int
+    {
+        $this->info('Exporting confirmed transfer pairs...');
+
+        $query = Transaction::query()
+            ->whereNotNull('transfer_pair_transaction_id')
+            ->whereColumn('id', '<', 'transfer_pair_transaction_id')
+            ->with(['account:id,name,iban,user_id', 'pairTransaction.account:id,name,iban']);
+
+        if ($userId) {
+            $query->whereHas('account', fn ($q) => $q->where('user_id', $userId));
+        }
+
+        $rows = [];
+        foreach ($query->get() as $txn) {
+            $pair = $txn->pairTransaction;
+            if ($pair === null) {
+                continue;
+            }
+
+            $rows[] = [
+                'out_id' => $txn->id,
+                'in_id' => $pair->id,
+                'out_amount' => (float) $txn->amount,
+                'in_amount' => (float) $pair->amount,
+                'out_currency' => $txn->currency ?? 'EUR',
+                'in_currency' => $pair->currency ?? 'EUR',
+                'out_booked_date' => $txn->booked_date?->toDateTimeString() ?? '',
+                'in_booked_date' => $pair->booked_date?->toDateTimeString() ?? '',
+                'out_description' => $txn->description ?? '',
+                'in_description' => $pair->description ?? '',
+                'out_account_iban' => $txn->account?->iban ?? '',
+                'in_account_iban' => $pair->account?->iban ?? '',
+                'out_target_iban' => $txn->target_iban ?? '',
+                'in_source_iban' => $pair->source_iban ?? '',
+                'is_pair' => true,
+            ];
+        }
+
+        if (empty($rows)) {
+            $this->error('No linked transfer pairs found.');
+
+            return self::FAILURE;
+        }
+
+        $file = "{$outputDir}/transfer_pairs.{$format}";
+        $this->writeDataset($rows, $file, $format);
+        $this->info('Exported '.count($rows)." confirmed pairs to {$file}");
 
         return self::SUCCESS;
     }
@@ -217,7 +275,7 @@ class MlExportDatasetCommand extends Command
 
         // Deduplicate identical pairs
         $unique = collect($rows)
-            ->unique(fn ($r) => $r['raw_partner'] . '|' . $r['normalized_label'] . '|' . $r['counterparty_type'] . '|' . ((int) $r['is_income']))
+            ->unique(fn ($r) => $r['raw_partner'].'|'.$r['normalized_label'].'|'.$r['counterparty_type'].'|'.((int) $r['is_income']))
             ->values()
             ->all();
         shuffle($unique);
@@ -225,7 +283,7 @@ class MlExportDatasetCommand extends Command
         $file = "{$outputDir}/partners.{$format}";
         $this->writeDataset($unique, $file, $format);
 
-        $this->info("Exported " . count($unique) . " unique partner normalization pairs to {$file}");
+        $this->info('Exported '.count($unique)." unique partner normalization pairs to {$file}");
 
         return self::SUCCESS;
     }
@@ -248,7 +306,7 @@ class MlExportDatasetCommand extends Command
             // JSONL
             $fp = fopen($file, 'w');
             foreach ($rows as $row) {
-                fwrite($fp, json_encode($row, JSON_UNESCAPED_UNICODE) . "\n");
+                fwrite($fp, json_encode($row, JSON_UNESCAPED_UNICODE)."\n");
             }
             fclose($fp);
         }
