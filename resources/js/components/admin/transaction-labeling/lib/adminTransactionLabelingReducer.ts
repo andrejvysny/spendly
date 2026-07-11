@@ -6,6 +6,7 @@ export const initialState: LabelingState = {
         type: 'all',
         account_ids: [],
         search: '',
+        sort: 'date',
         page: 1,
         per_page: 50,
     },

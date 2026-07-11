@@ -1,13 +1,15 @@
 <?php
 
 use App\Http\Controllers\Accounts\AccountController;
+use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
+use App\Http\Controllers\Admin\CounterpartyController as AdminCounterpartyController;
+use App\Http\Controllers\Admin\SuperAdminController;
+use App\Http\Controllers\Admin\TagController as AdminTagController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CounterpartyController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
-use App\Http\Controllers\Admin\SuperAdminController;
 use App\Http\Controllers\Import\ImportController;
 use App\Http\Controllers\Import\ImportFailureController;
 use App\Http\Controllers\Import\ImportMappingsController;
@@ -124,7 +126,9 @@ Route::middleware(['auth', 'verified', 'superadmin'])->prefix('admin')->group(fu
     Route::get('categories', [SuperAdminController::class, 'getCategories'])->name('admin.categories');
     Route::post('categories', [AdminCategoryController::class, 'store'])->name('admin.categories.store');
     Route::get('counterparties', [SuperAdminController::class, 'getCounterparties'])->name('admin.counterparties');
+    Route::post('counterparties', [AdminCounterpartyController::class, 'store'])->name('admin.counterparties.store');
     Route::get('tags', [SuperAdminController::class, 'getTags'])->name('admin.tags');
+    Route::post('tags', [AdminTagController::class, 'store'])->name('admin.tags.store');
     Route::patch('transactions/{transaction}/label', [SuperAdminController::class, 'updateLabel'])->name('admin.transactions.label');
 });
 

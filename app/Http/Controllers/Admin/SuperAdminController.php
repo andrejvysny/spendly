@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
-use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BulkLabelRequest;
 use App\Http\Requests\Admin\TransactionLabelingIndexRequest;
@@ -19,16 +18,14 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class SuperAdminController extends Controller
 {
-    public function __construct(
-        private readonly TransactionRepositoryInterface $transactionRepository
-    ) {}
-
     public function index(): Response
     {
         return Inertia::render('admin/index');
@@ -39,8 +36,9 @@ class SuperAdminController extends Controller
         $validated = $request->validatedWithDefaults();
 
         $query = Transaction::query()
-            ->with(['account.user', 'counterparty', 'category', 'tags'])
-            ->orderByDesc('booked_date');
+            ->with(['account.user', 'counterparty', 'category', 'tags']);
+
+        $this->applySort($query, $validated['sort']);
 
         $this->applyUserFilter($query, $validated['user_id'] ?? null);
         $this->applyStatusFilter($query, $validated['status']);
@@ -91,6 +89,7 @@ class SuperAdminController extends Controller
             } else {
                 $transaction->similar_group_count = 1;
             }
+
             return $transaction;
         });
 
@@ -128,6 +127,12 @@ class SuperAdminController extends Controller
 
         if (array_key_exists('type', $validated)) {
             $updateData['type'] = $validated['type'];
+        }
+
+        if (array_key_exists('is_transfer', $validated) && $validated['is_transfer'] !== null) {
+            $updateData['type'] = $validated['is_transfer']
+                ? Transaction::TYPE_TRANSFER
+                : Transaction::TYPE_PAYMENT;
         }
 
         if (array_key_exists('needs_manual_review', $validated)) {
@@ -195,14 +200,26 @@ class SuperAdminController extends Controller
     public function bulkLabel(BulkLabelRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $labels = $validated['labels'];
+        /** @var array<string, mixed> $labels */
+        $labels = is_array($validated['labels']) ? $validated['labels'] : [];
         $userId = $validated['user_id'] ?? null;
         $updated = 0;
 
-        $query = Transaction::query()->whereIn('id', $validated['transaction_ids']);
+        $query = Transaction::query()->with('account');
+
+        if (! empty($validated['similar_group_key'])) {
+            // Cross-page group labeling: fingerprints are global, so a user scope
+            // is mandatory to avoid touching other users' identical transactions.
+            $query->where('fingerprint', $validated['similar_group_key']);
+        } else {
+            $query->whereIn('id', $validated['transaction_ids'] ?? []);
+        }
+
         $this->applyUserFilter($query, $userId);
 
         $transactions = $query->get();
+
+        $this->assertLabelsBelongToOwner($transactions, $labels);
 
         DB::transaction(function () use ($transactions, $labels, &$updated): void {
             foreach ($transactions as $transaction) {
@@ -266,11 +283,21 @@ class SuperAdminController extends Controller
                     $updateData['metadata'] = $metadata;
                 }
 
-                if ($updateData === []) {
+                $tagsApplied = false;
+                if (array_key_exists('tags', $labels) && is_array($labels['tags'])) {
+                    // Bulk tags are additive: extend each transaction's tag set
+                    // instead of replacing it (unlike the single-row sync).
+                    $transaction->tags()->syncWithoutDetaching($labels['tags']);
+                    $tagsApplied = true;
+                }
+
+                if ($updateData === [] && ! $tagsApplied) {
                     continue;
                 }
 
-                $transaction->update($updateData);
+                if ($updateData !== []) {
+                    $transaction->update($updateData);
+                }
                 $updated++;
             }
         });
@@ -280,6 +307,65 @@ class SuperAdminController extends Controller
             'updated' => $updated,
             'total' => $transactions->count(),
         ]);
+    }
+
+    /**
+     * Taxonomy labels (category/counterparty/tags) may only reference entities
+     * owned by the single user whose transactions are being labeled. Prevents
+     * cross-tenant references (user A's category on user B's transaction).
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection<int, Transaction>  $transactions
+     * @param  array<string, mixed>  $labels
+     */
+    private function assertLabelsBelongToOwner($transactions, array $labels): void
+    {
+        $taxonomyKeys = ['category_id', 'merchant_id', 'counterparty_id', 'tags'];
+        $touchesTaxonomy = array_intersect_key($labels, array_flip($taxonomyKeys)) !== [];
+
+        if (! $touchesTaxonomy || $transactions->isEmpty()) {
+            return;
+        }
+
+        $ownerIds = $transactions
+            ->map(fn (Transaction $t): mixed => $t->account?->getAttribute('user_id'))
+            ->filter()
+            ->unique();
+
+        if ($ownerIds->count() > 1) {
+            throw ValidationException::withMessages([
+                'labels' => 'Cannot assign categories, merchants or tags across transactions of multiple users.',
+            ]);
+        }
+
+        $first = $ownerIds->first();
+        $ownerId = is_numeric($first) ? (int) $first : 0;
+
+        $checks = [
+            'category_id' => ['categories', $labels['category_id'] ?? null],
+            'merchant_id' => ['counterparties', $labels['merchant_id'] ?? null],
+            'counterparty_id' => ['counterparties', $labels['counterparty_id'] ?? null],
+        ];
+
+        foreach ($checks as $key => [$table, $value]) {
+            if ($value === null) {
+                continue;
+            }
+            $owned = DB::table($table)->where('id', $value)->where('user_id', $ownerId)->exists();
+            if (! $owned) {
+                throw ValidationException::withMessages([
+                    "labels.{$key}" => "The selected {$key} does not belong to the transactions' owner.",
+                ]);
+            }
+        }
+
+        if (! empty($labels['tags']) && is_array($labels['tags'])) {
+            $ownedCount = DB::table('tags')->whereIn('id', $labels['tags'])->where('user_id', $ownerId)->count();
+            if ($ownedCount !== count(array_unique($labels['tags']))) {
+                throw ValidationException::withMessages([
+                    'labels.tags' => "One or more tags do not belong to the transactions' owner.",
+                ]);
+            }
+        }
     }
 
     public function getUsers(): JsonResponse
@@ -294,31 +380,48 @@ class SuperAdminController extends Controller
         ]);
     }
 
-    public function getCategories(): JsonResponse
+    public function getCategories(Request $request): JsonResponse
     {
-        $categories = Category::select(['id', 'name', 'color'])
+        $categories = Category::select(['id', 'name', 'color', 'user_id'])
+            ->when($this->lookupUserId($request), fn (Builder $q, int $userId) => $q->where('user_id', $userId))
             ->orderBy('name')
             ->get();
 
         return response()->json(['categories' => $categories]);
     }
 
-    public function getCounterparties(): JsonResponse
+    public function getCounterparties(Request $request): JsonResponse
     {
-        $counterparties = Counterparty::select(['id', 'name', 'type'])
+        $counterparties = Counterparty::select(['id', 'name', 'type', 'user_id'])
+            ->when($this->lookupUserId($request), fn (Builder $q, int $userId) => $q->where('user_id', $userId))
             ->orderBy('name')
             ->get();
 
         return response()->json(['counterparties' => $counterparties]);
     }
 
-    public function getTags(): JsonResponse
+    public function getTags(Request $request): JsonResponse
     {
-        $tags = Tag::select(['id', 'name', 'color'])
+        $tags = Tag::select(['id', 'name', 'color', 'user_id'])
+            ->when($this->lookupUserId($request), fn (Builder $q, int $userId) => $q->where('user_id', $userId))
             ->orderBy('name')
             ->get();
 
         return response()->json(['tags' => $tags]);
+    }
+
+    /**
+     * Optional taxonomy-lookup scope: ?user_id= limits results to that user's entities.
+     */
+    private function lookupUserId(Request $request): ?int
+    {
+        $request->validate([
+            'user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $userId = $request->integer('user_id');
+
+        return $userId > 0 ? $userId : null;
     }
 
     private function applyUserFilter(Builder $query, string|int|null $userId): void
@@ -326,14 +429,33 @@ class SuperAdminController extends Controller
         if ($userId === null) {
             return;
         }
-        $userId = (int) $userId;
 
-        $userTransactionIds = $this->transactionRepository
-            ->findByUser($userId)
-            ->pluck('id')
-            ->all();
+        $query->whereHas('account', fn (Builder $q) => $q->where('user_id', (int) $userId));
+    }
 
-        $query->whereIn('id', $userTransactionIds);
+    /**
+     * "merchant_group" orders the labeling queue by merchant-cluster size
+     * (largest first, then grouped together) so one decision labels many rows.
+     *
+     * @param  Builder<Transaction>  $query
+     */
+    private function applySort(Builder $query, string $sort): void
+    {
+        if ($sort !== 'merchant_group') {
+            $query->orderByDesc('booked_date');
+
+            return;
+        }
+
+        $groupKey = 'LOWER(TRIM(COALESCE(transactions.partner, transactions.description)))';
+        $groupSize = '(SELECT COUNT(*) FROM transactions t2'
+            .' INNER JOIN accounts a2 ON a2.id = t2.account_id'
+            ." WHERE LOWER(TRIM(COALESCE(t2.partner, t2.description))) = {$groupKey}"
+            .' AND a2.user_id = (SELECT user_id FROM accounts WHERE accounts.id = transactions.account_id))';
+
+        $query->orderByDesc(DB::raw($groupSize))
+            ->orderBy(DB::raw($groupKey))
+            ->orderByDesc('booked_date');
     }
 
     private function applyStatusFilter(Builder $query, string $status): void

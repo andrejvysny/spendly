@@ -32,7 +32,9 @@ class BulkLabelRequest extends FormRequest
             'labels.tags' => ['nullable', 'array'],
             'labels.tags.*' => ['integer', 'exists:tags,id'],
             'similar_group_key' => ['nullable', 'string', 'max:500'],
-            'user_id' => ['nullable', 'integer', 'exists:users,id'],
+            // Fingerprint groups are global across users, so group labeling
+            // must always be pinned to one user.
+            'user_id' => ['nullable', 'required_with:similar_group_key', 'integer', 'exists:users,id'],
         ];
     }
 
@@ -40,6 +42,7 @@ class BulkLabelRequest extends FormRequest
     {
         return [
             'transaction_ids.required_without' => 'transaction_ids is required when similar_group_key is not provided.',
+            'user_id.required_with' => 'user_id is required when labeling by similar_group_key.',
         ];
     }
 }

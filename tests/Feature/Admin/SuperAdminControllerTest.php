@@ -460,13 +460,214 @@ class SuperAdminControllerTest extends TestCase
     {
         $account = Account::factory()->for($this->regularUser)->create();
         $tx = Transaction::factory()->for($account, 'account')->create();
-        $tag = Tag::factory()->for($this->superadmin)->create();
+        $tag = Tag::factory()->for($this->regularUser)->create();
 
         $this->actingAs($this->superadmin)
             ->patchJson(route('admin.transactions.label', $tx), ['tags' => [$tag->id]])
             ->assertOk();
 
         $this->assertDatabaseHas('tag_transaction', ['transaction_id' => $tx->id, 'tag_id' => $tag->id]);
+    }
+
+    // -----------------------------------------------------------------------
+    // per-user taxonomy scoping + ownership validation
+    // -----------------------------------------------------------------------
+
+    public function test_get_categories_scopes_to_user_when_param_given(): void
+    {
+        Category::factory()->for($this->regularUser)->create(['name' => 'Mine']);
+        Category::factory()->for($this->superadmin)->create(['name' => 'Admins']);
+
+        $response = $this->actingAs($this->superadmin)
+            ->getJson(route('admin.categories', ['user_id' => $this->regularUser->id]))
+            ->assertOk();
+
+        $names = array_column($response->json('categories'), 'name');
+        $this->assertSame(['Mine'], $names);
+    }
+
+    public function test_get_tags_and_counterparties_scope_to_user(): void
+    {
+        Tag::factory()->for($this->regularUser)->create(['name' => 'user-tag']);
+        Tag::factory()->for($this->superadmin)->create(['name' => 'admin-tag']);
+        Counterparty::factory()->for($this->regularUser)->create(['name' => 'UserShop']);
+        Counterparty::factory()->for($this->superadmin)->create(['name' => 'AdminShop']);
+
+        $tags = $this->actingAs($this->superadmin)
+            ->getJson(route('admin.tags', ['user_id' => $this->regularUser->id]))
+            ->assertOk()
+            ->json('tags');
+        $this->assertSame(['user-tag'], array_column($tags, 'name'));
+
+        $counterparties = $this->actingAs($this->superadmin)
+            ->getJson(route('admin.counterparties', ['user_id' => $this->regularUser->id]))
+            ->assertOk()
+            ->json('counterparties');
+        $this->assertSame(['UserShop'], array_column($counterparties, 'name'));
+    }
+
+    public function test_update_label_rejects_category_of_another_user(): void
+    {
+        $account = Account::factory()->for($this->regularUser)->create();
+        $tx = Transaction::factory()->for($account, 'account')->create();
+        $foreignCategory = Category::factory()->for($this->superadmin)->create();
+
+        $this->actingAs($this->superadmin)
+            ->patchJson(route('admin.transactions.label', $tx), ['category_id' => $foreignCategory->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['category_id']);
+
+        $this->assertDatabaseHas('transactions', ['id' => $tx->id, 'category_id' => null]);
+    }
+
+    public function test_update_label_rejects_tag_of_another_user(): void
+    {
+        $account = Account::factory()->for($this->regularUser)->create();
+        $tx = Transaction::factory()->for($account, 'account')->create();
+        $foreignTag = Tag::factory()->for($this->superadmin)->create();
+
+        $this->actingAs($this->superadmin)
+            ->patchJson(route('admin.transactions.label', $tx), ['tags' => [$foreignTag->id]])
+            ->assertUnprocessable();
+    }
+
+    public function test_update_label_is_transfer_toggles_type(): void
+    {
+        $account = Account::factory()->for($this->regularUser)->create();
+        $tx = Transaction::factory()->for($account, 'account')->create(['type' => Transaction::TYPE_PAYMENT]);
+
+        $this->actingAs($this->superadmin)
+            ->patchJson(route('admin.transactions.label', $tx), ['is_transfer' => true])
+            ->assertOk();
+        $this->assertDatabaseHas('transactions', ['id' => $tx->id, 'type' => Transaction::TYPE_TRANSFER]);
+
+        $this->actingAs($this->superadmin)
+            ->patchJson(route('admin.transactions.label', $tx), ['is_transfer' => false])
+            ->assertOk();
+        $this->assertDatabaseHas('transactions', ['id' => $tx->id, 'type' => Transaction::TYPE_PAYMENT]);
+    }
+
+    public function test_labeling_resource_exposes_top_level_ids(): void
+    {
+        $account = Account::factory()->for($this->regularUser)->create();
+        $category = Category::factory()->for($this->regularUser)->create();
+        $tx = Transaction::factory()->for($account, 'account')->create(['category_id' => $category->id]);
+
+        $response = $this->actingAs($this->superadmin)
+            ->patchJson(route('admin.transactions.label', $tx), ['needs_manual_review' => true])
+            ->assertOk();
+
+        $this->assertSame($category->id, $response->json('transaction.category_id'));
+        $this->assertNull($response->json('transaction.counterparty_id'));
+    }
+
+    // -----------------------------------------------------------------------
+    // bulk: tags, cross-user guard, similar-group labeling
+    // -----------------------------------------------------------------------
+
+    public function test_bulk_label_applies_tags_additively(): void
+    {
+        $account = Account::factory()->for($this->regularUser)->create();
+        $tx = Transaction::factory()->for($account, 'account')->create();
+        $existing = Tag::factory()->for($this->regularUser)->create();
+        $tx->tags()->attach($existing->id);
+        $new = Tag::factory()->for($this->regularUser)->create();
+
+        $this->actingAs($this->superadmin)
+            ->postJson(route('admin.bulk-label'), [
+                'transaction_ids' => [$tx->id],
+                'labels' => ['tags' => [$new->id]],
+            ])
+            ->assertOk()
+            ->assertJson(['updated' => 1]);
+
+        $this->assertDatabaseHas('tag_transaction', ['transaction_id' => $tx->id, 'tag_id' => $existing->id]);
+        $this->assertDatabaseHas('tag_transaction', ['transaction_id' => $tx->id, 'tag_id' => $new->id]);
+    }
+
+    public function test_bulk_label_rejects_taxonomy_across_multiple_users(): void
+    {
+        $otherUser = User::factory()->create();
+        $accountA = Account::factory()->for($this->regularUser)->create();
+        $accountB = Account::factory()->for($otherUser)->create();
+        $txA = Transaction::factory()->for($accountA, 'account')->create();
+        $txB = Transaction::factory()->for($accountB, 'account')->create();
+        $category = Category::factory()->for($this->regularUser)->create();
+
+        $this->actingAs($this->superadmin)
+            ->postJson(route('admin.bulk-label'), [
+                'transaction_ids' => [$txA->id, $txB->id],
+                'labels' => ['category_id' => $category->id],
+            ])
+            ->assertUnprocessable();
+    }
+
+    public function test_bulk_label_rejects_category_not_owned_by_transactions_owner(): void
+    {
+        $account = Account::factory()->for($this->regularUser)->create();
+        $tx = Transaction::factory()->for($account, 'account')->create();
+        $foreignCategory = Category::factory()->for($this->superadmin)->create();
+
+        $this->actingAs($this->superadmin)
+            ->postJson(route('admin.bulk-label'), [
+                'transaction_ids' => [$tx->id],
+                'labels' => ['category_id' => $foreignCategory->id],
+            ])
+            ->assertUnprocessable();
+    }
+
+    public function test_bulk_label_by_similar_group_key_labels_whole_group_for_user(): void
+    {
+        $account = Account::factory()->for($this->regularUser)->create();
+        $otherUser = User::factory()->create();
+        $otherAccount = Account::factory()->for($otherUser)->create();
+        $category = Category::factory()->for($this->regularUser)->create();
+
+        $grouped = Transaction::factory()->count(3)->for($account, 'account')->create(['fingerprint' => 'fp-group-1']);
+        $foreign = Transaction::factory()->for($otherAccount, 'account')->create(['fingerprint' => 'fp-group-1']);
+
+        $this->actingAs($this->superadmin)
+            ->postJson(route('admin.bulk-label'), [
+                'similar_group_key' => 'fp-group-1',
+                'user_id' => $this->regularUser->id,
+                'labels' => ['category_id' => $category->id],
+            ])
+            ->assertOk()
+            ->assertJson(['updated' => 3]);
+
+        foreach ($grouped as $tx) {
+            $this->assertDatabaseHas('transactions', ['id' => $tx->id, 'category_id' => $category->id]);
+        }
+        $this->assertDatabaseHas('transactions', ['id' => $foreign->id, 'category_id' => null]);
+    }
+
+    public function test_bulk_label_by_similar_group_key_requires_user_id(): void
+    {
+        $this->actingAs($this->superadmin)
+            ->postJson(route('admin.bulk-label'), [
+                'similar_group_key' => 'fp-group-1',
+                'labels' => ['needs_manual_review' => true],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['user_id']);
+    }
+
+    // -----------------------------------------------------------------------
+    // merchant-group sort
+    // -----------------------------------------------------------------------
+
+    public function test_transactions_sort_by_merchant_group_orders_largest_group_first(): void
+    {
+        $account = Account::factory()->for($this->regularUser)->create();
+        Transaction::factory()->for($account, 'account')->create(['partner' => 'Solo Shop']);
+        Transaction::factory()->count(3)->for($account, 'account')->create(['partner' => 'Big Merchant']);
+
+        $response = $this->actingAs($this->superadmin)
+            ->getJson(route('admin.transactions', ['sort' => 'merchant_group', 'status' => 'all']))
+            ->assertOk();
+
+        $partners = array_column($response->json('transactions.data'), 'partner');
+        $this->assertSame(['Big Merchant', 'Big Merchant', 'Big Merchant', 'Solo Shop'], $partners);
     }
 
     private function createRecurringGroup(): RecurringGroup

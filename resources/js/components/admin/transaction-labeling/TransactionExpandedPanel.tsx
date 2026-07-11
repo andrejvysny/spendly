@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import type { Tag } from '@/types';
 import { Check } from 'lucide-react';
+import { useState } from 'react';
 import type { AdminTransactionRow, TransactionPatch } from './lib/adminTransactionLabelingTypes';
 
 interface TransactionExpandedPanelProps {
@@ -9,13 +10,41 @@ interface TransactionExpandedPanelProps {
     allTags: Tag[];
     onPatch: (patch: TransactionPatch) => void;
     onAcceptML: (field: 'category' | 'counterparty') => void;
+    /** Persist a new tag for the transaction owner; resolves with the created id (attached automatically). */
+    onCreateTag?: (name: string) => Promise<number | null>;
 }
 
-export function TransactionExpandedPanel({ row, allTags, onPatch, onAcceptML }: TransactionExpandedPanelProps) {
+export function TransactionExpandedPanel({ row, allTags, onPatch, onAcceptML, onCreateTag }: TransactionExpandedPanelProps) {
+    const [isAddingTag, setIsAddingTag] = useState(false);
+    const [newTagName, setNewTagName] = useState('');
+    const [isSavingTag, setIsSavingTag] = useState(false);
+
     const handleToggleTag = (tagId: number) => {
         const currentTagIds = row.tags?.map((t) => t.id) || [];
         const newTagIds = currentTagIds.includes(tagId) ? currentTagIds.filter((id) => id !== tagId) : [...currentTagIds, tagId];
         onPatch({ tags: newTagIds });
+    };
+
+    const handleCreateTag = async () => {
+        const name = newTagName.trim();
+        if (!name || !onCreateTag || isSavingTag) {
+            setIsAddingTag(false);
+            setNewTagName('');
+            return;
+        }
+
+        setIsSavingTag(true);
+        try {
+            const createdId = await onCreateTag(name);
+            if (createdId != null) {
+                const currentTagIds = row.tags?.map((t) => t.id) || [];
+                onPatch({ tags: [...currentTagIds, createdId] });
+            }
+        } finally {
+            setIsSavingTag(false);
+            setIsAddingTag(false);
+            setNewTagName('');
+        }
     };
 
     const handleToggleFlag = (flag: string, value: boolean) => {
@@ -108,6 +137,30 @@ export function TransactionExpandedPanel({ row, allTags, onPatch, onAcceptML }: 
                             </button>
                         );
                     })}
+                    {onCreateTag &&
+                        (isAddingTag ? (
+                            <input
+                                type="text"
+                                value={newTagName}
+                                onChange={(e) => setNewTagName(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') void handleCreateTag();
+                                    if (e.key === 'Escape') setIsAddingTag(false);
+                                }}
+                                onBlur={() => void handleCreateTag()}
+                                placeholder="New tag..."
+                                disabled={isSavingTag}
+                                className="focus:ring-primary/50 w-28 rounded-full border px-3 py-1 text-xs focus:ring-2 focus:outline-none disabled:opacity-50"
+                                autoFocus
+                            />
+                        ) : (
+                            <button
+                                onClick={() => setIsAddingTag(true)}
+                                className="border-border text-muted-foreground hover:bg-muted rounded-full border border-dashed bg-transparent px-3 py-1 text-xs transition-colors"
+                            >
+                                + New tag
+                            </button>
+                        ))}
                 </div>
             </div>
 

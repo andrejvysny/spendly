@@ -15,7 +15,7 @@ import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem, Category, Counterparty, Tag, User } from '@/types';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { toast } from 'react-toastify';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -34,28 +34,42 @@ export default function AdminTransactionLabeling() {
     const [tags, setTags] = useState<Tag[]>([]);
     const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-    // Fetch initial data (users, categories, counterparties, tags)
+    // Fetch users once
     useEffect(() => {
-        const loadInitialData = async () => {
+        const loadUsers = async () => {
             try {
-                const [usersRes, categoriesRes, counterpartiesRes, tagsRes] = await Promise.all([
-                    axios.get('/admin/users'),
-                    axios.get('/admin/categories'),
-                    axios.get('/admin/counterparties'),
-                    axios.get('/admin/tags'), // Assuming there's a tags endpoint
-                ]);
+                const usersRes = await axios.get('/admin/users');
                 setUsers(usersRes.data.users || []);
+            } catch (error) {
+                console.error('Failed to load users:', error);
+                toast.error('Failed to load users');
+            }
+        };
+        loadUsers();
+    }, []);
+
+    // Fetch taxonomies scoped to the selected user; re-fetch whenever the
+    // user filter changes so selects show that user's categories/merchants/tags.
+    useEffect(() => {
+        const loadTaxonomies = async () => {
+            try {
+                const params = state.filters.user_id ? { user_id: state.filters.user_id } : {};
+                const [categoriesRes, counterpartiesRes, tagsRes] = await Promise.all([
+                    axios.get('/admin/categories', { params }),
+                    axios.get('/admin/counterparties', { params }),
+                    axios.get('/admin/tags', { params }),
+                ]);
                 setCategories(categoriesRes.data.categories || []);
                 setCounterparties(counterpartiesRes.data.counterparties || []);
                 setTags(tagsRes.data.tags || []);
                 setIsDataLoaded(true);
             } catch (error) {
-                console.error('Failed to load initial data:', error);
-                toast.error('Failed to load initial data');
+                console.error('Failed to load taxonomies:', error);
+                toast.error('Failed to load categories/merchants/tags');
             }
         };
-        loadInitialData();
-    }, []);
+        loadTaxonomies();
+    }, [state.filters.user_id]);
 
     // Fetch transactions when filters change
     useEffect(() => {
@@ -78,6 +92,7 @@ export default function AdminTransactionLabeling() {
                 if (state.filters.merchant_id) params.merchant_id = state.filters.merchant_id;
                 if (state.filters.date_from) params.date_from = state.filters.date_from;
                 if (state.filters.date_to) params.date_to = state.filters.date_to;
+                if (state.filters.sort !== 'date') params.sort = state.filters.sort;
 
                 const response = await axios.get('/admin/transactions', { params });
 
@@ -110,33 +125,60 @@ export default function AdminTransactionLabeling() {
         state.filters.merchant_id,
         state.filters.date_from,
         state.filters.date_to,
+        state.filters.sort,
         state.filters.page,
         state.filters.per_page,
     ]);
 
-    // Create a new category from the inline labeling UI.
-    // Server scopes the new category to the currently filtered user when one is selected.
-    const createCategory = useCallback(
-        async (name: string): Promise<number | null> => {
-            try {
-                const payload: Record<string, unknown> = { name };
-                if (state.filters.user_id) {
-                    payload.target_user_id = state.filters.user_id;
-                }
-                const response = await axios.post('/admin/categories', payload);
-                const created = response.data?.category;
-                if (!created?.id) return null;
-                setCategories((prev) => [...prev, { id: created.id, name: created.name, color: created.color ?? null } as Category]);
-                toast.success(`Category "${created.name}" created`);
-                return created.id as number;
-            } catch (error) {
-                console.error('Failed to create category:', error);
-                toast.error('Failed to create category');
-                return null;
-            }
-        },
-        [state.filters.user_id],
-    );
+    // Inline entity creation. Owner is always the labeled transaction's owner,
+    // passed explicitly by the table — never inferred from filters or the admin.
+    const createCategory = useCallback(async (name: string, targetUserId: number): Promise<number | null> => {
+        try {
+            const response = await axios.post('/admin/categories', { name, target_user_id: targetUserId });
+            const created = response.data?.category;
+            if (!created?.id) return null;
+            setCategories((prev) => [
+                ...prev,
+                { id: created.id, name: created.name, color: created.color ?? null, user_id: targetUserId } as Category,
+            ]);
+            toast.success(`Category "${created.name}" created`);
+            return created.id as number;
+        } catch (error) {
+            console.error('Failed to create category:', error);
+            toast.error('Failed to create category');
+            return null;
+        }
+    }, []);
+
+    const createCounterparty = useCallback(async (name: string, targetUserId: number): Promise<number | null> => {
+        try {
+            const response = await axios.post('/admin/counterparties', { name, type: 'merchant', target_user_id: targetUserId });
+            const created = response.data?.counterparty;
+            if (!created?.id) return null;
+            setCounterparties((prev) => [...prev, { id: created.id, name: created.name, type: created.type, user_id: targetUserId } as Counterparty]);
+            toast.success(`Merchant "${created.name}" created`);
+            return created.id as number;
+        } catch (error) {
+            console.error('Failed to create merchant:', error);
+            toast.error('Failed to create merchant');
+            return null;
+        }
+    }, []);
+
+    const createTag = useCallback(async (name: string, targetUserId: number): Promise<number | null> => {
+        try {
+            const response = await axios.post('/admin/tags', { name, target_user_id: targetUserId });
+            const created = response.data?.tag;
+            if (!created?.id) return null;
+            setTags((prev) => [...prev, { id: created.id, name: created.name, color: created.color ?? undefined, user_id: targetUserId } as Tag]);
+            toast.success(`Tag "${created.name}" created`);
+            return created.id as number;
+        } catch (error) {
+            console.error('Failed to create tag:', error);
+            toast.error('Failed to create tag');
+            return null;
+        }
+    }, []);
 
     // Debounced patch update
     const patchTransaction = useCallback(async (id: number, patch: TransactionPatch) => {
@@ -152,20 +194,47 @@ export default function AdminTransactionLabeling() {
         }
     }, []);
 
-    // Bulk actions
+    // Selected rows metadata for bulk operations
+    const { selectedOwnerIds, sharedGroupKey, sharedGroupCount } = useMemo(() => {
+        const selectedRows = Array.from(state.selectedIds)
+            .map((id) => state.rows[id])
+            .filter(Boolean);
+        const owners = new Set(selectedRows.map((r) => r.account?.user?.id).filter(Boolean));
+        const key =
+            selectedRows.length > 0 && selectedRows.every((r) => r.similar_group?.key && r.similar_group.key === selectedRows[0].similar_group?.key)
+                ? (selectedRows[0].similar_group?.key ?? null)
+                : null;
+        return {
+            selectedOwnerIds: owners,
+            sharedGroupKey: key,
+            sharedGroupCount: key ? (selectedRows[0]?.similar_group?.count ?? 0) : 0,
+        };
+    }, [state.selectedIds, state.rows]);
+    const [applyToGroup, setApplyToGroup] = useState(false);
+
+    // Bulk actions. When applyToGroup is on (single shared fingerprint group,
+    // single owner), the server labels every matching transaction across pages.
     const handleBulkAction = useCallback(
         async (patch: TransactionPatch) => {
             const ids = Array.from(state.selectedIds);
             if (ids.length === 0) return;
 
+            const useGroup = applyToGroup && sharedGroupKey && selectedOwnerIds.size === 1;
+
             try {
-                await axios.post('/admin/bulk-label', {
-                    transaction_ids: ids,
-                    labels: patch,
-                });
+                const payload: Record<string, unknown> = { labels: patch };
+                if (useGroup) {
+                    payload.similar_group_key = sharedGroupKey;
+                    payload.user_id = Array.from(selectedOwnerIds)[0];
+                } else {
+                    payload.transaction_ids = ids;
+                    if (state.filters.user_id) payload.user_id = state.filters.user_id;
+                }
+
+                const response = await axios.post('/admin/bulk-label', payload);
 
                 dispatch({ type: 'BULK_APPLY', payload: { ids, patch } });
-                toast.success(`Updated ${ids.length} transactions`);
+                toast.success(`Updated ${response.data?.updated ?? ids.length} transactions`);
 
                 // Refresh to get updated stats
                 dispatch({ type: 'SET_FILTER', payload: { ...state.filters } });
@@ -174,7 +243,7 @@ export default function AdminTransactionLabeling() {
                 toast.error('Failed to update transactions');
             }
         },
-        [state.selectedIds, state.filters],
+        [state.selectedIds, state.filters, applyToGroup, sharedGroupKey, selectedOwnerIds],
     );
 
     // Keyboard shortcuts
@@ -264,27 +333,44 @@ export default function AdminTransactionLabeling() {
                     />
                 </div>
 
-                {/* User Filter */}
-                <div className="flex items-center gap-2">
-                    <Label className="text-sm">User:</Label>
-                    <Select
-                        value={state.filters.user_id?.toString() || 'all'}
-                        onValueChange={(value) =>
-                            dispatch({ type: 'SET_FILTER', payload: { user_id: value === 'all' ? undefined : parseInt(value) } })
-                        }
-                    >
-                        <SelectTrigger className="w-64">
-                            <SelectValue placeholder="All users" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All users</SelectItem>
-                            {users.map((user) => (
-                                <SelectItem key={user.id} value={user.id.toString()}>
-                                    {user.name} ({user.email})
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                {/* User Filter + Sort */}
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                        <Label className="text-sm">User:</Label>
+                        <Select
+                            value={state.filters.user_id?.toString() || 'all'}
+                            onValueChange={(value) =>
+                                dispatch({ type: 'SET_FILTER', payload: { user_id: value === 'all' ? undefined : parseInt(value) } })
+                            }
+                        >
+                            <SelectTrigger className="w-64">
+                                <SelectValue placeholder="All users" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All users</SelectItem>
+                                {users.map((user) => (
+                                    <SelectItem key={user.id} value={user.id.toString()}>
+                                        {user.name} ({user.email})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Label className="text-sm">Sort:</Label>
+                        <Select
+                            value={state.filters.sort}
+                            onValueChange={(value) => dispatch({ type: 'SET_FILTER', payload: { sort: value as 'date' | 'merchant_group' } })}
+                        >
+                            <SelectTrigger className="w-48">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="date">Newest first</SelectItem>
+                                <SelectItem value="merchant_group">Merchant groups (largest first)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 {/* Bulk Action Bar */}
@@ -300,6 +386,9 @@ export default function AdminTransactionLabeling() {
                     onAcceptML={() => handleBulkAction({ accept_ml_category: true, accept_ml_counterparty: true })}
                     onFlagUncertain={() => handleBulkAction({ is_uncertain: true })}
                     onClear={() => dispatch({ type: 'CLEAR_SELECTION' })}
+                    groupInfo={sharedGroupKey && selectedOwnerIds.size === 1 ? { key: sharedGroupKey, count: sharedGroupCount } : null}
+                    applyToGroup={applyToGroup}
+                    onToggleApplyToGroup={setApplyToGroup}
                 />
 
                 {/* Table */}
@@ -325,6 +414,9 @@ export default function AdminTransactionLabeling() {
                     }}
                     onSelectAll={() => dispatch({ type: 'SELECT_ALL' })}
                     onCreateCategory={createCategory}
+                    onCreateCounterparty={createCounterparty}
+                    onCreateTag={createTag}
+                    onSelectSimilarGroup={(key) => dispatch({ type: 'SELECT_SIMILAR_GROUP', payload: key })}
                 />
 
                 {/* Load More */}

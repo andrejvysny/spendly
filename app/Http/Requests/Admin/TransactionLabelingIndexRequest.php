@@ -28,17 +28,20 @@ class TransactionLabelingIndexRequest extends FormRequest
             'date_to' => ['nullable', 'date'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:250'],
+            'sort' => ['nullable', 'string', 'in:date,merchant_group'],
         ];
     }
 
     public function validatedWithDefaults(): array
     {
         $validated = $this->validated();
+
         return array_merge([
             'status' => 'unlabeled',
             'type' => 'all',
             'page' => 1,
             'per_page' => 50,
+            'sort' => 'date',
         ], $validated);
     }
 }

@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Category, Counterparty } from '@/types';
 import { Check, X } from 'lucide-react';
@@ -16,6 +17,10 @@ interface BulkActionBarProps {
     onAcceptML: () => void;
     onFlagUncertain: () => void;
     onClear: () => void;
+    /** Set when the whole selection shares one fingerprint group owned by one user. */
+    groupInfo?: { key: string; count: number } | null;
+    applyToGroup?: boolean;
+    onToggleApplyToGroup?: (value: boolean) => void;
 }
 
 export function BulkActionBar({
@@ -30,6 +35,9 @@ export function BulkActionBar({
     onAcceptML,
     onFlagUncertain,
     onClear,
+    groupInfo,
+    applyToGroup = false,
+    onToggleApplyToGroup,
 }: BulkActionBarProps) {
     const [showCategorySelect, setShowCategorySelect] = useState(false);
     const [showCounterpartySelect, setShowCounterpartySelect] = useState(false);
@@ -123,6 +131,16 @@ export function BulkActionBar({
             <Button variant="outline" size="sm" onClick={onFlagUncertain} className="border-red-500 text-red-700 hover:bg-red-50">
                 Flag uncertain
             </Button>
+
+            {groupInfo && groupInfo.count > selectedCount && onToggleApplyToGroup && (
+                <>
+                    <div className="bg-border h-6 w-px" />
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-amber-700">
+                        <Checkbox checked={applyToGroup} onCheckedChange={(checked) => onToggleApplyToGroup(checked === true)} />
+                        Apply to all {groupInfo.count} similar transactions (all pages)
+                    </label>
+                </>
+            )}
         </div>
     );
 }

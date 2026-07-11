@@ -17,8 +17,6 @@ class CategoryController extends Controller
     public function store(StoreCategoryRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        /** @var \App\Models\User $user */
-        $user = $request->user();
 
         $category = Category::create([
             'name' => $validated['name'],
@@ -26,9 +24,7 @@ class CategoryController extends Controller
             'color' => $validated['color'] ?? null,
             'icon' => $validated['icon'] ?? null,
             'parent_category_id' => $validated['parent_category_id'] ?? null,
-            'user_id' => isset($validated['target_user_id']) && is_numeric($validated['target_user_id'])
-                ? (int) $validated['target_user_id']
-                : (int) $user->id,
+            'user_id' => $request->integer('target_user_id'),
         ]);
 
         return response()->json([

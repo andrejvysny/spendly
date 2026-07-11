@@ -24,7 +24,10 @@ interface TransactionLabelingTableProps {
     onPatch: (id: number, patch: TransactionPatch) => void;
     onAcceptML: (id: number, field: 'category' | 'counterparty') => void;
     onSelectAll: () => void;
-    onCreateCategory?: (name: string) => Promise<number | null>;
+    onCreateCategory?: (name: string, targetUserId: number) => Promise<number | null>;
+    onCreateCounterparty?: (name: string, targetUserId: number) => Promise<number | null>;
+    onCreateTag?: (name: string, targetUserId: number) => Promise<number | null>;
+    onSelectSimilarGroup?: (key: string) => void;
 }
 
 const typeStyles: Record<string, { bg: string; color: string; label: string }> = {
@@ -50,6 +53,9 @@ export function TransactionLabelingTable({
     onAcceptML,
     onSelectAll,
     onCreateCategory,
+    onCreateCounterparty,
+    onCreateTag,
+    onSelectSimilarGroup,
 }: TransactionLabelingTableProps) {
     const formatAmount = (amount: number, currency: string) => {
         const formatted = new Intl.NumberFormat('en-US', {
@@ -94,6 +100,12 @@ export function TransactionLabelingTable({
                         const isExpanded = expandedIds.has(row.id);
                         const isActive = activeRowId === row.id;
                         const typeStyle = getTypeStyle(row.type);
+                        // Only ever offer the transaction owner's taxonomy —
+                        // matters in the "All users" view where lists are global.
+                        const ownerId = row.account?.user?.id;
+                        const rowCategories = ownerId != null ? categories.filter((c) => c.user_id === ownerId) : categories;
+                        const rowCounterparties = ownerId != null ? counterparties.filter((c) => c.user_id === ownerId) : counterparties;
+                        const rowTags = ownerId != null ? allTags.filter((t) => t.user_id === ownerId) : allTags;
 
                         return (
                             <Fragment key={row.id}>
@@ -133,7 +145,9 @@ export function TransactionLabelingTable({
                                                 className="mt-1 cursor-pointer border-amber-200 bg-amber-50 text-xs text-amber-700"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    // Select similar will be handled by parent
+                                                    if (row.similar_group?.key) {
+                                                        onSelectSimilarGroup?.(row.similar_group.key);
+                                                    }
                                                 }}
                                             >
                                                 x{row.similar_group.count} similar
@@ -147,17 +161,20 @@ export function TransactionLabelingTable({
                                         <CategoryInlineSelect
                                             value={row.category_id}
                                             suggestion={row.ml.category}
-                                            categories={categories}
+                                            categories={rowCategories}
                                             onChange={(value) => onPatch(row.id, { category_id: value })}
-                                            onCreate={onCreateCategory}
+                                            onCreate={onCreateCategory && ownerId != null ? (name) => onCreateCategory(name, ownerId) : undefined}
                                         />
                                     </TableCell>
                                     <TableCell onClick={(e) => e.stopPropagation()}>
                                         <CounterpartyInlineSelect
                                             value={row.counterparty_id}
                                             suggestion={row.ml.counterparty}
-                                            counterparties={counterparties}
+                                            counterparties={rowCounterparties}
                                             onChange={(value) => onPatch(row.id, { counterparty_id: value })}
+                                            onCreate={
+                                                onCreateCounterparty && ownerId != null ? (name) => onCreateCounterparty(name, ownerId) : undefined
+                                            }
                                         />
                                     </TableCell>
                                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -174,9 +191,10 @@ export function TransactionLabelingTable({
                                         <TableCell colSpan={9} className="p-0">
                                             <TransactionExpandedPanel
                                                 row={row}
-                                                allTags={allTags}
+                                                allTags={rowTags}
                                                 onPatch={(patch) => onPatch(row.id, patch)}
                                                 onAcceptML={(field) => onAcceptML(row.id, field)}
+                                                onCreateTag={onCreateTag && ownerId != null ? (name) => onCreateTag(name, ownerId) : undefined}
                                             />
                                         </TableCell>
                                     </TableRow>

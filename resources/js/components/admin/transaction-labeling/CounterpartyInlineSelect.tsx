@@ -9,11 +9,14 @@ interface CounterpartyInlineSelectProps {
     suggestion: MlSuggestion | null;
     counterparties: Counterparty[];
     onChange: (value: number | null) => void;
+    /** Persist a new counterparty server-side; resolves with the created id (selected automatically). */
+    onCreate?: (name: string) => Promise<number | null>;
 }
 
-export function CounterpartyInlineSelect({ value, suggestion, counterparties, onChange }: CounterpartyInlineSelectProps) {
+export function CounterpartyInlineSelect({ value, suggestion, counterparties, onChange, onCreate }: CounterpartyInlineSelectProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newValue, setNewValue] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
     const hasSuggestion = suggestion && suggestion.confidence >= 70 && !value;
     const confidence = suggestion?.confidence ?? 0;
@@ -30,8 +33,22 @@ export function CounterpartyInlineSelect({ value, suggestion, counterparties, on
         onChange(parseInt(selectedValue, 10));
     };
 
-    const handleAddNew = () => {
-        if (newValue.trim()) {
+    const handleAddNew = async () => {
+        const name = newValue.trim();
+        if (!name || !onCreate || isSaving) {
+            setIsAdding(false);
+            setNewValue('');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const createdId = await onCreate(name);
+            if (createdId != null) {
+                onChange(createdId);
+            }
+        } finally {
+            setIsSaving(false);
             setIsAdding(false);
             setNewValue('');
         }
@@ -44,12 +61,17 @@ export function CounterpartyInlineSelect({ value, suggestion, counterparties, on
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddNew();
+                    if (e.key === 'Enter') {
+                        void handleAddNew();
+                    }
                     if (e.key === 'Escape') setIsAdding(false);
                 }}
-                onBlur={() => setIsAdding(false)}
+                onBlur={() => {
+                    void handleAddNew();
+                }}
                 placeholder="New merchant..."
-                className="focus:ring-primary/50 w-32 rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none"
+                disabled={isSaving}
+                className="focus:ring-primary/50 w-32 rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none disabled:opacity-50"
                 autoFocus
             />
         );
@@ -67,7 +89,7 @@ export function CounterpartyInlineSelect({ value, suggestion, counterparties, on
                         {cp.name}
                     </SelectItem>
                 ))}
-                <SelectItem value="__add__">+ Add new...</SelectItem>
+                {onCreate && <SelectItem value="__add__">+ Add new...</SelectItem>}
             </SelectContent>
         </Select>
     );

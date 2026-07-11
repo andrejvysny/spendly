@@ -3,6 +3,10 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
+  // Only Spendly's own frontend tests — never crawl vendored research repos or sub-projects.
+  roots: ['<rootDir>/resources/js'],
+  testPathIgnorePatterns: ['/node_modules/', '/spendly-research/', '/ml-intern/', '/vendor/'],
+  modulePathIgnorePatterns: ['<rootDir>/spendly-research/', '<rootDir>/ml-intern/'],
   transform: {
     '^.+\\.(ts|tsx)$': 'ts-jest',
   },

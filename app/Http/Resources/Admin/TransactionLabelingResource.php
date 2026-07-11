@@ -28,6 +28,8 @@ class TransactionLabelingResource extends JsonResource
             'target_iban' => $this->target_iban,
             'metadata' => $metadata,
             'import_data' => $this->import_data,
+            'category_id' => $this->category_id,
+            'counterparty_id' => $this->counterparty_id,
             'account' => $this->whenLoaded('account', function () {
                 return [
                     'id' => $this->account->id,
@@ -100,6 +102,7 @@ class TransactionLabelingResource extends JsonResource
     {
         $metadata = $this->metadata ?? [];
         $mlData = $metadata['ml'] ?? [];
+
         return ! empty($mlData['category_suggestion']) || ! empty($mlData['counterparty_suggestion']);
     }
 
@@ -108,6 +111,7 @@ class TransactionLabelingResource extends JsonResource
         if (empty($suggestion)) {
             return null;
         }
+
         return [
             'id' => $suggestion['id'] ?? null,
             'name' => $suggestion['name'] ?? null,
@@ -123,6 +127,7 @@ class TransactionLabelingResource extends JsonResource
         if (empty($this->fingerprint)) {
             return null;
         }
+
         return [
             'key' => $this->fingerprint,
             'count' => $this->similar_group_count ?? 1,

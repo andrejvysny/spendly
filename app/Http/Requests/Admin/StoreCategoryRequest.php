@@ -19,9 +19,10 @@ class StoreCategoryRequest extends FormRequest
      */
     public function rules(): array
     {
-        // The new category is created for target_user_id (or the admin themselves);
-        // any parent must belong to that same user to keep hierarchies single-tenant.
-        $ownerId = $this->integer('target_user_id') ?: $this->user()?->id;
+        // The new category is created for target_user_id — always explicit so a
+        // category can never silently land on the admin's own account; any
+        // parent must belong to that same user to keep hierarchies single-tenant.
+        $ownerId = $this->integer('target_user_id') ?: null;
 
         return [
             'name' => ['required', 'string', 'max:255'],
@@ -29,7 +30,7 @@ class StoreCategoryRequest extends FormRequest
             'color' => ['nullable', 'string', 'max:32'],
             'icon' => ['nullable', 'string', 'max:64'],
             'parent_category_id' => ['nullable', 'integer', new OwnedByUser('categories', $ownerId)],
-            'target_user_id' => ['nullable', 'integer', 'exists:users,id'],
+            'target_user_id' => ['required', 'integer', 'exists:users,id'],
         ];
     }
 }

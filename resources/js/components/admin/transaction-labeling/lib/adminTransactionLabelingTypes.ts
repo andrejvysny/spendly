@@ -91,6 +91,7 @@ export interface LabelingFilters {
     merchant_id?: number;
     date_from?: string;
     date_to?: string;
+    sort: 'date' | 'merchant_group';
     page: number;
     per_page: number;
 }

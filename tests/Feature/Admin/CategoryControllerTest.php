@@ -37,7 +37,7 @@ class CategoryControllerTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_superadmin_creates_category_for_themselves_when_no_target_user(): void
+    public function test_target_user_id_is_required(): void
     {
         $response = $this->actingAs($this->superadmin)
             ->postJson(route('admin.categories.store'), [
@@ -45,14 +45,10 @@ class CategoryControllerTest extends TestCase
                 'color' => '#22c55e',
             ]);
 
-        $response->assertCreated()
-            ->assertJsonStructure(['category' => ['id', 'name', 'color']]);
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['target_user_id']);
 
-        $this->assertDatabaseHas('categories', [
-            'name' => 'Groceries',
-            'user_id' => $this->superadmin->id,
-            'color' => '#22c55e',
-        ]);
+        $this->assertDatabaseMissing('categories', ['name' => 'Groceries']);
     }
 
     public function test_superadmin_creates_category_for_target_user(): void
