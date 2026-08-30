@@ -13,7 +13,13 @@ return new class extends Migration
     {
         Schema::create('import_failures', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('import_id')->constrained('imports')->onDelete('cascade');
+            // No ->constrained() here: this migration is dated before
+            // 2025_05_11_103545_create_imports_table, so on a fresh database the
+            // `imports` table does not exist yet. SQLite tolerated the dangling
+            // reference; PostgreSQL rejects it outright, which made a fresh pgsql
+            // install impossible. The foreign key is added afterwards by
+            // 2025_05_11_103546_add_import_failures_import_foreign_key.
+            $table->foreignId('import_id');
             $table->integer('row_number')->nullable();
             $table->text('raw_data'); // JSON-encoded original CSV row data
             $table->string('error_type')->index(); // 'validation_failed', 'duplicate', 'processing_error'

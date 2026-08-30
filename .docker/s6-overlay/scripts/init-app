@@ -34,7 +34,13 @@ if [ -n "$DB_HOST" ]; then
     echo "Database ready."
 fi
 
-php artisan migrate --force
+# Abort if migrations fail. Without this the script carried on to config:cache and s6
+# started octane, so a container whose migrations died halfway served traffic against a
+# partial schema — the failure only showed up later as missing-table errors.
+if ! php artisan migrate --force; then
+    echo "Migrations failed — refusing to start the application."
+    exit 1
+fi
 
 # SQLite: ensure WAL mode is set on the database file
 if [ "$DB_CONNECTION" = "sqlite" ] && [ -f "$DB_DATABASE" ]; then

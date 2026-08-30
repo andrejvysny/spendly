@@ -79,7 +79,36 @@ return new class extends Migration
 
             // 6. Drop year, month columns and update unique constraint
             // SQLite requires table rebuild for column drops
-            $this->rebuildBudgetsTable();
+            if (DB::getDriverName() === 'sqlite') {
+                $this->rebuildBudgetsTable();
+            } else {
+                $this->alterBudgetsTable();
+            }
+        });
+    }
+
+    /**
+     * MySQL/PostgreSQL path.
+     *
+     * The rebuild below exists only because SQLite cannot ALTER columns. Running it
+     * on PostgreSQL fails outright: budget_periods.budget_id references budgets, so
+     * `DROP TABLE budgets` aborts with "cannot drop table budgets because other
+     * objects depend on it". Every other engine can express this directly.
+     */
+    private function alterBudgetsTable(): void
+    {
+        Schema::table('budgets', function (Blueprint $table) {
+            $table->dropUnique(['user_id', 'category_id', 'period_type', 'year', 'month']);
+        });
+
+        Schema::table('budgets', function (Blueprint $table) {
+            // Overall (uncategorised) budgets need a null category.
+            $table->unsignedBigInteger('category_id')->nullable()->change();
+            $table->dropColumn(['year', 'month']);
+        });
+
+        Schema::table('budgets', function (Blueprint $table) {
+            $table->unique(['user_id', 'category_id', 'currency', 'period_type']);
         });
     }
 

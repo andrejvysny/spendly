@@ -27,7 +27,10 @@ return new class extends Migration
         $groups = DB::table('counterparties')
             ->select('user_id', 'normalized_name', DB::raw('COUNT(*) as cnt'), DB::raw('MIN(id) as keep_id'))
             ->groupBy('user_id', 'normalized_name')
-            ->having('cnt', '>', 1)
+            // havingRaw('COUNT(*)'), not having('cnt'): PostgreSQL does not resolve
+            // select-list aliases in HAVING, so the alias form fails with
+            // 'column "cnt" does not exist'. SQLite and MySQL accept both.
+            ->havingRaw('COUNT(*) > 1')
             ->get();
 
         foreach ($groups as $group) {

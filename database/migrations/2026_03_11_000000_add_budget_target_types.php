@@ -68,7 +68,7 @@ return new class extends Migration
                 CASE WHEN category_id IS NULL THEN 'overall' ELSE 'category' END,
                 CASE WHEN category_id IS NULL THEN 'overall' ELSE 'cat:' || category_id END,
                 amount, currency, mode, period_type, name,
-                rollover_enabled, rollover_cap, include_subcategories, 0,
+                rollover_enabled, rollover_cap, include_subcategories, FALSE,
                 auto_create_next, overall_limit_mode, is_active, sort_order, notes,
                 created_at, updated_at
             FROM budgets
@@ -80,8 +80,7 @@ return new class extends Migration
             )
         ");
 
-        Schema::drop('budgets');
-        Schema::rename('budgets_new', 'budgets');
+        $this->swapBudgetsTable('budgets_new');
     }
 
     public function down(): void
@@ -125,8 +124,36 @@ return new class extends Migration
                 WHERE target_type IN ('category', 'overall')
             ");
 
-            Schema::drop('budgets');
-            Schema::rename('budgets_old', 'budgets');
+            $this->swapBudgetsTable('budgets_old');
         });
+    }
+
+    /**
+     * Swap budgets_new into place.
+     *
+     * budget_periods.budget_id references budgets. SQLite lets the referenced table be
+     * dropped regardless; PostgreSQL refuses with "cannot drop table budgets because
+     * other objects depend on it". So on every other engine the dependent constraint is
+     * dropped first and re-pointed at the new table afterwards.
+     */
+    private function swapBudgetsTable(string $replacement): void
+    {
+        $isSqlite = DB::getDriverName() === 'sqlite';
+        $hasPeriods = Schema::hasTable('budget_periods');
+
+        if (! $isSqlite && $hasPeriods) {
+            Schema::table('budget_periods', function (Blueprint $table) {
+                $table->dropForeign(['budget_id']);
+            });
+        }
+
+        Schema::drop('budgets');
+        Schema::rename($replacement, 'budgets');
+
+        if (! $isSqlite && $hasPeriods) {
+            Schema::table('budget_periods', function (Blueprint $table) {
+                $table->foreign('budget_id')->references('id')->on('budgets')->cascadeOnDelete();
+            });
+        }
     }
 };

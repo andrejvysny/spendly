@@ -42,8 +42,12 @@ return new class extends Migration
                     DB::statement('DROP TABLE transaction_fingerprints_temp');
                 }
             }
-        } else {
-            // For MySQL/PostgreSQL, use the standard approach
+        } elseif (Schema::hasTable('transaction_fingerprints')) {
+            // Guarded like the sqlite branch above. This migration is dated before
+            // 2025_07_01_000000_create_transaction_fingerprints_table, so on a fresh
+            // database the table does not exist yet and there is nothing to alter —
+            // the create migration already produces the nullable column and the
+            // non-cascading foreign key this was written to introduce.
             Schema::table('transaction_fingerprints', function (Blueprint $table) {
                 // Drop the existing foreign key constraint
                 $table->dropForeign(['transaction_id']);
@@ -88,7 +92,7 @@ return new class extends Migration
                     DB::statement('DROP TABLE transaction_fingerprints_temp');
                 }
             }
-        } else {
+        } elseif (Schema::hasTable('transaction_fingerprints')) {
             Schema::table('transaction_fingerprints', function (Blueprint $table) {
                 // Drop the foreign key
                 $table->dropForeign(['transaction_id']);
