@@ -31,6 +31,13 @@ class ActionExecutor implements ActionExecutorInterface
 
     public function execute(RuleAction $action, Transaction $transaction): bool
     {
+        // A TRANSACTION_DELETED rule reaches us with an already-deleted model. Every action
+        // below ends in $transaction->save(), which on a non-existent model INSERTs it back
+        // and resurrects the row the user just deleted.
+        if (! $transaction->exists) {
+            return false;
+        }
+
         // Silence rule events during action execution to prevent infinite loops:
         // action modifies transaction -> triggers event -> runs rules -> action modifies again
         return (bool) Transaction::withoutRuleEvents(function () use ($action, $transaction): bool {
