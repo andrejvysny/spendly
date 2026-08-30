@@ -38,8 +38,13 @@ class TransactionDataValidator
         $amount = $data['amount'] ?? null;
         if ($amount === null || $amount === '') {
             $errors[] = 'Amount is required';
+        } elseif (! is_numeric($amount)) {
+            // Never coerce an unreadable amount to 0.00. That invents a financial value and hides
+            // it behind the `zero_amount` review flag, which reads as "the bank sent a zero" rather
+            // than "we could not read what the bank sent". Quarantined with its raw payload instead.
+            $errors[] = 'Amount is not a valid number';
         } else {
-            $amountFloat = is_numeric($amount) ? (float) $amount : 0.0;
+            $amountFloat = (float) $amount;
             $data['amount'] = $amountFloat;
             if (abs($amountFloat) > self::MAX_AMOUNT) {
                 $warnings[] = 'Unusually large amount';
@@ -78,9 +83,10 @@ class TransactionDataValidator
 
         $currency = $data['currency'] ?? null;
         if (empty($currency)) {
-            $data['currency'] = 'EUR';
-            $warnings[] = 'Missing currency, defaulting to EUR';
-            $reviewReasons[] = 'missing_currency';
+            // Defaulting to EUR was silent financial corruption: 100 CZK arriving without a
+            // currency became EUR 100. The provider is supposed to send this, so a missing one is
+            // an error, not something to guess at.
+            $errors[] = 'Currency is required';
         } else {
             $normalizedCurrency = strtoupper(trim((string) $currency));
             $data['currency'] = $normalizedCurrency;

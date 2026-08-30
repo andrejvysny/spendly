@@ -158,7 +158,12 @@ class TransactionDataValidatorTest extends TestCase
         $this->assertNotSame('EUR', $result->data['currency']);
     }
 
-    public function test_missing_currency_defaults_to_eur_and_flags_review(): void
+    /**
+     * Guessing EUR for a missing currency is silent financial corruption — 100 CZK arriving
+     * without a currency became EUR 100. The provider is supposed to send it, so a missing one
+     * quarantines the row with its raw payload instead.
+     */
+    public function test_missing_currency_is_an_error_not_a_guess(): void
     {
         $syncDate = Carbon::parse('2026-02-05');
         $mapped = [
@@ -170,10 +175,30 @@ class TransactionDataValidatorTest extends TestCase
             'account_id' => 1,
         ];
         $result = $this->validator->validate($mapped, $syncDate);
-        $this->assertFalse($result->hasErrors());
-        $this->assertSame('EUR', $result->data['currency']);
-        $this->assertContains('missing_currency', $result->reviewReasons);
-        $this->assertContains('Missing currency, defaulting to EUR', $result->warnings);
+        $this->assertTrue($result->hasErrors());
+        $this->assertContains('Currency is required', $result->errors);
+        $this->assertNotSame('EUR', $result->data['currency'] ?? null);
+    }
+
+    /**
+     * Likewise an unreadable amount must not become 0.00, which would look like a real zero
+     * movement the bank reported.
+     */
+    public function test_non_numeric_amount_is_an_error_not_zero(): void
+    {
+        $syncDate = Carbon::parse('2026-02-05');
+        $mapped = [
+            'transaction_id' => 'tx-1',
+            'amount' => 'INVALID',
+            'currency' => 'EUR',
+            'booked_date' => $syncDate,
+            'description' => 'Test',
+            'account_id' => 1,
+        ];
+        $result = $this->validator->validate($mapped, $syncDate);
+        $this->assertTrue($result->hasErrors());
+        $this->assertContains('Amount is not a valid number', $result->errors);
+        $this->assertNotSame(0.0, $result->data['amount']);
     }
 
     public function test_missing_amount_produces_error(): void

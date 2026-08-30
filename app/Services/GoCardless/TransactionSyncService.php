@@ -29,6 +29,16 @@ class TransactionSyncService
 {
     private const int BATCH_SIZE = 100;
 
+    /**
+     * Days of history re-fetched below the watermark on every incremental sync.
+     *
+     * Banks backfill. A transaction can surface days after its booking date, and with a one-day
+     * overlap the next window already starts past it — so it is never seen again. Re-fetching is
+     * cheap because the deduplicator keys on the provider transaction id, so an overlapping row
+     * resolves to an update rather than a duplicate.
+     */
+    private const int OVERLAP_DAYS = 7;
+
     public function __construct(
         private readonly TransactionRepositoryInterface $transactionRepository,
         private readonly GocardlessMapper $mapper,
@@ -67,6 +77,10 @@ class TransactionSyncService
         if (empty($transactions)) {
             return $stats;
         }
+
+        // The mapper is a singleton; its own-account IBAN cache must not carry across runs or an
+        // account imported since the last sync is invisible to transfer detection.
+        $this->mapper->forgetIbanCache();
 
         // Process transactions in batches
         foreach (array_chunk($transactions, self::BATCH_SIZE) as $batch) {
@@ -460,7 +474,7 @@ class TransactionSyncService
                 $target = (string) $decision->targetTransactionId;
 
                 if (! isset($toUpdate[$target])) {
-                    $toUpdate[$target] = $data;
+                    $toUpdate[$target] = $this->prepareForUpdate($data, $candidate['validation_review']);
 
                     continue;
                 }
@@ -475,6 +489,25 @@ class TransactionSyncService
         }
 
         return [$toCreate, $toUpdate];
+    }
+
+    /**
+     * Payload for updating a row that already exists.
+     *
+     * The review flags are only written when *this* run found something to flag. Writing them
+     * unconditionally meant a re-sync silently cleared `needs_manual_review` on a row a person was
+     * part-way through triaging — the row would quietly vanish from the review queue.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function prepareForUpdate(array $data, bool $needsReview): array
+    {
+        if (! $needsReview) {
+            unset($data['needs_manual_review'], $data['review_reason']);
+        }
+
+        return $data;
     }
 
     /**
@@ -595,7 +628,10 @@ class TransactionSyncService
             } elseif ($lastSynced->isBefore($maxDaysAgo)) {
                 $dateFrom = $maxDaysAgo;
             } else {
-                $dateFrom = $lastSynced->copy()->subDays(1);
+                $dateFrom = $lastSynced->copy()->subDays(self::OVERLAP_DAYS);
+                if ($dateFrom->isBefore($maxDaysAgo)) {
+                    $dateFrom = $maxDaysAgo;
+                }
             }
         } else {
             $dateFrom = $maxDaysAgo;

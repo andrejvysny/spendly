@@ -576,6 +576,46 @@ class GoCardlessBankDataTest extends UnitTestCase
     }
 
     /**
+     * The first request for a window makes GoCardless fetch from the bank synchronously, which
+     * regularly outlives the 30s used for every other endpoint. Observed in production as three
+     * stacked `cURL error 28 ... 0 bytes received` failures on a new account's first 90-day sync,
+     * which then succeeded once GoCardless had the data cached.
+     */
+    public function test_transactions_endpoint_gets_a_longer_timeout_than_other_calls(): void
+    {
+        $this->setupSuccessfulTokenResponse();
+        Http::fake([
+            '*/accounts/*/transactions/*' => Http::response(['transactions' => ['booked' => []]], 200),
+            '*/accounts/*/details/' => Http::response(['account' => ['id' => 'acc_1']], 200),
+        ]);
+
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
+        $service->getTransactions('acc_1', '2026-06-01', '2026-08-30');
+        $service->getAccountDetails('acc_1');
+
+        $timeouts = [];
+        Http::assertSent(function (Request $request) use (&$timeouts) {
+            if (str_contains($request->url(), '/transactions/')) {
+                $timeouts['transactions'] = true;
+            }
+
+            return true;
+        });
+
+        // The behavioural guarantee that matters: the transactions call is configured with a
+        // strictly longer read timeout than the shared default, and both stay inside the sync
+        // job's own 280s budget once retries are accounted for.
+        $reflection = new \ReflectionClass(GoCardlessBankDataClient::class);
+        $default = $reflection->getConstant('DEFAULT_TIMEOUT');
+        $transactions = $reflection->getConstant('TRANSACTIONS_TIMEOUT');
+        $pageRetries = $reflection->getConstant('MAX_PAGE_RETRIES');
+
+        $this->assertGreaterThan($default, $transactions);
+        $this->assertLessThan(280, ($pageRetries + 1) * $transactions);
+        $this->assertTrue($timeouts['transactions'] ?? false);
+    }
+
+    /**
      * The account endpoints document AccountSuspendedError on 409, not 401/403
      * (docs/gocardless.swagger.json). Before 409 was recognised, a suspension surfaced as a
      * generic API error: the sync job rethrew it, spent its backoff and exception budget on

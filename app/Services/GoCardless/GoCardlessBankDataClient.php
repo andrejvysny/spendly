@@ -29,6 +29,26 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     private const MAX_PAGE_RETRIES = 2;
 
     /**
+     * Read timeout for ordinary endpoints, which answer from data GoCardless already holds.
+     */
+    private const DEFAULT_TIMEOUT = 30;
+
+    /**
+     * Read timeout for /transactions/.
+     *
+     * The first request for a given window makes GoCardless fetch from the bank synchronously, and
+     * that regularly takes longer than DEFAULT_TIMEOUT — observed in production as three stacked
+     * `cURL error 28 ... 0 bytes received` failures on a freshly connected account's first 90-day
+     * sync, which then succeeded on the next attempt once GoCardless had the data cached.
+     *
+     * Budgeted against SyncGoCardlessAccountJob::$timeout (280s): worst case here is
+     * (MAX_PAGE_RETRIES + 1) attempts x 60s plus backoff sleeps ~= 186s, which still leaves room
+     * for the rest of the run. Raising this without also lowering MAX_PAGE_RETRIES would put the
+     * worst case past the job's own guard.
+     */
+    private const TRANSACTIONS_TIMEOUT = 60;
+
+    /**
      * Retries allowed across a whole getTransactions() run, however many pages it spans.
      */
     private const MAX_TRANSACTION_RETRIES = 5;
@@ -81,10 +101,10 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      * The token is passed in rather than resolved here so that a call can be replayed with a
      * different token without re-entering token resolution.
      */
-    private function requestWith(string $token): PendingRequest
+    private function requestWith(string $token, int $timeout = self::DEFAULT_TIMEOUT): PendingRequest
     {
         return Http::withToken($token)
-            ->timeout(30)
+            ->timeout($timeout)
             ->connectTimeout(10);
     }
 
@@ -100,16 +120,16 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      *
      * @throws ConnectionException
      */
-    private function sendWithAuthRetry(callable $call): Response
+    private function sendWithAuthRetry(callable $call, int $timeout = self::DEFAULT_TIMEOUT): Response
     {
         $token = $this->getAccessToken();
-        $response = $call($this->requestWith($token));
+        $response = $call($this->requestWith($token, $timeout));
 
         if ($response->status() === 401) {
             $fresh = $this->forceRefreshToken($token);
 
             if ($fresh !== null && $fresh !== $token) {
-                $response = $call($this->requestWith($fresh));
+                $response = $call($this->requestWith($fresh, $timeout));
             }
         }
 
@@ -670,7 +690,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
             $lastChance = $pageAttempts >= self::MAX_PAGE_RETRIES || $retryBudget <= 0;
 
             try {
-                $response = $this->sendWithAuthRetry($call);
+                $response = $this->sendWithAuthRetry($call, self::TRANSACTIONS_TIMEOUT);
 
                 if ($response->status() < 500 || $lastChance) {
                     $this->handleResponse($response, 'get transactions');

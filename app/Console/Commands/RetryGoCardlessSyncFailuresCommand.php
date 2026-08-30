@@ -16,12 +16,24 @@ use Illuminate\Support\Facades\Log;
 
 class RetryGoCardlessSyncFailuresCommand extends Command
 {
-    private const int MAX_RETRIES = 5;
+    /**
+     * Shared with the model so a reader can tell an exhausted row from a pending one.
+     */
+    private const int MAX_RETRIES = GoCardlessSyncFailure::MAX_RETRIES;
+
+    /**
+     * Ceiling on how many unresolved rows one run pulls into memory.
+     *
+     * The query used to be an unbounded ->get() over every unresolved failure for every user, run
+     * every 30 minutes, filtered in PHP afterwards.
+     */
+    private const int DEFAULT_LIMIT = 500;
 
     private const int MAX_BACKOFF_MINUTES = 24 * 60;
 
     protected $signature = 'gocardless:retry-failures
                             {--account= : Retry only for this account ID}
+                            {--limit= : Maximum unresolved failures to consider in one run}
                             {--dry-run : List failures that would be retried without processing}';
 
     protected $description = 'Retry unresolved GoCardless sync failures with exponential backoff';
@@ -34,14 +46,36 @@ class RetryGoCardlessSyncFailuresCommand extends Command
         $accountId = $this->option('account');
         $dryRun = (bool) $this->option('dry-run');
 
-        $failures = $accountId
-            ? GoCardlessSyncFailure::whereNull('resolved_at')->where('account_id', $accountId)->get()
-            : GoCardlessSyncFailure::whereNull('resolved_at')->get();
+        $limitOption = $this->option('limit');
+        $limit = is_numeric($limitOption) ? max(1, (int) $limitOption) : self::DEFAULT_LIMIT;
+
+        // Rows that have spent their retries are parked as terminal here rather than being silently
+        // re-filtered on every run — otherwise they sit with resolved_at NULL forever, and no query
+        // can tell them apart from a failure recorded a minute ago.
+        $exhaustedQuery = GoCardlessSyncFailure::whereNull('resolved_at')
+            ->where('retry_count', '>=', self::MAX_RETRIES);
+        if ($accountId) {
+            $exhaustedQuery->where('account_id', $accountId);
+        }
+        $exhausted = 0;
+        foreach ($exhaustedQuery->get() as $row) {
+            $failureRepository->markExhausted((int) $row->id);
+            $exhausted++;
+        }
+        if ($exhausted > 0) {
+            $this->warn("Parked {$exhausted} failure(s) as exhausted after ".self::MAX_RETRIES.' attempts.');
+        }
+
+        $query = GoCardlessSyncFailure::whereNull('resolved_at')
+            ->where('retry_count', '<', self::MAX_RETRIES)
+            ->orderBy('id')
+            ->limit($limit);
+        if ($accountId) {
+            $query->where('account_id', $accountId);
+        }
+        $failures = $query->get();
 
         $due = $failures->filter(function (GoCardlessSyncFailure $f) {
-            if ($f->retry_count >= self::MAX_RETRIES) {
-                return false;
-            }
             $backoffMinutes = min(2 ** $f->retry_count, self::MAX_BACKOFF_MINUTES);
             $nextRetry = $f->last_retry_at
                 ? $f->last_retry_at->copy()->addMinutes($backoffMinutes)

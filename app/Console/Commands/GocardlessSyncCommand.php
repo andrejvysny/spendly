@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ResolvesUser;
+use App\Contracts\Repositories\AccountRepositoryInterface;
 use App\Jobs\SyncGoCardlessAccountJob;
+use App\Models\Account;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
@@ -23,7 +25,8 @@ class GocardlessSyncCommand extends Command
     protected $description = 'Sync transactions for a single GoCardless-linked account. For testing and AI agents.';
 
     public function __construct(
-        private readonly GoCardlessService $gocardlessService
+        private readonly GoCardlessService $gocardlessService,
+        private readonly AccountRepositoryInterface $accountRepository
     ) {
         parent::__construct();
     }
@@ -58,6 +61,14 @@ class GocardlessSyncCommand extends Command
         // which a queued dispatch cannot answer.
         if ($this->option('queue')) {
             SyncGoCardlessAccountJob::dispatch($accountId, (int) $user->id, $updateExisting, (bool) $forceMaxDateRange);
+
+            // Every other queueing entry point stamps the account before dispatching; without it a
+            // client polling sync-status sees a stale `idle` and concludes nothing was booked.
+            $account = $this->accountRepository->findByIdForUser($accountId, (int) $user->id);
+            if ($account instanceof Account) {
+                $this->accountRepository->markSyncQueued($account);
+            }
+
             $this->info("Queued sync for account {$accountId}.");
 
             return self::SUCCESS;

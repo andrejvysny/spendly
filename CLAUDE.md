@@ -70,8 +70,11 @@ Prefer targeted test runs for speed.
 
 ### Scheduled Tasks (bootstrap/app.php)
 
-- `gocardless:sync-all` — every 4 hours
+- `gocardless:dispatch-sync` — every 4 hours (queues one job per due account; superseded the
+  inline `gocardless:sync-all`, which is now a manual/agent tool only and is NOT scheduled)
 - `gocardless:retry-failures` — every 30 minutes
+- `gocardless:check-consent` — daily at 05:30
+- `gocardless:prune-failures` — daily at 04:30
 - `recurring:detect` — daily
 - `exchange-rates:fetch` — daily at 06:00
 - Queue pruning (failed jobs/batches) — every 72 hours

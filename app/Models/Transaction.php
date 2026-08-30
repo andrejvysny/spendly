@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use App\Events\TransactionCreated;
@@ -119,24 +121,54 @@ class Transaction extends BaseModel
         ];
     }
 
+    /**
+     * Stable content hash used to spot the same movement arriving twice without a provider id.
+     *
+     * `booked_date` falls back to `processed_date` so the sync path and the CSV import path hash
+     * the same movement identically — they used to disagree, which is what forced the 0.9
+     * text-similarity matching in TransactionRepository::findStrongMatchingImport() to paper over
+     * the difference.
+     *
+     * @param  array<string, mixed>  $model
+     */
     public static function generateFingerprint(array $model): string
     {
         $attributes = Arr::sort(Transaction::getFingerprintAttributes());
         $data = [];
 
         foreach ($attributes as $attribute) {
-            if (str_ends_with($attribute, '_date') && isset($model[$attribute])) {
+            $value = $model[$attribute] ?? null;
+
+            if ($attribute === 'booked_date' && ($value === null || $value === '')) {
+                $value = $model['processed_date'] ?? null;
+            }
+
+            if (str_ends_with($attribute, '_date') && $value !== null && $value !== '') {
                 try {
-                    $data[$attribute] = Carbon::parse((string) $model[$attribute])->toDateString();
+                    $data[$attribute] = Carbon::parse(
+                        $value instanceof \DateTimeInterface ? $value : (is_scalar($value) ? (string) $value : '')
+                    )->toDateString();
                 } catch (\Throwable) {
                     $data[$attribute] = null;
                 }
-            } else {
-                $data[$attribute] = $model[$attribute] ?? null;
+
+                continue;
             }
+
+            $data[$attribute] = $value;
         }
 
-        return hash('sha256', json_encode($data));
+        // JSON_INVALID_UTF8_SUBSTITUTE, not a bare json_encode: bank descriptions arrive in
+        // non-UTF-8 encodings often enough (SK/CZ institutions especially), and json_encode then
+        // returns false. Hashing false coerces to hashing '' — every such row would share one
+        // fingerprint, and that hash is authoritative for skipping rows the provider gave no id.
+        $encoded = json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if ($encoded === false) {
+            $encoded = serialize($data);
+        }
+
+        return hash('sha256', $encoded);
     }
 
     /**

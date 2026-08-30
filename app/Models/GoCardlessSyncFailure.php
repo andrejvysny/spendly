@@ -42,7 +42,10 @@ class GoCardlessSyncFailure extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'raw_data' => 'array',
+        // Encrypted: this column holds the provider's full transaction payload — amounts, IBANs,
+        // counterparty names — for rows that failed to import. It was the only unencrypted copy of
+        // bank data in the schema, unlike the GoCardless credential columns on users.
+        'raw_data' => 'encrypted:array',
         'validation_errors' => 'array',
         'last_retry_at' => 'datetime',
         'resolved_at' => 'datetime',
@@ -59,6 +62,21 @@ class GoCardlessSyncFailure extends Model
 
     public const string ERROR_TYPE_API = 'api';
 
+    /**
+     * Retries a failure gets before it is parked as terminal.
+     *
+     * Owned by the model rather than the retry command so the command and any reader agree on when
+     * a row stops being "pending" — previously an exhausted row sat with resolved_at NULL forever,
+     * indistinguishable by any query from one that had just been recorded.
+     */
+    public const int MAX_RETRIES = 5;
+
+    /**
+     * Resolution written when a row is deterministically unfixable (same payload, same failure,
+     * MAX_RETRIES times). Terminal: retry stops looking at it, pruning may collect it.
+     */
+    public const string RESOLUTION_EXHAUSTED = 'exhausted';
+
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
@@ -72,5 +90,10 @@ class GoCardlessSyncFailure extends Model
     public function isResolved(): bool
     {
         return $this->resolved_at !== null;
+    }
+
+    public function isExhausted(): bool
+    {
+        return $this->resolution === self::RESOLUTION_EXHAUSTED;
     }
 }

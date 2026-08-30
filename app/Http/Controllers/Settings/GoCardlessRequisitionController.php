@@ -149,9 +149,15 @@ class GoCardlessRequisitionController extends Controller
                 ->sortByDesc(fn (GoCardlessRequisition $row): int => $this->rowId($row))
                 ->values();
 
+            // Remote account enrichment costs one /accounts/{id}/details/ call per not-yet-imported
+            // account, and GoCardless meters that endpoint per account per day. Spending it on
+            // every settings page load was enough to exhaust the free tier with a few refreshes,
+            // so it is opt-in; imported accounts are described from the local row either way.
+            $enrich = $request->boolean('enrich');
+
             $results = [];
             foreach ($rows as $row) {
-                $results[] = $this->presentRequisition($row, $user);
+                $results[] = $this->presentRequisition($row, $user, $enrich);
             }
 
             return response()->json([
@@ -196,12 +202,12 @@ class GoCardlessRequisitionController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function presentRequisition(GoCardlessRequisition $requisition, User $user): array
+    private function presentRequisition(GoCardlessRequisition $requisition, User $user, bool $enrich = false): array
     {
         $accountIds = $this->accountIds($requisition);
         $accounts = $accountIds === []
             ? []
-            : $this->gocardlessService->getEnrichedAccountsForRequisition($accountIds, $user);
+            : $this->gocardlessService->getEnrichedAccountsForRequisition($accountIds, $user, $enrich);
 
         $status = $requisition->getAttribute('status');
         $status = $status instanceof GoCardlessRequisitionStatus ? $status : null;

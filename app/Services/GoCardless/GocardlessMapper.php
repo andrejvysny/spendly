@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\GoCardless;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
@@ -12,6 +14,19 @@ class GocardlessMapper
 {
     /** @var array<int, array<string, true>> */
     private array $ibanCache = [];
+
+    /**
+     * Drop the cached own-account IBAN set.
+     *
+     * The mapper is a container singleton, so in the queue worker (and under the FrankenPHP worker,
+     * where config/octane.php flushes nothing) this cache outlives a single run. An account
+     * imported after the cache warmed would otherwise never be recognised as own-account, and the
+     * transfer_candidate flag would silently stop firing until the worker recycled.
+     */
+    public function forgetIbanCache(): void
+    {
+        $this->ibanCache = [];
+    }
 
     public function __construct(
         private readonly FieldExtractorFactory $extractorFactory,
@@ -107,66 +122,6 @@ class GocardlessMapper
     }
 
     /**
-     * Extracts and formats the transaction description.
-     *
-     * @param  array  $transaction  The transaction data.
-     * @return string The formatted description.
-     */
-    private function formatDescription(array $transaction): string
-    {
-        $parts = [];
-
-        // Add unstructured remittance information
-        $unstructured = $this->get($transaction, 'remittanceInformationUnstructured');
-        if ($unstructured) {
-            $parts[] = $unstructured;
-        }
-
-        // Add structured remittance information
-        $structured = $this->get($transaction, 'remittanceInformationStructured');
-        if ($structured) {
-            $parts[] = $structured;
-        }
-
-        // Add additional information
-        $additional = $this->get($transaction, 'additionalInformation');
-        if ($additional) {
-            $parts[] = $additional;
-        }
-
-        return implode(' ', array_filter($parts));
-    }
-
-    /**
-     * Extracts the partner name from the transaction data.
-     *
-     * @param  array  $transaction  The transaction data.
-     * @return string|null The partner name or null if not found.
-     */
-    private function extractPartnerName(array $transaction): ?string
-    {
-        // Try creditor name first
-        $partner = $this->get($transaction, 'creditorName');
-        if ($partner) {
-            return (string) $partner;
-        }
-
-        // Try debtor name
-        $partner = $this->get($transaction, 'debtorName');
-        if ($partner) {
-            return (string) $partner;
-        }
-
-        // Try remittance information
-        $partner = $this->get($transaction, 'remittanceInformationUnstructuredArray.0');
-        if ($partner) {
-            return (string) $partner;
-        }
-
-        return null;
-    }
-
-    /**
      * Maps a GoCardless transaction array and associated account into a structured array for internal use.
      *
      * @param  array  $transaction  Raw transaction data from GoCardless.
@@ -183,9 +138,17 @@ class GocardlessMapper
         $valueRaw = $this->get($transaction, 'valueDateTime', $this->get($transaction, 'valueDate', $bookedRaw));
         $valueDateTime = $this->parseDate($valueRaw);
 
-        $amountRaw = $this->get($transaction, 'transactionAmount.amount', 0);
-        $amount = is_numeric($amountRaw) ? (float) $amountRaw : 0.0;
-        $currency = $this->get($transaction, 'transactionAmount.currency', 'EUR');
+        // Raw values are carried through unchanged so TransactionDataValidator can reject what it
+        // cannot read. Coercing a malformed amount to 0.0 or a missing currency to EUR here would
+        // invent a financial value that then looks like something the bank actually sent.
+        $amountRaw = $this->get($transaction, 'transactionAmount.amount');
+        $amountIsNumeric = is_numeric($amountRaw);
+        $amount = $amountIsNumeric ? (float) $amountRaw : $amountRaw;
+        $currency = $this->get($transaction, 'transactionAmount.currency');
+
+        // Type extraction needs a number to decide direction; an unreadable amount is about to be
+        // quarantined by the validator anyway, so a local 0.0 here never reaches storage.
+        $amountForType = $amountIsNumeric ? (float) $amountRaw : 0.0;
 
         $sourceIban = $this->get($transaction, 'debtorAccount.iban');
         $targetIban = $this->get($transaction, 'creditorAccount.iban');
@@ -196,7 +159,7 @@ class GocardlessMapper
             $description = $partner ?: 'Transaction '.($this->get($transaction, 'transactionId') ?? 'unknown');
         }
         $partner = $extractor->extractPartner($transaction);
-        $type = $extractor->extractTransactionType($transaction, $amount);
+        $type = $extractor->extractTransactionType($transaction, $amountForType);
 
         // Flag probable own-account transfers, but keep the source type until pairing confirms it.
         $ownIbanNormalized = $this->getOwnAccountIbansNormalized((int) $account->user_id);
@@ -314,42 +277,5 @@ class GocardlessMapper
         $s = strtoupper(trim(preg_replace('/\s+/', '', $iban)));
 
         return $s;
-    }
-
-    /**
-     * Extracts metadata from the transaction data.
-     *
-     * @param  array  $transaction  The transaction data.
-     * @return array The extracted metadata.
-     */
-    private function extractMetadata(array $transaction): array
-    {
-        $metadata = [];
-
-        // Add merchant category code if available
-        $mcc = $this->get($transaction, 'merchantCategoryCode');
-        if ($mcc) {
-            $metadata['merchant_category_code'] = $mcc;
-        }
-
-        // Add end-to-end ID if available
-        $endToEndId = $this->get($transaction, 'endToEndId');
-        if ($endToEndId) {
-            $metadata['end_to_end_id'] = $endToEndId;
-        }
-
-        // Add mandate ID if available
-        $mandateId = $this->get($transaction, 'mandateId');
-        if ($mandateId) {
-            $metadata['mandate_id'] = $mandateId;
-        }
-
-        // Add additional structured data
-        $additionalData = $this->get($transaction, 'additionalDataStructured');
-        if ($additionalData) {
-            $metadata['additional_data'] = $additionalData;
-        }
-
-        return $metadata;
     }
 }

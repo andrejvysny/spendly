@@ -138,6 +138,59 @@ class GoCardlessSyncControllerTest extends TestCase
      * Sync button can walk the account straight back into the bank's limit.
      */
     /**
+     * GoCardless meters the transactions endpoint per account per day. dispatch-sync has always
+     * honoured min_sync_interval_hours; the HTTP path did not, so a few impatient clicks could
+     * exhaust the day's allowance and leave the scheduled sync rate-limited until it reset.
+     */
+    public function test_recently_synced_account_is_not_dispatched_again(): void
+    {
+        Queue::fake();
+        config(['services.gocardless.min_sync_interval_hours' => 8]);
+
+        $this->account->update(['gocardless_last_synced_at' => now()->subHour()]);
+
+        $this->actingAs($this->user)
+            ->postJson("/api/bank-data/gocardless/accounts/{$this->account->id}/sync-transactions")
+            ->assertStatus(202)
+            ->assertJsonPath('status', 'recently_synced');
+
+        Queue::assertNothingPushed();
+    }
+
+    /**
+     * The guard is a quota safeguard, not a lock — "I just moved money, fetch now" must still work.
+     */
+    public function test_force_overrides_the_recently_synced_guard(): void
+    {
+        Queue::fake();
+        config(['services.gocardless.min_sync_interval_hours' => 8]);
+
+        $this->account->update(['gocardless_last_synced_at' => now()->subHour()]);
+
+        $this->actingAs($this->user)
+            ->postJson("/api/bank-data/gocardless/accounts/{$this->account->id}/sync-transactions", ['force' => true])
+            ->assertStatus(202)
+            ->assertJsonPath('status', Account::SYNC_STATUS_QUEUED);
+
+        Queue::assertPushed(SyncGoCardlessAccountJob::class);
+    }
+
+    public function test_account_synced_long_ago_is_dispatched_normally(): void
+    {
+        Queue::fake();
+        config(['services.gocardless.min_sync_interval_hours' => 8]);
+
+        $this->account->update(['gocardless_last_synced_at' => now()->subDays(2)]);
+
+        $this->actingAs($this->user)
+            ->postJson("/api/bank-data/gocardless/accounts/{$this->account->id}/sync-transactions")
+            ->assertStatus(202)
+            ->assertJsonPath('status', Account::SYNC_STATUS_QUEUED);
+
+        Queue::assertPushed(SyncGoCardlessAccountJob::class);
+    }
+
+    /**
      * A worker killed mid-run never reaches the job's failed() hook, so the row keeps saying
      * `syncing`. Every dispatch path skips an in-progress account, so without a reaper the account
      * is permanently unsyncable: this endpoint answered 202 forever without ever dispatching.

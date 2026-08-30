@@ -79,9 +79,15 @@ export default function BankData({
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const fetchRequisitions = useCallback(async () => {
+    /**
+     * @param remote When true, reconcile against the GoCardless API and fetch details for accounts
+     *   that are not imported yet. Both cost metered API calls — one `/details/` call per
+     *   un-imported account — so a plain page load never does it; only an explicit Refresh does.
+     */
+    const fetchRequisitions = useCallback(async (remote = false) => {
         try {
-            const response = await axios.get('/api/bank-data/gocardless/requisitions');
+            const query = remote ? '?refresh=1&enrich=1' : '';
+            const response = await axios.get(`/api/bank-data/gocardless/requisitions${query}`);
             setRequisitions(response.data);
         } catch (error) {
             console.error('Error fetching requisitions:', error);
@@ -110,7 +116,7 @@ export default function BankData({
     const handleRefreshRequisitions = () => {
         if (!gocardless_use_mock && !has_gocardless_credentials) return;
         setIsRefreshing(true);
-        fetchRequisitions();
+        fetchRequisitions(true);
     };
 
     const handlePurgeCredentials = () => {

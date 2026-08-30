@@ -118,15 +118,29 @@ class TransactionSyncServiceTest extends TestCase
     }
 
     /**
-     * An account that has synced before only re-fetches from its watermark, minus a day of overlap.
+     * An incremental sync re-fetches a rolling overlap below the watermark, because banks backfill:
+     * a transaction can surface days after its booking date, and a one-day overlap left the next
+     * window already starting past it — so it was never seen again.
      */
-    public function test_incremental_sync_starts_one_day_before_the_watermark(): void
+    public function test_incremental_sync_refetches_the_overlap_window(): void
     {
         $this->account->gocardless_last_synced_at = now()->subDays(5);
 
         $range = $this->service->calculateDateRange($this->account, 90);
 
-        $this->assertSame(now()->subDays(6)->format('Y-m-d'), $range['date_from']);
+        $this->assertSame(now()->subDays(12)->format('Y-m-d'), $range['date_from']);
+    }
+
+    /**
+     * The overlap must never widen the window past what the provider will serve.
+     */
+    public function test_overlap_cannot_reach_past_the_max_window(): void
+    {
+        $this->account->gocardless_last_synced_at = now()->subDays(88);
+
+        $range = $this->service->calculateDateRange($this->account, 90);
+
+        $this->assertSame(now()->subDays(90)->format('Y-m-d'), $range['date_from']);
     }
 
     /**

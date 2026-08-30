@@ -22,6 +22,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('gocardless:check-consent')->dailyAt('05:30')->withoutOverlapping();
         $schedule->command('recurring:detect')->daily()->withoutOverlapping();
         $schedule->command('exchange-rates:fetch')->dailyAt('06:00')->withoutOverlapping();
+        // Drops the stored bank payloads of failures that are no longer useful — see the command.
+        $schedule->command('gocardless:prune-failures')->dailyAt('04:30')->withoutOverlapping();
         $schedule->command('queue:prune-failed --hours=72')->daily();
         $schedule->command('queue:prune-batches --hours=72')->daily();
     })

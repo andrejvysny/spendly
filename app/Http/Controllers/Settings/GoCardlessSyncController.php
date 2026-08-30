@@ -86,6 +86,32 @@ class GoCardlessSyncController extends Controller
     }
 
     /**
+     * Whether this account synced too recently to spend more of the bank's daily quota.
+     *
+     * gocardless:dispatch-sync has always honoured min_sync_interval_hours; the HTTP path did not,
+     * so a few impatient clicks could exhaust the free tier's per-account daily allowance and leave
+     * the scheduled sync rate-limited for the rest of the day. `force` exists for the deliberate
+     * "I just moved money, fetch now" case.
+     */
+    private function syncedTooRecently(Account $account, bool $force): bool
+    {
+        if ($force) {
+            return false;
+        }
+
+        $hours = config('services.gocardless.min_sync_interval_hours', 8);
+        $hours = is_numeric($hours) ? (int) $hours : 8;
+
+        if ($hours <= 0) {
+            return false;
+        }
+
+        $lastSynced = $account->getAttribute('gocardless_last_synced_at');
+
+        return $lastSynced instanceof CarbonInterface && $lastSynced->gt(now()->subHours($hours));
+    }
+
+    /**
      * Seconds left on an account's sync cooldown, or null when it is free to sync.
      */
     private function cooldownSeconds(Account $account): ?int
@@ -191,6 +217,15 @@ class GoCardlessSyncController extends Controller
         // Clear a run whose worker died before it could report back; without this the account is
         // stuck in-progress and this endpoint would answer 202 forever without dispatching.
         $this->accountRepository->reapStaleSync($model);
+
+        if ($this->syncedTooRecently($model, $request->boolean('force'))) {
+            return response()->json([
+                'success' => true,
+                'status' => 'recently_synced',
+                'message' => 'This account synced recently. Pass force=true to sync anyway.',
+                'data' => $this->syncStatusPayload($model),
+            ], 202);
+        }
 
         if (in_array($model->gocardless_sync_status, Account::SYNC_STATUSES_IN_PROGRESS, true)) {
             return response()->json([

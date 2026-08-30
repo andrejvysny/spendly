@@ -246,7 +246,9 @@ class GoCardlessService
             try {
                 $result = $this->syncAccountTransactions($account->id, $user, $updateExisting, $forceMaxDateRange);
                 $results[] = array_merge($result, ['status' => 'success']);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
+                // Throwable, not Exception: a TypeError in one account used to abort the whole
+                // loop, so every later account silently went unsynced.
                 Log::error('Failed to sync account', [
                     'account_id' => $account->id,
                     'error' => $e->getMessage(),
@@ -461,10 +463,15 @@ class GoCardlessService
      * @param  array<int, string>  $accountIds
      * @return array<int, array{id: string, local_id: int|null, name: string, iban: string|null, currency: string|null, owner_name: string|null, status: string, last_synced_at: string|null}>
      */
-    public function getEnrichedAccountsForRequisition(array $accountIds, User $user): array
+    public function getEnrichedAccountsForRequisition(array $accountIds, User $user, bool $fetchRemote = true): array
     {
         $enriched = [];
-        $this->getClient($user);
+
+        // Only build a client when a remote lookup is actually going to happen — resolving one
+        // mints a token, which is itself a request against the provider.
+        if ($fetchRemote) {
+            $this->getClient($user);
+        }
 
         foreach ($accountIds as $accountId) {
             $local = $this->accountRepository->findByGocardlessId($accountId, (int) $user->id);
@@ -479,6 +486,24 @@ class GoCardlessService
                     'status' => 'Imported',
                     'last_synced_at' => $local->gocardless_last_synced_at?->toIso8601String(),
                     'enrichment_status' => 'complete',
+                ];
+
+                continue;
+            }
+
+            if (! $fetchRemote) {
+                // Not yet imported and no remote lookup allowed: describe it as a stub rather than
+                // spending a metered /details/ call.
+                $enriched[] = [
+                    'id' => $accountId,
+                    'local_id' => null,
+                    'name' => 'Account',
+                    'iban' => null,
+                    'currency' => null,
+                    'owner_name' => null,
+                    'status' => 'Ready to import',
+                    'last_synced_at' => null,
+                    'enrichment_status' => 'stub',
                 ];
 
                 continue;
