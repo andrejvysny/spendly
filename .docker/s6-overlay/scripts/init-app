@@ -13,18 +13,25 @@ if [ "$DB_CONNECTION" = "sqlite" ] && [ ! -f "$DB_DATABASE" ]; then
     chown www-data:www-data "$DB_DATABASE"
 fi
 
-# External DB: wait for connection
+# External DB: wait for connection.
+# db:show actually opens a connection and queries the server, so it fails while the
+# database is still starting and succeeds once it is ready. (The previous probe was
+# `db:monitor --timeout=1`; db:monitor has no --timeout option, so every attempt died
+# on "The --timeout option does not exist" and the loop always ran out of retries.
+# Only reachable with DB_HOST set, which is why the sqlite default never hit it.)
 if [ -n "$DB_HOST" ]; then
-    echo "Waiting for database..."
+    echo "Waiting for database at ${DB_HOST}:${DB_PORT:-5432}..."
     retries=30
-    while ! php artisan db:monitor --timeout=1 > /dev/null 2>&1; do
+    until php artisan db:show --json > /dev/null 2>&1; do
         retries=$((retries - 1))
         if [ "$retries" -le 0 ]; then
-            echo "Database connection timeout"
+            echo "Database connection timeout — last error:"
+            php artisan db:show --json 2>&1 | tail -5
             exit 1
         fi
-        sleep 1
+        sleep 2
     done
+    echo "Database ready."
 fi
 
 php artisan migrate --force
