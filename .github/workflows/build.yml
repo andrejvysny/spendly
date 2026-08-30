@@ -2,15 +2,17 @@ name: Build and Push Docker Image
 
 permissions:
   contents: read
-  packages: write
 
 on:
   workflow_dispatch:
 
   push:
     branches: [main, develop]
+    tags: ['v*']
     paths:
       - '.github/workflows/build.yml'
+      - '.github/workflows/tests.yml'
+      - '.github/workflows/lint.yml'
       - '.docker/**'
       - 'app/**'
       - 'bootstrap/**'
@@ -35,26 +37,44 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # Gates. SELFHOSTING_GUIDE tells people to `docker compose pull`, so anything
+  # that reaches :main is something a stranger will run — it does not get
+  # published from a commit whose tests or lint are red.
+  tests:
+    uses: ./.github/workflows/tests.yml
+    permissions:
+      contents: read
+
+  lint:
+    uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
+
   build:
     runs-on: ubuntu-latest
+    needs: [tests, lint]
     permissions:
       contents: read
       packages: write
+      id-token: write # keyless cosign signing via the OIDC token
+
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
         with:
           platforms: 'arm64'
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -62,22 +82,41 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=long,prefix=sha-
+          # sha- is the only immutable tag here. Deployments should pin that (or the
+          # digest); main/develop/latest all move under you on the next push.
 
       - name: Build and push (production)
-        uses: docker/build-push-action@v6
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: .docker/Dockerfile
           target: production
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      # Keyless: the signature is bound to this workflow's OIDC identity, so a
+      # verifier can check the image came from this repo's build.yml and not from
+      # someone with a registry token.
+      - name: Sign the image
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"

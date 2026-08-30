@@ -1,25 +1,32 @@
 name: tests
 
+# Callable from build.yml so the image is never published from a red commit,
+# and run directly on pushes/PRs so breakage surfaces before a merge.
 on:
   workflow_dispatch:
-
+  workflow_call:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
 
   prepare:
     runs-on: ubuntu-latest
-    outputs:
-      build-artifacts: ${{ steps.build.outputs.build-artifacts }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -28,11 +35,10 @@ jobs:
         run: npm ci
 
       - name: Build Assets
-        id: build
         run: npm run build
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: build-artifacts
           path: public/build
@@ -40,13 +46,12 @@ jobs:
 
   node_tests:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -54,9 +59,7 @@ jobs:
       - name: Install Node Dependencies
         run: npm ci
 
-      - name: Build Assets
-        run: npm run build
-
+      # Jest runs against source, not the bundle, so no build step is needed here.
       - name: Run Tests
         run: npm run test
 
@@ -65,16 +68,16 @@ jobs:
     needs: prepare
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: build-artifacts
           path: public/build
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: 8.4
           tools: composer:v2
@@ -102,6 +105,8 @@ jobs:
           php artisan view:clear
           php artisan route:clear
 
+      # sample_data/ is gitignored, so the GoCardless fixture suites skip here by
+      # design (GoCardlessFixtureLoader::fixturesAvailable()). Everything else runs.
       - name: Run Tests
         run: php artisan test -c phpunit.xml
         env:
@@ -111,4 +116,4 @@ jobs:
           CACHE_STORE: array
           SESSION_DRIVER: array
           QUEUE_CONNECTION: sync
-          LOG_CHANNEL: null
+          LOG_CHANNEL: 'null'

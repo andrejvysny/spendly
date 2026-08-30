@@ -21,15 +21,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends sqlite3 curl xz
 
 # s6-overlay install (multi-arch)
 ARG S6_OVERLAY_VERSION=3.2.0.2
-RUN case "$(dpkg --print-architecture)" in \
-        amd64) S6_ARCH="x86_64" ;; \
-        arm64) S6_ARCH="aarch64" ;; \
+# Checksums come from the upstream release's .sha256 files. Verifying them turns a
+# compromised or truncated download into a failed build instead of a silently broken
+# (or hostile) init system running as PID 1.
+ARG S6_SHA256_NOARCH=6dbcde158a3e78b9bb141d7bcb5ccb421e563523babbe2c64470e76f4fd02dae
+ARG S6_SHA256_X86_64=59289456ab1761e277bd456a95e737c06b03ede99158beb24f12b165a904f478
+ARG S6_SHA256_AARCH64=8b22a2eaca4bf0b27a43d36e65c89d2701738f628d1abd0cea5569619f66f785
+RUN set -eu; \
+    case "$(dpkg --print-architecture)" in \
+        amd64) S6_ARCH="x86_64"; S6_SHA="$S6_SHA256_X86_64" ;; \
+        arm64) S6_ARCH="aarch64"; S6_SHA="$S6_SHA256_AARCH64" ;; \
         *) echo "Unsupported arch" && exit 1 ;; \
-    esac && \
-    curl -fsSL "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" -o /tmp/s6-overlay-noarch.tar.xz && \
-    curl -fsSL "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz" -o /tmp/s6-overlay-arch.tar.xz && \
-    tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
-    tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz && \
+    esac; \
+    base="https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}"; \
+    curl -fsSL "${base}/s6-overlay-noarch.tar.xz" -o /tmp/s6-overlay-noarch.tar.xz; \
+    curl -fsSL "${base}/s6-overlay-${S6_ARCH}.tar.xz" -o /tmp/s6-overlay-arch.tar.xz; \
+    echo "${S6_SHA256_NOARCH}  /tmp/s6-overlay-noarch.tar.xz" | sha256sum -c -; \
+    echo "${S6_SHA}  /tmp/s6-overlay-arch.tar.xz" | sha256sum -c -; \
+    tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz; \
+    tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz; \
     rm /tmp/s6-overlay-*.tar.xz
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
@@ -78,8 +88,10 @@ RUN chmod +x /etc/s6-overlay/scripts/init-app \
     /etc/s6-overlay/s6-rc.d/svc-worker/run \
     /etc/s6-overlay/s6-rc.d/svc-scheduler/run
 
-# Set permissions
-RUN chown -R www-data:www-data /app && \
+# Set permissions. /data and /config are Caddy's XDG dirs; the octane service runs as
+# www-data and Caddy writes its own state there even when auto_https is off.
+RUN mkdir -p /data /config && \
+    chown -R www-data:www-data /app /data /config && \
     chmod -R 775 storage bootstrap/cache database
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
@@ -93,6 +105,10 @@ ENV S6_KILL_GRACETIME=300000
 # s6-overlay: pass container env to services
 ENV S6_KEEP_ENV=1
 
+# /init stays root: s6 needs it to build the supervision tree, and the init-app oneshot
+# creates the SQLite file and runs migrations. Every long-running service drops to
+# www-data via s6-setuidgid in its own run script. FrankenPHP already carries
+# cap_net_bind_service, so the unprivileged octane service still binds :80.
 ENTRYPOINT ["/init"]
 
 # Stage 4: Development (no s6-overlay)

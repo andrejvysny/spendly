@@ -277,5 +277,6 @@ export interface SharedData {
     auth: { user: User; [key: string]: unknown };
     ziggy: { location: string; [key: string]: unknown };
     sidebarOpen: boolean;
+    registrationEnabled: boolean;
     [key: string]: unknown;
 }

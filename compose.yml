@@ -1,6 +1,6 @@
 services:
   cli:
-    image: ghcr.io/andrejvysny/php-cli:8.3
+    image: ghcr.io/andrejvysny/php-cli@sha256:9aaa9f85e283b36b2cc110090e84e134118757bc35b293da1e66420adce27150 # php-cli:8.3 — built out-of-band, no Dockerfile in this repo, so pin the digest
     env_file: .env
     working_dir: /var/www/html
     environment:

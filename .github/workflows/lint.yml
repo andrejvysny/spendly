@@ -1,24 +1,32 @@
 name: linter
 
+# Callable from build.yml so the image is never published from an unformatted
+# commit, and run directly on pushes/PRs.
 on:
   workflow_dispatch:
+  workflow_call:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only: these jobs check, they no longer rewrite the tree.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
 
   node_lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -26,25 +34,31 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      # lint:check, not lint — `npm run lint` is `eslint --fix`, which "passes" by
+      # silently rewriting files in the runner and reporting nothing.
       - name: Run ESLint
-        run: npm run lint
+        run: npm run lint:check
 
       - name: Run Prettier
         run: npm run format:check
 
+      - name: Typecheck
+        run: npm run types
+
   php_lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.4'
 
       - name: Install Dependencies
-        run: |
-          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+        run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
 
+      # --test reports violations and fails; bare `pint` would fix them in place
+      # and always exit 0.
       - name: Run Pint
-        run: vendor/bin/pint
+        run: vendor/bin/pint --test

@@ -41,3 +41,11 @@ php artisan event:cache
 
 # Boot-time diagnostics: report common self-hosting misconfigurations. Never blocks startup.
 php artisan spendly:check-config || true
+
+# This oneshot runs as root so it can create the SQLite file and apply migrations, but the
+# long-running services drop to www-data. Anything written above (the caches, the log file
+# Laravel opens on the way through) is root-owned at this point and would be unwritable to
+# them, so hand ownership back before they start.
+chown -R www-data:www-data /app/bootstrap/cache /app/storage /app/database 2>/dev/null || true
+# Caddy's XDG dirs — it stores its own state here even with auto_https off.
+chown -R www-data:www-data /data /config 2>/dev/null || true

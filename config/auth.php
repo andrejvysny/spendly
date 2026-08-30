@@ -13,6 +13,20 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Registration
+    |--------------------------------------------------------------------------
+    |
+    | Self-hosted instances are often single-user and publicly reachable. Set
+    | REGISTRATION_ENABLED=false once your own account exists so that strangers
+    | who find the URL cannot sign up. The routes stay registered either way and
+    | return 404 when disabled, so route() helpers keep resolving.
+    |
+    */
+
+    'registration_enabled' => (bool) env('REGISTRATION_ENABLED', true),
+
     'defaults' => [
         'guard' => env('AUTH_GUARD', 'web'),
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),

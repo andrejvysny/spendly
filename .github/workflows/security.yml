@@ -17,16 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.4'
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -47,7 +47,7 @@ jobs:
 
       - name: Upload security scan results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-scan-results
           path: |
@@ -59,29 +59,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         with:
           languages: javascript, php
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@6f5948dfacef28e207b48d0905cf90c03365536d # v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@6f5948dfacef28e207b48d0905cf90c03365536d # v3
 
   secrets-scan:
     name: Secret Detection
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Run Trivy secret scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -90,7 +90,7 @@ jobs:
           scanners: 'secret'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         if: always()
         with:
           sarif_file: 'trivy-secrets.sarif'
@@ -101,21 +101,24 @@ jobs:
     if: github.event_name == 'push'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # --target production is essential: without it Docker builds the LAST stage in
+      # the file (`node`), so Trivy was scanning a throwaway node:alpine layer and the
+      # FrankenPHP runtime that actually ships had never been scanned at all.
       - name: Build Docker image
         run: |
-          docker build -t spendly:security-test -f .docker/Dockerfile .
+          docker build --target production -t spendly:security-test -f .docker/Dockerfile .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: 'spendly:security-test'
           format: 'sarif'
           output: 'trivy-docker.sarif'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         if: always()
         with:
           sarif_file: 'trivy-docker.sarif'
@@ -125,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Check for hardcoded financial data
         run: |
@@ -137,9 +140,18 @@ jobs:
             exit 1
           fi
 
-          # Check for hardcoded IBAN patterns
-          if grep -r -E '\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b' --exclude-dir=node_modules --exclude-dir=vendor --exclude="*.md" .; then
-            echo "⚠️  Potential IBAN numbers found in code"
+          # Check for hardcoded IBAN patterns.
+          # Test fixtures legitimately need IBAN-shaped strings, so .github/iban-allowlist.txt
+          # holds the reviewed synthetic ones. Anything not on that list fails the build,
+          # which is what stops a real account number being committed again.
+          allow=$(grep -vE '^\s*(#|$)' .github/iban-allowlist.txt)
+          if grep -r -o -E '\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b' \
+               --exclude-dir=node_modules --exclude-dir=vendor --exclude-dir=.git \
+               --exclude="*.md" --exclude=iban-allowlist.txt . \
+             | awk -F: '{print $NF"\t"$0}' \
+             | grep -vFf <(printf '%s\n' "$allow") ; then
+            echo "⚠️  IBAN-shaped string found that is not in .github/iban-allowlist.txt"
+            echo "    Use a synthetic SK99…/LT99… value, or add it to the allowlist if it is genuinely fake."
             exit 1
           fi
 
@@ -161,11 +173,15 @@ jobs:
             exit 1
           fi
 
-          # Check for essential security environment variables
+          # Check that the security-relevant variables are at least documented.
+          # DB_PASSWORD and GOCARDLESS_SECRET_KEY ship commented out (they are only
+          # needed for non-sqlite installs and instance-wide bank sync respectively),
+          # so accept a leading '# ' — the point is that a self-hoster can discover
+          # them, not that they are set.
           required_vars=("APP_KEY" "DB_PASSWORD" "GOCARDLESS_SECRET_KEY")
           for var in "${required_vars[@]}"; do
-            if ! grep -q "^${var}=" .env.example; then
-              echo "⚠️  Required security variable ${var} not found in .env.example"
+            if ! grep -qE "^#? ?${var}=" .env.example; then
+              echo "⚠️  Required security variable ${var} not documented in .env.example"
               exit 1
             fi
           done
@@ -177,16 +193,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.4'
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -207,7 +223,7 @@ jobs:
           echo "Node.js license check completed"
 
       - name: Upload license reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: license-reports
           path: |
