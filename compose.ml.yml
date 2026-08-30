@@ -43,7 +43,8 @@ services:
     volumes:
       - .:/app
       - ./.docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
-    command: sh -c "php artisan queue:work --tries=3 --backoff=60"
+    # gocardless listed last so multi-minute bank syncs never starve the default queue.
+    command: sh -c "php artisan queue:work --queue=default,gocardless --tries=3 --backoff=60 --timeout=300"
     depends_on:
       postgres:
         condition: service_healthy

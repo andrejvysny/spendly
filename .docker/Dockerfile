@@ -87,8 +87,9 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
 
 EXPOSE 80 443 443/udp
 
-# s6-overlay: 90s graceful shutdown (must exceed worker --timeout=90)
-ENV S6_KILL_GRACETIME=90000
+# s6-overlay: 300s graceful shutdown (must be >= worker --timeout=300, so an in-flight
+# GoCardless account sync finishes or times out cleanly instead of being SIGKILLed mid-write)
+ENV S6_KILL_GRACETIME=300000
 # s6-overlay: pass container env to services
 ENV S6_KEEP_ENV=1
 

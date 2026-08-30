@@ -17,14 +17,21 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withSchedule(function (Schedule $schedule) {
-        $schedule->command('gocardless:sync-all')->everyFourHours()->withoutOverlapping();
+        $schedule->command('gocardless:dispatch-sync')->everyFourHours()->withoutOverlapping();
         $schedule->command('gocardless:retry-failures')->everyThirtyMinutes()->withoutOverlapping();
+        $schedule->command('gocardless:check-consent')->dailyAt('05:30')->withoutOverlapping();
         $schedule->command('recurring:detect')->daily()->withoutOverlapping();
         $schedule->command('exchange-rates:fetch')->dailyAt('06:00')->withoutOverlapping();
         $schedule->command('queue:prune-failed --hours=72')->daily();
         $schedule->command('queue:prune-batches --hours=72')->daily();
     })
     ->withMiddleware(function (Middleware $middleware) {
+        // Trust proxies behind a TLS-terminating reverse proxy so Laravel generates https:// URLs.
+        // This closure runs on every boot (never config-cached), so env() here is safe.
+        // @phpstan-ignore-next-line — bootstrap closure, no config/ equivalent
+        $trustedProxies = env('TRUSTED_PROXIES', '*');
+        $middleware->trustProxies(at: is_string($trustedProxies) ? $trustedProxies : '*');
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->alias([

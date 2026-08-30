@@ -40,6 +40,20 @@ return [
             return in_array(env('APP_ENV', 'production'), ['local', 'development'], true);
         })(),
         'mock_data_path' => env('GOCARDLESS_MOCK_DATA_PATH', base_path('sample_data/gocardless_bank_account_data')),
+
+        // How many days before a 90-day consent lapses the UI starts warning about it.
+        'consent_warning_days' => env('GOCARDLESS_CONSENT_WARNING_DAYS', 7),
+
+        // How old a requisition's last status poll may be before gocardless:check-consent re-polls it.
+        'consent_check_stale_hours' => env('GOCARDLESS_CONSENT_CHECK_STALE_HOURS', 24),
+
+        // How recently an account may have synced before gocardless:dispatch-sync skips it.
+        // Keeps a four-hourly schedule from spending request quota on accounts nothing changed for.
+        'min_sync_interval_hours' => env('GOCARDLESS_MIN_SYNC_INTERVAL_HOURS', 8),
+
+        // Spacing between consecutive queued account syncs. One scheduled run can cover every
+        // account on the installation; without a stagger it would arrive at the bank as a burst.
+        'dispatch_stagger_seconds' => env('GOCARDLESS_DISPATCH_STAGGER_SECONDS', 20),
     ],
     'slack' => [
         'notifications' => [

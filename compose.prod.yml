@@ -6,7 +6,9 @@ services:
     image: ghcr.io/andrejvysny/spendly:main
     container_name: spendly
     restart: unless-stopped
-    stop_grace_period: 120s
+    # Must exceed S6_KILL_GRACETIME (300s) so Docker lets s6 finish its own shutdown sequence
+    # rather than SIGKILLing the container while a queued bank sync is still winding down.
+    stop_grace_period: 330s
     ports:
       - '${PORT:-80}:80'
       - '443:443'
@@ -17,6 +19,8 @@ services:
       APP_KEY: ${APP_KEY}
       APP_DEBUG: 'false'
       APP_URL: ${APP_URL:-http://localhost}
+      SERVER_NAME: ${SERVER_NAME:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-*}
       APP_LOCALE: ${APP_LOCALE:-en}
       APP_FALLBACK_LOCALE: en
       LOG_CHANNEL: stderr
@@ -27,6 +31,9 @@ services:
       SESSION_LIFETIME: '120'
       CACHE_STORE: database
       QUEUE_CONNECTION: database
+      # Must exceed the worker's --timeout=300, otherwise the queue reserves a still-running
+      # GoCardless sync to a second worker and the account is synced twice.
+      DB_QUEUE_RETRY_AFTER: '360'
       OCTANE_SERVER: frankenphp
       FILESYSTEM_DISK: local
       BROADCAST_CONNECTION: log

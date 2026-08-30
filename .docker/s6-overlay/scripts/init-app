@@ -38,3 +38,6 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan event:cache
+
+# Boot-time diagnostics: report common self-hosting misconfigurations. Never blocks startup.
+php artisan spendly:check-config || true

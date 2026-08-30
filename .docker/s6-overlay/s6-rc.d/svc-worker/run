@@ -1,9 +1,13 @@
 #!/command/with-contenv sh
 cd /app
+# --timeout=300 exceeds SyncGoCardlessAccountJob's own 280s guard, so the job gets to record a
+# status before the worker kills it. The gocardless queue is named explicitly (and last) so bank
+# syncs, which can occupy a worker for minutes, never starve the default queue.
 exec php artisan queue:work \
+    --queue=default,gocardless \
     --sleep=3 \
     --tries=3 \
     --max-time=3600 \
     --max-jobs=1000 \
     --memory=256 \
-    --timeout=90
+    --timeout=300
