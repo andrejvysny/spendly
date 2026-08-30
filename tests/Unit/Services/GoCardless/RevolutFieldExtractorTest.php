@@ -49,7 +49,9 @@ class RevolutFieldExtractorTest extends TestCase
         $description = $this->extractor->extractDescription($tx);
         $this->assertNotEmpty($description);
         if (isset($tx['remittanceInformationUnstructuredArray']) && $tx['remittanceInformationUnstructuredArray'] !== []) {
-            $this->assertStringContainsString(' | ', $description);
+            // Single-element arrays join without a separator, so assert the joined value itself.
+            $expected = implode(' | ', array_map('strval', $tx['remittanceInformationUnstructuredArray']));
+            $this->assertSame($expected, $description);
         } else {
             $this->assertSame($tx['creditorName'], $description);
         }

@@ -76,7 +76,7 @@ class AccountSeeder extends Seeder
         ];
 
         foreach ($accounts as $account) {
-            Account::create([
+            $newAccount = new Account([
                 'name' => $account['name'],
                 'bank_name' => $account['bank_name'],
                 'iban' => $account['iban'],
@@ -85,8 +85,9 @@ class AccountSeeder extends Seeder
                 'balance' => $account['balance'],
                 'opening_balance' => $account['opening_balance'],
                 'is_gocardless_synced' => $account['is_gocardless_synced'],
-                'user_id' => $user->id,
             ]);
+            $newAccount->user_id = $user->id;
+            $newAccount->save();
         }
     }
 }

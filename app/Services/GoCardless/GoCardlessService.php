@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Services\GoCardless;
 
 use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Enums\GoCardlessRequisitionStatus;
 use App\Exceptions\AccountAlreadyExistsException;
+use App\Exceptions\GoCardlessConsentExpiredException;
 use App\Exceptions\GoCardlessRateLimitException;
 use App\Models\Account;
+use App\Models\GoCardlessRequisition;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class GoCardlessService
@@ -102,11 +106,29 @@ class GoCardlessService
         $dateRange = $this->transactionSyncService->calculateDateRange($account, 90, $forceMaxDateRange);
 
         // Get transactions from GoCardless
-        $response = $this->client->getTransactions(
-            $account->gocardless_account_id,
-            $dateRange['date_from'],
-            $dateRange['date_to']
-        );
+        try {
+            $response = $this->client->getTransactions(
+                $account->gocardless_account_id,
+                $dateRange['date_from'],
+                $dateRange['date_to']
+            );
+        } catch (GoCardlessConsentExpiredException $e) {
+            // Retrying can never fix this — only the user re-authorizing can. Record that on the
+            // account (and its requisition) so the UI can ask for it, then let the caller decide
+            // how to report the failure.
+            $this->flagConsentExpired($account);
+
+            throw $e;
+        }
+
+        // A partial fetch still syncs what came back; the gap is surfaced so it is not silent.
+        if (($response['partial'] ?? false) === true) {
+            Log::warning('GoCardless partial transaction fetch', [
+                'account_id' => $accountId,
+                'reason' => $response['partial_reason'] ?? null,
+                'pages_fetched' => $response['pages_fetched'] ?? null,
+            ]);
+        }
 
         $bookedTransactions = $response['transactions']['booked'] ?? [];
 
@@ -120,8 +142,12 @@ class GoCardlessService
         // Sync booked transactions
         $stats = $this->transactionSyncService->syncTransactions($bookedTransactions, $account, $updateExisting);
 
-        // Update sync timestamp
-        $this->accountRepository->updateSyncTimestamp($account);
+        // Advance the sync watermark only as far as what was actually and completely
+        // synced — never past failed rows or a page GoCardless didn't return.
+        $watermark = $this->resolveSyncWatermark($dateRange, $stats, (bool) ($response['partial'] ?? false));
+        if ($watermark !== null) {
+            $this->accountRepository->updateSyncTimestamp($account, $watermark);
+        }
 
         // Refresh account balance from GoCardless API
         $balanceUpdated = $this->refreshAccountBalance($account);
@@ -140,6 +166,58 @@ class GoCardlessService
             'date_range' => $dateRange,
             'balance_updated' => $balanceUpdated,
         ];
+    }
+
+    /**
+     * Decide how far the sync watermark (gocardless_last_synced_at) may advance.
+     *
+     * TransactionSyncService::calculateDateRange() windows the next fetch from this
+     * watermark (minus one day, capped at 90 days), so advancing it past data that
+     * failed to persist — or past a page GoCardless never returned — would mean that
+     * data is never retried by the next scheduled sync. The rules, in order:
+     *
+     * - Partial fetch: which pages are missing is unknown, so the watermark cannot
+     *   move at all. The next run's 90-day-capped window will retry from wherever it
+     *   last successfully advanced to.
+     * - Full fetch with failures whose earliest date is known: pull the watermark back
+     *   to the day before that failure, clamped to [now()-90d, date_to], so the next
+     *   run re-fetches from before the earliest known gap.
+     * - Full fetch with failures but no derivable date (e.g. mapping failed before a
+     *   date could be parsed): do not advance, to stay safe.
+     * - Clean fetch (no errors): advance to date_to, same as before this change.
+     *
+     * @param  array{date_from:string,date_to:string}  $dateRange
+     * @param  array<string,mixed>  $stats
+     */
+    private function resolveSyncWatermark(array $dateRange, array $stats, bool $partial): ?Carbon
+    {
+        if ($partial) {
+            return null;
+        }
+
+        $errors = is_numeric($stats['errors'] ?? null) ? (int) $stats['errors'] : 0;
+
+        if ($errors === 0) {
+            return Carbon::parse($dateRange['date_to']);
+        }
+
+        $earliest = $stats['earliest_unsynced_date'] ?? null;
+        if (! is_string($earliest) || $earliest === '') {
+            return null;
+        }
+
+        $watermark = Carbon::parse($earliest)->subDay();
+        $floor = now()->subDays(90);
+        $ceiling = Carbon::parse($dateRange['date_to']);
+
+        if ($watermark->lt($floor)) {
+            return $floor;
+        }
+        if ($watermark->gt($ceiling)) {
+            return $ceiling;
+        }
+
+        return $watermark;
     }
 
     /**
@@ -182,6 +260,9 @@ class GoCardlessService
      *
      * @param  Account  $account  The account to refresh balance for
      * @return bool True if balance was updated, false otherwise
+     *
+     * @throws GoCardlessConsentExpiredException When the bank has withdrawn access — the only
+     *                                           failure here a caller can act on.
      */
     public function refreshAccountBalance(Account $account): bool
     {
@@ -226,6 +307,12 @@ class GoCardlessService
             ]);
 
             return false;
+        } catch (GoCardlessConsentExpiredException $e) {
+            // Unlike every other failure here, this is not "balance unavailable this run" — the
+            // connection is dead until reconnected, so it must not be swallowed into a false.
+            $this->flagConsentExpired($account);
+
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Failed to refresh account balance from GoCardless', [
                 'account_id' => $account->id,
@@ -233,6 +320,41 @@ class GoCardlessService
             ]);
 
             return false;
+        }
+    }
+
+    /**
+     * Record that an account (and the requisition that authorized it) needs the user to
+     * re-authorize with their bank.
+     *
+     * Best-effort and never fatal: it runs while an exception is already propagating, so a
+     * write failure here must not replace the original consent error.
+     */
+    private function flagConsentExpired(Account $account): void
+    {
+        try {
+            $this->accountRepository->markNeedsReconnect($account);
+
+            $requisitionRowId = $account->gocardless_requisition_id;
+            if ($requisitionRowId === null) {
+                return;
+            }
+
+            // Scoped by owner as well as key: the FK is set from callback data, and a mismatch
+            // must fail closed rather than expire another tenant's connection.
+            $requisition = GoCardlessRequisition::query()
+                ->whereKey($requisitionRowId)
+                ->where('user_id', $account->user_id)
+                ->first();
+
+            if ($requisition instanceof GoCardlessRequisition) {
+                $requisition->update(['status' => GoCardlessRequisitionStatus::EXPIRED]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to flag GoCardless consent expiry', [
+                'account_id' => $account->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -253,15 +375,20 @@ class GoCardlessService
      *
      * Creates an End User Agreement first (90-day access) then links it to the requisition.
      * Falls back to requisition without agreement if EUA creation fails.
+     *
+     * @param  string|null  $reference  Correlation id GoCardless echoes back on the redirect as `ref=`.
+     * @return array{requisition: array<string, mixed>, agreement: array<string, mixed>|null}
      */
-    public function createRequisition(string $institutionId, string $redirectUrl, User $user): array
+    public function createRequisition(string $institutionId, string $redirectUrl, User $user, ?string $reference = null): array
     {
         $this->getClient($user);
 
         $agreementId = null;
+        $agreement = null;
         try {
-            $agreement = $this->client->createEndUserAgreement($institutionId, []);
-            $agreementId = $agreement['id'] ?? null;
+            $created = $this->client->createEndUserAgreement($institutionId, []);
+            $agreementId = $created['id'] ?? null;
+            $agreement = $agreementId !== null ? $created : null;
             Log::info('Created End User Agreement', [
                 'institution_id' => $institutionId,
                 'agreement_id' => $agreementId,
@@ -273,7 +400,27 @@ class GoCardlessService
             ]);
         }
 
-        return $this->client->createRequisition($institutionId, $redirectUrl, $agreementId);
+        $agreementIdString = is_string($agreementId) ? $agreementId : null;
+
+        return [
+            'requisition' => $this->client->createRequisition($institutionId, $redirectUrl, $agreementIdString, $reference),
+            'agreement' => is_array($agreement) ? $agreement : null,
+        ];
+    }
+
+    /**
+     * Fetch an existing End User Agreement (used to resolve the exact access window
+     * after the bank redirect).
+     *
+     * @return array<string, mixed>
+     *
+     * @throws \Exception
+     */
+    public function getEndUserAgreement(string $agreementId, User $user): array
+    {
+        $this->getClient($user);
+
+        return $this->client->getEndUserAgreement($agreementId);
     }
 
     /**
@@ -449,10 +596,9 @@ class GoCardlessService
             'balance' => $currentBalance,
         ]));
 
-        $mappedData['user_id'] = $user->id;
         $mappedData['name'] = $mappedData['name'] ?? 'Imported Account';
 
-        return $this->accountRepository->create($mappedData);
+        return $this->accountRepository->createForUser($user->id, $mappedData);
     }
 
     /**

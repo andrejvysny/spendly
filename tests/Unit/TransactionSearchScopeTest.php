@@ -16,7 +16,7 @@ class TransactionSearchScopeTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $account = Account::create([
+        $account = Account::factory()->create([
             'user_id' => $user->id,
             'name' => 'Test Account',
             'bank_name' => 'Test Bank',

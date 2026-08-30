@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Account;
 use App\Models\Budget;
 use App\Models\Category;
 use App\Models\Counterparty;
+use App\Models\GoCardlessRequisition;
 use App\Models\Import\Import;
 use App\Models\RecurringGroup;
 use App\Models\Tag;
@@ -20,10 +22,12 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
+        Account::class => OwnedByUserPolicy::class,
         Budget::class => BudgetPolicy::class,
         Category::class => OwnedByUserPolicy::class,
         Import::class => OwnedByUserPolicy::class,
         Counterparty::class => OwnedByUserPolicy::class,
+        GoCardlessRequisition::class => OwnedByUserPolicy::class,
         RecurringGroup::class => OwnedByUserPolicy::class,
         Tag::class => OwnedByUserPolicy::class,
     ];

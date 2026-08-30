@@ -41,7 +41,7 @@ class ImportsScreenTest extends TestCase
     {
         $this->withoutExceptionHandling();
         $user = User::factory()->create();
-        $account = Account::create([
+        $account = Account::factory()->create([
             'user_id' => $user->id,
             'name' => 'Main',
             'bank_name' => 'Demo',

@@ -20,6 +20,13 @@ abstract class TestCase extends BaseTestCase
         // Force the log channel to null to suppress all logs during tests
         config(['logging.default' => 'null']);
 
+        // Clear instance-level GoCardless credentials so a developer's real .env cannot decide
+        // whether bank sync counts as configured. Tests that need them set them explicitly.
+        config([
+            'services.gocardless.secret_id' => null,
+            'services.gocardless.secret_key' => null,
+        ]);
+
         // Reset the log manager to use the new configuration
         $this->app->make('log')->setDefaultDriver('null');
     }

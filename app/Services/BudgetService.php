@@ -257,10 +257,10 @@ class BudgetService
      * then applies each budget's filter in PHP. Avoids one SUM query per
      * budget when rendering the budgets-with-progress view.
      *
-     * @param  Collection<int, Budget>                  $budgets
-     * @param  Collection<int|string, BudgetPeriod>     $periodsByBudgetId  Keyed by budget_id.
-     * @param  Collection<int, \App\Models\Account>     $accounts
-     * @return array<int, float>                        budget_id => spent (2dp)
+     * @param  Collection<int, Budget>  $budgets
+     * @param  Collection<int|string, BudgetPeriod>  $periodsByBudgetId  Keyed by budget_id.
+     * @param  Collection<int, \App\Models\Account>  $accounts
+     * @return array<int, float> budget_id => spent (2dp)
      */
     private function getSpentForBudgets(Collection $budgets, Collection $periodsByBudgetId, Collection $accounts): array
     {
@@ -334,6 +334,7 @@ class BudgetService
             $period = $periodsByBudgetId->get($budget->id);
             if ($period === null || $this->isOrphanedTarget($budget)) {
                 $result[$budget->id] = 0.0;
+
                 continue;
             }
 

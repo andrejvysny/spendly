@@ -6,6 +6,7 @@ namespace Tests\Unit\Services\GoCardless;
 
 use App\Services\GoCardless\TransactionDataValidator;
 use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
@@ -73,7 +74,7 @@ class TransactionDataValidatorTest extends TestCase
         $this->assertContains('near_zero_amount', $result->reviewReasons);
     }
 
-    public function test_invalid_currency_defaults_to_eur_and_flags_review(): void
+    public function test_uncommon_but_well_formed_currency_is_kept_verbatim_and_flags_review(): void
     {
         $syncDate = Carbon::parse('2026-02-05');
         $mapped = [
@@ -85,9 +86,94 @@ class TransactionDataValidatorTest extends TestCase
             'account_id' => 1,
         ];
         $result = $this->validator->validate($mapped, $syncDate);
+        // Currency must NEVER be relabeled - relabeling without converting the amount
+        // silently corrupts the transaction's monetary value.
+        $this->assertFalse($result->hasErrors());
+        $this->assertSame('XXX', $result->data['currency']);
+        $this->assertContains('uncommon_currency', $result->reviewReasons);
+        $this->assertContains('Uncommon currency', $result->warnings);
+    }
+
+    public function test_iso_currency_not_in_common_list_is_kept_and_flagged(): void
+    {
+        $syncDate = Carbon::parse('2026-02-05');
+        $mapped = [
+            'transaction_id' => 'tx-1',
+            'amount' => 10.00,
+            'currency' => 'ISK',
+            'booked_date' => $syncDate,
+            'description' => 'Test',
+            'account_id' => 1,
+        ];
+        $result = $this->validator->validate($mapped, $syncDate);
+        $this->assertFalse($result->hasErrors());
+        $this->assertSame('ISK', $result->data['currency']);
+        $this->assertTrue($result->needsReview);
+        $this->assertContains('uncommon_currency', $result->reviewReasons);
+    }
+
+    public function test_lowercase_currency_is_normalized_to_uppercase(): void
+    {
+        $syncDate = Carbon::parse('2026-02-05');
+        $mapped = [
+            'transaction_id' => 'tx-1',
+            'amount' => 10.00,
+            'currency' => 'usd',
+            'booked_date' => $syncDate,
+            'description' => 'Test',
+            'account_id' => 1,
+        ];
+        $result = $this->validator->validate($mapped, $syncDate);
+        $this->assertFalse($result->hasErrors());
+        $this->assertSame('USD', $result->data['currency']);
+        $this->assertNotContains('uncommon_currency', $result->reviewReasons);
+    }
+
+    public static function malformedCurrencyProvider(): array
+    {
+        return [
+            'four letter code' => ['EURO'],
+            'currency symbol' => ['€'],
+            'numeric' => ['12'],
+            'too short' => ['eu'],
+        ];
+    }
+
+    #[DataProvider('malformedCurrencyProvider')]
+    public function test_malformed_currency_produces_error_and_is_not_relabeled(string $currency): void
+    {
+        $syncDate = Carbon::parse('2026-02-05');
+        $mapped = [
+            'transaction_id' => 'tx-1',
+            'amount' => 10.00,
+            'currency' => $currency,
+            'booked_date' => $syncDate,
+            'description' => 'Test',
+            'account_id' => 1,
+        ];
+        $result = $this->validator->validate($mapped, $syncDate);
+        $this->assertTrue($result->hasErrors());
+        $this->assertContains('Currency is not a valid ISO 4217 code', $result->errors);
+        // Must never be force-relabeled to EUR.
+        $this->assertNotSame('EUR', $result->data['currency']);
+    }
+
+    public function test_missing_currency_defaults_to_eur_and_flags_review(): void
+    {
+        $syncDate = Carbon::parse('2026-02-05');
+        $mapped = [
+            'transaction_id' => 'tx-1',
+            'amount' => 10.00,
+            'currency' => null,
+            'booked_date' => $syncDate,
+            'description' => 'Test',
+            'account_id' => 1,
+        ];
+        $result = $this->validator->validate($mapped, $syncDate);
         $this->assertFalse($result->hasErrors());
         $this->assertSame('EUR', $result->data['currency']);
-        $this->assertContains('invalid_currency', $result->reviewReasons);
+        $this->assertContains('missing_currency', $result->reviewReasons);
+        $this->assertContains('Missing currency, defaulting to EUR', $result->warnings);
     }
 
     public function test_missing_amount_produces_error(): void

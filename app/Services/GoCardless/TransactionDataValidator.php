@@ -18,7 +18,7 @@ class TransactionDataValidator
 
     private const MAX_PARTNER_LENGTH = 255;
 
-    private const VALID_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CZK', 'PLN', 'HUF', 'SEK', 'NOK', 'DKK'];
+    private const COMMON_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CZK', 'PLN', 'HUF', 'SEK', 'NOK', 'DKK'];
 
     public function validate(array $mappedData, Carbon $syncDate): ValidationResult
     {
@@ -77,14 +77,22 @@ class TransactionDataValidator
         }
 
         $currency = $data['currency'] ?? null;
-        if (empty($currency) || ! in_array(strtoupper((string) $currency), self::VALID_CURRENCIES, true)) {
+        if (empty($currency)) {
             $data['currency'] = 'EUR';
-            if (! empty($currency)) {
-                $warnings[] = 'Invalid currency, defaulting to EUR';
-                $reviewReasons[] = 'invalid_currency';
-            }
+            $warnings[] = 'Missing currency, defaulting to EUR';
+            $reviewReasons[] = 'missing_currency';
         } else {
-            $data['currency'] = strtoupper((string) $currency);
+            $normalizedCurrency = strtoupper(trim((string) $currency));
+            $data['currency'] = $normalizedCurrency;
+            if (! preg_match('/^[A-Z]{3}$/', $normalizedCurrency)) {
+                // Never relabel an unrecognized currency to EUR: that silently corrupts the
+                // amount's meaning. Flag as an error so the row is preserved in
+                // gocardless_sync_failures with its raw payload for manual review instead.
+                $errors[] = 'Currency is not a valid ISO 4217 code';
+            } elseif (! in_array($normalizedCurrency, self::COMMON_CURRENCIES, true)) {
+                $warnings[] = 'Uncommon currency';
+                $reviewReasons[] = 'uncommon_currency';
+            }
         }
 
         $description = $data['description'] ?? '';

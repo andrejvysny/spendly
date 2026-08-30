@@ -49,8 +49,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
 
     Route::get('/accounts/{account}', [AccountController::class, 'show'])->name('accounts.show');
-    Route::delete('/accounts/{id}', [AccountController::class, 'destroy'])->name('accounts.destroy');
-    Route::put('/accounts/{id}/sync-options', [AccountController::class, 'updateSyncOptions'])->name('accounts.sync-options.update');
+    Route::delete('/accounts/{account}', [AccountController::class, 'destroy'])->name('accounts.destroy');
+    Route::put('/accounts/{account}/sync-options', [AccountController::class, 'updateSyncOptions'])->name('accounts.sync-options.update');
 
     // Rule Engine (New) - Web page route
     Route::get('/rules', [RuleController::class, 'indexPage'])->name('rules.index');

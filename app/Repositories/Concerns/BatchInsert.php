@@ -9,8 +9,11 @@ use Illuminate\Support\Facades\DB;
 trait BatchInsert
 {
     /**
+     * Insert records, ignoring rows rejected by a unique constraint.
+     *
      * @param  array<int, array<string, mixed>>  $records
      * @param  array<int, string>  $jsonColumns
+     * @return int Number of rows actually inserted (dropped duplicates are not counted).
      */
     protected function batchInsert(string $table, array $records, array $jsonColumns = []): int
     {
@@ -28,8 +31,6 @@ trait BatchInsert
             return $record;
         }, $records);
 
-        DB::table($table)->insertOrIgnore($processed);
-
-        return count($processed);
+        return DB::table($table)->insertOrIgnore($processed);
     }
 }

@@ -26,6 +26,7 @@ class User extends Authenticatable
         'budget_mode',
         'gocardless_secret_id',
         'gocardless_secret_key',
+        'gocardless_token_secret_hash',
         'gocardless_access_token',
         'gocardless_refresh_token',
         'gocardless_refresh_token_expires_at',
@@ -44,6 +45,7 @@ class User extends Authenticatable
         'remember_token',
         'gocardless_secret_id',
         'gocardless_secret_key',
+        'gocardless_token_secret_hash',
         'gocardless_access_token',
         'gocardless_refresh_token',
     ];

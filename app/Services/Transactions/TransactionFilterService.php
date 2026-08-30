@@ -30,7 +30,7 @@ class TransactionFilterService
     /**
      * Build a user-scoped Transaction query and apply request filters.
      *
-     * @return array{0: Builder<Transaction>, 1: bool}  [query, isFiltered]
+     * @return array{0: Builder<Transaction>, 1: bool} [query, isFiltered]
      */
     public function buildQuery(User $user, Request $request): array
     {

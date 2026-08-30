@@ -10,7 +10,7 @@ final class GoCardlessFixtureLoader
 {
     private static function fixturePath(string ...$parts): string
     {
-        return base_path(implode(DIRECTORY_SEPARATOR, array_merge(['gocardless_bank_account_data'], $parts)));
+        return base_path(implode(DIRECTORY_SEPARATOR, array_merge(['sample_data', 'gocardless_bank_account_data'], $parts)));
     }
 
     /**
@@ -103,7 +103,7 @@ final class GoCardlessFixtureLoader
      */
     public static function fixturesAvailable(): bool
     {
-        $base = base_path('gocardless_bank_account_data');
+        $base = base_path('sample_data'.DIRECTORY_SEPARATOR.'gocardless_bank_account_data');
 
         return File::isDirectory($base)
             && File::exists($base.DIRECTORY_SEPARATOR.'Revolut')

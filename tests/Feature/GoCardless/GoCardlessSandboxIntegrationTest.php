@@ -9,6 +9,7 @@ use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\GoCardless\BalanceResolver;
+use App\Services\GoCardless\CredentialsResolver;
 use App\Services\GoCardless\GoCardlessBankDataClient;
 use App\Services\GoCardless\GocardlessMapper;
 use App\Services\GoCardless\TokenManager;
@@ -45,7 +46,7 @@ class GoCardlessSandboxIntegrationTest extends TestCase
     /** @var array<string, mixed>|null */
     private static ?array $cachedBalances = null;
 
-    /** @var array{transactions?: array{booked?: list<array<string, mixed>>}}|null */
+    /** @var array{transactions?: array{booked?: list<mixed>}, partial?: bool, partial_reason?: string|null, pages_fetched?: int}|null */
     private static ?array $cachedTransactions = null;
 
     /** @var array<string, mixed>|null @phpstan-ignore property.onlyWritten */
@@ -267,7 +268,7 @@ class GoCardlessSandboxIntegrationTest extends TestCase
     {
         $user = $this->createTestUserWithSandboxCredentials();
 
-        $tokenManager = new TokenManager($user);
+        $tokenManager = new TokenManager($user, app(CredentialsResolver::class)->resolve($user));
 
         $accessToken = $this->retryOnRateLimit(fn () => $tokenManager->getAccessToken());
         $this->assertNotEmpty($accessToken);

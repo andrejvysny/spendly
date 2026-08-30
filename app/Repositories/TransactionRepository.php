@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Repositories\Concerns\BatchInsert;
 use App\Services\TextSimilarity;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class TransactionRepository extends BaseRepository implements TransactionRepositoryInterface
@@ -181,29 +182,21 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
     /**
      * @param  array<string, mixed>  $mappedData
      */
+    public function hasPotentialImportMatch(int $accountId, array $mappedData): bool
+    {
+        return $this->importCandidateQuery($accountId, $mappedData)->exists();
+    }
+
+    /**
+     * @param  array<string, mixed>  $mappedData
+     */
     public function findStrongMatchingImport(int $accountId, array $mappedData): ?Transaction
     {
-        $bookedDate = $mappedData['booked_date'] instanceof Carbon
-            ? $mappedData['booked_date']
-            : Carbon::parse((string) ($mappedData['booked_date'] ?? now()));
-        $dateStr = $bookedDate->format('Y-m-d');
-        $amount = (float) ($mappedData['amount'] ?? 0);
-        $tolerance = 0.01;
-        $currency = (string) ($mappedData['currency'] ?? '');
-        $fingerprint = (string) ($mappedData['fingerprint'] ?? '');
-        $description = (string) ($mappedData['description'] ?? '');
-        $partner = (string) ($mappedData['partner'] ?? '');
+        $fingerprint = $this->stringValue($mappedData['fingerprint'] ?? null);
+        $description = $this->stringValue($mappedData['description'] ?? null);
+        $partner = $this->stringValue($mappedData['partner'] ?? null);
 
-        $candidates = $this->model
-            ->where('account_id', $accountId)
-            ->whereDate('booked_date', $dateStr)
-            ->whereRaw('ABS(amount - ?) <= ?', [$amount, $tolerance])
-            ->where('currency', $currency)
-            ->where(function ($query) {
-                $query->where('transaction_id', 'like', 'IMP-%')
-                    ->orWhereNotNull('import_data');
-            })
-            ->get();
+        $candidates = $this->importCandidateQuery($accountId, $mappedData)->get();
 
         if ($candidates->isEmpty()) {
             return null;
@@ -224,12 +217,67 @@ class TransactionRepository extends BaseRepository implements TransactionReposit
         }
 
         $strongMatches = $candidates->filter(function (Transaction $candidate) use ($description, $partner) {
-            $descriptionSimilarity = TextSimilarity::similarity((string) $candidate->description, $description);
-            $partnerSimilarity = TextSimilarity::similarity((string) ($candidate->partner ?? ''), $partner);
+            $descriptionSimilarity = TextSimilarity::similarity($this->stringValue($candidate->description), $description);
+            $partnerSimilarity = TextSimilarity::similarity($this->stringValue($candidate->partner), $partner);
 
             return max($descriptionSimilarity, $partnerSimilarity) >= 0.9;
         })->values();
 
         return $strongMatches->count() === 1 ? $strongMatches->first() : null;
+    }
+
+    /**
+     * Same-account rows that could be the CSV-imported counterpart of a synced movement.
+     *
+     * Rows already produced by a GoCardless sync are excluded: the mapper stamps
+     * `import_data` on every synced row, so without this narrowing a previously
+     * synced transaction would look like an import candidate and be overwritten
+     * by the next identical-but-distinct movement.
+     *
+     * @param  array<string, mixed>  $mappedData
+     * @return Builder<Transaction>
+     */
+    private function importCandidateQuery(int $accountId, array $mappedData): Builder
+    {
+        $bookedDate = $this->resolveBookedDate($mappedData);
+
+        return Transaction::query()
+            ->where('account_id', $accountId)
+            ->whereDate('booked_date', $bookedDate->format('Y-m-d'))
+            ->whereRaw('ABS(amount - ?) <= ?', [$this->floatValue($mappedData['amount'] ?? null), 0.01])
+            ->where('currency', $this->stringValue($mappedData['currency'] ?? null))
+            ->where('is_gocardless_synced', false)
+            ->where(function ($query) {
+                $query->where('transaction_id', 'like', 'IMP-%')
+                    ->orWhereNotNull('import_data');
+            });
+    }
+
+    /**
+     * @param  array<string, mixed>  $mappedData
+     */
+    private function resolveBookedDate(array $mappedData): Carbon
+    {
+        $bookedDate = $mappedData['booked_date'] ?? null;
+
+        if ($bookedDate instanceof Carbon) {
+            return $bookedDate;
+        }
+
+        if (is_scalar($bookedDate) && trim((string) $bookedDate) !== '') {
+            return Carbon::parse((string) $bookedDate);
+        }
+
+        return Carbon::now();
+    }
+
+    private function stringValue(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    private function floatValue(mixed $value): float
+    {
+        return is_numeric($value) ? (float) $value : 0.0;
     }
 }

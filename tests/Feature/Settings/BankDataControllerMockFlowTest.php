@@ -71,14 +71,18 @@ class BankDataControllerMockFlowTest extends TestCase
             ->first();
         $this->assertNotNull($account, 'Account should exist after manual import');
 
-        // 5. Sync transactions for the imported account
+        // 5. Sync transactions for the imported account. The endpoint only queues the work
+        // (202); under the test suite's sync queue driver the job then runs inline, so the
+        // account's own status is what proves the chain actually completed.
         $syncResponse = $this->actingAs($this->user)
             ->postJson("/api/bank-data/gocardless/accounts/{$account->id}/sync-transactions", [
                 'update_existing' => true,
                 'force_max_date_range' => false,
             ]);
-        $syncResponse->assertOk();
+        $syncResponse->assertStatus(202);
         $syncResponse->assertJsonPath('success', true);
+
+        $this->assertSame(Account::SYNC_STATUS_SUCCESS, $account->refresh()->gocardless_sync_status);
     }
 
     public function test_revolut_fixture_flow_import_and_sync_uses_fixture_data(): void
@@ -129,9 +133,13 @@ class BankDataControllerMockFlowTest extends TestCase
                 'force_max_date_range' => false,
             ]);
 
-        $syncResponse->assertOk();
+        $syncResponse->assertStatus(202);
         $syncResponse->assertJsonPath('success', true);
-        $data = $syncResponse->json('data');
-        $this->assertNotNull($data, 'Sync response should contain data');
+
+        // Queued, then run inline by the sync queue driver: the fixture data really was synced.
+        // (The 'queued' body a real deployment returns is asserted under Queue::fake in
+        // GoCardlessSyncControllerTest; the sync driver finishes the job before the response
+        // is serialized, so it cannot be observed here.)
+        $this->assertSame(Account::SYNC_STATUS_SUCCESS, $account->refresh()->gocardless_sync_status);
     }
 }

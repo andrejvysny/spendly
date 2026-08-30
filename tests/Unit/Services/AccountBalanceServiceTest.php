@@ -68,4 +68,40 @@ class AccountBalanceServiceTest extends TestCase
 
         $this->assertSame(55.0, $balance);
     }
+
+    public function test_gocardless_transactions_without_balance_do_not_pin_balance_to_zero(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create([
+            'user_id' => $user->id,
+            'opening_balance' => null,
+            'is_gocardless_synced' => true,
+        ]);
+
+        // Simulates real GoCardless sync data (e.g. SLSP) where no transaction carries a
+        // balanceAfterTransaction snapshot. These rows must be null, not a false 0 - a false
+        // 0 would otherwise be picked up as the authoritative balance anchor below.
+        Transaction::factory()->create([
+            'account_id' => $account->id,
+            'booked_date' => Carbon::parse('2026-01-01'),
+            'processed_date' => Carbon::parse('2026-01-01'),
+            'amount' => 100.00,
+            'balance_after_transaction' => null,
+            'is_gocardless_synced' => true,
+        ]);
+        Transaction::factory()->create([
+            'account_id' => $account->id,
+            'booked_date' => Carbon::parse('2026-01-02'),
+            'processed_date' => Carbon::parse('2026-01-02'),
+            'amount' => -20.00,
+            'balance_after_transaction' => null,
+            'is_gocardless_synced' => true,
+        ]);
+
+        $balance = $this->app->make(AccountBalanceService::class)->calculateBalanceForAccount($account);
+
+        // No authoritative balance anchor and no opening_balance: must not silently resolve
+        // to a corrupted 0, must fall through to null so callers know balance is unknown.
+        $this->assertNull($balance);
+    }
 }

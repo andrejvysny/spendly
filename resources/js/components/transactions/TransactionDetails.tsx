@@ -193,7 +193,9 @@ export default function TransactionDetails({ transaction }: Props) {
                 <div>
                     <p className="text-muted-foreground text-sm">Balance After</p>
                     <p>
-                        {Number(transaction.balance_after_transaction).toFixed(2)} {transaction.currency || '-'}
+                        {transaction.balance_after_transaction === null || transaction.balance_after_transaction === undefined
+                            ? '-'
+                            : `${Number(transaction.balance_after_transaction).toFixed(2)} ${transaction.currency || '-'}`}
                     </p>
                 </div>
             </div>

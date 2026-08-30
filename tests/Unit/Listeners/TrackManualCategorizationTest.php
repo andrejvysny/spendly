@@ -39,7 +39,7 @@ class TrackManualCategorizationTest extends TestCase
         [$user, $tx] = $this->makeUserWithTransaction();
 
         $event = new TransactionUpdated($tx, ['description' => 'new']);
-        (new TrackManualCategorization())->handle($event);
+        (new TrackManualCategorization)->handle($event);
 
         Bus::assertNotDispatched(RetrainMlModelJob::class);
         $this->assertNull(Cache::get(TrackManualCategorization::counterKey($user->id)));
@@ -51,7 +51,7 @@ class TrackManualCategorizationTest extends TestCase
         [$user, $tx] = $this->makeUserWithTransaction();
 
         $event = new TransactionUpdated($tx, []);
-        (new TrackManualCategorization())->handle($event);
+        (new TrackManualCategorization)->handle($event);
 
         Bus::assertNotDispatched(RetrainMlModelJob::class);
     }
@@ -69,7 +69,7 @@ class TrackManualCategorizationTest extends TestCase
         ]);
 
         $event = new TransactionUpdated($tx, ['category_id' => 5]);
-        (new TrackManualCategorization())->handle($event);
+        (new TrackManualCategorization)->handle($event);
 
         $this->assertEquals(1, Cache::get(TrackManualCategorization::counterKey($user->id)));
     }
@@ -84,7 +84,7 @@ class TrackManualCategorizationTest extends TestCase
             'retrain_threshold' => 100,
         ]);
 
-        $listener = new TrackManualCategorization();
+        $listener = new TrackManualCategorization;
         $event = new TransactionUpdated($tx, ['category_id' => 5]);
 
         $listener->handle($event);
@@ -107,7 +107,7 @@ class TrackManualCategorizationTest extends TestCase
             'retrain_threshold' => 5,
         ]);
 
-        $listener = new TrackManualCategorization();
+        $listener = new TrackManualCategorization;
         $event = new TransactionUpdated($tx, ['category_id' => 5]);
 
         // 4 calls — one below threshold
@@ -130,7 +130,7 @@ class TrackManualCategorizationTest extends TestCase
             'retrain_threshold' => 3,
         ]);
 
-        $listener = new TrackManualCategorization();
+        $listener = new TrackManualCategorization;
         $event = new TransactionUpdated($tx, ['category_id' => 5]);
 
         $listener->handle($event);
@@ -152,7 +152,7 @@ class TrackManualCategorizationTest extends TestCase
         ]);
 
         $event = new TransactionUpdated($tx, ['category_id' => 5]);
-        (new TrackManualCategorization())->handle($event);
+        (new TrackManualCategorization)->handle($event);
 
         Bus::assertNotDispatched(RetrainMlModelJob::class);
     }
@@ -164,7 +164,7 @@ class TrackManualCategorizationTest extends TestCase
         // No MlPersonalizationSetting created — forUser() should create with defaults
 
         $event = new TransactionUpdated($tx, ['category_id' => 5]);
-        (new TrackManualCategorization())->handle($event);
+        (new TrackManualCategorization)->handle($event);
 
         $this->assertDatabaseHas('ml_personalization_settings', [
             'user_id' => $user->id,
@@ -193,7 +193,7 @@ class TrackManualCategorizationTest extends TestCase
         MlPersonalizationSetting::create(['user_id' => $user1->id, 'auto_retrain' => false, 'retrain_threshold' => 100]);
         MlPersonalizationSetting::create(['user_id' => $user2->id, 'auto_retrain' => false, 'retrain_threshold' => 100]);
 
-        $listener = new TrackManualCategorization();
+        $listener = new TrackManualCategorization;
         $listener->handle(new TransactionUpdated($tx1, ['category_id' => 1]));
         $listener->handle(new TransactionUpdated($tx1, ['category_id' => 1]));
         $listener->handle(new TransactionUpdated($tx2, ['category_id' => 1]));

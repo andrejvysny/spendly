@@ -55,6 +55,18 @@ export interface Account {
     gocardless_account_id: string | null;
     is_gocardless_synced: boolean;
     gocardless_last_synced_at: string | null;
+    /** Set when the bank withdrew access (90-day consent lapsed); cleared once relinked. */
+    gocardless_needs_reconnect?: boolean;
+    /** FK to the gocardless_requisitions row that authorized this account. */
+    gocardless_requisition_id?: number | null;
+    /** Lifecycle of the queued sync job: idle|queued|syncing|success|failed|rate_limited|needs_reconnect. */
+    gocardless_sync_status?: string;
+    /** Short, redacted reason the last sync failed. Safe to render. */
+    gocardless_sync_error?: string | null;
+    /** No sync may be started before this instant (bank rate limit cooldown). */
+    gocardless_sync_retry_after?: string | null;
+    /** When the last sync job finished — distinct from gocardless_last_synced_at, the data watermark. */
+    gocardless_sync_finished_at?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -72,7 +84,7 @@ interface TransactionType {
     partner: string;
     type: string;
     metadata: Record<string, unknown> | null;
-    balance_after_transaction: number;
+    balance_after_transaction: number | null;
     account_id: number | null;
     duplicate_identifier?: string;
     original_amount?: number;

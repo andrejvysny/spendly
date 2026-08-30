@@ -7,6 +7,7 @@ use App\Services\AccountBalanceService;
 use App\Services\Csv\CsvProcessor;
 use App\Services\DuplicateTransactionService;
 use App\Services\GoCardless\BankDataClientInterface;
+use App\Services\GoCardless\CredentialsResolver;
 use App\Services\MlSuggestionService;
 use App\Services\TransactionImport\ImportFailurePersister;
 use App\Services\TransactionImport\ImportMappingService;
@@ -15,6 +16,7 @@ use App\Services\TransactionImport\TransactionImportService;
 use App\Services\TransactionImport\TransactionPersister;
 use App\Services\TransactionImport\TransactionRowProcessor;
 use App\Services\TransactionImport\TransactionValidator;
+use Illuminate\Foundation\Console\AboutCommand;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -91,6 +93,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Config-only: `php artisan about` must stay cheap, so this never touches the database.
+        AboutCommand::add('Spendly', function (CredentialsResolver $credentialsResolver): array {
+            return [
+                'GoCardless Mode' => config('services.gocardless.use_mock') ? 'mock' : 'live',
+                'Instance Credentials' => $credentialsResolver->hasInstanceCredentials() ? 'configured' : 'not configured',
+                'Queue Connection' => config('queue.default'),
+                'Sync Schedule' => sprintf(
+                    'dispatch every 4h, min interval %sh',
+                    is_scalar($minInterval = config('services.gocardless.min_sync_interval_hours')) ? (string) $minInterval : '8'
+                ),
+                'App URL' => config('app.url'),
+            ];
+        });
     }
 }

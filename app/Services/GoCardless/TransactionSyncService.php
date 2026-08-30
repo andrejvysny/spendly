@@ -12,11 +12,19 @@ use App\Models\Account;
 use App\Models\GoCardlessSyncFailure;
 use App\Models\RuleEngine\Trigger;
 use App\Models\Transaction;
+use App\Models\User;
+use App\Services\ExchangeRateService;
+use App\Services\GoCardless\DTOs\DedupDecision;
 use App\Services\MlSuggestionService;
 use App\Services\TransferDetectionService;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * @phpstan-type BatchStats array{created:int, updated:int, skipped:int, errors:int, needs_review:int, skipped_reasons:array<string,int>, earliest_unsynced_date:?string}
+ * @phpstan-type SyncCandidate array{data:array<string,mixed>, transaction_id:string, has_provider_id:bool, validation_review:bool}
+ */
 class TransactionSyncService
 {
     private const int BATCH_SIZE = 100;
@@ -28,14 +36,18 @@ class TransactionSyncService
         private readonly MlSuggestionService $mlSuggestionService,
         private readonly TransactionDataValidator $validator,
         private readonly GoCardlessSyncFailureRepositoryInterface $failureRepository,
-        private readonly RuleEngineInterface $ruleEngine
+        private readonly RuleEngineInterface $ruleEngine,
+        private readonly TransactionDeduplicator $deduplicator
     ) {}
 
     /**
      * Sync transactions for an account.
      *
      * @param  bool  $updateExisting  Whether to update already imported transactions (default: true)
-     * @return array Statistics about the sync
+     * @return array Statistics about the sync, including `earliest_unsynced_date` — the
+     *               earliest booked date (Y-m-d) among rows that failed this run, or null
+     *               when there were no failures or none carried a parseable date. Callers
+     *               use it to decide how far the sync watermark may safely advance.
      */
     public function syncTransactions(array $transactions, Account $account, bool $updateExisting = true): array
     {
@@ -47,6 +59,8 @@ class TransactionSyncService
             'skipped' => 0,
             'errors' => 0,
             'needs_review' => 0,
+            'skipped_reasons' => [],
+            'earliest_unsynced_date' => null,
         ];
 
         if (empty($transactions)) {
@@ -61,7 +75,16 @@ class TransactionSyncService
             $stats['updated'] += $batchStats['updated'];
             $stats['skipped'] += $batchStats['skipped'];
             $stats['errors'] += $batchStats['errors'];
-            $stats['needs_review'] += $batchStats['needs_review'] ?? 0;
+            $stats['needs_review'] += $batchStats['needs_review'];
+
+            foreach ($batchStats['skipped_reasons'] as $reason => $count) {
+                $stats['skipped_reasons'][$reason] = ($stats['skipped_reasons'][$reason] ?? 0) + $count;
+            }
+
+            $stats['earliest_unsynced_date'] = $this->earlierDate(
+                $stats['earliest_unsynced_date'],
+                $batchStats['earliest_unsynced_date']
+            );
         }
 
         // Run transfer detection for this user so new same-day pairs are marked.
@@ -81,6 +104,36 @@ class TransactionSyncService
         }
 
         return $stats;
+    }
+
+    /**
+     * Canonical re-processing path for GoCardless sync failure retries.
+     *
+     * Routes raw provider payloads back through the same pipeline a live sync uses —
+     * native_amount conversion, dedup, rule engine, and ML annotation all apply — instead
+     * of a retry command maintaining its own narrower write path that skips them.
+     *
+     * @param  array<int, array<string, mixed>>  $rawTransactions
+     * @return array<string, mixed> Statistics about the sync
+     */
+    public function resyncRawTransactions(array $rawTransactions, Account $account): array
+    {
+        return $this->syncTransactions($rawTransactions, $account, updateExisting: true);
+    }
+
+    /**
+     * Earlier of two Y-m-d date strings, treating null as "no date known".
+     */
+    private function earlierDate(?string $a, ?string $b): ?string
+    {
+        if ($a === null) {
+            return $b;
+        }
+        if ($b === null) {
+            return $a;
+        }
+
+        return $a <= $b ? $a : $b;
     }
 
     /**
@@ -114,147 +167,47 @@ class TransactionSyncService
     /**
      * Process a batch of transactions.
      *
+     * Runs in two passes: the first maps and validates every raw row, the second
+     * resolves each mapped row against what is already stored. Splitting them lets
+     * the existing-ID lookup use post-validation IDs (the validator synthesises an
+     * ID for rows the provider left without one).
+     *
+     * @param  array<int, array<string, mixed>>  $batch
      * @param  bool  $updateExisting  Whether to update already imported transactions
+     * @return BatchStats
      */
     private function processBatch(array $batch, Account $account, bool $updateExisting = true, ?Carbon $syncDate = null): array
     {
         $syncDate = $syncDate ?? Carbon::now();
+        $accountId = (int) $account->id;
         $stats = [
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
             'errors' => 0,
             'needs_review' => 0,
+            'skipped_reasons' => [],
+            'earliest_unsynced_date' => null,
         ];
 
-        // Extract transaction IDs (including fallback IDs from validator)
-        $transactionIds = array_map(function ($transaction) {
-            return $transaction['transactionId'] ?? null;
-        }, $batch);
+        // Pass 1: map + validate every raw row.
+        $candidates = $this->prepareCandidates($batch, $account, $syncDate, $stats);
 
-        $transactionIds = array_filter($transactionIds);
+        // Single lookup over post-validation IDs so validator-generated fallback IDs
+        // are matched against what is already stored.
+        $existingIds = $this->transactionRepository->getExistingTransactionIds(
+            $accountId,
+            array_values(array_unique(array_filter(array_column($candidates, 'transaction_id'))))
+        );
 
-        // Get existing transaction IDs (scoped by account to avoid cross-account collisions)
-        $existingIds = $this->transactionRepository->getExistingTransactionIds($account->id, $transactionIds);
-
-        $toCreate = [];
-        $toUpdate = [];
-
-        // Pre-fetch user's base currency (same account for all transactions in batch)
-        $accountUser = \App\Models\User::find($account->user_id);
-        $baseCurrency = $accountUser?->base_currency ?? 'EUR';
-
-        foreach ($batch as $transaction) {
-            $externalTransactionId = $transaction['transactionId'] ?? null;
-
-            try {
-                $mappedData = $this->mapper->mapTransactionData($transaction, $account, $syncDate);
-
-                $validation = $this->validator->validate($mappedData, $syncDate);
-
-                if ($validation->hasErrors()) {
-                    $this->failureRepository->create([
-                        'account_id' => $account->id,
-                        'user_id' => (int) $account->user_id,
-                        'external_transaction_id' => $externalTransactionId,
-                        'error_type' => GoCardlessSyncFailure::ERROR_TYPE_VALIDATION,
-                        'error_message' => implode(', ', $validation->errors),
-                        'raw_data' => $transaction,
-                        'validation_errors' => $validation->errors,
-                    ]);
-                    $stats['errors']++;
-
-                    continue;
-                }
-
-                $mappedData = $validation->data;
-                $mappedData['needs_manual_review'] = $validation->needsReview;
-                $mappedData['review_reason'] = $validation->reviewReasons !== []
-                    ? implode(',', $validation->reviewReasons)
-                    : null;
-
-                if ($validation->needsReview) {
-                    $stats['needs_review']++;
-                }
-
-                $mappedData['fingerprint'] = Transaction::generateFingerprint($mappedData);
-
-                // Set native_amount (convert to user's base currency)
-                if (! isset($mappedData['native_amount'])) {
-                    $txCurrency = $mappedData['currency'] ?? $baseCurrency;
-                    if ($txCurrency === $baseCurrency) {
-                        $mappedData['native_amount'] = $mappedData['amount'];
-                    } else {
-                        $bookedDate = isset($mappedData['booked_date']) ? Carbon::parse($mappedData['booked_date']) : $syncDate;
-                        $mappedData['native_amount'] = app(\App\Services\ExchangeRateService::class)->convert(
-                            (float) $mappedData['amount'],
-                            $txCurrency,
-                            $baseCurrency,
-                            $bookedDate
-                        );
-                    }
-                }
-
-                $transactionId = $mappedData['transaction_id'];
-
-                if ($existingIds->contains($transactionId)) {
-                    if ($updateExisting) {
-                        $toUpdate[$transactionId] = $mappedData;
-                    } else {
-                        $stats['skipped']++;
-                        Log::info('Skipping existing transaction', [
-                            'transaction_id' => $transactionId,
-                            'account_id' => $account->id,
-                            'reason' => 'updateExisting is false',
-                        ]);
-                    }
-                } else {
-                    $existingImport = $this->transactionRepository->findStrongMatchingImport(
-                        $account->id,
-                        $mappedData
-                    );
-
-                    if ($existingImport !== null) {
-                        $toUpdate[$existingImport->transaction_id] = $mappedData;
-                    } elseif ($this->transactionRepository->fingerprintExists($account->id, $mappedData['fingerprint'])) {
-                        $stats['skipped']++;
-                    } elseif ($this->hasPotentialImportMatch($account->id, $mappedData)) {
-                        $mappedData['needs_manual_review'] = true;
-                        $mappedData['review_reason'] = $this->appendReviewReason(
-                            $mappedData['review_reason'] ?? null,
-                            'probable_duplicate'
-                        );
-                        $mappedData['created_at'] = now();
-                        $mappedData['updated_at'] = now();
-                        $toCreate[] = $mappedData;
-                    } else {
-                        $mappedData['created_at'] = now();
-                        $mappedData['updated_at'] = now();
-                        $toCreate[] = $mappedData;
-                    }
-                }
-            } catch (\Throwable $e) {
-                Log::error('Error mapping transaction', [
-                    'error' => $e->getMessage(),
-                    'transaction' => $transaction,
-                ]);
-                $this->failureRepository->create([
-                    'account_id' => $account->id,
-                    'user_id' => (int) $account->user_id,
-                    'external_transaction_id' => $externalTransactionId,
-                    'error_type' => GoCardlessSyncFailure::ERROR_TYPE_MAPPING,
-                    'error_message' => $e->getMessage(),
-                    'raw_data' => $transaction,
-                ]);
-                $stats['errors']++;
-            }
-        }
+        // Pass 2: decide what happens to each mapped row.
+        [$toCreate, $toUpdate] = $this->routeCandidates($candidates, $accountId, $existingIds, $updateExisting, $stats);
 
         // Perform batch operations
         $this->transactionRepository->transaction(function () use ($toCreate, $toUpdate, &$stats, $account) {
             // Batch create.
             if (! empty($toCreate)) {
-                $created = $this->transactionRepository->createBatch(array_values($toCreate));
+                $created = $this->transactionRepository->createBatch($toCreate);
                 $stats['created'] = $created;
             }
 
@@ -331,24 +284,257 @@ class TransactionSyncService
     }
 
     /**
+     * Pass 1: map and validate raw provider rows. Rows that cannot be mapped or fail
+     * validation are recorded as sync failures and dropped from the batch.
+     *
+     * @param  array<int, array<string, mixed>>  $batch
+     * @param  BatchStats  $stats
+     * @return list<SyncCandidate>
+     */
+    private function prepareCandidates(array $batch, Account $account, Carbon $syncDate, array &$stats): array
+    {
+        // Pre-fetch user's base currency (same account for all transactions in batch)
+        $accountUser = User::find($account->user_id);
+        $baseCurrency = $this->stringValue($accountUser instanceof User ? $accountUser->base_currency : null);
+        if ($baseCurrency === '') {
+            $baseCurrency = 'EUR';
+        }
+
+        $candidates = [];
+
+        foreach ($batch as $transaction) {
+            $externalTransactionId = $transaction['transactionId'] ?? null;
+
+            try {
+                $mappedData = $this->mapper->mapTransactionData($transaction, $account, $syncDate);
+
+                // Capture provider-ID presence BEFORE validation: the validator
+                // synthesises a `fallback_*` ID for rows the bank sent without one,
+                // and such rows must not be trusted as uniquely identified.
+                $hasProviderId = $this->stringValue($mappedData['transaction_id'] ?? null) !== '';
+
+                $validation = $this->validator->validate($mappedData, $syncDate);
+
+                if ($validation->hasErrors()) {
+                    $this->failureRepository->create([
+                        'account_id' => $account->id,
+                        'user_id' => (int) $account->user_id,
+                        'external_transaction_id' => $externalTransactionId,
+                        'error_type' => GoCardlessSyncFailure::ERROR_TYPE_VALIDATION,
+                        'error_message' => implode(', ', $validation->errors),
+                        'raw_data' => $transaction,
+                        'validation_errors' => $validation->errors,
+                    ]);
+                    $stats['errors']++;
+                    $this->trackFailureDate($stats, $transaction);
+
+                    continue;
+                }
+
+                $mappedData = $validation->data;
+                $mappedData['needs_manual_review'] = $validation->needsReview;
+                $mappedData['review_reason'] = $validation->reviewReasons !== []
+                    ? implode(',', $validation->reviewReasons)
+                    : null;
+
+                if ($validation->needsReview) {
+                    $stats['needs_review']++;
+                }
+
+                $mappedData['fingerprint'] = Transaction::generateFingerprint($mappedData);
+                $mappedData['native_amount'] = $this->resolveNativeAmount($mappedData, $baseCurrency, $syncDate);
+
+                $candidates[] = [
+                    'data' => $mappedData,
+                    'transaction_id' => $this->stringValue($mappedData['transaction_id'] ?? null),
+                    'has_provider_id' => $hasProviderId,
+                    'validation_review' => $validation->needsReview,
+                ];
+            } catch (\Throwable $e) {
+                Log::error('Error mapping transaction', [
+                    'error' => $e->getMessage(),
+                    'transaction' => $transaction,
+                ]);
+                $this->failureRepository->create([
+                    'account_id' => $account->id,
+                    'user_id' => (int) $account->user_id,
+                    'external_transaction_id' => $externalTransactionId,
+                    'error_type' => GoCardlessSyncFailure::ERROR_TYPE_MAPPING,
+                    'error_message' => $e->getMessage(),
+                    'raw_data' => $transaction,
+                ]);
+                $stats['errors']++;
+                $this->trackFailureDate($stats, $transaction);
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Records the booked date of a row that just produced a failure record, so the
+     * caller can learn how far back the sync watermark must be able to retry from.
+     * Parsed from the raw payload (bookingDateTime, falling back to bookingDate) since
+     * a failed row may not have made it through mapping. Unparsable/missing dates are
+     * silently ignored — the watermark then stays conservative (not advanced at all).
+     *
+     * @param  BatchStats  $stats
+     * @param  array<string, mixed>  $rawTransaction
+     */
+    private function trackFailureDate(array &$stats, array $rawTransaction): void
+    {
+        $date = $this->earliestBookedDate([$rawTransaction]);
+        if ($date === null) {
+            return;
+        }
+
+        $stats['earliest_unsynced_date'] = $this->earlierDate($stats['earliest_unsynced_date'], $date->format('Y-m-d'));
+    }
+
+    /**
+     * Pass 2: resolve each mapped row into a create or an update, or drop it.
+     *
+     * @param  list<SyncCandidate>  $candidates
+     * @param  Collection<int, string>  $existingIds
+     * @param  BatchStats  $stats
+     * @return array{0: list<array<string, mixed>>, 1: array<string, array<string, mixed>>}
+     */
+    private function routeCandidates(
+        array $candidates,
+        int $accountId,
+        Collection $existingIds,
+        bool $updateExisting,
+        array &$stats
+    ): array {
+        $toCreate = [];
+        $toUpdate = [];
+        $seenTransactionIds = [];
+
+        foreach ($candidates as $candidate) {
+            $data = $candidate['data'];
+            $transactionId = $candidate['transaction_id'];
+
+            // The provider repeated the same ID inside one payload: only the first wins,
+            // the second would be dropped by the (account_id, transaction_id) unique index.
+            if ($transactionId !== '' && isset($seenTransactionIds[$transactionId])) {
+                $this->recordSkip($stats, $accountId, $candidate, DedupDecision::REASON_DUPLICATE_IN_BATCH);
+
+                continue;
+            }
+            $seenTransactionIds[$transactionId] = true;
+
+            $decision = $this->deduplicator->decide(
+                $accountId,
+                $data,
+                $candidate['has_provider_id'],
+                $existingIds,
+                $updateExisting
+            );
+
+            if ($decision->isSkip()) {
+                $this->recordSkip($stats, $accountId, $candidate, $decision->reason);
+
+                continue;
+            }
+
+            if ($decision->isUpdate()) {
+                $target = (string) $decision->targetTransactionId;
+
+                if (! isset($toUpdate[$target])) {
+                    $toUpdate[$target] = $data;
+
+                    continue;
+                }
+
+                // Two rows in this batch resolved onto the same stored row. Overwriting the
+                // pending update would silently drop a real movement, so keep this one as a
+                // new transaction and let a human confirm it.
+                $decision = DedupDecision::create(DedupDecision::REASON_DUPLICATE_UPDATE_TARGET, true);
+            }
+
+            $toCreate[] = $this->prepareForCreate($data, $decision, $candidate['validation_review'], $stats);
+        }
+
+        return [$toCreate, $toUpdate];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  BatchStats  $stats
+     * @return array<string, mixed>
+     */
+    private function prepareForCreate(array $data, DedupDecision $decision, bool $alreadyFlagged, array &$stats): array
+    {
+        if ($decision->needsReview) {
+            $data['needs_manual_review'] = true;
+            $data['review_reason'] = $this->appendReviewReason(
+                is_string($data['review_reason'] ?? null) ? $data['review_reason'] : null,
+                $decision->reason
+            );
+
+            if (! $alreadyFlagged) {
+                $stats['needs_review']++;
+            }
+        }
+
+        $data['created_at'] = now();
+        $data['updated_at'] = now();
+
+        return $data;
+    }
+
+    /**
+     * Record a skipped row. Only identifiers are logged — never description or partner.
+     *
+     * @param  BatchStats  $stats
+     * @param  SyncCandidate  $candidate
+     */
+    private function recordSkip(array &$stats, int $accountId, array $candidate, string $reason): void
+    {
+        $stats['skipped']++;
+        $stats['skipped_reasons'][$reason] = ($stats['skipped_reasons'][$reason] ?? 0) + 1;
+
+        Log::info('GoCardless sync skipped transaction', [
+            'account_id' => $accountId,
+            'transaction_id' => $candidate['transaction_id'],
+            'reason' => $reason,
+            'fingerprint' => $this->stringValue($candidate['data']['fingerprint'] ?? null),
+        ]);
+    }
+
+    /**
+     * Amount expressed in the user's base currency.
+     *
      * @param  array<string, mixed>  $mappedData
      */
-    private function hasPotentialImportMatch(int $accountId, array $mappedData): bool
+    private function resolveNativeAmount(array $mappedData, string $baseCurrency, Carbon $syncDate): float
     {
-        $bookedDate = $mappedData['booked_date'] instanceof Carbon
-            ? $mappedData['booked_date']
-            : Carbon::parse((string) ($mappedData['booked_date'] ?? now()));
+        if (isset($mappedData['native_amount']) && is_numeric($mappedData['native_amount'])) {
+            return (float) $mappedData['native_amount'];
+        }
 
-        return Transaction::query()
-            ->where('account_id', $accountId)
-            ->whereDate('booked_date', $bookedDate->toDateString())
-            ->whereRaw('ABS(amount - ?) <= ?', [(float) ($mappedData['amount'] ?? 0), 0.01])
-            ->where('currency', (string) ($mappedData['currency'] ?? ''))
-            ->where(function ($query) {
-                $query->where('transaction_id', 'like', 'IMP-%')
-                    ->orWhereNotNull('import_data');
-            })
-            ->exists();
+        $amount = is_numeric($mappedData['amount'] ?? null) ? (float) $mappedData['amount'] : 0.0;
+        $currency = $this->stringValue($mappedData['currency'] ?? null);
+
+        if ($currency === '' || $currency === $baseCurrency) {
+            return $amount;
+        }
+
+        $bookedDate = $mappedData['booked_date'] ?? null;
+        if ($bookedDate instanceof Carbon) {
+            $conversionDate = $bookedDate;
+        } elseif (is_scalar($bookedDate) && trim((string) $bookedDate) !== '') {
+            $conversionDate = Carbon::parse((string) $bookedDate);
+        } else {
+            $conversionDate = $syncDate;
+        }
+
+        return app(ExchangeRateService::class)->convert($amount, $currency, $baseCurrency, $conversionDate);
+    }
+
+    private function stringValue(mixed $value): string
+    {
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 
     private function appendReviewReason(?string $existingReasons, string $newReason): string
@@ -365,6 +551,8 @@ class TransactionSyncService
 
     /**
      * Calculate date range for sync.
+     *
+     * @return array{date_from: string, date_to: string}
      *
      * @throws \InvalidArgumentException When invalid parameters are provided
      */

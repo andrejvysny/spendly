@@ -10,6 +10,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
@@ -18,10 +19,11 @@ import AppLayout from '@/layouts/app-layout';
 import { Account, Category, Counterparty, Transaction } from '@/types/index';
 import { formatAmount } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
-import { Check, MoreVertical, Settings } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { AlertTriangle, Check, MoreVertical, Settings } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { toast } from 'react-toastify';
 
 interface Props {
     account: Account;
@@ -59,6 +61,42 @@ interface Props {
 type FilterValues = {
     account_id: string;
 };
+
+/** Whitelisted shape returned by GET /accounts/{account}/sync-status. */
+type SyncStatusPayload = {
+    id: number;
+    sync_status: string;
+    last_synced_at: string | null;
+    finished_at: string | null;
+    error: string | null;
+    retry_after_seconds: number | null;
+    needs_reconnect: boolean;
+};
+
+const POLL_INTERVAL_MS = 3000;
+
+/**
+ * How long the page keeps watching. The job itself is bounded by its own retry deadline, not by
+ * this — giving up here only stops the polling, it never cancels the sync.
+ */
+const POLL_TIMEOUT_MS = 120000;
+
+function syncStatusChip(status: string | undefined): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } | null {
+    switch (status) {
+        case 'queued':
+            return { label: 'Queued', variant: 'secondary' };
+        case 'syncing':
+            return { label: 'Syncing…', variant: 'secondary' };
+        case 'failed':
+            return { label: 'Sync failed', variant: 'destructive' };
+        case 'rate_limited':
+            return { label: 'Rate limited', variant: 'outline' };
+        case 'needs_reconnect':
+            return { label: 'Reconnect needed', variant: 'destructive' };
+        default:
+            return null;
+    }
+}
 
 async function fetchAccountTransactions(
     params: FilterValues,
@@ -126,6 +164,8 @@ export default function Detail({
     const [savingOptions, setSavingOptions] = useState(false);
     const [syncScope, setSyncScope] = useState<'both' | 'transactions' | 'balance'>('both');
     const [currentBalance, setCurrentBalance] = useState(account.balance);
+    const [syncStatus, setSyncStatus] = useState<string>(account.gocardless_sync_status ?? 'idle');
+    const statusChip = syncStatusChip(syncStatus);
 
     // Load more functionality
     const {
@@ -183,40 +223,115 @@ export default function Detail({
         [account.id],
     );
 
+    /**
+     * The two ways a sync can be refused before it is ever queued. Both are actionable, so
+     * neither may be swallowed into the console the way the old inline path did.
+     */
+    const reportSyncStartFailure = useCallback((error: unknown) => {
+        if (!axios.isAxiosError(error)) {
+            toast.error('Could not start the sync.');
+            return;
+        }
+
+        const status = error.response?.status;
+
+        if (status === 409) {
+            toast.error('Your bank ended access to this account. Reconnect it in Bank Data settings.');
+            router.reload();
+            return;
+        }
+
+        if (status === 429) {
+            const retryAfter = error.response?.data?.retry_after ?? 60;
+            toast.error(`Rate limited by the bank. Try again in ${retryAfter}s.`);
+            return;
+        }
+
+        toast.error('Could not start the sync.');
+    }, []);
+
+    /**
+     * Sync now runs on a queue, so the outcome arrives by polling rather than in the POST
+     * response. A single failed poll is not a failed sync — only a terminal status is.
+     */
+    const pollSyncStatus = useCallback(async () => {
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+
+        while (Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+            let payload: SyncStatusPayload;
+            try {
+                const response = await axios.get(`/api/bank-data/gocardless/accounts/${account.id}/sync-status`);
+                payload = response.data.data;
+            } catch (error) {
+                console.error('Sync status poll failed:', error);
+                continue;
+            }
+
+            setSyncStatus(payload.sync_status);
+
+            if (payload.sync_status === 'success') {
+                toast.success('Transactions synced.');
+                router.reload();
+                return;
+            }
+            if (payload.sync_status === 'failed') {
+                toast.error(payload.error || 'Sync failed.');
+                return;
+            }
+            if (payload.sync_status === 'rate_limited') {
+                toast.error(`Rate limited by the bank. Try again in ${payload.retry_after_seconds ?? 60}s.`);
+                return;
+            }
+            if (payload.sync_status === 'needs_reconnect') {
+                toast.error('Your bank ended access to this account. Reconnect it in Bank Data settings.');
+                router.reload();
+                return;
+            }
+        }
+
+        toast.info('Sync is taking a while. It keeps running in the background — reload the page later to see the result.');
+    }, [account.id]);
+
     const handleSync = async () => {
         setSyncing(true);
-        try {
-            const doTransactions = syncScope === 'both' || syncScope === 'transactions';
-            const doBalance = syncScope === 'both' || syncScope === 'balance';
 
-            if (doTransactions) {
+        const doTransactions = syncScope === 'both' || syncScope === 'transactions';
+        const doBalance = syncScope === 'both' || syncScope === 'balance';
+        let queued = false;
+
+        if (doTransactions) {
+            try {
                 const response = await axios.post(`/api/bank-data/gocardless/accounts/${account.id}/sync-transactions`, {
-                    account_id: account.id,
                     update_existing: updateExisting,
                     force_max_date_range: forceMaxDateRange,
                 });
-                if (response.status !== 200) {
-                    console.error('Failed to sync transactions:', response.data);
-                }
+                queued = response.status === 202;
+                setSyncStatus(response.data?.data?.sync_status ?? 'queued');
+            } catch (error) {
+                reportSyncStartFailure(error);
             }
+        }
 
-            if (doBalance) {
+        // Balance stays synchronous, so it is reported on its own rather than folded into the
+        // queued transaction sync's outcome.
+        if (doBalance) {
+            try {
                 const response = await axios.post(`/api/bank-data/gocardless/accounts/${account.id}/refresh-balance`);
                 if (response.data?.success && response.data?.data?.balance != null) {
                     setCurrentBalance(response.data.data.balance);
-                } else {
-                    console.error('Failed to refresh balance:', response.data?.error);
                 }
+            } catch (error) {
+                reportSyncStartFailure(error);
             }
-
-            if (doTransactions) {
-                router.reload();
-            }
-        } catch (error) {
-            console.error('Sync error:', error);
-        } finally {
-            setSyncing(false);
         }
+
+        if (queued) {
+            await pollSyncStatus();
+        }
+
+        setSyncing(false);
     };
 
     const handleDeleteAccount = async () => {
@@ -274,6 +389,19 @@ export default function Detail({
                     <div className="w-full max-w-xs flex-shrink-0">
                         <div className="sticky top-8">
                             <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
+                                {account.gocardless_needs_reconnect && (
+                                    <Link
+                                        href={route('bank_data.edit')}
+                                        className="mb-4 flex items-start gap-2 rounded-lg border-2 border-amber-500/60 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                                    >
+                                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                        <span>
+                                            <span className="font-semibold">Reconnect needed.</span> Your bank ended access to this account. Reconnect
+                                            it in Bank Data settings to resume syncing.
+                                        </span>
+                                    </Link>
+                                )}
+
                                 <div className="mb-4 flex items-center justify-between">
                                     <h2 className="text-xl font-semibold">{account.name}</h2>
                                     <DropdownMenu>
@@ -347,13 +475,20 @@ export default function Detail({
 
                             {account.is_gocardless_synced && (
                                 <div className="bg-card mb-6 w-full rounded-xl border-1 p-6 shadow-xs">
-                                    <h3 className="mb-4 text-lg font-semibold">GoCardless</h3>
+                                    <div className="mb-4 flex items-center justify-between gap-2">
+                                        <h3 className="text-lg font-semibold">GoCardless</h3>
+                                        {statusChip && <Badge variant={statusChip.variant}>{statusChip.label}</Badge>}
+                                    </div>
                                     <div className="mb-4 flex flex-col">
                                         <span className="text-muted-foreground mb-1 text-xs">{'Synced'}</span>
                                         <span className="text-sm">
                                             {account.gocardless_last_synced_at ? formatDate(account.gocardless_last_synced_at) : 'Never'}
                                         </span>
                                     </div>
+
+                                    {syncStatus === 'failed' && account.gocardless_sync_error && (
+                                        <p className="text-destructive mb-4 text-xs break-words">{account.gocardless_sync_error}</p>
+                                    )}
 
                                     <div className="flex w-full">
                                         <Button onClick={handleSync} disabled={syncing} className="border-border flex-1 rounded-r-none border-r">

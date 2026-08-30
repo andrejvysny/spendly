@@ -85,7 +85,7 @@ class CategoryControllerTest extends TestCase
     public function test_user_can_delete_category_and_replace_transactions(): void
     {
         $user = User::factory()->create();
-        $account = Account::create([
+        $account = Account::factory()->create([
             'user_id' => $user->id,
             'name' => 'Test',
             'bank_name' => 'Bank',

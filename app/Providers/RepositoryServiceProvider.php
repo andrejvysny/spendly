@@ -9,6 +9,7 @@ use App\Contracts\Repositories\BudgetRepositoryInterface;
 use App\Contracts\Repositories\CategoryRepositoryInterface;
 use App\Contracts\Repositories\ConditionGroupRepositoryInterface;
 use App\Contracts\Repositories\CounterpartyRepositoryInterface;
+use App\Contracts\Repositories\GoCardlessRequisitionRepositoryInterface;
 use App\Contracts\Repositories\GoCardlessSyncFailureRepositoryInterface;
 use App\Contracts\Repositories\ImportFailureRepositoryInterface;
 use App\Contracts\Repositories\ImportMappingRepositoryInterface;
@@ -29,6 +30,7 @@ use App\Repositories\BudgetRepository;
 use App\Repositories\CategoryRepository;
 use App\Repositories\ConditionGroupRepository;
 use App\Repositories\CounterpartyRepository;
+use App\Repositories\GoCardlessRequisitionRepository;
 use App\Repositories\GoCardlessSyncFailureRepository;
 use App\Repositories\ImportFailureRepository;
 use App\Repositories\ImportMappingRepository;
@@ -65,6 +67,7 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(ImportMappingRepositoryInterface::class, ImportMappingRepository::class);
         $this->app->bind(ImportFailureRepositoryInterface::class, ImportFailureRepository::class);
         $this->app->bind(GoCardlessSyncFailureRepositoryInterface::class, GoCardlessSyncFailureRepository::class);
+        $this->app->bind(GoCardlessRequisitionRepositoryInterface::class, GoCardlessRequisitionRepository::class);
 
         // Rule engine repositories
         $this->app->bind(RuleRepositoryInterface::class, function ($app) {

@@ -133,4 +133,41 @@ class MockGoCardlessBankDataClientTest extends TestCase
         $this->assertStringContainsString('mock=1', $result['link']);
         $this->assertStringContainsString('requisition_id='.$result['id'], $result['link']);
     }
+
+    public function test_create_requisition_appends_ref_to_a_signed_redirect_url_without_breaking_it(): void
+    {
+        // A real redirect URL is a signed route: it already carries a query string, so the
+        // mock must append with '&' — exactly like GoCardless appends `ref=` on redirect.
+        $redirectUrl = 'https://app.example.com/api/bank-data/gocardless/requisition/callback'
+            .'?reference=abc-123&expires=1700000000&signature=deadbeef';
+
+        $result = $this->client->createRequisition('MOCK_INSTITUTION', $redirectUrl, null, 'abc-123');
+
+        $this->assertStringStartsWith($redirectUrl.'&', $result['link']);
+        $this->assertStringContainsString('&ref=abc-123', $result['link']);
+        $this->assertSame('abc-123', $result['reference']);
+
+        $query = [];
+        parse_str((string) parse_url($result['link'], PHP_URL_QUERY), $query);
+        $this->assertSame('deadbeef', $query['signature']);
+        $this->assertSame('abc-123', $query['reference']);
+        $this->assertSame('abc-123', $query['ref']);
+    }
+
+    public function test_create_requisition_omits_ref_when_no_reference_given(): void
+    {
+        $result = $this->client->createRequisition('MOCK_INSTITUTION', 'https://app.example.com/callback');
+
+        $this->assertStringNotContainsString('ref=', $result['link']);
+        $this->assertSame('', $result['reference']);
+    }
+
+    public function test_get_end_user_agreement_returns_an_access_window(): void
+    {
+        $agreement = $this->client->getEndUserAgreement('mock_agreement_1');
+
+        $this->assertSame('mock_agreement_1', $agreement['id']);
+        $this->assertSame(90, $agreement['access_valid_for_days']);
+        $this->assertArrayHasKey('accepted', $agreement);
+    }
 }

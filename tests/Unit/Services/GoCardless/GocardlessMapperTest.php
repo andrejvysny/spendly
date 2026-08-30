@@ -182,4 +182,52 @@ class GocardlessMapperTest extends TestCase
         $this->assertSame(Transaction::TYPE_PAYMENT, $mapped['type']);
         $this->assertTrue($mapped['metadata']['transfer_candidate'] ?? false);
     }
+
+    public function test_missing_balance_after_transaction_maps_to_null(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create([
+            'user_id' => $user->id,
+            'iban' => 'SK9900000000000000000001',
+            'gocardless_institution_id' => 'SLSP_GIBASKBX',
+            'bank_name' => 'Slovenská sporiteľňa',
+        ]);
+        // Real SLSP data never includes balanceAfterTransaction - it must map to null,
+        // not a false 0, since AccountBalanceService uses this field as a balance anchor.
+        $tx = [
+            'transactionId' => 'TRN-NO-BALANCE',
+            'bookingDate' => '2026-02-02',
+            'valueDate' => '2026-02-02',
+            'transactionAmount' => ['amount' => '-42.50', 'currency' => 'EUR'],
+            'creditorName' => 'Some Shop',
+        ];
+
+        $mapped = $this->mapper->mapTransactionData($tx, $account, Carbon::now());
+
+        $this->assertArrayHasKey('balance_after_transaction', $mapped);
+        $this->assertNull($mapped['balance_after_transaction']);
+    }
+
+    public function test_present_balance_after_transaction_is_preserved(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->create([
+            'user_id' => $user->id,
+            'iban' => 'SK9900000000000000000001',
+            'gocardless_institution_id' => 'SLSP_GIBASKBX',
+            'bank_name' => 'Slovenská sporiteľňa',
+        ]);
+        $tx = [
+            'transactionId' => 'TRN-WITH-BALANCE',
+            'bookingDate' => '2026-02-02',
+            'valueDate' => '2026-02-02',
+            'transactionAmount' => ['amount' => '-42.50', 'currency' => 'EUR'],
+            'creditorName' => 'Some Shop',
+            'balanceAfterTransaction' => ['balanceAmount' => ['amount' => '1234.56', 'currency' => 'EUR']],
+        ];
+
+        $mapped = $this->mapper->mapTransactionData($tx, $account, Carbon::now());
+
+        $this->assertSame('1234.56', $mapped['balance_after_transaction']);
+    }
 }

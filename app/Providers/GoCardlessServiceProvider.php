@@ -8,15 +8,19 @@ use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Contracts\RuleEngine\RuleEngineInterface;
 use App\Models\Account;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Repositories\AccountRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\GoCardless\ClientFactory\GoCardlessClientFactoryInterface;
+use App\Services\GoCardless\CredentialsResolver;
+use App\Services\GoCardless\DTOs\GoCardlessCredentials;
 use App\Services\GoCardless\FieldExtractors\FieldExtractorFactory;
 use App\Services\GoCardless\GocardlessMapper;
 use App\Services\GoCardless\GoCardlessService;
 use App\Services\GoCardless\Mock\MockGoCardlessFixtureRepository;
 use App\Services\GoCardless\TokenManager;
 use App\Services\GoCardless\TransactionDataValidator;
+use App\Services\GoCardless\TransactionDeduplicator;
 use App\Services\GoCardless\TransactionSyncService;
 use App\Services\MlSuggestionService;
 use App\Services\TransferDetectionService;
@@ -48,6 +52,12 @@ class GoCardlessServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(TransactionDeduplicator::class, function ($app) {
+            return new TransactionDeduplicator(
+                $app->make(TransactionRepositoryInterface::class)
+            );
+        });
+
         $this->app->singleton(TransactionSyncService::class, function ($app) {
             return new TransactionSyncService(
                 $app->make(TransactionRepositoryInterface::class),
@@ -56,7 +66,8 @@ class GoCardlessServiceProvider extends ServiceProvider
                 $app->make(MlSuggestionService::class),
                 $app->make(TransactionDataValidator::class),
                 $app->make(GoCardlessSyncFailureRepositoryInterface::class),
-                $app->make(RuleEngineInterface::class)
+                $app->make(RuleEngineInterface::class),
+                $app->make(TransactionDeduplicator::class)
             );
         });
 
@@ -73,7 +84,9 @@ class GoCardlessServiceProvider extends ServiceProvider
                 );
             }
 
-            return new \App\Services\GoCardless\ClientFactory\ProductionClientFactory;
+            return new \App\Services\GoCardless\ClientFactory\ProductionClientFactory(
+                $app->make(CredentialsResolver::class)
+            );
         });
 
         $this->app->singleton(GoCardlessService::class, function ($app) {
@@ -85,20 +98,25 @@ class GoCardlessServiceProvider extends ServiceProvider
             );
         });
 
-        // Register TokenManager as a factory since it requires a User instance
+        // Register TokenManager as a factory since it requires a User instance and the secret
+        // pair that user's tokens are minted from.
         $this->app->bind(TokenManager::class, function ($app, array $parameters) {
-            // If a user is provided in the parameters, use it
-            if (isset($parameters['user'])) {
-                return new TokenManager($parameters['user']);
-            }
+            // Use the provided user, else fall back to the authenticated one.
+            $user = $parameters['user'] ?? auth()->user();
 
-            // Otherwise, try to get the authenticated user
-            $user = auth()->user();
-            if (! $user) {
+            if (! $user instanceof User) {
                 throw new \InvalidArgumentException('TokenManager requires a User instance. No authenticated user found.');
             }
 
-            return new TokenManager($user);
+            // Callers that already resolved the pair (the production client factory) pass it in so
+            // it is not resolved twice; everyone else gets it resolved here.
+            $credentials = $parameters['credentials'] ?? $app->make(CredentialsResolver::class)->resolve($user);
+
+            if (! $credentials instanceof GoCardlessCredentials) {
+                throw new \InvalidArgumentException('TokenManager requires a GoCardlessCredentials instance.');
+            }
+
+            return new TokenManager($user, $credentials);
         });
     }
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ResolvesUser;
+use App\Enums\GoCardlessCredentialSource;
+use App\Services\GoCardless\CredentialsResolver;
 use Illuminate\Console\Command;
 
 class GocardlessCredentialsCommand extends Command
@@ -19,6 +21,12 @@ class GocardlessCredentialsCommand extends Command
         {--secret-key= : GoCardless secret key (with --set)}';
 
     protected $description = 'View, set, or purge GoCardless credentials for a user.';
+
+    public function __construct(
+        private readonly CredentialsResolver $credentialsResolver
+    ) {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -38,7 +46,9 @@ class GocardlessCredentialsCommand extends Command
             $user->gocardless_access_token_expires_at = null;
             $user->save();
 
-            $this->info('All GoCardless credentials purged.');
+            $this->info($this->credentialsResolver->hasInstanceCredentials()
+                ? 'Personal GoCardless credentials purged. Falls back to instance credentials.'
+                : 'All GoCardless credentials purged.');
 
             return self::SUCCESS;
         }
@@ -64,6 +74,7 @@ class GocardlessCredentialsCommand extends Command
 
         // Default: show credential status
         $this->table(['Field', 'Status'], [
+            ['Effective Source', $this->sourceLabel($this->credentialsResolver->sourceFor($user))],
             ['Secret ID', $user->gocardless_secret_id ? $this->mask($user->gocardless_secret_id) : '<not set>'],
             ['Secret Key', $user->gocardless_secret_key ? $this->mask($user->gocardless_secret_key) : '<not set>'],
             ['Access Token', $user->gocardless_access_token ? $this->mask($user->gocardless_access_token) : '<not set>'],
@@ -83,5 +94,14 @@ class GocardlessCredentialsCommand extends Command
         }
 
         return substr($value, 0, 4).'...'.substr($value, -4);
+    }
+
+    private function sourceLabel(?GoCardlessCredentialSource $source): string
+    {
+        return match ($source) {
+            GoCardlessCredentialSource::USER => 'personal override',
+            GoCardlessCredentialSource::INSTANCE => 'instance credentials',
+            null => 'not configured',
+        };
     }
 }

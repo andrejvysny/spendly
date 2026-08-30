@@ -6,24 +6,29 @@ namespace App\Services\GoCardless\ClientFactory;
 
 use App\Models\User;
 use App\Services\GoCardless\BankDataClientInterface;
+use App\Services\GoCardless\CredentialsResolver;
 use App\Services\GoCardless\GoCardlessBankDataClient;
 use App\Services\GoCardless\TokenManager;
 
 class ProductionClientFactory implements GoCardlessClientFactoryInterface
 {
+    public function __construct(
+        private readonly CredentialsResolver $credentialsResolver
+    ) {}
+
+    /**
+     * @throws \App\Exceptions\MissingGoCardlessCredentialsException When neither a personal
+     *                                                               override nor instance credentials are usable.
+     */
     public function make(User $user): BankDataClientInterface
     {
-        if (! $user->gocardless_secret_id || ! $user->gocardless_secret_key) {
-            throw new \InvalidArgumentException(
-                'GoCardless credentials not configured. Please add your Secret ID and Secret Key in Settings > Bank Data.'
-            );
-        }
+        $credentials = $this->credentialsResolver->resolve($user);
 
-        $tokenManager = app(TokenManager::class, ['user' => $user]);
+        $tokenManager = app(TokenManager::class, ['user' => $user, 'credentials' => $credentials]);
 
         return new GoCardlessBankDataClient(
-            secretId: $user->gocardless_secret_id,
-            secretKey: $user->gocardless_secret_key,
+            secretId: $credentials->secretId,
+            secretKey: $credentials->secretKey,
             accessToken: $user->gocardless_access_token,
             refreshToken: $user->gocardless_refresh_token,
             refreshTokenExpires: $this->toDateTime($user->gocardless_refresh_token_expires_at),

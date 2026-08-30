@@ -25,6 +25,43 @@ function getStatusColor(dateStr: string | null): string {
     return 'bg-green-500';
 }
 
+/**
+ * A live sync state outranks the age of the data: an account that is queued or failing right now
+ * is more useful to know about than one whose last successful sync happens to be 20 hours old.
+ * 'success' and 'idle' carry no such news, so they fall through to the age heuristic.
+ */
+function getDotClass(account: Account): string {
+    switch (account.gocardless_sync_status) {
+        case 'queued':
+        case 'syncing':
+            return 'bg-yellow-500 animate-pulse';
+        case 'failed':
+        case 'needs_reconnect':
+            return 'bg-red-500';
+        case 'rate_limited':
+            return 'bg-amber-500';
+        default:
+            return getStatusColor(account.gocardless_last_synced_at);
+    }
+}
+
+function getStatusLabel(account: Account): string {
+    switch (account.gocardless_sync_status) {
+        case 'queued':
+            return 'Queued';
+        case 'syncing':
+            return 'Syncing…';
+        case 'failed':
+            return 'Sync failed';
+        case 'rate_limited':
+            return 'Rate limited';
+        case 'needs_reconnect':
+            return 'Reconnect needed';
+        default:
+            return account.gocardless_last_synced_at ? getTimeSince(account.gocardless_last_synced_at) : 'Never synced';
+    }
+}
+
 export default function SyncStatusCard({ accounts }: Props) {
     const syncedAccounts = accounts.filter((a) => a.is_gocardless_synced);
 
@@ -37,11 +74,11 @@ export default function SyncStatusCard({ accounts }: Props) {
                 {syncedAccounts.map((account) => (
                     <div key={account.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <div className={`h-2.5 w-2.5 rounded-full ${getStatusColor(account.gocardless_last_synced_at)}`} />
+                            <div className={`h-2.5 w-2.5 rounded-full ${getDotClass(account)}`} />
                             <span className="text-sm font-medium">{account.name}</span>
                         </div>
-                        <span className="text-muted-foreground text-xs">
-                            {account.gocardless_last_synced_at ? getTimeSince(account.gocardless_last_synced_at) : 'Never synced'}
+                        <span className="text-muted-foreground text-xs" title={account.gocardless_sync_error ?? undefined}>
+                            {getStatusLabel(account)}
                         </span>
                     </div>
                 ))}

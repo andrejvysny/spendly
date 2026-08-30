@@ -22,8 +22,6 @@ export default function GoCardlessSyncModal({ isOpen, onClose, onAccountImported
     const [view, setView] = useState<'list' | 'wizard'>('list');
     const [requisitions, setRequisitions] = useState<RequisitionsResponse>({
         count: 0,
-        next: null,
-        previous: null,
         results: [],
     });
     const [isLoadingRequisitions, setIsLoadingRequisitions] = useState(true);

@@ -67,6 +67,21 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function getEndUserAgreement(string $agreementId): array
+    {
+        return [
+            'id' => $agreementId,
+            'institution_id' => self::MOCK_INSTITUTION,
+            'max_historical_days' => 90,
+            'access_valid_for_days' => 90,
+            'accepted' => now()->toIso8601String(),
+            'created' => now()->toIso8601String(),
+        ];
+    }
+
     public function getAccounts(string $requisitionId): array
     {
         $requisition = $this->findRequisition($requisitionId);
@@ -165,7 +180,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
         ];
     }
 
-    public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null): array
+    public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null, ?string $reference = null): array
     {
         $id = 'mock_requisition_'.uniqid();
         $requisition = $this->buildRequisition(
@@ -174,10 +189,21 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             'CR',
             $institutionId,
             $agreementId ?? 'mock_agreement_id',
-            []
+            [],
+            null,
+            $reference ?? ''
         );
+
+        // The redirect URL handed to us is already a signed callback URL carrying its own
+        // query string (reference/expires/signature), so extra params must always be
+        // appended with '&' unless the URL is genuinely query-less. Mirrors what
+        // GoCardless does on a real redirect: it appends `ref=<reference>`.
         $separator = str_contains($redirectUrl, '?') ? '&' : '?';
-        $requisition['link'] = $redirectUrl.$separator.'mock=1&requisition_id='.$id;
+        $extra = 'mock=1&requisition_id='.rawurlencode($id);
+        if ($reference !== null && $reference !== '') {
+            $extra .= '&ref='.rawurlencode($reference);
+        }
+        $requisition['link'] = $redirectUrl.$separator.$extra;
 
         $this->appendRequisition($requisition);
 
@@ -248,7 +274,8 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
         string $institutionId,
         string $agreement,
         array $accounts,
-        ?string $link = null
+        ?string $link = null,
+        string $reference = ''
     ): array {
         $base = [
             'id' => $id,
@@ -257,7 +284,7 @@ class MockGoCardlessBankDataClient implements BankDataClientInterface
             'status' => $status,
             'institution_id' => $institutionId,
             'agreement' => $agreement,
-            'reference' => '',
+            'reference' => $reference,
             'accounts' => $accounts,
             'user_language' => 'EN',
             'link' => $link ?? $redirect,

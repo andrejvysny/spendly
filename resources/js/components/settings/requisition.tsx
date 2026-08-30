@@ -1,11 +1,12 @@
 import { SimpleCollapse } from '@/components/transactions/TransactionDetails';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link } from '@inertiajs/react';
 import axios from 'axios';
-import { Building2, CreditCard } from 'lucide-react';
+import { AlertTriangle, Building2, CreditCard } from 'lucide-react';
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 
@@ -23,28 +24,70 @@ export interface EnrichedAccountDto {
 export interface RequisitionDto {
     id: string;
     created: string;
-    redirect: string;
     status: string;
     institution_id: string;
     agreement: string;
-    reference: string;
     accounts: (string | EnrichedAccountDto)[];
     user_language: string;
-    link: string;
-    ssn: string | null;
-    account_selection: boolean;
-    redirect_immediate: boolean;
+    link: string | null;
+    /** Primary key of the local gocardless_requisitions row; required to reconnect. */
+    row_id?: number | null;
+    /** Local lifecycle state (App\Enums\GoCardlessRequisitionStatus); absent for legacy remote-only payloads. */
+    local_status?: string | null;
+    status_label?: string | null;
+    access_valid_until?: string | null;
+    days_until_expiry?: number | null;
+    needs_reconnect?: boolean;
 }
 
 export interface RequisitionsResponse {
     count: number;
-    next: string | null;
-    previous: string | null;
     results: RequisitionDto[];
 }
 
 function isEnrichedAccount(account: string | EnrichedAccountDto): account is EnrichedAccountDto {
     return typeof account === 'object' && account !== null && 'id' in account && 'status' in account;
+}
+
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+
+/**
+ * Map the local lifecycle state (App\Enums\GoCardlessRequisitionStatus) onto a badge variant.
+ * Falls back to the raw GoCardless code for payloads predating local status tracking.
+ */
+function statusBadge(requisition: RequisitionDto): { variant: BadgeVariant; label: string } {
+    const local = requisition.local_status;
+
+    if (!local) {
+        return requisition.status === 'LN' ? { variant: 'default', label: 'Linked' } : { variant: 'secondary', label: 'Pending' };
+    }
+
+    const variants: Record<string, BadgeVariant> = {
+        linked: 'default',
+        pending: 'secondary',
+        expired: 'destructive',
+        suspended: 'destructive',
+        rejected: 'destructive',
+        error: 'destructive',
+        cancelled: 'outline',
+        replaced: 'outline',
+        revoked: 'outline',
+    };
+
+    return { variant: variants[local] ?? 'secondary', label: requisition.status_label ?? local };
+}
+
+/** "Access valid until 12/05/2026 (43 days)" — or "(expired)" once the window has passed. */
+function expiryLabel(requisition: RequisitionDto): string | null {
+    if (!requisition.access_valid_until) return null;
+
+    const until = new Date(requisition.access_valid_until).toLocaleDateString();
+    const days = requisition.days_until_expiry;
+
+    if (days === null || days === undefined) return `Access valid until ${until}`;
+    if (days < 0) return `Access expired on ${until}`;
+
+    return `Access valid until ${until} (${days} day${days === 1 ? '' : 's'})`;
 }
 
 /**
@@ -62,6 +105,28 @@ function Requisition({
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [requisitionToDelete, setRequisitionToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isReconnecting, setIsReconnecting] = useState(false);
+
+    const badge = statusBadge(requisition);
+    const expiry = expiryLabel(requisition);
+
+    // The endpoint keys off the local row id, which only exists on locally tracked connections.
+    const canReconnect = Boolean(requisition.needs_reconnect && requisition.row_id);
+
+    const handleReconnect = async () => {
+        if (!requisition.row_id) return;
+
+        setIsReconnecting(true);
+        try {
+            const { data } = await axios.post<{ link: string }>(`/api/bank-data/gocardless/requisitions/${requisition.row_id}/reconnect`);
+            window.location.href = data.link;
+        } catch (error) {
+            console.error('Error starting reconnect:', error);
+            const message = axios.isAxiosError(error) ? (error.response?.data?.error ?? error.message) : 'Failed to start reconnect.';
+            toast.error(message);
+            setIsReconnecting(false);
+        }
+    };
 
     const accounts = requisition.accounts ?? [];
     const accountList = accounts.map((acc) =>
@@ -134,12 +199,25 @@ function Requisition({
                                 <p className="text-muted-foreground text-sm">Created {new Date(requisition.created).toLocaleDateString()}</p>
                             </div>
                         </div>
-                        <Badge variant={requisition.status === 'LN' ? 'default' : 'secondary'}>
-                            {requisition.status === 'LN' ? 'Linked' : 'Pending'}
-                        </Badge>
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-0">
+                    {requisition.needs_reconnect && (
+                        <Alert className="border-2 border-amber-500/60 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle title="Reconnect required" />
+                            <AlertDescription className="flex flex-col gap-3">
+                                <span>Your bank has ended access to this connection. Reconnect to resume syncing transactions.</span>
+                                {canReconnect && (
+                                    <Button size="sm" className="self-start" onClick={handleReconnect} disabled={isReconnecting}>
+                                        {isReconnecting ? 'Starting...' : 'Reconnect'}
+                                    </Button>
+                                )}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
                     <div className="text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                         <span>Agreement</span>
                         <span className="text-foreground truncate font-medium">{requisition.agreement}</span>
@@ -147,6 +225,12 @@ function Requisition({
                         <span className="text-foreground font-medium">{requisition.user_language}</span>
                         <span>Accounts</span>
                         <span className="text-foreground font-medium">{accountList.length}</span>
+                        {expiry && (
+                            <>
+                                <span>Access</span>
+                                <span className="text-foreground font-medium">{expiry}</span>
+                            </>
+                        )}
                     </div>
 
                     {accountList.length > 0 && (
@@ -160,7 +244,7 @@ function Requisition({
                     )}
 
                     <div className="flex items-center justify-between border-t pt-4">
-                        {requisition.status !== 'LN' && (
+                        {requisition.status !== 'LN' && requisition.link && (
                             <a
                                 href={requisition.link}
                                 target="_blank"

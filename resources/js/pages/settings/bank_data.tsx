@@ -12,6 +12,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Transition } from '@headlessui/react';
 import { Head, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
+import { AlertTriangle } from 'lucide-react';
 import { FormEventHandler, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 
@@ -24,8 +25,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface RequisitionsResponse {
     count: number;
-    next: string | null;
-    previous: string | null;
     results: RequisitionDto[];
 }
 
@@ -34,17 +33,38 @@ type BankDataForm = {
     gocardless_secret_key: string;
 };
 
+type CredentialSource = 'user' | 'instance' | 'none';
+
 interface BankDataProps {
+    /** Whether bank sync has usable credentials from any source. */
     has_gocardless_credentials: boolean;
+    gocardless_credential_source: CredentialSource;
+    gocardless_has_instance_credentials: boolean;
+    gocardless_has_user_override: boolean;
+    /** Masked tail of the user's own Secret ID. Always null for instance credentials — those are shared. */
     gocardless_secret_id_masked: string | null;
     gocardless_use_mock?: boolean;
+    /** Non-null when APP_URL cannot produce a working bank redirect in production. */
+    app_url_warning: string | null;
 }
 
-export default function BankData({ has_gocardless_credentials, gocardless_secret_id_masked, gocardless_use_mock = false }: BankDataProps) {
+export default function BankData({
+    has_gocardless_credentials,
+    gocardless_credential_source,
+    gocardless_has_instance_credentials,
+    gocardless_has_user_override,
+    gocardless_secret_id_masked,
+    gocardless_use_mock = false,
+    app_url_warning,
+}: BankDataProps) {
     const { data, setData, patch, errors, processing, recentlySuccessful } = useForm<BankDataForm>({
         gocardless_secret_id: '',
         gocardless_secret_key: '',
     });
+
+    // When the server already supplies credentials the personal form is opt-in: most users on such
+    // an installation never need it, and showing it unprompted reads as "you must fill this in".
+    const [showOverrideForm, setShowOverrideForm] = useState(gocardless_has_user_override);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -55,7 +75,7 @@ export default function BankData({ has_gocardless_credentials, gocardless_secret
     };
 
     const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
-    const [requisitions, setRequisitions] = useState<RequisitionsResponse>({ count: 0, next: null, previous: null, results: [] });
+    const [requisitions, setRequisitions] = useState<RequisitionsResponse>({ count: 0, results: [] });
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -85,6 +105,8 @@ export default function BankData({ has_gocardless_credentials, gocardless_secret
         setIsLoading(false);
     }, [gocardless_use_mock, has_gocardless_credentials, fetchRequisitions]);
 
+    const reconnectCount = requisitions.results.filter((req) => req.needs_reconnect).length;
+
     const handleRefreshRequisitions = () => {
         if (!gocardless_use_mock && !has_gocardless_credentials) return;
         setIsRefreshing(true);
@@ -92,22 +114,92 @@ export default function BankData({ has_gocardless_credentials, gocardless_secret
     };
 
     const handlePurgeCredentials = () => {
-        if (!confirm('Are you sure you want to clear your GoCardless credentials? This action cannot be undone.')) {
+        const consequence = gocardless_has_instance_credentials
+            ? 'Bank sync will fall back to the credentials configured by the server administrator.'
+            : 'Bank sync will stop until you add credentials again.';
+
+        if (!confirm(`Remove your personal GoCardless credentials? ${consequence}`)) {
             return;
         }
 
         axios
             .delete(route('bank_data.purgeGoCardlessCredentials'))
             .then(() => {
-                toast.success('GoCardless credentials cleared successfully.');
-                setRequisitions({ count: 0, next: null, previous: null, results: [] });
+                toast.success(`Personal credentials removed. ${consequence}`);
+                setRequisitions({ count: 0, results: [] });
                 router.reload();
             })
             .catch((error) => {
                 console.error('Error purging credentials:', error);
-                toast.error('Failed to clear credentials. Please try again.');
+                toast.error('Failed to remove credentials. Please try again.');
             });
     };
+
+    const credentialForm = (
+        <>
+            {gocardless_secret_id_masked && (
+                <div className="mt-4 rounded-md border p-4">
+                    <p className="text-sm">
+                        <span className="text-muted-foreground">Your Secret ID:</span>{' '}
+                        <code className="text-foreground">{gocardless_secret_id_masked}</code>
+                    </p>
+                </div>
+            )}
+
+            <form onSubmit={submit} className="mt-6 space-y-6">
+                <div className="grid gap-2">
+                    <Label htmlFor="gocardless_secret_id">
+                        GoCardless Secret ID {gocardless_has_user_override && '(leave blank to keep current)'}
+                    </Label>
+                    <Input
+                        id="gocardless_secret_id"
+                        type="password"
+                        className="mt-1 block w-full"
+                        value={data.gocardless_secret_id || ''}
+                        onChange={(e) => setData('gocardless_secret_id', e.target.value)}
+                        autoComplete="off"
+                        placeholder={gocardless_has_user_override ? 'Enter new Secret ID to update' : 'Enter your GoCardless Secret ID'}
+                    />
+                    <InputError className="mt-2" message={errors.gocardless_secret_id} />
+                </div>
+
+                <div className="grid gap-2">
+                    <Label htmlFor="gocardless_secret_key">
+                        GoCardless Secret Key {gocardless_has_user_override && '(leave blank to keep current)'}
+                    </Label>
+                    <Input
+                        id="gocardless_secret_key"
+                        type="password"
+                        className="mt-1 block w-full"
+                        value={data.gocardless_secret_key || ''}
+                        onChange={(e) => setData('gocardless_secret_key', e.target.value)}
+                        autoComplete="off"
+                        placeholder={gocardless_has_user_override ? 'Enter new Secret Key to update' : 'Enter your GoCardless Secret Key'}
+                    />
+                    <InputError className="mt-2" message={errors.gocardless_secret_key} />
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <Button disabled={processing}>{gocardless_has_instance_credentials ? 'Save personal credentials' : 'Save'}</Button>
+                    <Transition
+                        show={recentlySuccessful}
+                        enter="transition ease-in-out"
+                        enterFrom="opacity-0"
+                        leave="transition ease-in-out"
+                        leaveTo="opacity-0"
+                    >
+                        <p className="text-sm text-neutral-600">Saved</p>
+                    </Transition>
+                </div>
+            </form>
+
+            {gocardless_has_user_override ? (
+                <Button variant="destructive" className="mt-4" onClick={() => handlePurgeCredentials()}>
+                    Remove personal credentials
+                </Button>
+            ) : null}
+        </>
+    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -115,6 +207,14 @@ export default function BankData({ has_gocardless_credentials, gocardless_secret
 
             <SettingsLayout>
                 <div className="space-y-6">
+                    {app_url_warning && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle title="APP_URL misconfigured" />
+                            <AlertDescription>{app_url_warning}</AlertDescription>
+                        </Alert>
+                    )}
+
                     <HeadingSmall
                         title={gocardless_use_mock ? 'GoCardless Bank Data Settings (Sandbox)' : 'GoCardless Bank Data Settings'}
                         description={
@@ -132,6 +232,29 @@ export default function BankData({ has_gocardless_credentials, gocardless_secret
                                 sync fixture data for development and testing.
                             </AlertDescription>
                         </Alert>
+                    ) : gocardless_credential_source === 'instance' ? (
+                        <div>
+                            <Alert variant="default">
+                                <AlertTitle title="Managed by this server" />
+                                <AlertDescription>
+                                    Bank sync is configured by the server administrator. You can connect your bank without entering any GoCardless
+                                    credentials of your own.
+                                </AlertDescription>
+                            </Alert>
+
+                            <div className="mt-4">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    aria-expanded={showOverrideForm}
+                                    onClick={() => setShowOverrideForm((open) => !open)}
+                                >
+                                    {showOverrideForm ? 'Hide personal credentials' : 'Use my own GoCardless credentials'}
+                                </Button>
+
+                                {showOverrideForm && <div className="mt-2">{credentialForm}</div>}
+                            </div>
+                        </div>
                     ) : (
                         <div>
                             <p className="text-muted-foreground">
@@ -139,68 +262,7 @@ export default function BankData({ has_gocardless_credentials, gocardless_secret
                                 integration allows you to view and manage your bank data directly within the app.
                             </p>
 
-                            {has_gocardless_credentials && gocardless_secret_id_masked && (
-                                <div className="mt-4 rounded-md border p-4">
-                                    <p className="text-sm">
-                                        <span className="text-muted-foreground">Current Secret ID:</span>{' '}
-                                        <code className="text-foreground">{gocardless_secret_id_masked}</code>
-                                    </p>
-                                </div>
-                            )}
-
-                            <form onSubmit={submit} className="mt-6 space-y-6">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="gocardless_secret_id">
-                                        GoCardless Secret ID {has_gocardless_credentials && '(leave blank to keep current)'}
-                                    </Label>
-                                    <Input
-                                        id="gocardless_secret_id"
-                                        type="password"
-                                        className="mt-1 block w-full"
-                                        value={data.gocardless_secret_id || ''}
-                                        onChange={(e) => setData('gocardless_secret_id', e.target.value)}
-                                        autoComplete="off"
-                                        placeholder={has_gocardless_credentials ? 'Enter new Secret ID to update' : 'Enter your GoCardless Secret ID'}
-                                    />
-                                    <InputError className="mt-2" message={errors.gocardless_secret_id} />
-                                </div>
-
-                                <div className="grid gap-2">
-                                    <Label htmlFor="gocardless_secret_key">
-                                        GoCardless Secret Key {has_gocardless_credentials && '(leave blank to keep current)'}
-                                    </Label>
-                                    <Input
-                                        id="gocardless_secret_key"
-                                        type="password"
-                                        className="mt-1 block w-full"
-                                        value={data.gocardless_secret_key || ''}
-                                        onChange={(e) => setData('gocardless_secret_key', e.target.value)}
-                                        autoComplete="off"
-                                        placeholder={
-                                            has_gocardless_credentials ? 'Enter new Secret Key to update' : 'Enter your GoCardless Secret Key'
-                                        }
-                                    />
-                                    <InputError className="mt-2" message={errors.gocardless_secret_key} />
-                                </div>
-
-                                <div className="flex items-center gap-4">
-                                    <Button disabled={processing}>Save</Button>
-                                    <Transition
-                                        show={recentlySuccessful}
-                                        enter="transition ease-in-out"
-                                        enterFrom="opacity-0"
-                                        leave="transition ease-in-out"
-                                        leaveTo="opacity-0"
-                                    >
-                                        <p className="text-sm text-neutral-600">Saved</p>
-                                    </Transition>
-                                </div>
-                            </form>
-                            {has_gocardless_credentials ? (
-                                <Button variant="destructive" onClick={() => handlePurgeCredentials()}>
-                                    Clear credentials
-                                </Button>
-                            ) : null}
+                            {credentialForm}
                         </div>
                     )}
 
@@ -222,6 +284,17 @@ export default function BankData({ has_gocardless_credentials, gocardless_secret
 
                 <div className="mt-6 w-full">
                     <HeadingSmall title="GoCardless Requisitions" description="Linked bank accounts." />
+
+                    {reconnectCount > 0 && (
+                        <Alert className="mt-4 border-2 border-amber-500/60 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle title="Action required" />
+                            <AlertDescription>
+                                {reconnectCount} bank connection{reconnectCount === 1 ? '' : 's'} need
+                                {reconnectCount === 1 ? 's' : ''} reconnecting. Bank access expires 90 days after you authorize it.
+                            </AlertDescription>
+                        </Alert>
+                    )}
 
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-12">

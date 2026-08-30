@@ -4,13 +4,51 @@ declare(strict_types=1);
 
 namespace App\Services\GoCardless;
 
+use App\Exceptions\GoCardlessApiException;
+use App\Exceptions\GoCardlessConsentExpiredException;
 use App\Exceptions\GoCardlessRateLimitException;
+use App\Support\SensitiveDataRedactor;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class GoCardlessBankDataClient implements BankDataClientInterface
 {
+    /**
+     * Hard stop for transaction pagination — a cursor that never terminates must not hang a worker.
+     */
+    private const MAX_TRANSACTION_PAGES = 50;
+
+    /**
+     * Retries allowed for a single transactions page.
+     */
+    private const MAX_PAGE_RETRIES = 2;
+
+    /**
+     * Retries allowed across a whole getTransactions() run, however many pages it spans.
+     */
+    private const MAX_TRANSACTION_RETRIES = 5;
+
+    /**
+     * Substrings GoCardless uses on 401/403 responses when the End User Agreement lapsed or the
+     * institution suspended the account — as opposed to a credential/token problem. Matched
+     * case-insensitively against the response body.
+     *
+     * @var list<string>
+     */
+    private const array CONSENT_FAILURE_MARKERS = [
+        'AccessExpiredError',
+        'Access to account has expired',
+        'AccountSuspended',
+        'account is suspended',
+        'ExpiredConsent',
+        'EUA has expired',
+    ];
+
     private string $baseUrl = 'https://bankaccountdata.gocardless.com/api/v2';
 
     private ?TokenManager $tokenManager = null;
@@ -33,13 +71,90 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     }
 
     /**
-     * Create an authenticated HTTP request with standard timeouts.
+     * Create an HTTP request authenticated with an explicit token, using the standard timeouts.
+     *
+     * The token is passed in rather than resolved here so that a call can be replayed with a
+     * different token without re-entering token resolution.
      */
-    private function request(): PendingRequest
+    private function requestWith(string $token): PendingRequest
     {
-        return Http::withToken($this->getAccessToken())
+        return Http::withToken($token)
             ->timeout(30)
             ->connectTimeout(10);
+    }
+
+    /**
+     * Execute an authenticated API call, replaying it once with a fresh token after a 401.
+     *
+     * A 401 means GoCardless rejected the request while authenticating it, before any side effect
+     * was applied, so a single replay of the identical call is safe even for POST and DELETE.
+     * The replay only happens when a genuinely different token was obtained; otherwise the original
+     * 401 response is returned unchanged for the caller to handle.
+     *
+     * @param  callable(PendingRequest): Response  $call
+     *
+     * @throws ConnectionException
+     */
+    private function sendWithAuthRetry(callable $call): Response
+    {
+        $token = $this->getAccessToken();
+        $response = $call($this->requestWith($token));
+
+        if ($response->status() === 401) {
+            $fresh = $this->forceRefreshToken($token);
+
+            if ($fresh !== null && $fresh !== $token) {
+                $response = $call($this->requestWith($fresh));
+            }
+        }
+
+        return $response;
+    }
+
+    /**
+     * Execute an authenticated API call and translate an unsuccessful response into an exception.
+     *
+     * @param  callable(PendingRequest): Response  $call
+     *
+     * @throws GoCardlessRateLimitException On 429 responses
+     * @throws \Exception On other non-successful responses
+     */
+    private function send(string $context, callable $call): Response
+    {
+        $response = $this->sendWithAuthRetry($call);
+
+        $this->handleResponse($response, $context);
+
+        return $response;
+    }
+
+    /**
+     * Obtain an access token that is known not to be the one the API just rejected.
+     *
+     * Bypasses the usual expiry heuristics: the API is the authority on whether a token works,
+     * and it already said this one does not.
+     *
+     * @return string|null Null when no fresh token could be obtained — the caller then lets the
+     *                     original 401 surface through handleResponse().
+     */
+    private function forceRefreshToken(string $failedToken): ?string
+    {
+        try {
+            if ($this->tokenManager) {
+                return $this->tokenManager->refreshAfterUnauthorized($failedToken);
+            }
+
+            // In-memory fallback (mock/sandbox): drop the cached expiry so the token is re-fetched.
+            $this->accessTokenExpires = null;
+
+            return $this->getAccessToken();
+        } catch (\Throwable $e) {
+            Log::warning('GoCardless token refresh after 401 failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     /**
@@ -92,7 +207,12 @@ class GoCardlessBankDataClient implements BankDataClientInterface
             ]);
 
         if (! $response->successful()) {
-            throw new \Exception('Failed to get access token: '.$response->body());
+            Log::warning('GoCardless token request failed', [
+                'status' => $response->status(),
+                'body' => SensitiveDataRedactor::redact($response->body()),
+            ]);
+
+            throw new \Exception('Failed to get access token (HTTP '.$response->status().')');
         }
 
         return $this->processTokenResponse($response);
@@ -106,7 +226,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      *
      * @throws \InvalidArgumentException When token response has invalid types or missing required fields.
      */
-    private function processTokenResponse(\Illuminate\Http\Client\Response $response): string
+    private function processTokenResponse(Response $response): string
     {
         $data = $response->json();
 
@@ -166,73 +286,141 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     /**
      * Check API response for errors, throwing typed exceptions for rate limits and auth failures.
      *
+     * The raw response body never reaches the exception message — it may contain account data or
+     * fragments of secrets. It is redacted and logged under a correlation id instead, so operators
+     * can still look up what GoCardless actually said without that ever leaking to a caller.
+     *
      * @throws GoCardlessRateLimitException On 429 responses
-     * @throws \Exception On other non-successful responses
+     * @throws GoCardlessConsentExpiredException On 401/403 responses whose body names a consent failure
+     * @throws GoCardlessApiException On other non-successful responses
      */
-    private function handleResponse(\Illuminate\Http\Client\Response $response, string $context): void
+    private function handleResponse(Response $response, string $context): void
     {
         if ($response->successful()) {
             return;
         }
 
-        if ($response->status() === 429) {
+        $status = $response->status();
+        $correlationId = (string) Str::uuid();
+        $body = $response->body();
+        $redactedBody = SensitiveDataRedactor::redact($body);
+
+        Log::warning('GoCardless API error', [
+            'context' => $context,
+            'status' => $status,
+            'correlation_id' => $correlationId,
+            'body' => $redactedBody,
+        ]);
+
+        if ($status === 429) {
             $resetHeader = $response->header('X-Ratelimit-Account-Success-Reset');
             $retryAfter = $resetHeader ? (int) $resetHeader : 60;
 
             throw new GoCardlessRateLimitException($retryAfter, "Rate limited during {$context}. Retry after {$retryAfter}s.");
         }
 
-        if ($response->status() === 401) {
-            throw new \RuntimeException("GoCardless authentication failed during {$context}: ".$response->body());
+        // Checked before the generic failure so an expired 90-day consent is never mistaken for a
+        // transient auth error. A 401 only reaches here after send() already replayed the call with
+        // a refreshed token, so the token is not what GoCardless is objecting to.
+        if (($status === 401 || $status === 403) && $this->indicatesConsentFailure($body, $redactedBody)) {
+            throw new GoCardlessConsentExpiredException(
+                $this->identifierFromUri($response, 'requisitions'),
+                $this->identifierFromUri($response, 'accounts'),
+            );
         }
 
-        throw new \Exception("Failed to {$context}: ".$response->body());
+        throw new GoCardlessApiException($context, $status, $correlationId);
+    }
+
+    /**
+     * Whether a 401/403 body names a withdrawn/expired consent rather than a credential problem.
+     *
+     * Matched against the raw body *and* the redacted copy: redaction rewrites JSON values for
+     * sensitive keys, and a marker that happened to sit inside one would otherwise be lost.
+     */
+    private function indicatesConsentFailure(string $body, string $redactedBody): bool
+    {
+        foreach (self::CONSENT_FAILURE_MARKERS as $marker) {
+            if (Str::contains($body, $marker, ignoreCase: true) || Str::contains($redactedBody, $marker, ignoreCase: true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Pull the `{id}` out of a `.../{segment}/{id}/...` API path, when the effective URI is known.
+     *
+     * The URI is only populated for real transfers (it comes from Guzzle's transfer stats), so this
+     * degrades to null rather than reaching for the request that produced the response.
+     */
+    private function identifierFromUri(Response $response, string $segment): ?string
+    {
+        $path = $response->effectiveUri()?->getPath();
+
+        if ($path === null || $path === '') {
+            return null;
+        }
+
+        if (preg_match('#/'.preg_quote($segment, '#').'/([^/]+)#', $path, $matches) !== 1) {
+            return null;
+        }
+
+        return rawurldecode($matches[1]);
     }
 
     public function createEndUserAgreement(string $institutionId, array $userData): array
     {
-        $response = $this->request()
-            ->post("{$this->baseUrl}/agreements/enduser/", [
+        $response = $this->send(
+            'create end user agreement',
+            fn (PendingRequest $request): Response => $request->post("{$this->baseUrl}/agreements/enduser/", [
                 'institution_id' => $institutionId,
                 'max_historical_days' => 90,
                 'access_valid_for_days' => 90,
                 'access_scope' => ['balances', 'details', 'transactions'],
-            ]);
-
-        $this->handleResponse($response, 'create end user agreement');
+            ])
+        );
 
         return $response->json();
     }
 
     /**
+     * Retrieves an existing End User Agreement by ID.
+     *
+     * Used after the bank redirect to read the authoritative access window
+     * (accepted timestamp + access_valid_for_days) instead of estimating it.
+     *
+     * @return array<string, mixed>
+     */
+    public function getEndUserAgreement(string $agreementId): array
+    {
+        $response = $this->send(
+            'get end user agreement',
+            fn (PendingRequest $request): Response => $request->get("{$this->baseUrl}/agreements/enduser/{$agreementId}/")
+        );
+
+        $payload = $response->json();
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    /**
      * Retrieves all bank accounts associated with a given requisition ID.
      *
-     * Uses cached data if available and caching is enabled. Throws an exception if the API request fails.
+     * Throws an exception if the API request fails.
      *
      * @param  string  $requisitionId  The requisition identifier.
      * @return array List of account IDs linked to the requisition, or an empty array if none are found.
      */
     public function getAccounts(string $requisitionId): array
     {
-        if ($this->useCache) {
-            $cached = Cache::get("gocardless_accounts_{$requisitionId}");
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-        $response = $this->request()
-            ->get("{$this->baseUrl}/requisitions/{$requisitionId}/");
+        $response = $this->send(
+            'get accounts',
+            fn (PendingRequest $request): Response => $request->get("{$this->baseUrl}/requisitions/{$requisitionId}/")
+        );
 
-        $this->handleResponse($response, 'get accounts');
-
-        $accounts = $response->json()['accounts'] ?? [];
-
-        // Only cache non-empty results — empty means auth may not be complete yet
-        if ($this->useCache && $accounts !== []) {
-            Cache::put("gocardless_accounts_{$requisitionId}", $accounts, $this->cacheDuration);
-        }
-
-        return $accounts;
+        return $response->json()['accounts'] ?? [];
     }
 
     /**
@@ -240,22 +428,10 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      */
     public function getAccountMetadata(string $accountId): array
     {
-        $key = "gocardless_account_metadata_{$accountId}";
-        if ($this->useCache) {
-            $cached = Cache::get($key);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-
-        $response = $this->request()
-            ->get("{$this->baseUrl}/accounts/{$accountId}/");
-
-        $this->handleResponse($response, 'get account metadata');
-
-        if ($this->useCache) {
-            Cache::put($key, $response->json(), $this->cacheDuration);
-        }
+        $response = $this->send(
+            'get account metadata',
+            fn (PendingRequest $request): Response => $request->get("{$this->baseUrl}/accounts/{$accountId}/")
+        );
 
         return $response->json();
     }
@@ -270,47 +446,35 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      */
     public function getAccountDetails(string $accountId): array
     {
-        $key = "gocardless_account_details_{$accountId}";
-        if ($this->useCache) {
-            $cached = Cache::get($key);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-
-        $response = $this->request()
-            ->get("{$this->baseUrl}/accounts/{$accountId}/details/");
-
-        $this->handleResponse($response, 'get account details');
-
-        if ($this->useCache) {
-            Cache::put($key, $response->json(), $this->cacheDuration);
-        }
+        $response = $this->send(
+            'get account details',
+            fn (PendingRequest $request): Response => $request->get("{$this->baseUrl}/accounts/{$accountId}/details/")
+        );
 
         return $response->json();
     }
 
     /**
-     * Retrieves transactions for a specified account, optionally filtered by date range.
+     * Retrieves transactions for a specified account, following the API pagination cursor.
+     *
+     * The date filters are sent with the first request only. Every subsequent page is fetched from
+     * the absolute `next` URL exactly as returned: passing query parameters alongside it would make
+     * Guzzle replace that URL's query string, dropping the page cursor and re-fetching page one
+     * forever.
+     *
+     * A failure after the first page never discards what was already read — the pages collected so
+     * far are returned with `partial` set, and the caller decides what to do with an incomplete set.
      *
      * @param  string  $accountId  The unique identifier of the account.
      * @param  string|null  $dateFrom  Optional start date (YYYY-MM-DD) to filter transactions.
      * @param  string|null  $dateTo  Optional end date (YYYY-MM-DD) to filter transactions.
-     * @return array Array of transactions for the account.
+     * @return array{transactions: array{booked: list<mixed>}, partial: bool, partial_reason: string|null, pages_fetched: int}
      *
-     * @throws \Exception If the API request fails.
+     * @throws GoCardlessRateLimitException If the very first page is rate limited.
+     * @throws \Exception If the very first page cannot be fetched.
      */
     public function getTransactions(string $accountId, ?string $dateFrom = null, ?string $dateTo = null): array
     {
-        // Check cache first
-        $cacheKey = "gocardless_transactions_{$accountId}_{$dateFrom}_{$dateTo}";
-        if ($this->useCache) {
-            $cached = Cache::get($cacheKey);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-
         $params = [];
         if ($dateFrom) {
             $params['date_from'] = $dateFrom;
@@ -319,50 +483,134 @@ class GoCardlessBankDataClient implements BankDataClientInterface
             $params['date_to'] = $dateTo;
         }
 
-        $allTransactions = [];
-        $nextPage = null;
-        $retryCount = 0;
-        $maxRetries = 3;
+        $booked = [];
+        $pagesFetched = 0;
+        $partialReason = null;
+        $retryBudget = self::MAX_TRANSACTION_RETRIES;
+        $requestedUrls = [];
+        $url = "{$this->baseUrl}/accounts/{$accountId}/transactions/";
 
-        do {
-            try {
-                $url = $nextPage ?? "{$this->baseUrl}/accounts/{$accountId}/transactions/";
-                $response = $this->request()
-                    ->get($url, $params);
-
-                $this->handleResponse($response, 'get transactions');
-
-                $data = $response->json();
-                $transactions = $data['transactions'] ?? [];
-
-                // Merge transactions
-                if (isset($transactions['booked'])) {
-                    $allTransactions['transactions']['booked'] = array_merge(
-                        $allTransactions['transactions']['booked'] ?? [],
-                        $transactions['booked']
-                    );
-                }
-                // Get next page URL if available
-                $nextPage = $data['next'] ?? null;
-
-                // Reset retry count on successful request
-                $retryCount = 0;
-
-            } catch (\Illuminate\Http\Client\ConnectionException $e) {
-                $retryCount++;
-                if ($retryCount >= $maxRetries) {
-                    throw new \Exception('Failed to get transactions after '.$maxRetries.' retries: '.$e->getMessage());
-                }
-                // Wait before retrying (exponential backoff)
-                sleep(pow(2, $retryCount));
+        while (true) {
+            if ($pagesFetched >= self::MAX_TRANSACTION_PAGES) {
+                $partialReason = 'max_pages';
+                Log::warning('GoCardless transaction pagination hit the page cap', [
+                    'account_id' => $accountId,
+                    'pages_fetched' => $pagesFetched,
+                ]);
+                break;
             }
-        } while ($nextPage);
 
-        if ($this->useCache) {
-            Cache::put($cacheKey, $allTransactions, $this->cacheDuration);
+            $pageUrl = $url;
+            $isFirstPage = $pagesFetched === 0;
+            $call = $isFirstPage
+                ? fn (PendingRequest $request): Response => $request->get($pageUrl, $params)
+                : fn (PendingRequest $request): Response => $request->get($pageUrl);
+
+            try {
+                $response = $this->fetchTransactionPage($call, $retryBudget);
+            } catch (GoCardlessRateLimitException $e) {
+                if ($isFirstPage) {
+                    throw $e;
+                }
+
+                $partialReason = 'rate_limited';
+                Log::warning('GoCardless rate limited mid-pagination, returning partial transactions', [
+                    'account_id' => $accountId,
+                    'pages_fetched' => $pagesFetched,
+                    'retry_after' => $e->retryAfterSeconds,
+                ]);
+                break;
+            } catch (\Exception $e) {
+                if ($isFirstPage) {
+                    throw $e;
+                }
+
+                $partialReason = 'page_fetch_failed';
+                Log::warning('GoCardless transaction page failed, returning partial transactions', [
+                    'account_id' => $accountId,
+                    'pages_fetched' => $pagesFetched,
+                    'error' => $e->getMessage(),
+                ]);
+                break;
+            }
+
+            $requestedUrls[$pageUrl] = true;
+            $pagesFetched++;
+
+            $data = $response->json();
+            $data = is_array($data) ? $data : [];
+
+            $transactions = $data['transactions'] ?? null;
+            if (is_array($transactions) && isset($transactions['booked']) && is_array($transactions['booked'])) {
+                $booked = array_merge($booked, array_values($transactions['booked']));
+            }
+
+            $next = $data['next'] ?? null;
+            if ($next === null || $next === '') {
+                break;
+            }
+
+            // Never follow a cursor pointing off the API host, and never re-request a page already
+            // read — both mean the cursor is unusable, and following it is how the loop never ended.
+            if (! is_string($next) || ! str_starts_with($next, $this->baseUrl) || isset($requestedUrls[$next])) {
+                $partialReason = 'invalid_next_url';
+                Log::warning('GoCardless returned an unusable pagination cursor', [
+                    'account_id' => $accountId,
+                    'pages_fetched' => $pagesFetched,
+                ]);
+                break;
+            }
+
+            $url = $next;
         }
 
-        return $allTransactions;
+        return [
+            'transactions' => ['booked' => $booked],
+            'partial' => $partialReason !== null,
+            'partial_reason' => $partialReason,
+            'pages_fetched' => $pagesFetched,
+        ];
+    }
+
+    /**
+     * Fetch a single transactions page, retrying only the failures a retry can plausibly fix.
+     *
+     * Connection errors and 5xx responses are retried (at most self::MAX_PAGE_RETRIES times for
+     * this page, and only while the run-wide budget allows). Rate limits and other 4xx responses
+     * are surfaced immediately — replaying those only burns quota.
+     *
+     * @param  callable(PendingRequest): Response  $call
+     * @param  int  $retryBudget  Retries left for the whole pagination run; decremented in place.
+     *
+     * @throws GoCardlessRateLimitException
+     * @throws ConnectionException
+     * @throws \Exception
+     */
+    private function fetchTransactionPage(callable $call, int &$retryBudget): Response
+    {
+        $pageAttempts = 0;
+
+        while (true) {
+            $lastChance = $pageAttempts >= self::MAX_PAGE_RETRIES || $retryBudget <= 0;
+
+            try {
+                $response = $this->sendWithAuthRetry($call);
+
+                if ($response->status() < 500 || $lastChance) {
+                    $this->handleResponse($response, 'get transactions');
+
+                    return $response;
+                }
+            } catch (ConnectionException $e) {
+                if ($lastChance) {
+                    throw $e;
+                }
+            }
+
+            $pageAttempts++;
+            $retryBudget--;
+            sleep($pageAttempts);
+        }
     }
 
     /**
@@ -375,22 +623,10 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      */
     public function getBalances(string $accountId): array
     {
-        $key = "gocardless_balances_{$accountId}";
-        if ($this->useCache) {
-            $cached = Cache::get($key);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-
-        $response = $this->request()
-            ->get("{$this->baseUrl}/accounts/{$accountId}/balances/");
-
-        $this->handleResponse($response, 'get balances');
-
-        if ($this->useCache) {
-            Cache::put($key, $response->json(), 300);
-        }
+        $response = $this->send(
+            'get balances',
+            fn (PendingRequest $request): Response => $request->get("{$this->baseUrl}/accounts/{$accountId}/balances/")
+        );
 
         return $response->json();
     }
@@ -403,10 +639,11 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      *
      * @param  string  $institutionId  The identifier of the financial institution.
      * @param  string  $redirectUrl  The URL to redirect the user after authorization.
-     * @param  string|null  $agreementId  (Unused) Optional agreement ID for the requisition.
+     * @param  string|null  $agreementId  Optional End User Agreement ID to attach to the requisition.
+     * @param  string|null  $reference  Optional correlation id echoed back on the redirect as `ref=`.
      * @return array The API response as an associative array.
      */
-    public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null): array
+    public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null, ?string $reference = null): array
     {
         $payload = [
             'institution_id' => $institutionId,
@@ -418,12 +655,14 @@ class GoCardlessBankDataClient implements BankDataClientInterface
             $payload['agreement'] = $agreementId;
         }
 
-        $response = $this->request()
-            ->post("{$this->baseUrl}/requisitions/", $payload);
+        if ($reference !== null && $reference !== '') {
+            $payload['reference'] = $reference;
+        }
 
-        $this->handleResponse($response, 'create requisition');
-
-        Cache::forget('gocardless_requisitions_all');
+        $response = $this->send(
+            'create requisition',
+            fn (PendingRequest $request): Response => $request->post("{$this->baseUrl}/requisitions/", $payload)
+        );
 
         return $response->json();
     }
@@ -431,7 +670,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     /**
      * Retrieves one or all requisitions from the GoCardless API.
      *
-     * If a requisition ID is provided, returns details for that requisition; otherwise, returns all requisitions. Uses cache if enabled.
+     * If a requisition ID is provided, returns details for that requisition; otherwise, returns all requisitions.
      *
      * @param  string|null  $requisitionId  Optional requisition ID to fetch a specific requisition.
      * @return array The requisition data as an associative array.
@@ -440,39 +679,18 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      */
     public function getRequisitions(?string $requisitionId = null): array
     {
-        $key = $requisitionId ? "gocardless_requisitions_{$requisitionId}" : 'gocardless_requisitions_all';
-        if ($this->useCache) {
-            $cached = Cache::get($key);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
+        $url = $requisitionId ? "{$this->baseUrl}/requisitions/{$requisitionId}/" : "{$this->baseUrl}/requisitions/";
 
-        $response = $this->request()
-            ->get($requisitionId ? "{$this->baseUrl}/requisitions/{$requisitionId}/" : "{$this->baseUrl}/requisitions/");
+        $response = $this->send(
+            'get requisitions',
+            fn (PendingRequest $request): Response => $request->get($url)
+        );
 
-        $this->handleResponse($response, 'get requisitions');
-
-        $data = $response->json();
-
-        // Only cache linked requisitions — transient statuses (CR, GC, UA) should not be cached
-        if ($requisitionId !== null) {
-            $isTransient = in_array($data['status'] ?? null, ['CR', 'GC', 'UA'], true);
-        } else {
-            $isTransient = collect($data['results'] ?? [])
-                ->contains(fn (array $r) => in_array($r['status'] ?? null, ['CR', 'GC', 'UA'], true));
-        }
-        if ($this->useCache && ! $isTransient) {
-            Cache::put($key, $data, $this->cacheDuration);
-        }
-
-        return $data;
+        return $response->json();
     }
 
     /**
      * Deletes a requisition by its ID from the GoCardless API.
-     *
-     * Removes the specified requisition and clears related cached data.
      *
      * @param  string  $requisitionId  The ID of the requisition to delete.
      * @return bool True if the requisition was successfully deleted.
@@ -481,13 +699,10 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      */
     public function deleteRequisition(string $requisitionId): bool
     {
-        $response = $this->request()
-            ->delete("{$this->baseUrl}/requisitions/{$requisitionId}/");
-
-        $this->handleResponse($response, 'delete requisition');
-        // Clear the cached requisitions
-        Cache::forget("gocardless_requisitions_{$requisitionId}");
-        Cache::forget('gocardless_requisitions_all');
+        $this->send(
+            'delete requisition',
+            fn (PendingRequest $request): Response => $request->delete("{$this->baseUrl}/requisitions/{$requisitionId}/")
+        );
 
         return true;
     }
@@ -496,6 +711,9 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      * Retrieves a list of financial institutions available for a specified country code.
      *
      * Uses caching if enabled to reduce redundant API calls. Throws an exception if the API request fails.
+     *
+     * Only tenant-independent data may be cached; anything derived from a requisition/account id is
+     * per-user and MUST NOT be cached in the shared store.
      *
      * @param  string  $countryCode  ISO country code to filter institutions.
      * @return array List of institutions for the given country.
@@ -509,10 +727,11 @@ class GoCardlessBankDataClient implements BankDataClientInterface
                 return $cached;
             }
         }
-        $response = $this->request()
-            ->get("{$this->baseUrl}/institutions?country={$countryCode}");
+        $response = $this->send(
+            'get institutions',
+            fn (PendingRequest $request): Response => $request->get("{$this->baseUrl}/institutions?country={$countryCode}")
+        );
 
-        $this->handleResponse($response, 'get institutions');
         if ($this->useCache) {
             Cache::put($key, $response->json(), $this->cacheDuration);
         }

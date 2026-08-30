@@ -8,6 +8,14 @@ interface BankDataClientInterface
 
     public function createEndUserAgreement(string $institutionId, array $userData): array;
 
+    /**
+     * Fetch an existing End User Agreement so its exact access window
+     * (accepted timestamp + access_valid_for_days) can be persisted.
+     *
+     * @return array<string, mixed>
+     */
+    public function getEndUserAgreement(string $agreementId): array;
+
     public function getAccounts(string $requisitionId): array;
 
     public function getAccountMetadata(string $accountId): array;
@@ -18,7 +26,11 @@ interface BankDataClientInterface
 
     public function getBalances(string $accountId): array;
 
-    public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null): array;
+    /**
+     * @param  string|null  $reference  Caller-supplied correlation id; GoCardless echoes it
+     *                                  back on the redirect as `ref=<reference>`.
+     */
+    public function createRequisition(string $institutionId, string $redirectUrl, ?string $agreementId = null, ?string $reference = null): array;
 
     public function getRequisitions(?string $requisitionId = null): array;
 

@@ -81,10 +81,20 @@ interface TransactionRepositoryInterface extends BaseRepositoryContract
     public function fingerprintExists(int $accountId, string $fingerprint): bool;
 
     /**
+     * Whether the account holds a non-synced (CSV-imported) row on the same day, in the
+     * same currency and for the same amount — a weak duplicate signal used to flag a
+     * newly synced transaction for manual review.
+     *
+     * @param  array<string, mixed>  $mappedData
+     */
+    public function hasPotentialImportMatch(int $accountId, array $mappedData): bool;
+
+    /**
      * Find a unique, strong cross-source match for an imported transaction.
      *
      * Used to enrich an existing CSV import with provider metadata only when there is
-     * one high-confidence candidate in the same account.
+     * one high-confidence candidate in the same account. Rows already created by a
+     * GoCardless sync are never candidates.
      *
      * @param  array<string, mixed>  $mappedData
      */

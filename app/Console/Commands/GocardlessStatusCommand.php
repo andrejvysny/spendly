@@ -6,6 +6,8 @@ namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ResolvesUser;
 use App\Contracts\Repositories\AccountRepositoryInterface;
+use App\Enums\GoCardlessCredentialSource;
+use App\Services\GoCardless\CredentialsResolver;
 use Illuminate\Console\Command;
 
 class GocardlessStatusCommand extends Command
@@ -18,7 +20,8 @@ class GocardlessStatusCommand extends Command
     protected $description = 'Show GoCardless integration status for a user.';
 
     public function __construct(
-        private readonly AccountRepositoryInterface $accountRepository
+        private readonly AccountRepositoryInterface $accountRepository,
+        private readonly CredentialsResolver $credentialsResolver,
     ) {
         parent::__construct();
     }
@@ -32,7 +35,7 @@ class GocardlessStatusCommand extends Command
             return self::FAILURE;
         }
 
-        $hasCredentials = $user->gocardless_secret_id !== null && $user->gocardless_secret_key !== null;
+        $source = $this->credentialsResolver->sourceFor($user);
         $hasToken = $user->gocardless_access_token !== null;
         /** @var \Carbon\Carbon|null $tokenExpiry */
         $tokenExpiry = $user->gocardless_access_token_expires_at;
@@ -43,7 +46,7 @@ class GocardlessStatusCommand extends Command
 
         $this->info("GoCardless Status (User #{$user->id}: {$user->email})");
         $this->line('');
-        $this->line('  Credentials configured: '.($hasCredentials ? 'yes' : 'no'));
+        $this->line('  Credentials configured: '.($source !== null ? 'yes ('.$this->sourceLabel($source).')' : 'no'));
         $expiresStr = $tokenExpiry !== null ? $tokenExpiry->toDateTimeString() : '';
         $this->line('  Access token valid:     '.($tokenValid ? "yes (expires {$expiresStr})" : ($hasToken ? 'expired' : 'no')));
         $this->line('  Mock mode:              '.($mockMode ? 'yes' : 'no'));
@@ -60,5 +63,13 @@ class GocardlessStatusCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function sourceLabel(GoCardlessCredentialSource $source): string
+    {
+        return match ($source) {
+            GoCardlessCredentialSource::USER => 'personal override',
+            GoCardlessCredentialSource::INSTANCE => 'instance credentials',
+        };
     }
 }

@@ -10,6 +10,7 @@ use App\Services\GoCardless\GoCardlessBankDataClient;
 use App\Services\GoCardless\GocardlessMapper;
 use App\Services\GoCardless\GoCardlessService;
 use App\Services\GoCardless\TransactionSyncService;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -157,7 +158,7 @@ class GoCardlessServiceTest extends UnitTestCase
             ->andReturn($syncStats);
 
         $this->accountRepository->shouldReceive('updateSyncTimestamp')
-            ->with($account)
+            ->with($account, Mockery::any())
             ->once();
 
         // Act
@@ -300,7 +301,7 @@ class GoCardlessServiceTest extends UnitTestCase
             ->andReturn($syncStats);
 
         $this->accountRepository->shouldReceive('updateSyncTimestamp')
-            ->with($account)
+            ->with($account, Mockery::any())
             ->once();
 
         $result = $this->service->syncAccountTransactions($account->id, $this->user, true, true);
@@ -308,6 +309,207 @@ class GoCardlessServiceTest extends UnitTestCase
         $this->assertEquals($account->id, $result['account_id']);
         $this->assertEquals($syncStats, $result['stats']);
         $this->assertEquals($dateRange, $result['date_range']);
+    }
+
+    /**
+     * Build the account mock shared by the watermark tests below.
+     */
+    private function watermarkAccount(): Account
+    {
+        $account = Mockery::mock(Account::class)->makePartial();
+        $account->id = 1;
+        $account->user_id = $this->user->id;
+        $account->is_gocardless_synced = true;
+        $account->gocardless_account_id = 'gocardless_acc_123';
+        $account->shouldReceive('setAttribute')->andReturnSelf();
+
+        return $account;
+    }
+
+    /**
+     * Stub the calculateDateRange/getTransactions/syncTransactions chain shared by
+     * the watermark tests, isolating only the two things each test varies: the
+     * GoCardless response's `partial` flag and the sync stats.
+     *
+     * @param  array{date_from:string,date_to:string}  $dateRange
+     * @param  array<string,mixed>  $syncStats
+     */
+    private function stubSyncFlow(Account $account, array $dateRange, array $syncStats, bool $partial = false): void
+    {
+        $this->accountRepository->shouldReceive('findByIdForUser')
+            ->with($account->id, $this->user->id)
+            ->once()
+            ->andReturn($account);
+
+        $this->transactionSyncService->shouldReceive('calculateDateRange')
+            ->with($account, 90, false)
+            ->once()
+            ->andReturn($dateRange);
+
+        $this->bankDataMock->shouldReceive('getTransactions')
+            ->once()
+            ->andReturn([
+                'transactions' => ['booked' => [], 'pending' => []],
+                'partial' => $partial,
+            ]);
+
+        $this->transactionSyncService->shouldReceive('syncTransactions')
+            ->once()
+            ->andReturn($syncStats);
+    }
+
+    /**
+     * Stub updateSyncTimestamp and capture the Carbon value it was called with (or
+     * confirm it was never called), so tests get a real PHPUnit assertion on the exact
+     * watermark instead of relying solely on a Mockery argument matcher.
+     *
+     * @return object{called: bool, value: mixed}
+     */
+    private function captureWatermark(Account $account, bool $expectCall): object
+    {
+        $capture = new class
+        {
+            public bool $called = false;
+
+            public mixed $value = null;
+        };
+
+        $expectation = $this->accountRepository->shouldReceive('updateSyncTimestamp')
+            ->with($account, Mockery::on(function ($arg) use ($capture) {
+                $capture->called = true;
+                $capture->value = $arg;
+
+                return true;
+            }));
+
+        $expectCall ? $expectation->once() : $expectation->never();
+
+        return $capture;
+    }
+
+    public function test_watermark_advances_to_date_to_on_clean_sync(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2024-06-15'));
+
+        try {
+            $this->setupFactoryMock();
+            $account = $this->watermarkAccount();
+            $dateRange = ['date_from' => '2024-05-16', 'date_to' => '2024-06-15'];
+
+            $this->stubSyncFlow($account, $dateRange, [
+                'created' => 3, 'updated' => 0, 'skipped' => 0, 'errors' => 0, 'total' => 3,
+            ]);
+
+            $capture = $this->captureWatermark($account, expectCall: true);
+
+            $this->service->syncAccountTransactions($account->id, $this->user);
+
+            $this->assertInstanceOf(Carbon::class, $capture->value);
+            $this->assertSame('2024-06-15', $capture->value->format('Y-m-d'));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_watermark_not_advanced_on_partial_fetch(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2024-06-15'));
+
+        try {
+            $this->setupFactoryMock();
+            $account = $this->watermarkAccount();
+            $dateRange = ['date_from' => '2024-05-16', 'date_to' => '2024-06-15'];
+
+            $this->stubSyncFlow($account, $dateRange, [
+                'created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0, 'total' => 0,
+            ], partial: true);
+
+            $capture = $this->captureWatermark($account, expectCall: false);
+
+            $this->service->syncAccountTransactions($account->id, $this->user);
+
+            $this->assertFalse($capture->called, 'watermark must not advance on a partial fetch');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_watermark_pulled_back_to_earliest_failure_minus_one_day(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2024-06-15'));
+
+        try {
+            $this->setupFactoryMock();
+            $account = $this->watermarkAccount();
+            $dateRange = ['date_from' => '2024-05-16', 'date_to' => '2024-06-15'];
+
+            $this->stubSyncFlow($account, $dateRange, [
+                'created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 1, 'total' => 1,
+                // Well within the 90-day floor, so the clamp does not kick in here.
+                'earliest_unsynced_date' => '2024-06-01',
+            ]);
+
+            $capture = $this->captureWatermark($account, expectCall: true);
+
+            $this->service->syncAccountTransactions($account->id, $this->user);
+
+            $this->assertInstanceOf(Carbon::class, $capture->value);
+            $this->assertSame('2024-05-31', $capture->value->format('Y-m-d'));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_watermark_not_advanced_when_failure_date_unknown(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2024-06-15'));
+
+        try {
+            $this->setupFactoryMock();
+            $account = $this->watermarkAccount();
+            $dateRange = ['date_from' => '2024-05-16', 'date_to' => '2024-06-15'];
+
+            $this->stubSyncFlow($account, $dateRange, [
+                'created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 1, 'total' => 1,
+                'earliest_unsynced_date' => null,
+            ]);
+
+            $capture = $this->captureWatermark($account, expectCall: false);
+
+            $this->service->syncAccountTransactions($account->id, $this->user);
+
+            $this->assertFalse($capture->called, 'watermark must not advance when the failure date is unknown');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_watermark_clamped_to_90_days(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2024-06-15'));
+
+        try {
+            $this->setupFactoryMock();
+            $account = $this->watermarkAccount();
+            $dateRange = ['date_from' => '2024-03-17', 'date_to' => '2024-06-15'];
+
+            $this->stubSyncFlow($account, $dateRange, [
+                'created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 1, 'total' => 1,
+                // Far more than 90 days before "now": earliest - 1 day would fall below the floor.
+                'earliest_unsynced_date' => '2023-01-01',
+            ]);
+
+            $expectedFloor = Carbon::now()->subDays(90)->format('Y-m-d');
+
+            $capture = $this->captureWatermark($account, expectCall: true);
+
+            $this->service->syncAccountTransactions($account->id, $this->user);
+
+            $this->assertInstanceOf(Carbon::class, $capture->value);
+            $this->assertSame($expectedFloor, $capture->value->format('Y-m-d'));
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     /**
@@ -363,6 +565,7 @@ class GoCardlessServiceTest extends UnitTestCase
             ->andReturn(['created' => 0, 'updated' => 0, 'skipped' => 0, 'total' => 0]);
 
         $this->accountRepository->shouldReceive('updateSyncTimestamp')
+            ->with(Mockery::any(), Mockery::any())
             ->twice();
 
         $results = $this->service->syncAllAccounts($this->user);
@@ -423,7 +626,7 @@ class GoCardlessServiceTest extends UnitTestCase
             ->andReturn(['created' => 5, 'updated' => 0, 'skipped' => 0, 'total' => 5]);
 
         $this->accountRepository->shouldReceive('updateSyncTimestamp')
-            ->with($account1)
+            ->with($account1, Mockery::any())
             ->once();
 
         // Second account fails
@@ -486,13 +689,14 @@ class GoCardlessServiceTest extends UnitTestCase
             ->andReturn($agreementData);
 
         $this->bankDataMock->shouldReceive('createRequisition')
-            ->with($institutionId, $redirectUrl, 'agr_789')
+            ->with($institutionId, $redirectUrl, 'agr_789', 'ref-abc')
             ->once()
             ->andReturn($requisitionData);
 
-        $result = $this->service->createRequisition($institutionId, $redirectUrl, $this->user);
+        $result = $this->service->createRequisition($institutionId, $redirectUrl, $this->user, 'ref-abc');
 
-        $this->assertEquals($requisitionData, $result);
+        $this->assertEquals($requisitionData, $result['requisition']);
+        $this->assertEquals($agreementData, $result['agreement']);
     }
 
     public function test_create_requisition_proceeds_without_agreement_on_failure(): void
@@ -509,13 +713,14 @@ class GoCardlessServiceTest extends UnitTestCase
             ->andThrow(new \Exception('EUA creation failed'));
 
         $this->bankDataMock->shouldReceive('createRequisition')
-            ->with($institutionId, $redirectUrl, null)
+            ->with($institutionId, $redirectUrl, null, null)
             ->once()
             ->andReturn($requisitionData);
 
         $result = $this->service->createRequisition($institutionId, $redirectUrl, $this->user);
 
-        $this->assertEquals($requisitionData, $result);
+        $this->assertEquals($requisitionData, $result['requisition']);
+        $this->assertNull($result['agreement'], 'A failed EUA must not be reported as an agreement');
     }
 
     /**
@@ -613,8 +818,8 @@ class GoCardlessServiceTest extends UnitTestCase
             ->once()
             ->andReturn($mappedData);
 
-        $this->accountRepository->shouldReceive('create')
-            ->with($mappedData)
+        $this->accountRepository->shouldReceive('createForUser')
+            ->with($this->user->id, $mappedData)
             ->once()
             ->andReturn($importedAccount);
 

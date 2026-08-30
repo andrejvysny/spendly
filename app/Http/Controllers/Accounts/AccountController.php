@@ -8,6 +8,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AccountRequest;
 use App\Models\Account;
 use App\Models\Transaction;
+use App\Models\User;
+use App\Services\GoCardless\CredentialsResolver;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,9 +20,12 @@ use Inertia\Response;
 
 class AccountController extends Controller
 {
+    use AuthorizesRequests;
+
     public function __construct(
         private AccountRepositoryInterface $accountRepository,
-        private AnalyticsRepositoryInterface $analyticsRepository
+        private AnalyticsRepositoryInterface $analyticsRepository,
+        private CredentialsResolver $credentialsResolver
     ) {}
 
     public function index(): JsonResponse|Response
@@ -32,10 +38,11 @@ class AccountController extends Controller
             ]);
         }
 
+        // Credentials may come from the user's own override or from the installation's env
+        // configuration, so ask the resolver rather than reading the user columns directly.
         $user = auth()->user();
-        $gocardlessConfigured = $user
-            && filled($user->gocardless_secret_id)
-            && filled($user->gocardless_secret_key);
+        $gocardlessConfigured = $user instanceof User
+            && $this->credentialsResolver->sourceFor($user) !== null;
 
         return Inertia::render('accounts/index', [
             'accounts' => $accounts,
@@ -49,7 +56,8 @@ class AccountController extends Controller
         try {
             $validated = $request->validated();
 
-            $this->accountRepository->create(
+            $this->accountRepository->createForUser(
+                $this->getAuthUserId(),
                 [
                     'name' => $validated['name'],
                     'bank_name' => $validated['bank_name'] ?? null,
@@ -59,7 +67,6 @@ class AccountController extends Controller
                     'balance' => $validated['balance'],
                     'is_gocardless_synced' => $validated['is_gocardless_synced'] ?? false,
                     'gocardless_account_id' => $validated['gocardless_account_id'] ?? null,
-                    'user_id' => auth()->id(),
                 ]
             );
 
@@ -74,6 +81,7 @@ class AccountController extends Controller
 
     public function show(Account $account): Response|RedirectResponse
     {
+        $this->authorize('view', $account);
 
         // Get initial paginated transactions for this account (first page only)
         $transactions = $account->transactions()
@@ -129,9 +137,9 @@ class AccountController extends Controller
         ]);
     }
 
-    public function destroy(int $id): \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse
+    public function destroy(Account $account): \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse
     {
-        $account = Account::where('user_id', auth()->id())->findOrFail($id);
+        $this->authorize('delete', $account);
 
         // Delete all associated transactions first
         $account->transactions()->delete();
@@ -157,11 +165,11 @@ class AccountController extends Controller
     /**
      * Update sync options for an account.
      */
-    public function updateSyncOptions(Request $request, string|int $id): JsonResponse
+    public function updateSyncOptions(Request $request, Account $account): JsonResponse
     {
-        try {
-            $account = Account::where('user_id', auth()->id())->findOrFail($id);
+        $this->authorize('update', $account);
 
+        try {
             $validated = $request->validate([
                 'update_existing' => 'boolean',
                 'force_max_date_range' => 'boolean',

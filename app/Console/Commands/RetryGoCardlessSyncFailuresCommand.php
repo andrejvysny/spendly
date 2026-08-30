@@ -8,11 +8,11 @@ use App\Contracts\Repositories\GoCardlessSyncFailureRepositoryInterface;
 use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Account;
 use App\Models\GoCardlessSyncFailure;
-use App\Models\Transaction;
-use App\Services\GoCardless\GocardlessMapper;
-use App\Services\GoCardless\TransactionDataValidator;
+use App\Services\GoCardless\TransactionSyncService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class RetryGoCardlessSyncFailuresCommand extends Command
 {
@@ -28,12 +28,11 @@ class RetryGoCardlessSyncFailuresCommand extends Command
 
     public function handle(
         GoCardlessSyncFailureRepositoryInterface $failureRepository,
-        GocardlessMapper $mapper,
-        TransactionDataValidator $validator,
-        TransactionRepositoryInterface $transactionRepository
+        TransactionRepositoryInterface $transactionRepository,
+        TransactionSyncService $transactionSyncService
     ): int {
         $accountId = $this->option('account');
-        $dryRun = $this->option('dry-run');
+        $dryRun = (bool) $this->option('dry-run');
 
         $failures = $accountId
             ? GoCardlessSyncFailure::whereNull('resolved_at')->where('account_id', $accountId)->get()
@@ -63,64 +62,123 @@ class RetryGoCardlessSyncFailuresCommand extends Command
             return self::SUCCESS;
         }
 
-        $syncDate = Carbon::now();
         $resolved = 0;
         $failed = 0;
 
-        foreach ($due as $failure) {
-            $account = Account::find($failure->account_id);
-            if (! $account) {
-                $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
-                $failed++;
-
-                continue;
-            }
-
-            $raw = $failure->raw_data;
-            if (! is_array($raw)) {
-                $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
-                $failed++;
-
-                continue;
-            }
-
+        // Group by account so the canonical pipeline runs once per account instead of
+        // once per failure row, and so one account's problem can't abort another's.
+        foreach ($due->groupBy('account_id') as $groupAccountId => $accountFailures) {
+            /** @var Collection<int, GoCardlessSyncFailure> $accountFailures */
             try {
-                $mapped = $mapper->mapTransactionData($raw, $account, $syncDate);
-                $validation = $validator->validate($mapped, $syncDate);
-
-                if ($validation->hasErrors()) {
-                    $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
-                    $failed++;
-
-                    continue;
-                }
-
-                $data = $validation->data;
-                $data['account_id'] = $account->id;
-                $data['needs_manual_review'] = $validation->needsReview;
-                $data['review_reason'] = $validation->reviewReasons !== [] ? implode(',', $validation->reviewReasons) : null;
-
-                $existingIds = $transactionRepository->getExistingTransactionIds($account->id, [$data['transaction_id']]);
-                if ($existingIds->isNotEmpty()) {
-                    $failureRepository->markResolved($failure->id, 'already_imported');
-                    $resolved++;
-
-                    continue;
-                }
-
-                $data['fingerprint'] = Transaction::generateFingerprint($data);
-                $transactionRepository->createOne($data);
-                $failureRepository->markResolved($failure->id, 'auto_fixed');
-                $resolved++;
+                $resolvedInGroup = $this->retryAccountGroup(
+                    (int) $groupAccountId,
+                    $accountFailures,
+                    $failureRepository,
+                    $transactionRepository,
+                    $transactionSyncService
+                );
+                $resolved += $resolvedInGroup;
+                $failed += $accountFailures->count() - $resolvedInGroup;
             } catch (\Throwable $e) {
-                $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
-                $this->warn("Failure {$failure->id}: ".$e->getMessage());
-                $failed++;
+                Log::error('gocardless:retry-failures: account group failed', [
+                    'account_id' => $groupAccountId,
+                    'error' => $e->getMessage(),
+                ]);
+                $this->warn("Account {$groupAccountId}: retry failed - {$e->getMessage()}");
+                $this->bumpRetryCount($accountFailures);
+                $failed += $accountFailures->count();
             }
         }
 
         $this->info("Resolved: {$resolved}, still failing: {$failed}.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Retry every due failure for one account through the canonical sync pipeline
+     * (TransactionSyncService::resyncRawTransactions), then resolve each failure row
+     * individually based on whether its transaction exists afterward.
+     *
+     * @param  Collection<int, GoCardlessSyncFailure>  $failures
+     * @return int Number of failures resolved
+     */
+    private function retryAccountGroup(
+        int $accountId,
+        Collection $failures,
+        GoCardlessSyncFailureRepositoryInterface $failureRepository,
+        TransactionRepositoryInterface $transactionRepository,
+        TransactionSyncService $transactionSyncService
+    ): int {
+        $account = Account::with('user')->find($accountId);
+        if (! $account instanceof Account) {
+            $this->bumpRetryCount($failures);
+
+            return 0;
+        }
+
+        $rawPayloads = [];
+        $retryable = [];
+
+        foreach ($failures as $failure) {
+            $raw = $failure->raw_data;
+            if (! is_array($raw)) {
+                $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
+
+                continue;
+            }
+
+            $rawPayloads[] = $raw;
+            $retryable[] = $failure;
+        }
+
+        if ($rawPayloads === []) {
+            return 0;
+        }
+
+        // Known provider IDs are the only reliable way to check post-run existence:
+        // rows the provider sent without a transactionId get a fallback ID synthesised
+        // deep in the pipeline, which we cannot cheaply recompute here.
+        $candidateIds = array_values(array_unique(array_filter(
+            array_map(static fn (GoCardlessSyncFailure $f) => $f->external_transaction_id, $retryable)
+        )));
+
+        $existingBefore = $transactionRepository->getExistingTransactionIds($accountId, $candidateIds);
+
+        $transactionSyncService->resyncRawTransactions($rawPayloads, $account);
+
+        $existingAfter = $transactionRepository->getExistingTransactionIds($accountId, $candidateIds);
+
+        $resolvedCount = 0;
+
+        foreach ($retryable as $failure) {
+            $externalId = $failure->external_transaction_id;
+
+            if ($externalId !== null && $existingAfter->contains($externalId)) {
+                // Existed even before this retry ran: some other path (e.g. a normal
+                // sync) already imported it and this failure row is stale.
+                $resolution = $existingBefore->contains($externalId) ? 'already_imported' : 'auto_fixed';
+                $failureRepository->markResolved($failure->id, $resolution);
+                $resolvedCount++;
+
+                continue;
+            }
+
+            // Still missing (or unverifiable without a provider ID): count as another
+            // failed attempt so backoff applies before the next retry.
+            $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
+        }
+
+        return $resolvedCount;
+    }
+
+    /**
+     * @param  Collection<int, GoCardlessSyncFailure>  $failures
+     */
+    private function bumpRetryCount(Collection $failures): void
+    {
+        foreach ($failures as $failure) {
+            $failure->update(['retry_count' => $failure->retry_count + 1, 'last_retry_at' => now()]);
+        }
     }
 }

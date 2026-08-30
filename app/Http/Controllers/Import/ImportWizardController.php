@@ -104,13 +104,14 @@ class ImportWizardController extends Controller
         // Create new account if requested
         $accountId = $request->getAccountId();
         if (! $accountId && $request->getNewAccountName()) {
-            $account = Account::create([
-                'user_id' => Auth::id(),
+            $account = new Account([
                 'name' => $request->getNewAccountName(),
                 'currency' => $request->getNewAccountCurrency(),
                 'type' => 'cash', // Default type
                 'balance' => 0,
             ]);
+            $account->user_id = $this->getAuthUserId();
+            $account->save();
             $accountId = $account->id;
             Log::info('Created new account during import', ['account_id' => $accountId]);
         }

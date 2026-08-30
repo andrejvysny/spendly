@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ResolvesUser;
+use App\Jobs\SyncGoCardlessAccountJob;
 use App\Services\GoCardless\GoCardlessService;
 use Illuminate\Console\Command;
 
@@ -16,7 +17,8 @@ class GocardlessSyncCommand extends Command
         {--account= : Local account ID to sync (required).}
         {--user= : User ID or email (default: first user)}
         {--no-update-existing : Do not update already imported transactions}
-        {--force-max-date-range : Force sync from max days ago instead of last sync date}';
+        {--force-max-date-range : Force sync from max days ago instead of last sync date}
+        {--queue : Queue the sync instead of running it inline}';
 
     protected $description = 'Sync transactions for a single GoCardless-linked account. For testing and AI agents.';
 
@@ -51,6 +53,15 @@ class GocardlessSyncCommand extends Command
 
         $updateExisting = ! $this->option('no-update-existing');
         $forceMaxDateRange = $this->option('force-max-date-range');
+
+        // Inline stays the default: the CLI contract is "run it and show me what happened",
+        // which a queued dispatch cannot answer.
+        if ($this->option('queue')) {
+            SyncGoCardlessAccountJob::dispatch($accountId, (int) $user->id, $updateExisting, (bool) $forceMaxDateRange);
+            $this->info("Queued sync for account {$accountId}.");
+
+            return self::SUCCESS;
+        }
 
         try {
             $result = $this->gocardlessService->syncAccountTransactions($accountId, $user, $updateExisting, $forceMaxDateRange);

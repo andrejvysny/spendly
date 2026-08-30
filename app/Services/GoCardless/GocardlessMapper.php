@@ -247,7 +247,7 @@ class GocardlessMapper
             'description' => $description,
             'type' => $type,
 
-            'balance_after_transaction' => $this->get($transaction, 'balanceAfterTransaction.balanceAmount.amount', 0),
+            'balance_after_transaction' => $this->get($transaction, 'balanceAfterTransaction.balanceAmount.amount', null),
             'metadata' => $metadata,
             'import_data' => $importDataEncoded,
 
