@@ -1,6 +1,57 @@
 # TODO
 
-Updated: 2026-07-11
+Updated: 2026-08-02
+
+# Session: GoCardless Production Hardening — IN PROGRESS 2026-08-02
+
+Plan: `~/.claude/plans/act-as-senior-software-frolicking-rocket.md`. No commits without explicit instruction. Branch: main (branch question open).
+Gates: no NEW phpstan errors in touched files (~1923 pre-existing, no baseline), scoped pint, tests via `docker compose run --rm test php artisan test --filter=...` (3 pre-existing deletion-listener failures NOT ours).
+Agent-brief rules: scoped pint only (`vendor/bin/pint <files>`), NEVER git checkout/restore/stash (clobbered parallel agents once already).
+
+## Phase 0 — Security hotfixes — DONE 2026-08-02 (diff-reviewed, gates green)
+
+- [x] 0.1 Account policy (IDOR /accounts/{id}) + user_id out of fillable + createForUser (+ImportWizardController/AccountSeeder call sites; AuthorizesRequests on AccountController not base — ImportController private authorize() collision)
+- [x] 0.2 Cross-tenant response caching deleted from GoCardlessBankDataClient (institutions cache kept; net −82)
+- [x] 0.3 Rate limiters (read 60 / write 10 / sync 6 / callback 30 per min) + verified on GC routes
+- [x] 0.4 RequisitionResource whitelist (ssn/redirect/reference/account_selection stripped; link null when LN)
+- [x] 0.5 Migration 2026*08_02_173740: 4 users.gocardless*\* columns → TEXT
+- [x] 0.6 sync-all --all + scheduler uses it (C3 stopgap; 3-user regression test)
+- [x] 0.7 trustProxies(env TRUSTED_PROXIES, default \*) + .env.example
+- Gates verified by main thread: full suite 722 passed, only the 3 documented pre-existing failures; tsc + eslint clean.
+
+## Phase 1 — Correctness core
+
+- [x] 1.1 send() unification: 401→refresh→retry-once (TokenManager::refreshAfterUnauthorized, rotation-aware) + pagination cursor fix (visited-set + SSRF + 50-page guards) + partial results shape (diff-reviewed; client phpstan 30→24)
+- [x] 1.2 GoCardlessApiException (correlation IDs) + SensitiveDataRedactor + log/error hygiene; no bodies/traces to browser or logs; catch-site audit done; fallback token path leak fixed inline (diff-reviewed)
+- [x] 1.3 Currency ISO-4217 format validation (malformed→error, uncommon→review, never relabel) + balance_after_transaction null default + frontend null render (diff-reviewed)
+- [x] 1.4 TransactionDeduplicator + DedupDecision DTO; two-pass processBatch; is_gocardless_synced narrowing on import heuristics (PATH B); post-validation existingIds (PATH C); fingerprint-skip only for id-less rows (PATH A); in-batch guards; skipped_reasons stats+logs; BatchInsert real count. 16 dedup tests incl. headline. Full suite 820+3 pre-existing. (diff-reviewed)
+- [x] 1.5 resolveSyncWatermark (partial→hold, errors→pull back to earliest-1d clamped 90d, clean→date_to) + retry command grouped per account through resyncRawTransactions (canonical pipeline: dedup/native_amount/rules/ML). Phase 1 gate: 864 passed + 3 pre-existing, tsc clean. (diff-reviewed)
+- FOLLOW-UP noted: ExchangeRate 'date' cast persists with time suffix on SQLite → findRateWithWalkback same-day string compare misses (pre-existing, out of scope)
+- [x] BONUS: GoCardlessFixtureLoader pointed to sample_data/ — woke 39 dormant fixture-gated tests (fixed 1 stale assertion in RevolutFieldExtractorTest). Wave-1 gate: 780 passed, 3 pre-existing failures, tsc clean.
+
+## Phase 2 — Architecture
+
+- [x] 2.1 gocardless_requisitions table (+accounts link migration), GoCardlessRequisitionStatus enum, model (relation renamed linkedAccounts — accounts JSON cast collision), repo w/ atomic claimCallback, factory, policy, bindings. 34 tests. (diff-reviewed)
+- [x] 2.2 Signed callback (URL::hasValidSignature + fixed ignoreQuery allowlist; claim-before-API single-use; user from row, no session/auth fallback) + DB-first list w/ ?refresh=1 upsert (terminal rows never resurrected) + import/delete ownership checks + getEndUserAgreement. 892+3 gate. (diff-reviewed)
+- NOTE: if GoCardless adds new redirect params, extend UNSIGNED_CALLBACK_PARAMS allowlist in GoCardlessRequisitionController.
+- [x] 2.3 GoCardlessConsentExpiredException (marker-based 401/403 detection) + gocardless:check-consent daily (expire/warn/poll, terminal states protected) + reconnect endpoint (policy-gated, reuses startRequisitionFlow) + gocardless:backfill-requisitions + sync-path 409 reconnect_required + frontend badges/alerts. 928+3 gate. (diff-reviewed)
+- [x] 2.4 SyncGoCardlessAccountJob (ShouldBeUnique per account, retryUntil 12h no $tries, 429→release(retryAfter), consent→fail+flag, timeout 280<300 worker) + gocardless:dispatch-sync everyFourHours (all users, 8h min interval, 20s stagger) + 202/sync-status endpoints + polling UX + timing chain (worker 300 / gracetime 300000 / stop_grace 330s / DB_QUEUE_RETRY_AFTER 360 / --queue=default,gocardless everywhere incl composer dev). 973+3 gate. (diff-reviewed)
+
+## Phase 3 — Credentials + deploy
+
+- [x] 3.1 CredentialsResolver (user override > instance env; partial override = hard error, never silent fallback) + token_secret_hash rotation (clear-before-mint) + source-aware settings UI (instance secret never exposed) + AccountController flag via resolver. GOCARDLESS_SECRET_ID/KEY env now real. 1007+3 gate. (diff-reviewed)
+- FOLLOW-UP → folded into 3.3: GocardlessCredentialsCommand/GocardlessBackfillRequisitionsCommand (+status cmd if exists) still read user columns directly, misreport under instance creds
+- [x] 3.2 Caddyfile rebuilt from Octane stub (worker mode preserved) + SERVER_NAME opt-in auto-HTTPS (single site block, comma addresses; healthcheck stays plain HTTP) + --caddyfile flag added (stub was silently used before). Both modes `frankenphp validate` clean. compose.prod: SERVER_NAME/TRUSTED_PROXIES passthrough. (diff-reviewed)
+- [x] 3.3 spendly:check-config (APP_URL/creds/queue/debug/key checks, exit 0, --json, runs in init-app) + AppUrlDiagnostics shared w/ bank_data banner + about 'Spendly' section + CLI commands resolver-aware (credentials/status/backfill). Agent died on spend limit mid-task; finished inline (phpstan fix, tests, JSON test). 11 tests.
+- [x] 3.4 Docs truth pass: SELFHOSTING_GUIDE (SERVER_NAME HTTPS, reverse proxy + TRUSTED_PROXIES, hybrid credentials, APP_URL requirement, queue/scheduler table, diagnostics section added inline), GoCardless_Architecture rewrite, AGENTS.md CLI table, .env.example. All commands/env vars cross-checked vs code.
+
+## SESSION COMPLETE 2026-08-03 — all 4 phases done
+
+Final gate: 1019 passed + 3 pre-existing deletion-listener failures, tsc/eslint clean, phpstan zero-new per touched file.
+NOT COMMITTED (per rule). Suggested next: commit sweep (~120 files), mock-mode 2-user E2E, sandbox smoke test w/ real credentials, image build test.
+Open follow-ups: ExchangeRate SQLite date-cast bug; deletion-listener pre-existing failures; EUA 180d option; sync_runs history table; mail notifications for consent expiry.
+
+---
 
 ## Now
 
@@ -37,13 +88,13 @@ Plan (approved, local plan file) — tiered transfer detection (IBAN → one-sid
 - [x] B4-6 import paths: TransactionDataParser classifyTransferType strong/weak (strong=contains transfer/prevod/presun/… → transfer_candidate (+single_leg_transfer_candidate if pocket pattern); weak=trvalým príkazom/platobný príkaz/topup → metadata.transfer_type_hint only); virtual partner_iban field resolved by amount sign; ImportMappingService partner_iban rule + not_conditions + Str::ascii header folding + new type rule (before category, 'type' removed from category patterns); ConfigureStep.tsx + FieldMappingService.ts parity; RevolutFieldExtractor flags vault moves single_leg_transfer_candidate
 - [x] A1: config/recurring.php (intervals weekly/biweekly/monthly(25–36)/quarterly/semiannual/yearly + min_occurrences, quorum .75, max_missed 3, plateaus 3, hf guard 4/mo); RecurringGroup biweekly/semiannual consts + stats math; RecurringDetectionSetting lookback_months (default 24); migrations 2026_07_11_0000{00,01,02} (confidence/amount_current/currency; lookback+group_by data fix; fingerprint v2 backfill — logic inlined, deletes stale suggested once)
 - [x] A2-4: RecurringDetectionService v2 — fitInterval (k=1..3 per gap, quorum, ranking fitted→k1→missed→nominal), segmentAmountPlateaus (price steps confirmed-by-next, monotone-levels check), clusterAmounts fallback (cluster series require k1_fraction ≥ 0.5 — anti cherry-pick), high-frequency guard w/ clean-weekly exception, effectiveMinOccurrences (yearly/semiannual=2 ignore user min), computeConfidence (0.35i+0.25a+0.20o+0.20r + dom bonus 5, min 40), currency in group key, fingerprint v2 sha256(v2|user|acct|payee|CCY|interval|cN), reconcileStaleSuggestions replaces wipe
-- [x] A5 (mostly): controller orders suggested by confidence, lookback_months validation 6–48; settings/recurring.tsx lookback input + FIXED group_by values (were merchant_* → 422 on save, now counterparty_*); recurring/index.tsx confidence badge + amount_current + group.currency (was hardcoded EUR); docs/ai/RECURRING_PAYMENTS.md + landing/…/recurring-payments.md rewritten for v2
+- [x] A5 (mostly): controller orders suggested by confidence, lookback*months validation 6–48; settings/recurring.tsx lookback input + FIXED group_by values (were merchant*\_ → 422 on save, now counterparty\_\_); recurring/index.tsx confidence badge + amount_current + group.currency (was hardcoded EUR); docs/ai/RECURRING_PAYMENTS.md + landing/…/recurring-payments.md rewritten for v2
 - [x] Tests added: TransferDetectionTiersTest (20), TransferFixIncorrectCommandTest (8), RecurringDetectionV2Test (20), parser/mapping/extractor unit tests, bulk-service pair-block tests. All pass + all pre-existing transfer(18)/recurring(11) tests pass. npm run types clean.
 
 ## Remaining
 
 - [x] A5 tail: docs/ai/TRANSFER_DETECTION.md created (tiers, scoring table, config keys, evidence schema, review reasons, fix-incorrect semantics)
-- [x] .env.example: TRANSFERS_* + RECURRING_* keys added (user approved 2026-07-11); env() wrappers added to config/recurring.php lookback/min_confidence
+- [x] .env.example: TRANSFERS*\* + RECURRING*\* keys added (user approved 2026-07-11); env() wrappers added to config/recurring.php lookback/min_confidence
 - [x] phpstan level 9: repo has 1923 pre-existing errors at HEAD (no baseline file — does NOT pass clean). All NEW files 0 errors; every modified file ≤ its HEAD count (net −11 vs baseline). Baseline diff method: git worktree at HEAD + docker phpstan, raw outputs in scratchpad.
 - [x] pint clean (40 files), eslint/prettier/tsc clean
 - [x] Full suite: 692 passed; 3 failures = documented pre-existing deletion-listener crashes (delete-all, revert-import, bulk-delete — Transaction.php:45). Fixed our 1 regression: TransactionControllerTest bulk-type pair test now uses 2 accounts + new same_account block test.
@@ -76,7 +127,7 @@ Plan (approved, local plan file) — tiered transfer detection (IBAN → one-sid
 - [x] B0: evaluation.py (temporal holdout + CV per-class thresholds), metrics history JSON, GET /api/v1/models/categorizer/metrics, MlService::getCategorizerMetrics, Model Quality panel in settings/ml_engine.tsx, export upgrades (booked_date/account_id + transfer-pairs task), ml/scripts/backtest.py
 - [x] B1 core: merchant-normalized token (clean_text/normalize_merchant), SGD→LogisticRegression, partial_train deleted, per-class needs_review thresholds + auto_apply flag in categorize response, 0.3 gate removed
 - [x] Measured (temporal holdout, 1186-row export): SGD 92.9% acc / 91.7 macro-F1 → LR 95.4% acc / 95.7 macro-F1; live model v3 94.7% acc on full data
-- [x] Privacy: ml/.gitignore hardened (data/* blanket), database/backups/ snapshots
+- [x] Privacy: ml/.gitignore hardened (data/\* blanket), database/backups/ snapshots
 - [!] INCIDENT: live DB wiped mid-session (cause unproven — marker tests cleared ml:train + app restart); fully restored deterministically from captured label decisions + saved classification; backup snapshot now in database/backups/
 - [ ] Follow-up: `Last Trained` in settings reads MlPersonalizationSetting — CLI train doesn't update it (RetrainMlModelJob does); wire ml:train to touch it or read manifest
 - [ ] Next: auto-apply consumption in Laravel (gates on real metrics), B2 transfer scorer (transfer-pairs export ready), commit sweep (tree holds L1+L2 + Track B core, all uncommitted per user choice)
