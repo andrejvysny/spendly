@@ -29,7 +29,7 @@ class UserSeeder extends Seeder
         // Create test user
         User::create([
             'name' => 'Test Person',
-            'email' => 'vysnyandrej@gmail.com',
+            'email' => 'test@example.com',
             'email_verified_at' => now(),
             'password' => Hash::make('password'),
             'remember_token' => null,

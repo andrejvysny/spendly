@@ -46,3 +46,15 @@ yarn-error.log
 
 # Postgres/ML compose env override
 .env.pg
+
+# Local-only working notes and scratch scripts (never commit to the public repo)
+/CURRENT_STATE.md
+/HANDOFF.md
+/NEXT_STEPS.md
+/ML-intern-plan.md
+/testing_report.md
+/scripts/auto_label_user2.py
+
+# Reference checkouts of third-party projects (embedded git repos, not submodules)
+/ml-intern/
+/spendly-research/
