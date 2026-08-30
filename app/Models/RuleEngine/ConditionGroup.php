@@ -2,6 +2,7 @@
 
 namespace App\Models\RuleEngine;
 
+use Database\Factories\ConditionGroupFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ConditionGroup extends Model
 {
     use HasFactory;
+
+    /**
+     * These models live in App\Models\RuleEngine, so Laravel looks for a factory in
+     * Database\Factories\RuleEngine — which does not exist. Point it at the real one.
+     */
+    protected static function newFactory(): ConditionGroupFactory
+    {
+        return ConditionGroupFactory::new();
+    }
 
     /**
      * Logic operator constants.

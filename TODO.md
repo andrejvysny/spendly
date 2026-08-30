@@ -299,4 +299,22 @@ Strategy decided: classical ML (sklearn), CPU-only Docker; MLX/ml-intern track P
 - [ ] **getSpentForBudgets → SQL GROUP BY** (perf only; in-memory path is correct) — `BudgetService`
 - [ ] **RecurringGroup stats sign** — flip signed `total_paid`/`average_amount`/`projected_yearly_cost` to positive cost; needs coordinated `resources/js` change (UpcomingRecurringCard, recurring page)
 - [ ] **BLOCKER (pre-existing): `EntityBehavior::getUserId(): int` returns null → TypeError** — breaks `SuperAdminControllerTest` + `TrackManualCategorizationTest`, OOMs full test run. `app/Traits/EntityBehavior.php` + `Account/Category::getUserId()`
-- [ ] **BLOCKER (pre-existing): rule engine reloads deleted transaction → `ModelNotFoundException`** — breaks delete/bulk-delete/import-revert. `app/Listeners/ProcessTransactionRules.php::handleTransactionDeleted`
+- [x] ~~**BLOCKER: rule engine reloads deleted transaction → `ModelNotFoundException`**~~ — fixed: `TransactionDeleted` no longer uses `SerializesModels`, and `ActionExecutor` refuses to act on a model that no longer exists (every action ends in `save()`, which resurrected the row).
+
+## Rule-engine tests predating the current API
+
+`tests/{Unit,Feature}/RuleEngine/` (5 classes, 104 methods) were written with `it_*`
+method names but no `#[Test]` attribute, so PHPUnit never collected any of them —
+they had been silently dead since they were written. Adding the attribute (and
+wiring `newFactory()` on the `App\Models\RuleEngine` models, whose factories live in
+`Database\Factories\` rather than the `RuleEngine\` sub-namespace Laravel looks for)
+brought 74 of them to life.
+
+The remaining **30 are marked `markTestSkipped`** and need porting to the current API:
+
+- `ActionExecutorTest` — 23. Most assert against methods that have since been renamed
+  or removed (e.g. `RuleAction::getActionTypes()`).
+- `EventDrivenRulesTest` — 3, `MigrationTest` — 2, `ConditionEvaluatorTest` — 1,
+  `RuleApiTest` — 1.
+
+Each carries a `markTestSkipped` explaining why. Delete the skip and fix the assertion.

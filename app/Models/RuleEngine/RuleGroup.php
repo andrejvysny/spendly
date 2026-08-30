@@ -3,6 +3,7 @@
 namespace App\Models\RuleEngine;
 
 use App\Models\User;
+use Database\Factories\RuleGroupFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +12,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class RuleGroup extends Model
 {
     use HasFactory;
+
+    /**
+     * These models live in App\Models\RuleEngine, so Laravel looks for a factory in
+     * Database\Factories\RuleEngine — which does not exist. Point it at the real one.
+     */
+    protected static function newFactory(): RuleGroupFactory
+    {
+        return RuleGroupFactory::new();
+    }
 
     /**
      * The attributes that are mass assignable.

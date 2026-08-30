@@ -116,6 +116,7 @@ All configuration is via environment variables. Key options:
 | `SERVER_NAME`           | _(unset)_           | Domain for the bundled Caddy's automatic Let's Encrypt HTTPS. Unset = plain HTTP on :80 for reverse-proxy setups. See [HTTPS](#https) below |
 | `TRUSTED_PROXIES`       | `*`                 | Trusted proxy IPs/CIDRs, or `*` to trust all. See [Reverse Proxy](#reverse-proxy-nginxtraefik) below                                        |
 | `PORT`                  | `80`                | Host port mapping                                                                                                                           |
+| `REGISTRATION_ENABLED`  | `true`              | Set to `false` after creating your account to close sign-up. See [Closing registration](#closing-registration) below                        |
 | `MAIL_MAILER`           | `log`               | Mail driver (`smtp`, `log`, etc.)                                                                                                           |
 | `MAIL_HOST`             | —                   | SMTP host                                                                                                                                   |
 | `MAIL_PORT`             | —                   | SMTP port                                                                                                                                   |
@@ -168,6 +169,22 @@ volumes:
 ```
 
 > **`APP_URL` must be the real public `https://` URL of your instance if you use GoCardless bank sync.** The bank-authorization callback is a Laravel signed URL built from `APP_URL`; if it doesn't match what the bank actually redirects back to, the signature check fails and the connection is rejected. This applies whether TLS is terminated by the bundled Caddy (`SERVER_NAME` set) or by your own reverse proxy.
+
+### Closing registration
+
+A publicly reachable instance accepts sign-ups from anyone who finds the URL. Once
+your own account exists, set:
+
+```yaml
+environment:
+    REGISTRATION_ENABLED: 'false'
+```
+
+and restart. `/register` then returns 404 and the "Sign up" link disappears from the
+login page. The route stays registered internally, so nothing else breaks.
+
+Order matters: bring the instance up with registration open, create your account,
+then turn it off and restart.
 
 ### Reverse Proxy (Nginx/Traefik)
 
@@ -253,6 +270,27 @@ docker compose up -d
 ```
 
 Migrations run automatically on container start — no manual step needed for schema changes.
+
+**Pinning a version.** `:main` and `:latest` move with every push, so `docker compose pull`
+gives you whatever was built last and there is no way back to the previous image. Every build
+also publishes an immutable `sha-<commit>` tag:
+
+```yaml
+image: ghcr.io/andrejvysny/spendly:sha-<full-commit-sha>
+```
+
+Pin that if you want reproducible deploys and a rollback target.
+
+**Verifying the image.** Images are signed with cosign, keyless, bound to the build
+workflow's identity:
+
+```bash
+cosign verify ghcr.io/andrejvysny/spendly:main \
+  --certificate-identity-regexp '^https://github.com/andrejvysny/spendly/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+They also carry SBOM and provenance attestations (`docker buildx imagetools inspect`).
 
 **If you connected a bank before this instance had GoCardless requisition tracking** (i.e. the account has always synced fine, but a bank connection was made a while ago), run the backfill once so consent-expiry warnings and reconnect detection work for it:
 
