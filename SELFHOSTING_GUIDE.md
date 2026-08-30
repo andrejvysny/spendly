@@ -143,6 +143,11 @@ environment:
 
 The container includes drivers for SQLite, MySQL, and PostgreSQL.
 
+When `DB_HOST` is set, the container waits for the database to accept connections
+before running migrations, retrying for about a minute. If it gives up it prints the
+connection error and exits — check the logs rather than the healthcheck, since the
+container never gets far enough to serve `/up`.
+
 ### HTTPS
 
 HTTPS is **opt-in**, via `SERVER_NAME`:
