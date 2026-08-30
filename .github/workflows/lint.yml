@@ -37,6 +37,16 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      # tsconfig maps `ziggy-js` to vendor/tightenco/ziggy, so the typecheck below
+      # needs Composer's vendor tree even though this is the Node job.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+
+      - name: Install PHP Dependencies (for ziggy-js types)
+        run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+
       # lint:check, not lint — `npm run lint` is `eslint --fix`, which "passes" by
       # silently rewriting files in the runner and reporting nothing.
       - name: Run ESLint

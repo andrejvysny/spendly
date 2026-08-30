@@ -37,10 +37,12 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      # composer audit queries the Packagist advisory database directly. The old
+      # `composer require --dev roave/security-advisories` line failed outright —
+      # it is a conflict-only metapackage with no stable release — and audit never
+      # needed it anyway.
       - name: Run PHP Security Checker
-        run: |
-          composer require --dev roave/security-advisories
-          composer audit
+        run: composer audit
 
       - name: Run npm audit
         run: npm audit --audit-level=moderate
@@ -64,7 +66,9 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         with:
-          languages: javascript, php
+          # CodeQL has no PHP extractor; naming it fails the job outright.
+          # PHP is covered by phpstan and the Trivy/composer-audit jobs instead.
+          languages: javascript-typescript
           queries: security-and-quality
 
       - name: Autobuild
@@ -132,36 +136,54 @@ jobs:
 
       - name: Check for hardcoded financial data
         run: |
+          # GitHub runs this with `bash -e`, and grep exits 2 on *any* read error
+          # (binary files, permissions). The previous version therefore aborted the
+          # step before it ever evaluated a match. Collect output instead, then test.
+          set +e
+          fail=0
+
+          common=(-r -I --exclude-dir=node_modules --exclude-dir=vendor
+                  --exclude-dir=.git --exclude-dir=public --exclude="*.md"
+                  --exclude="*.lock" --exclude="package-lock.json")
+
           echo "Checking for potential hardcoded financial data..."
 
-          # Check for hardcoded credit card patterns
-          if grep -r -E '\b[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}\b' --exclude-dir=node_modules --exclude-dir=vendor --exclude="*.md" .; then
-            echo "⚠️  Potential credit card numbers found in code"
-            exit 1
+          # Credit-card-shaped digit runs.
+          cc=$(grep "${common[@]}" -E '\b[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}\b' . 2>/dev/null)
+          if [ -n "$cc" ]; then
+            echo "::error::Potential credit card numbers found"
+            printf '%s\n' "$cc" | head -20
+            fail=1
           fi
 
-          # Check for hardcoded IBAN patterns.
-          # Test fixtures legitimately need IBAN-shaped strings, so .github/iban-allowlist.txt
-          # holds the reviewed synthetic ones. Anything not on that list fails the build,
-          # which is what stops a real account number being committed again.
-          allow=$(grep -vE '^\s*(#|$)' .github/iban-allowlist.txt)
-          if grep -r -o -E '\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b' \
-               --exclude-dir=node_modules --exclude-dir=vendor --exclude-dir=.git \
-               --exclude="*.md" --exclude=iban-allowlist.txt . \
-             | awk -F: '{print $NF"\t"$0}' \
-             | grep -vFf <(printf '%s\n' "$allow") ; then
-            echo "⚠️  IBAN-shaped string found that is not in .github/iban-allowlist.txt"
-            echo "    Use a synthetic SK99…/LT99… value, or add it to the allowlist if it is genuinely fake."
-            exit 1
+          # IBAN-shaped strings. Test fixtures legitimately need them, so
+          # .github/iban-allowlist.txt holds the reviewed synthetic values and anything
+          # else fails — that is what stops a real account number being committed again.
+          allow=$(grep -vE '^[[:space:]]*(#|$)' .github/iban-allowlist.txt)
+          ibans=$(grep "${common[@]}" -o -E '\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b' \
+                    --exclude=iban-allowlist.txt . 2>/dev/null \
+                  | awk -F: '{print $NF"\t"$0}' \
+                  | grep -vFf <(printf '%s\n' "$allow"))
+          if [ -n "$ibans" ]; then
+            echo "::error::IBAN-shaped string not present in .github/iban-allowlist.txt"
+            echo "Use a synthetic SK99…/LT99… value, or add it to the allowlist if it is genuinely fake."
+            printf '%s\n' "$ibans" | head -20
+            fail=1
           fi
 
-          # Check for hardcoded API keys (basic patterns)
-          if grep -r -E '(api_key|apikey|secret_key|access_token|private_key)[[:space:]]*[=:][[:space:]]*["\']?[a-zA-Z0-9]{20,}' --exclude-dir=node_modules --exclude-dir=vendor --exclude="*.md" --exclude=".env.example" .; then
-            echo "⚠️  Potential hardcoded API keys found"
-            exit 1
+          # Assigned secrets. Note the character class is written without a backslash
+          # escape: the old pattern used ["\'] inside a single-quoted shell string,
+          # which closed the quote and broke the whole command.
+          keys=$(grep "${common[@]}" --exclude=".env.example" \
+                   -E "(api_key|apikey|secret_key|access_token|private_key)[[:space:]]*[=:][[:space:]]*[\"']?[a-zA-Z0-9]{20,}" . 2>/dev/null)
+          if [ -n "$keys" ]; then
+            echo "::error::Potential hardcoded API key found"
+            printf '%s\n' "$keys" | head -20
+            fail=1
           fi
 
-          echo "✅ No obvious financial data patterns found in code"
+          if [ "$fail" -ne 0 ]; then exit 1; fi
+          echo "✅ No hardcoded financial data or secrets found"
 
       - name: Validate environment configuration
         run: |

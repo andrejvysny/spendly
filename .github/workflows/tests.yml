@@ -98,8 +98,12 @@ jobs:
       - name: Generate Application Key
         run: php artisan key:generate
 
-      - name: Run Database Migrations
+      # Not needed by the suite (it migrates in-memory per test), but it catches a
+      # migration that only breaks against a real file database.
+      - name: Migration smoke check
         run: php artisan migrate --force
+        env:
+          DB_DATABASE: database/database.sqlite
 
       - name: Set up test environment
         run: |
@@ -108,15 +112,12 @@ jobs:
           php artisan view:clear
           php artisan route:clear
 
-      # sample_data/ is gitignored, so the GoCardless fixture suites skip here by
-      # design (GoCardlessFixtureLoader::fixturesAvailable()). Everything else runs.
+      # No DB_* overrides here. phpunit.xml already pins DB_DATABASE=":memory:", and a
+      # step-level env var wins over phpunit's <env>, which is what pushed the suite onto
+      # the shared file database and produced "database is locked". phpunit.xml is the
+      # single source of truth and matches the `test` service in compose.yml.
+      #
+      # sample_data/ is gitignored, so the GoCardless fixture suites skip here by design
+      # (GoCardlessFixtureLoader::fixturesAvailable()). Everything else runs.
       - name: Run Tests
         run: php artisan test -c phpunit.xml
-        env:
-          APP_ENV: testing
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
-          CACHE_STORE: array
-          SESSION_DRIVER: array
-          QUEUE_CONNECTION: sync
-          LOG_CHANNEL: 'null'
