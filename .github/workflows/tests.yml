@@ -1,17 +1,20 @@
 name: tests
 
-# Callable from build.yml so the image is never published from a red commit,
-# and run directly on pushes/PRs so breakage surfaces before a merge.
+# Called by build.yml on pushes so the image is never published from a red commit,
+# and run directly on pull requests so breakage surfaces before a merge.
 on:
   workflow_dispatch:
   workflow_call:
   pull_request:
     branches: [main, develop]
-  push:
-    branches: [main, develop]
+  # No `push:` trigger on purpose. build.yml calls this workflow on pushes to
+  # main/develop, and a reusable workflow evaluates github.workflow to the CALLER's
+  # name — so a push-triggered copy would land in build.yml's own concurrency group
+  # and cancel the build that is waiting on it. PRs run it directly; pushes run it
+  # through build.yml.
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: tests-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
