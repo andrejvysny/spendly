@@ -237,6 +237,41 @@ class GocardlessDispatchSyncCommandTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    /**
+     * The unattended half of the stale-sync recovery: an account whose worker died stays `syncing`
+     * forever, and this command skips in-progress accounts — so without reaping it here, the
+     * scheduled sync would never touch that account again.
+     */
+    public function test_reaps_and_requeues_an_account_wedged_in_syncing(): void
+    {
+        Queue::fake();
+        $account = $this->syncedAccount(User::factory()->create(), [
+            'gocardless_sync_status' => Account::SYNC_STATUS_SYNCING,
+            'gocardless_sync_started_at' => now()->subSeconds(Account::SYNC_STALE_SYNCING_SECONDS + 60),
+        ]);
+
+        $this->runCommand()->assertSuccessful();
+
+        Queue::assertPushed(SyncGoCardlessAccountJob::class);
+        $this->assertSame(Account::SYNC_STATUS_QUEUED, $account->refresh()->gocardless_sync_status);
+    }
+
+    /**
+     * A run that is merely slow must not be reaped out from under itself.
+     */
+    public function test_does_not_reap_a_sync_that_only_just_started(): void
+    {
+        Queue::fake();
+        $this->syncedAccount(User::factory()->create(), [
+            'gocardless_sync_status' => Account::SYNC_STATUS_SYNCING,
+            'gocardless_sync_started_at' => now()->subSeconds(60),
+        ]);
+
+        $this->runCommand()->assertSuccessful();
+
+        Queue::assertNothingPushed();
+    }
+
     // ── scoping and dry run ───────────────────────────────────────────────
 
     public function test_user_option_restricts_the_run_to_that_owner(): void

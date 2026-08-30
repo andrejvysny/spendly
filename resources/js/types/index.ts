@@ -27,6 +27,16 @@ export interface Account {
     gocardless_sync_status?: string;
     /** Short, redacted reason the last sync failed. Safe to render. */
     gocardless_sync_error?: string | null;
+    /** Counters from the last completed sync run; null until one has finished. */
+    gocardless_sync_stats?: {
+        total: number;
+        created: number;
+        updated: number;
+        skipped: number;
+        dropped: number;
+        errors: number;
+        needs_review: number;
+    } | null;
     /** No sync may be started before this instant (bank rate limit cooldown). */
     gocardless_sync_retry_after?: string | null;
     /** When the last sync job finished — distinct from gocardless_last_synced_at, the data watermark. */

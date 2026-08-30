@@ -214,7 +214,7 @@ class TokenManager
             throw new \Exception('Invalid response format from GoCardless API: missing access token');
         }
 
-        $this->updateTokens($data);
+        $this->storeRefreshedAccessToken($data);
 
         return $data['access'];
     }
@@ -260,48 +260,28 @@ class TokenManager
             throw new \Exception('Invalid response format from GoCardless API: missing access token');
         }
 
-        $this->updateTokens($data);
+        $this->storeNewTokenPair($data);
 
         return $data['access'];
     }
 
     /**
-     * Update user tokens in database.
+     * Persist a freshly minted token pair from POST /token/new/.
+     *
+     * That endpoint (SpectacularJWTObtain) is the only one that hands out a refresh token, so all
+     * four fields are genuinely required here and a missing one is a real protocol violation.
+     *
+     * @param  array<string, mixed>  $tokenData
      *
      * @throws \Exception
      */
-    private function updateTokens(array $tokenData): void
+    private function storeNewTokenPair(array $tokenData): void
     {
-        // Validate required keys exist
-        $requiredKeys = ['access', 'refresh', 'access_expires', 'refresh_expires'];
-        $missingKeys = array_diff($requiredKeys, array_keys($tokenData));
+        $this->assertPresent($tokenData, ['access', 'refresh', 'access_expires', 'refresh_expires']);
+        $this->assertNumeric($tokenData, ['access_expires', 'refresh_expires']);
 
-        if (! empty($missingKeys)) {
-            Log::error('Missing required token data keys', [
-                'user_id' => $this->user->id,
-                'missing_keys' => $missingKeys,
-                'available_keys' => array_keys($tokenData),
-            ]);
-            throw new \Exception('Invalid token data: missing required keys: '.implode(', ', $missingKeys));
-        }
-
-        // Validate that expiry values are numeric
-        if (! is_numeric($tokenData['access_expires']) || ! is_numeric($tokenData['refresh_expires'])) {
-            Log::error('Invalid token expiry values', [
-                'user_id' => $this->user->id,
-                'access_expires' => $tokenData['access_expires'],
-                'refresh_expires' => $tokenData['refresh_expires'],
-            ]);
-            throw new \Exception('Invalid token data: expiry values must be numeric');
-        }
-
-        $now = new DateTime;
-
-        $accessExpiresAt = clone $now;
-        $accessExpiresAt->modify('+'.$tokenData['access_expires'].' seconds');
-
-        $refreshExpiresAt = clone $now;
-        $refreshExpiresAt->modify('+'.$tokenData['refresh_expires'].' seconds');
+        $accessExpiresAt = $this->expiryFromNow($tokenData['access_expires']);
+        $refreshExpiresAt = $this->expiryFromNow($tokenData['refresh_expires']);
 
         $this->user->update([
             'gocardless_access_token' => $tokenData['access'],
@@ -313,10 +293,113 @@ class TokenManager
             'gocardless_token_secret_hash' => $this->credentials->fingerprint(),
         ]);
 
-        Log::info('Updated GoCardless tokens', [
+        Log::info('Stored new GoCardless token pair', [
             'user_id' => $this->user->id,
             'access_expires_at' => $accessExpiresAt->format('Y-m-d H:i:s'),
             'refresh_expires_at' => $refreshExpiresAt->format('Y-m-d H:i:s'),
         ]);
+    }
+
+    /**
+     * Persist the access token returned by POST /token/refresh/.
+     *
+     * SpectacularJWTRefresh carries only `access` and `access_expires` — refreshing does NOT rotate
+     * the refresh token. Requiring `refresh`/`refresh_expires` here (as one shared writer used to)
+     * made every valid refresh look like a malformed response, so once the 24h access token lapsed
+     * every sync threw until the 30-day refresh grant itself expired. The stored refresh token is
+     * therefore carried forward untouched, and only replaced if GoCardless ever does send a new one.
+     *
+     * @param  array<string, mixed>  $tokenData
+     *
+     * @throws \Exception
+     */
+    private function storeRefreshedAccessToken(array $tokenData): void
+    {
+        $this->assertPresent($tokenData, ['access', 'access_expires']);
+        $this->assertNumeric($tokenData, ['access_expires']);
+
+        $accessExpiresAt = $this->expiryFromNow($tokenData['access_expires']);
+
+        $attributes = [
+            'gocardless_access_token' => $tokenData['access'],
+            'gocardless_access_token_expires_at' => $accessExpiresAt,
+            'gocardless_token_secret_hash' => $this->credentials->fingerprint(),
+        ];
+
+        // Forward-compatible: honour a rotated refresh token if one ever appears, but never require
+        // it. Its expiry is only moved when the response actually states a new one.
+        if (isset($tokenData['refresh']) && is_string($tokenData['refresh']) && $tokenData['refresh'] !== '') {
+            $attributes['gocardless_refresh_token'] = $tokenData['refresh'];
+
+            if (isset($tokenData['refresh_expires'])) {
+                $this->assertNumeric($tokenData, ['refresh_expires']);
+                $attributes['gocardless_refresh_token_expires_at'] = $this->expiryFromNow($tokenData['refresh_expires']);
+            }
+        }
+
+        $this->user->update($attributes);
+
+        Log::info('Stored refreshed GoCardless access token', [
+            'user_id' => $this->user->id,
+            'access_expires_at' => $accessExpiresAt->format('Y-m-d H:i:s'),
+            'refresh_token_rotated' => array_key_exists('gocardless_refresh_token', $attributes),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $tokenData
+     * @param  list<string>  $keys
+     *
+     * @throws \Exception
+     */
+    private function assertPresent(array $tokenData, array $keys): void
+    {
+        $missingKeys = array_diff($keys, array_keys($tokenData));
+
+        if ($missingKeys === []) {
+            return;
+        }
+
+        Log::error('Missing required token data keys', [
+            'user_id' => $this->user->id,
+            'missing_keys' => array_values($missingKeys),
+            'available_keys' => array_keys($tokenData),
+        ]);
+
+        throw new \Exception('Invalid token data: missing required keys: '.implode(', ', $missingKeys));
+    }
+
+    /**
+     * @param  array<string, mixed>  $tokenData
+     * @param  list<string>  $keys
+     *
+     * @throws \Exception
+     */
+    private function assertNumeric(array $tokenData, array $keys): void
+    {
+        foreach ($keys as $key) {
+            if (is_numeric($tokenData[$key] ?? null)) {
+                continue;
+            }
+
+            Log::error('Invalid token expiry value', [
+                'user_id' => $this->user->id,
+                'key' => $key,
+            ]);
+
+            throw new \Exception('Invalid token data: expiry values must be numeric');
+        }
+    }
+
+    private function expiryFromNow(mixed $seconds): DateTime
+    {
+        // assertNumeric() has already run for every caller; repeated here because the narrowing
+        // does not survive the call boundary and a bad cast would silently mean "expires now".
+        $seconds = is_numeric($seconds) ? (int) $seconds : 0;
+
+        $expiresAt = new DateTime;
+        $expiresAt->modify('+'.$seconds.' seconds');
+
+        return $expiresAt;
     }
 }

@@ -25,6 +25,13 @@ class Account extends BaseModel implements OwnedByUserContract
 
     public const SYNC_STATUS_SUCCESS = 'success';
 
+    /**
+     * The run finished and wrote what it could, but some rows did not make it — a validation or
+     * mapping failure, or a row the unique index rejected. Deliberately not `success`: the ledger
+     * is incomplete and the watermark was held back so a later run refetches the gap.
+     */
+    public const SYNC_STATUS_INCOMPLETE = 'incomplete';
+
     public const SYNC_STATUS_FAILED = 'failed';
 
     public const SYNC_STATUS_RATE_LIMITED = 'rate_limited';
@@ -41,6 +48,24 @@ class Account extends BaseModel implements OwnedByUserContract
         self::SYNC_STATUS_QUEUED,
         self::SYNC_STATUS_SYNCING,
     ];
+
+    /**
+     * How long an account may sit in `syncing` before it is assumed dead.
+     *
+     * A worker killed mid-run (OOM, container eviction) never reaches failed(), so the row keeps
+     * saying `syncing` forever — and every dispatch path skips an in-progress account, which makes
+     * it permanently unsyncable. Generous against the job's own 280s timeout.
+     */
+    public const SYNC_STALE_SYNCING_SECONDS = 900;
+
+    /**
+     * How long an account may sit in `queued` before it is assumed lost.
+     *
+     * Much longer than the syncing threshold because a queued job may legitimately be waiting:
+     * gocardless:dispatch-sync staggers dispatches up to 1800s, and a rate-limited job may be
+     * released for up to SyncGoCardlessAccountJob::MAX_RELEASE_SECONDS on top of that.
+     */
+    public const SYNC_STALE_QUEUED_SECONDS = 3600;
 
     /**
      * The attributes that are mass assignable.
@@ -69,6 +94,7 @@ class Account extends BaseModel implements OwnedByUserContract
         'gocardless_sync_started_at',
         'gocardless_sync_finished_at',
         'gocardless_sync_error',
+        'gocardless_sync_stats',
         'gocardless_sync_retry_after',
     ];
 
@@ -89,6 +115,7 @@ class Account extends BaseModel implements OwnedByUserContract
         'gocardless_sync_started_at' => 'datetime',
         'gocardless_sync_finished_at' => 'datetime',
         'gocardless_sync_retry_after' => 'datetime',
+        'gocardless_sync_stats' => 'array',
     ];
 
     /**

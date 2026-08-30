@@ -411,6 +411,34 @@ class GoCardlessServiceTest extends UnitTestCase
         }
     }
 
+    /**
+     * A row silently rejected by the unique index carries no date we could anchor on, so the
+     * watermark must not move at all — advancing past it would mean no later run ever refetches it.
+     */
+    public function test_watermark_not_advanced_when_rows_were_dropped_on_insert(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2024-06-15'));
+
+        try {
+            $this->setupFactoryMock();
+            $account = $this->watermarkAccount();
+            $dateRange = ['date_from' => '2024-05-16', 'date_to' => '2024-06-15'];
+
+            $this->stubSyncFlow($account, $dateRange, [
+                'created' => 2, 'updated' => 0, 'skipped' => 0, 'dropped' => 1,
+                'errors' => 0, 'total' => 3,
+            ]);
+
+            $capture = $this->captureWatermark($account, expectCall: false);
+
+            $this->service->syncAccountTransactions($account->id, $this->user);
+
+            $this->assertFalse($capture->called);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_watermark_not_advanced_on_partial_fetch(): void
     {
         Carbon::setTestNow(Carbon::parse('2024-06-15'));

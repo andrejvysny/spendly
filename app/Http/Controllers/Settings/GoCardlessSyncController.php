@@ -118,7 +118,34 @@ class GoCardlessSyncController extends Controller
             'error' => $account->gocardless_sync_error,
             'retry_after_seconds' => $this->cooldownSeconds($account),
             'needs_reconnect' => (bool) $account->gocardless_needs_reconnect,
+            // Counters from the last completed run. Only aggregates — never anything derived from
+            // a transaction's contents.
+            'stats' => $this->syncStatsPayload($account),
         ];
+    }
+
+    /**
+     * The whitelisted counter set from the last completed run, or null when none has finished.
+     *
+     * Whitelisted the same way the status payload is: the stat array is written by
+     * TransactionSyncService and could grow keys that are not meant for a client.
+     *
+     * @return array<string, int>|null
+     */
+    private function syncStatsPayload(Account $account): ?array
+    {
+        $stats = $account->getAttribute('gocardless_sync_stats');
+
+        if (! is_array($stats) || $stats === []) {
+            return null;
+        }
+
+        $payload = [];
+        foreach (['total', 'created', 'updated', 'skipped', 'dropped', 'errors', 'needs_review'] as $key) {
+            $payload[$key] = is_numeric($stats[$key] ?? null) ? (int) $stats[$key] : 0;
+        }
+
+        return $payload;
     }
 
     /**
@@ -160,6 +187,10 @@ class GoCardlessSyncController extends Controller
                 'retry_after' => $cooldown,
             ], 429);
         }
+
+        // Clear a run whose worker died before it could report back; without this the account is
+        // stuck in-progress and this endpoint would answer 202 forever without dispatching.
+        $this->accountRepository->reapStaleSync($model);
 
         if (in_array($model->gocardless_sync_status, Account::SYNC_STATUSES_IN_PROGRESS, true)) {
             return response()->json([
@@ -214,6 +245,8 @@ class GoCardlessSyncController extends Controller
 
                 continue;
             }
+
+            $this->accountRepository->reapStaleSync($model);
 
             if (in_array($model->gocardless_sync_status, Account::SYNC_STATUSES_IN_PROGRESS, true)) {
                 $results[] = $this->queuedPayload($model);

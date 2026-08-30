@@ -58,7 +58,10 @@ class SyncGoCardlessAccountJobTest extends TestCase
     /**
      * Swap the real service for one that answers the sync call in a chosen way.
      */
-    private function fakeService(?\Throwable $throws = null): void
+    /**
+     * @param  array<string, mixed>|null  $stats  Stats the stubbed sync reports back.
+     */
+    private function fakeService(?\Throwable $throws = null, ?array $stats = null): void
     {
         $mock = Mockery::mock(GoCardlessService::class);
 
@@ -67,7 +70,10 @@ class SyncGoCardlessAccountJobTest extends TestCase
             $mock->shouldReceive('syncAccountTransactions')->andThrow($throws);
         } else {
             // @phpstan-ignore-next-line — Mockery shouldReceive() union type; no phpstan-mockery extension configured
-            $mock->shouldReceive('syncAccountTransactions')->andReturn(['account_id' => $this->account->id, 'stats' => ['created' => 1]]);
+            $mock->shouldReceive('syncAccountTransactions')->andReturn([
+                'account_id' => $this->account->id,
+                'stats' => $stats ?? ['created' => 1],
+            ]);
         }
 
         $this->app->instance(GoCardlessService::class, $mock);
@@ -115,6 +121,48 @@ class SyncGoCardlessAccountJobTest extends TestCase
         $this->assertNotNull($this->account->gocardless_sync_finished_at);
         $this->assertNull($this->account->gocardless_sync_error);
         $this->assertNull($this->account->gocardless_sync_retry_after);
+    }
+
+    public function test_successful_sync_stores_the_reported_counters(): void
+    {
+        Queue::fake();
+        $this->fakeService(stats: ['total' => 5, 'created' => 4, 'updated' => 1, 'errors' => 0, 'dropped' => 0]);
+
+        $this->runJob($this->makeJob());
+
+        $this->account->refresh();
+        $this->assertSame(4, $this->account->gocardless_sync_stats['created']);
+        $this->assertSame(1, $this->account->gocardless_sync_stats['updated']);
+    }
+
+    /**
+     * A run that fetched rows it could not store is not a success. Before the job kept the stats,
+     * a sync where every transaction failed validation reported "Transactions synced."
+     */
+    public function test_sync_that_lost_rows_is_recorded_as_incomplete_not_success(): void
+    {
+        Queue::fake();
+        $this->fakeService(stats: ['total' => 5, 'created' => 2, 'updated' => 0, 'errors' => 3, 'dropped' => 0]);
+
+        $this->runJob($this->makeJob());
+
+        $this->account->refresh();
+        $this->assertSame(Account::SYNC_STATUS_INCOMPLETE, $this->account->gocardless_sync_status);
+        $this->assertNotNull($this->account->gocardless_sync_finished_at);
+        $this->assertStringContainsString('3 transaction(s)', (string) $this->account->gocardless_sync_error);
+    }
+
+    /**
+     * Rows silently dropped by the unique index count the same way as validation failures.
+     */
+    public function test_sync_that_dropped_rows_is_recorded_as_incomplete(): void
+    {
+        Queue::fake();
+        $this->fakeService(stats: ['total' => 3, 'created' => 2, 'updated' => 0, 'errors' => 0, 'dropped' => 1]);
+
+        $this->runJob($this->makeJob());
+
+        $this->assertSame(Account::SYNC_STATUS_INCOMPLETE, $this->account->refresh()->gocardless_sync_status);
     }
 
     public function test_successful_sync_dispatches_recurring_detection_when_enabled(): void
@@ -187,6 +235,52 @@ class SyncGoCardlessAccountJobTest extends TestCase
         $this->fakeService(new GoCardlessRateLimitException(5));
 
         $this->runJob($this->makeJob())->assertReleased(60);
+    }
+
+    /**
+     * A daily-quota reset can be many hours out — longer than $uniqueFor and possibly longer than
+     * retryUntil(). Parking the job that long would drop its unique lock (letting dispatch-sync
+     * queue a duplicate) or see it failed on pickup without ever retrying. The account's cooldown
+     * is the mechanism for waits that long, and dispatch-sync already honours it.
+     */
+    public function test_rate_limit_longer_than_the_release_cap_is_not_parked_on_the_queue(): void
+    {
+        Queue::fake();
+        $this->fakeService(new GoCardlessRateLimitException(86400));
+
+        $job = $this->runJob($this->makeJob());
+
+        $job->assertNotReleased();
+        $job->assertNotFailed();
+
+        $this->account->refresh();
+        $this->assertSame(Account::SYNC_STATUS_RATE_LIMITED, $this->account->gocardless_sync_status);
+        // The full wait is still recorded, so no dispatch path will re-queue before it elapses.
+        $this->assertTrue($this->account->gocardless_sync_retry_after->greaterThan(now()->addHours(23)));
+    }
+
+    /**
+     * markSyncFailed() writes gocardless_sync_retry_after unconditionally, so a failed() hook that
+     * did not skip a rate-limited account erased the very cooldown protecting the daily quota —
+     * and the next dispatch-sync walked straight back into the same 429.
+     */
+    public function test_failed_hook_preserves_a_rate_limit_cooldown(): void
+    {
+        $cooldown = now()->addHours(6);
+        $this->account->update([
+            'gocardless_sync_status' => Account::SYNC_STATUS_RATE_LIMITED,
+            'gocardless_sync_retry_after' => $cooldown,
+        ]);
+
+        $this->makeJob()->failed(new \RuntimeException('worker gave up'));
+
+        $this->account->refresh();
+        $this->assertSame(Account::SYNC_STATUS_RATE_LIMITED, $this->account->gocardless_sync_status);
+        $this->assertNotNull($this->account->gocardless_sync_retry_after);
+        $this->assertSame(
+            $cooldown->format('Y-m-d H:i'),
+            $this->account->gocardless_sync_retry_after->format('Y-m-d H:i')
+        );
     }
 
     public function test_rate_limit_does_not_dispatch_recurring_detection(): void

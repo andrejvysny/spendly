@@ -55,10 +55,19 @@ final class SyncGoCardlessAccountJob implements ShouldBeUnique, ShouldQueue
     public int $maxExceptions = 3;
 
     /**
-     * Uniqueness window. Outlives the longest release delay below (900s) plus a run, so a
-     * rate-limited job waiting to come back still holds the lock against a duplicate dispatch.
+     * Uniqueness window. Outlives MAX_RELEASE_SECONDS plus a run, so a job waiting to come back
+     * still holds the lock against a duplicate dispatch. A wait the bank asks for that is longer
+     * than that cap is not parked here at all — see the rate-limit branch in handle().
      */
     public int $uniqueFor = 1800;
+
+    /**
+     * Longest a rate-limited job may be released for.
+     *
+     * Must stay under $uniqueFor with room for a run, otherwise the unique lock expires while the
+     * job is still parked and a second job can be queued for the same account.
+     */
+    private const MAX_RELEASE_SECONDS = 1500;
 
     public function __construct(
         public readonly int $accountId,
@@ -118,10 +127,11 @@ final class SyncGoCardlessAccountJob implements ShouldBeUnique, ShouldQueue
         $accounts->markSyncStarted($account);
 
         try {
-            $service->syncAccountTransactions($this->accountId, $user, $this->updateExisting, $this->forceMaxDateRange);
+            $result = $service->syncAccountTransactions($this->accountId, $user, $this->updateExisting, $this->forceMaxDateRange);
         } catch (GoCardlessRateLimitException $e) {
-            // The bank named a time; honour it rather than burning an attempt. Released (not
-            // failed) so the account keeps its place, bounded by retryUntil().
+            // The bank named a time; honour it rather than burning an attempt. The full wait is
+            // always recorded on the account, because that cooldown is what every dispatch path
+            // consults before queueing anything for this account.
             $delay = max(60, $e->retryAfterSeconds);
 
             $accounts->markSyncFailed(
@@ -135,9 +145,17 @@ final class SyncGoCardlessAccountJob implements ShouldBeUnique, ShouldQueue
                 'account_id' => $this->accountId,
                 'user_id' => $this->userId,
                 'retry_after_seconds' => $delay,
+                'released' => $delay <= self::MAX_RELEASE_SECONDS,
             ]);
 
-            $this->release($delay);
+            // A daily-quota reset can be hours away — far longer than $uniqueFor, and possibly
+            // longer than retryUntil(). Parking the job that long would drop its unique lock (so
+            // dispatch-sync could queue a duplicate) or see it failed on pickup without ever
+            // retrying. Beyond the cap the job simply ends: the account's cooldown is set, and
+            // gocardless:dispatch-sync brings it back once that expires.
+            if ($delay <= self::MAX_RELEASE_SECONDS) {
+                $this->release($delay);
+            }
 
             return;
         } catch (GoCardlessConsentExpiredException $e) {
@@ -174,7 +192,10 @@ final class SyncGoCardlessAccountJob implements ShouldBeUnique, ShouldQueue
             throw $e;
         }
 
-        $accounts->markSyncSucceeded($account);
+        // The counters are the only place a caller can learn that a run finished but did not store
+        // everything it fetched; without them an all-failed sync reported a clean success.
+        $stats = is_array($result['stats'] ?? null) ? $result['stats'] : [];
+        $accounts->markSyncSucceeded($account, $stats);
 
         if ($this->runRecurringDetection && RecurringDetectionSetting::forUser($this->userId)->run_after_import) {
             RecurringDetectionJob::dispatch($this->userId, $this->accountId);
@@ -197,8 +218,16 @@ final class SyncGoCardlessAccountJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
+        // RATE_LIMITED is in this list for a reason beyond tidiness: markSyncFailed() writes
+        // gocardless_sync_retry_after unconditionally, so falling through here with a null
+        // retryAfter would erase the cooldown that is protecting the daily quota, and the next
+        // dispatch-sync run would go straight back into the same 429.
         $status = $account->gocardless_sync_status;
-        if (in_array($status, [Account::SYNC_STATUS_FAILED, Account::SYNC_STATUS_NEEDS_RECONNECT], true)) {
+        if (in_array($status, [
+            Account::SYNC_STATUS_FAILED,
+            Account::SYNC_STATUS_NEEDS_RECONNECT,
+            Account::SYNC_STATUS_RATE_LIMITED,
+        ], true)) {
             return;
         }
 

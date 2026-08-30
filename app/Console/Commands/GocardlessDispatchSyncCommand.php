@@ -127,6 +127,10 @@ class GocardlessDispatchSyncCommand extends Command
             return 'cooldown';
         }
 
+        // A run whose worker died never reported back, so the row still claims to be in progress.
+        // Reaped before the in-progress check, otherwise the account is skipped here forever.
+        $this->accountRepository->reapStaleSync($account);
+
         // Uniqueness would collapse a duplicate anyway, but skipping keeps the stagger honest:
         // a job that is never pushed must not consume a delay slot.
         if (in_array($account->gocardless_sync_status, Account::SYNC_STATUSES_IN_PROGRESS, true)) {

@@ -91,7 +91,24 @@ interface AccountRepositoryInterface extends UserScopedRepositoryInterface
      * Clears both the previous error and any rate-limit cooldown — a completed sync
      * invalidates whatever the last failure said.
      */
-    public function markSyncSucceeded(Account $account): bool;
+    /**
+     * Reset an account wedged in `queued`/`syncing` past its staleness threshold.
+     *
+     * A worker killed mid-run never reaches the job's failed() hook, so the row keeps reporting
+     * in-progress and every dispatch path skips it — permanently unsyncable with no recovery.
+     * Any rate-limit cooldown on the row is preserved.
+     *
+     * @return bool True when this call actually reset the account.
+     */
+    public function reapStaleSync(Account $account): bool;
+
+    /**
+     * Record a finished run. The status is derived from the stats: a run that lost rows to
+     * validation, mapping, or the unique index is `incomplete`, not `success`.
+     *
+     * @param  array<string, mixed>  $stats  Counters from TransactionSyncService, or [] when unknown.
+     */
+    public function markSyncSucceeded(Account $account, array $stats = []): bool;
 
     /**
      * @param  string  $status  One of Account::SYNC_STATUS_FAILED, _RATE_LIMITED, _NEEDS_RECONNECT.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\GoCardless;
 
+use App\Contracts\Repositories\TransactionRepositoryInterface;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
@@ -34,6 +35,136 @@ class TransactionSyncServiceTest extends TestCase
             'is_gocardless_synced' => true,
             'gocardless_account_id' => 'gc-account-1',
         ]);
+    }
+
+    /**
+     * createBatch() inserts with insertOrIgnore, so a row rejected by the
+     * (account_id, transaction_id) unique index — a row that lost a race to a concurrent write —
+     * disappears with no exception and no failure record. The shortfall between what was offered
+     * and what was stored is the only trace it leaves, and the caller needs it to hold the
+     * watermark back.
+     */
+    public function test_rows_dropped_by_the_unique_index_are_counted(): void
+    {
+        $repository = \Mockery::mock(TransactionRepositoryInterface::class);
+        $repository->shouldReceive('getExistingTransactionIds')->andReturn(collect());
+        $repository->shouldReceive('findStrongMatchingImport')->andReturn(null);
+        $repository->shouldReceive('fingerprintExists')->andReturn(false);
+        $repository->shouldReceive('hasPotentialImportMatch')->andReturn(false);
+        $repository->shouldReceive('transaction')->andReturnUsing(fn (callable $callback) => $callback());
+        $repository->shouldReceive('updateBatch')->andReturn(0);
+        // Two rows offered; the database accepted one.
+        $repository->shouldReceive('createBatch')->once()->andReturn(1);
+
+        $this->app->instance(TransactionRepositoryInterface::class, $repository);
+        $this->app->forgetInstance(\App\Services\GoCardless\TransactionDeduplicator::class);
+        $this->app->forgetInstance(TransactionSyncService::class);
+
+        $stats = app(TransactionSyncService::class)->syncTransactions([
+            $this->rawTransaction('GC-RACE-1'),
+            $this->rawTransaction('GC-RACE-2'),
+        ], $this->account);
+
+        $this->assertSame(1, $stats['created']);
+        $this->assertSame(1, $stats['dropped']);
+    }
+
+    /**
+     * The ordinary case must not report phantom drops.
+     */
+    public function test_clean_sync_reports_no_dropped_rows(): void
+    {
+        $stats = $this->service->syncTransactions([
+            $this->rawTransaction('GC-1'),
+            $this->rawTransaction('GC-2'),
+        ], $this->account);
+
+        $this->assertSame(2, $stats['created']);
+        $this->assertSame(0, $stats['dropped']);
+    }
+
+    /**
+     * The other half of the first-sync guarantee: importing an account must not claim a data
+     * watermark it never earned. Asserted here rather than in GocardlessMapperTest because that
+     * class is fixture-gated and skips entirely in CI.
+     */
+    public function test_mapped_account_data_does_not_claim_a_sync_watermark(): void
+    {
+        $mapped = app(GocardlessMapper::class)->mapAccountData([
+            'id' => 'gc-account-2',
+            'iban' => 'DE89370400440532013000',
+            'currency' => 'EUR',
+            'balance' => 10.0,
+        ]);
+
+        $this->assertArrayNotHasKey('gocardless_last_synced_at', $mapped);
+    }
+
+    /**
+     * A freshly imported account has never fetched anything, so its first sync must take the whole
+     * 90-day window the consent was negotiated for.
+     *
+     * Regression: mapAccountData() used to stamp gocardless_last_synced_at = now() at import time,
+     * which made this window `now()-1day … now()` and silently threw away 89 days of history.
+     */
+    public function test_first_sync_of_a_freshly_imported_account_uses_the_full_window(): void
+    {
+        $this->account->gocardless_last_synced_at = null;
+
+        $range = $this->service->calculateDateRange($this->account, 90);
+
+        $this->assertSame(now()->subDays(90)->format('Y-m-d'), $range['date_from']);
+        $this->assertSame(now()->format('Y-m-d'), $range['date_to']);
+    }
+
+    /**
+     * An account that has synced before only re-fetches from its watermark, minus a day of overlap.
+     */
+    public function test_incremental_sync_starts_one_day_before_the_watermark(): void
+    {
+        $this->account->gocardless_last_synced_at = now()->subDays(5);
+
+        $range = $this->service->calculateDateRange($this->account, 90);
+
+        $this->assertSame(now()->subDays(6)->format('Y-m-d'), $range['date_from']);
+    }
+
+    /**
+     * A watermark older than the cap cannot widen the window past what the provider will serve.
+     */
+    public function test_watermark_older_than_the_cap_is_clamped(): void
+    {
+        $this->account->gocardless_last_synced_at = now()->subDays(400);
+
+        $range = $this->service->calculateDateRange($this->account, 90);
+
+        $this->assertSame(now()->subDays(90)->format('Y-m-d'), $range['date_from']);
+    }
+
+    /**
+     * A watermark in the future is not trustworthy; fall back to the full window rather than
+     * producing an inverted range.
+     */
+    public function test_future_watermark_falls_back_to_the_full_window(): void
+    {
+        $this->account->gocardless_last_synced_at = now()->addDays(3);
+
+        $range = $this->service->calculateDateRange($this->account, 90);
+
+        $this->assertSame(now()->subDays(90)->format('Y-m-d'), $range['date_from']);
+    }
+
+    /**
+     * force_max_date_range ignores the watermark entirely — this is what the account detail toggle
+     * and the console commands use to re-pull history.
+     */
+    public function test_force_max_date_range_ignores_the_watermark(): void
+    {
+        $this->account->gocardless_last_synced_at = now()->subDay();
+
+        $range = $this->service->calculateDateRange($this->account, 90, forceMax: true);
+
+        $this->assertSame(now()->subDays(90)->format('Y-m-d'), $range['date_from']);
     }
 
     /**

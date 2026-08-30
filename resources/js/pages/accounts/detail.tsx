@@ -71,6 +71,16 @@ type SyncStatusPayload = {
     error: string | null;
     retry_after_seconds: number | null;
     needs_reconnect: boolean;
+    /** Counters from the last completed run; null until one has finished. */
+    stats: {
+        total: number;
+        created: number;
+        updated: number;
+        skipped: number;
+        dropped: number;
+        errors: number;
+        needs_review: number;
+    } | null;
 };
 
 const POLL_INTERVAL_MS = 3000;
@@ -89,6 +99,8 @@ function syncStatusChip(status: string | undefined): { label: string; variant: '
             return { label: 'Syncing…', variant: 'secondary' };
         case 'failed':
             return { label: 'Sync failed', variant: 'destructive' };
+        case 'incomplete':
+            return { label: 'Synced with errors', variant: 'outline' };
         case 'rate_limited':
             return { label: 'Rate limited', variant: 'outline' };
         case 'needs_reconnect':
@@ -272,7 +284,15 @@ export default function Detail({
             setSyncStatus(payload.sync_status);
 
             if (payload.sync_status === 'success') {
-                toast.success('Transactions synced.');
+                toast.success(
+                    payload.stats ? `Synced. ${payload.stats.created} imported, ${payload.stats.updated} updated.` : 'Transactions synced.',
+                );
+                router.reload();
+                return;
+            }
+            if (payload.sync_status === 'incomplete') {
+                const lost = (payload.stats?.errors ?? 0) + (payload.stats?.dropped ?? 0);
+                toast.warning(`Synced, but ${lost} transaction(s) could not be imported. They will be retried.`);
                 router.reload();
                 return;
             }
@@ -486,7 +506,7 @@ export default function Detail({
                                         </span>
                                     </div>
 
-                                    {syncStatus === 'failed' && account.gocardless_sync_error && (
+                                    {(syncStatus === 'failed' || syncStatus === 'incomplete') && account.gocardless_sync_error && (
                                         <p className="text-destructive mb-4 text-xs break-words">{account.gocardless_sync_error}</p>
                                     )}
 

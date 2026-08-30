@@ -34,8 +34,8 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     private const MAX_TRANSACTION_RETRIES = 5;
 
     /**
-     * Substrings GoCardless uses on 401/403 responses when the End User Agreement lapsed or the
-     * institution suspended the account — as opposed to a credential/token problem. Matched
+     * Substrings GoCardless uses on 401/403/409 responses when the End User Agreement lapsed or
+     * the institution suspended the account — as opposed to a credential/token problem. Matched
      * case-insensitively against the response body.
      *
      * @var list<string>
@@ -45,6 +45,11 @@ class GoCardlessBankDataClient implements BankDataClientInterface
         'Access to account has expired',
         'AccountSuspended',
         'account is suspended',
+        // The documented 409 payload words it differently from the 401/403 ones: summary
+        // "Account suspended", detail "This account or its requisition was suspended due to
+        // numerous errors...". Neither of the two markers above matches that text.
+        'Account suspended',
+        'requisition was suspended',
         'ExpiredConsent',
         'EUA has expired',
     ];
@@ -196,7 +201,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
                 ]);
 
             if ($response->successful()) {
-                return $this->processTokenResponse($response);
+                return $this->processRefreshedTokenResponse($response);
             }
         }
 
@@ -215,61 +220,125 @@ class GoCardlessBankDataClient implements BankDataClientInterface
             throw new \Exception('Failed to get access token (HTTP '.$response->status().')');
         }
 
-        return $this->processTokenResponse($response);
+        return $this->processNewTokenResponse($response);
     }
 
     /**
-     * Parses the token response, updates access and refresh tokens, and sets their expiration times.
+     * Parse a POST /token/new/ response, which mints a full pair.
+     *
+     * SpectacularJWTObtain is the only token schema that carries a refresh token, so all four
+     * fields are required here.
      *
      * @param  \Illuminate\Http\Client\Response  $response  The HTTP response containing token data.
      * @return string The new access token.
      *
      * @throws \InvalidArgumentException When token response has invalid types or missing required fields.
      */
-    private function processTokenResponse(Response $response): string
+    private function processNewTokenResponse(Response $response): string
     {
-        $data = $response->json();
+        $data = $this->decodeTokenResponse($response);
 
         // Check for required keys
         if (! isset($data['access'], $data['refresh'], $data['access_expires'], $data['refresh_expires'])) {
             throw new \InvalidArgumentException('Invalid token response: missing required fields');
         }
 
-        // Validate that access and refresh tokens are strings
-        if (! is_string($data['access'])) {
-            throw new \InvalidArgumentException('Invalid token response: access token must be a string');
-        }
-
         if (! is_string($data['refresh'])) {
             throw new \InvalidArgumentException('Invalid token response: refresh token must be a string');
         }
 
-        // Validate that expiry values are numeric (integers or floats)
-        if (! is_numeric($data['access_expires'])) {
-            throw new \InvalidArgumentException('Invalid token response: access_expires must be numeric');
+        $this->refreshToken = $data['refresh'];
+        $this->refreshTokenExpires = $this->expiryFromNow($data['refresh_expires'], 'refresh_expires');
+
+        return $this->applyAccessToken($data);
+    }
+
+    /**
+     * Parse a POST /token/refresh/ response.
+     *
+     * SpectacularJWTRefresh carries only `access` and `access_expires` — refreshing does not rotate
+     * the refresh token. Demanding the full pair here (as one shared parser used to) rejected every
+     * valid refresh, so the in-memory token path could never recover from an expired access token.
+     * A rotated refresh token is honoured if one ever appears, but never required.
+     *
+     * @return string The new access token.
+     *
+     * @throws \InvalidArgumentException When token response has invalid types or missing required fields.
+     */
+    private function processRefreshedTokenResponse(Response $response): string
+    {
+        $data = $this->decodeTokenResponse($response);
+
+        if (! isset($data['access'], $data['access_expires'])) {
+            throw new \InvalidArgumentException('Invalid token response: missing required fields');
         }
 
-        if (! is_numeric($data['refresh_expires'])) {
-            throw new \InvalidArgumentException('Invalid token response: refresh_expires must be numeric');
+        if (isset($data['refresh']) && is_string($data['refresh']) && $data['refresh'] !== '') {
+            $this->refreshToken = $data['refresh'];
+
+            if (isset($data['refresh_expires'])) {
+                $this->refreshTokenExpires = $this->expiryFromNow($data['refresh_expires'], 'refresh_expires');
+            }
         }
 
-        // Validate that expiry values are positive
-        if ((int) $data['access_expires'] <= 0) {
-            throw new \InvalidArgumentException('Invalid token response: access_expires must be positive');
-        }
+        return $this->applyAccessToken($data);
+    }
 
-        if ((int) $data['refresh_expires'] <= 0) {
-            throw new \InvalidArgumentException('Invalid token response: refresh_expires must be positive');
+    /**
+     * Validate and store the access token half shared by both token responses.
+     *
+     * @param  array<mixed>  $data
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function applyAccessToken(array $data): string
+    {
+        if (! is_string($data['access'])) {
+            throw new \InvalidArgumentException('Invalid token response: access token must be a string');
         }
 
         $this->accessToken = $data['access'];
-        $this->refreshToken = $data['refresh'];
-
-        // Calculate expiration times
-        $this->accessTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.(int) $data['access_expires'].'S'));
-        $this->refreshTokenExpires = (new \DateTime)->add(new \DateInterval('PT'.(int) $data['refresh_expires'].'S'));
+        $this->accessTokenExpires = $this->expiryFromNow($data['access_expires'], 'access_expires');
 
         return $this->accessToken;
+    }
+
+    /**
+     * Decode a token endpoint body into an array, so the callers can index it safely.
+     *
+     * @return array<mixed>
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function decodeTokenResponse(Response $response): array
+    {
+        $data = $response->json();
+
+        if (! is_array($data)) {
+            throw new \InvalidArgumentException('Invalid token response: missing required fields');
+        }
+
+        return $data;
+    }
+
+    /**
+     * Validate a "seconds from now" expiry and turn it into an absolute instant.
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function expiryFromNow(mixed $seconds, string $field): \DateTime
+    {
+        if (! is_numeric($seconds)) {
+            throw new \InvalidArgumentException("Invalid token response: {$field} must be numeric");
+        }
+
+        $seconds = (int) $seconds;
+
+        if ($seconds <= 0) {
+            throw new \InvalidArgumentException("Invalid token response: {$field} must be positive");
+        }
+
+        return (new \DateTime)->add(new \DateInterval('PT'.$seconds.'S'));
     }
 
     /**
@@ -291,7 +360,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
      * can still look up what GoCardless actually said without that ever leaking to a caller.
      *
      * @throws GoCardlessRateLimitException On 429 responses
-     * @throws GoCardlessConsentExpiredException On 401/403 responses whose body names a consent failure
+     * @throws GoCardlessConsentExpiredException On 401/403/409 responses whose body names a consent failure
      * @throws GoCardlessApiException On other non-successful responses
      */
     private function handleResponse(Response $response, string $context): void
@@ -322,7 +391,14 @@ class GoCardlessBankDataClient implements BankDataClientInterface
         // Checked before the generic failure so an expired 90-day consent is never mistaken for a
         // transient auth error. A 401 only reaches here after send() already replayed the call with
         // a refreshed token, so the token is not what GoCardless is objecting to.
-        if (($status === 401 || $status === 403) && $this->indicatesConsentFailure($body, $redactedBody)) {
+        //
+        // 409 is in this list because the account endpoints document AccountSuspendedError there
+        // ("This account or its requisition was suspended due to numerous errors that occurred
+        // while accessing it") — see docs/gocardless.swagger.json. Without it a suspension fell
+        // through to the generic branch, so the job rethrew, spent its backoff and exception budget
+        // on something no retry can fix, and ended on a generic `failed` instead of
+        // `needs_reconnect` — meaning the UI never asked the user to reconnect.
+        if (in_array($status, [401, 403, 409], true) && $this->indicatesConsentFailure($body, $redactedBody)) {
             throw new GoCardlessConsentExpiredException(
                 $this->identifierFromUri($response, 'requisitions'),
                 $this->identifierFromUri($response, 'accounts'),
@@ -333,7 +409,7 @@ class GoCardlessBankDataClient implements BankDataClientInterface
     }
 
     /**
-     * Whether a 401/403 body names a withdrawn/expired consent rather than a credential problem.
+     * Whether a 401/403/409 body names a withdrawn/expired consent rather than a credential problem.
      *
      * Matched against the raw body *and* the redacted copy: redaction rewrites JSON values for
      * sensitive keys, and a marker that happened to sit inside one would otherwise be lost.
