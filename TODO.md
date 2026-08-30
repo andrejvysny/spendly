@@ -1,6 +1,74 @@
 # TODO
 
-Updated: 2026-08-02
+Updated: 2026-08-30
+
+# Session: GoCardless Sync Correctness — IN PROGRESS 2026-08-30
+
+Plan: `~/.claude/plans/do-thorough-analysis-of-concurrent-flame.md`. Branch: `fix/gocardless-sync-hardening`. No commits without explicit instruction.
+Gates: no NEW phpstan errors in touched files, scoped pint (`vendor/bin/pint <files>`), tests via `docker compose run --rm --no-deps test sh -c "php artisan test --filter=..."`.
+
+## Phase 0 — connection dies 24h after connecting — DONE 2026-08-30
+
+- [x] 0.1 Token refresh incompatible with API. `/token/refresh/` (SpectacularJWTRefresh) returns only
+      `access` + `access_expires`, but `TokenManager::updateTokens()` and
+      `GoCardlessBankDataClient::processTokenResponse()` both demanded all four keys, so every valid
+      refresh threw. Sync worked 24h (access TTL), then failed ~29 days until the refresh grant
+      expired, then self-healed. Split into `storeNewTokenPair()` / `storeRefreshedAccessToken()` and
+      `processNewTokenResponse()` / `processRefreshedTokenResponse()`; refresh token now preserved,
+      rotated only if the response carries one. Both test suites had faked the wrong 4-key shape —
+      corrected, added `refreshTokenResponse()` helper + 2 regression tests. 46 tests green.
+
+## Phase 1 — stop losing data / stop reporting false success — DONE 2026-08-30
+
+- [x] 1.1 `mapAccountData()` stamped `gocardless_last_synced_at = now()` at import, so the first
+      sync of a fresh account fetched 1 day instead of 90. Stamp removed (null watermark already
+      means full window). `calculateDateRange()` had been mocked in all 6 test sites — added 5
+      direct tests + a guard that import never claims a watermark.
+- [x] 1.2 `insertOrIgnore` dropped rows silently while the watermark still advanced. `createBatch`
+      shortfall now surfaces as `stats['dropped']`, logged, and `resolveSyncWatermark()` holds on it.
+      NOTE: the plan also proposed holding on `skipped_reasons` — dropped after tracing the code.
+      Every skip reason (`update_disabled`, `fingerprint_duplicate`, `duplicate_in_batch`) means the
+      row IS already stored, so holding on them would freeze the watermark on every incremental sync.
+- [x] 1.3 Job discarded sync stats and stamped `success` unconditionally. Stats now captured,
+      persisted to new `accounts.gocardless_sync_stats` (JSON), exposed in `syncStatusPayload()`;
+      a run that lost rows is `incomplete` (new status; `success_with_errors` would not fit the
+      16-char column). UI shows counts and an "Synced with errors" chip.
+- [x] 1.4 `flash.success`/`flash.error` were shared to every page and read by nothing — all 9
+      bank-connect callback outcomes were silent. Bridged to the already-mounted `ToastContainer`
+      via `useFlashToasts()` in `app-layout.tsx`.
+
+## Phase 2 — stop getting permanently stuck — 2.1-2.4 DONE 2026-08-30
+
+- [x] 2.1 Stale-sync reaper. `gocardless_sync_started_at` was written and read nowhere, so a
+      SIGKILLed worker wedged an account in `syncing` forever. `AccountRepository::reapStaleSync()`
+      called from dispatch-sync + both HTTP sync endpoints. Separate thresholds: syncing 900s,
+      queued 3600s (a queued job may legitimately wait out the 1800s stagger + a release).
+      Existing rate-limit cooldown is carried through the reap.
+- [x] 2.2 `failed()` hook erased the rate-limit cooldown (`markSyncFailed` writes retry_after
+      unconditionally). `rate_limited` added to the short-circuit list.
+- [x] 2.3 Unbounded 429 release could outlive `uniqueFor=1800`/`retryUntil=12h`. Capped at
+      `MAX_RELEASE_SECONDS = 1500`; a longer wait is not parked on the queue at all — the account
+      cooldown carries it and dispatch-sync re-queues. Stale `uniqueFor` docblock corrected.
+- [x] 2.4 409 `AccountSuspendedError` was misclassified as transient (markers only checked on
+      401/403). 409 added. ALSO: the marker list did not match the documented 409 wording at all
+      ("Account suspended" / "...requisition was suspended") — found by the new test, markers added.
+- [ ] 2.5 `compose.ml.yml` missing `REDIS_QUEUE_RETRY_AFTER=360` (redis default 90s vs
+      `--timeout=300` = double-reserved syncs). BLOCKED: protected Docker config, awaiting go-ahead.
+
+## Gates (all green 2026-08-30)
+
+- Full suite: 1116 passed, 30 skipped (pre-existing RuleEngine skips), 0 failed. Baseline 1093.
+- phpstan on touched paths: 204 errors vs 209 baseline — zero new, 5 pre-existing fixed by the
+  token-response narrowing. (Diffed against a `main` worktree; raw counts are meaningless alone.)
+- pint: 18 files pass. tsc clean, eslint clean, prettier clean.
+
+## Open questions (asked, unanswered)
+
+- Has this run against a real bank >24h? (would contradict the 0.1 analysis)
+- 2.5 approved? (only remaining blocked item)
+- Pull the 7-day rolling overlap forward? `calculateDateRange()` still uses a 1-day overlap, so a
+  bank backfilling several days late can still drop a transaction that 1.1 alone does not cover.
+
 
 # Session: GoCardless Production Hardening — IN PROGRESS 2026-08-02
 

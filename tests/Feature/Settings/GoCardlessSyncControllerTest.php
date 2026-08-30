@@ -137,6 +137,69 @@ class GoCardlessSyncControllerTest extends TestCase
      * The cooldown a rate-limited job recorded is enforced here too, otherwise a user with a
      * Sync button can walk the account straight back into the bank's limit.
      */
+    /**
+     * A worker killed mid-run never reaches the job's failed() hook, so the row keeps saying
+     * `syncing`. Every dispatch path skips an in-progress account, so without a reaper the account
+     * is permanently unsyncable: this endpoint answered 202 forever without ever dispatching.
+     */
+    public function test_stale_syncing_account_is_reaped_and_a_fresh_job_is_dispatched(): void
+    {
+        Queue::fake();
+
+        $this->account->update([
+            'gocardless_sync_status' => Account::SYNC_STATUS_SYNCING,
+            'gocardless_sync_started_at' => now()->subSeconds(Account::SYNC_STALE_SYNCING_SECONDS + 60),
+        ]);
+
+        $this->actingAs($this->user)
+            ->postJson("/api/bank-data/gocardless/accounts/{$this->account->id}/sync-transactions")
+            ->assertStatus(202)
+            ->assertJsonPath('status', Account::SYNC_STATUS_QUEUED);
+
+        Queue::assertPushed(SyncGoCardlessAccountJob::class);
+    }
+
+    /**
+     * The reaper must not cut short a run that is simply still going.
+     */
+    public function test_recently_started_sync_is_left_alone(): void
+    {
+        Queue::fake();
+
+        $this->account->update([
+            'gocardless_sync_status' => Account::SYNC_STATUS_SYNCING,
+            'gocardless_sync_started_at' => now()->subSeconds(30),
+        ]);
+
+        $this->actingAs($this->user)
+            ->postJson("/api/bank-data/gocardless/accounts/{$this->account->id}/sync-transactions")
+            ->assertStatus(202)
+            ->assertJsonPath('status', Account::SYNC_STATUS_SYNCING);
+
+        Queue::assertNothingPushed();
+    }
+
+    /**
+     * A queued job may legitimately be waiting out the dispatch stagger (up to 1800s) or a
+     * rate-limit release, so it gets a much longer grace period than a running one.
+     */
+    public function test_queued_account_is_not_reaped_on_the_syncing_threshold(): void
+    {
+        Queue::fake();
+
+        $this->account->update([
+            'gocardless_sync_status' => Account::SYNC_STATUS_QUEUED,
+            'gocardless_sync_queued_at' => now()->subSeconds(Account::SYNC_STALE_SYNCING_SECONDS + 60),
+        ]);
+
+        $this->actingAs($this->user)
+            ->postJson("/api/bank-data/gocardless/accounts/{$this->account->id}/sync-transactions")
+            ->assertStatus(202)
+            ->assertJsonPath('status', Account::SYNC_STATUS_QUEUED);
+
+        Queue::assertNothingPushed();
+    }
+
     public function test_sync_request_is_refused_while_the_account_is_cooling_down(): void
     {
         Queue::fake();
@@ -265,7 +328,7 @@ class GoCardlessSyncControllerTest extends TestCase
         $payload = $response->json('data');
         $this->assertIsArray($payload);
         $this->assertSame(
-            ['error', 'finished_at', 'id', 'last_synced_at', 'needs_reconnect', 'retry_after_seconds', 'sync_status'],
+            ['error', 'finished_at', 'id', 'last_synced_at', 'needs_reconnect', 'retry_after_seconds', 'stats', 'sync_status'],
             collect(array_keys($payload))->sort()->values()->all(),
         );
         $this->assertStringNotContainsString((string) $this->account->iban, $response->getContent() ?: '');

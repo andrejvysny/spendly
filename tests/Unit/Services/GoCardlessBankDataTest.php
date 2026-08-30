@@ -62,13 +62,9 @@ class GoCardlessBankDataTest extends UnitTestCase
      */
     public function test_token_refresh_when_expired(): void
     {
+        // Real SpectacularJWTRefresh shape: access + access_expires only.
         Http::fake([
-            '*/token/refresh/' => Http::response([
-                'access' => 'refreshed_access_token',
-                'refresh' => 'refreshed_refresh_token',
-                'access_expires' => 3600,
-                'refresh_expires' => 86400,
-            ], 200),
+            '*/token/refresh/' => $this->refreshTokenResponse('refreshed_access_token'),
             '*/accounts/*/details/' => Http::response(['account' => ['id' => 'test']], 200),
         ]);
 
@@ -454,7 +450,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             }
 
             if (str_contains($request->url(), '/token/refresh/')) {
-                return $this->tokenResponse('token_b', 'refresh_b');
+                return $this->refreshTokenResponse('token_b');
             }
 
             $detailsCalls++;
@@ -488,7 +484,7 @@ class GoCardlessBankDataTest extends UnitTestCase
             }
 
             if (str_contains($request->url(), '/token/refresh/')) {
-                return $this->tokenResponse('token_b', 'refresh_b');
+                return $this->refreshTokenResponse('token_b');
             }
 
             $detailsCalls++;
@@ -577,6 +573,47 @@ class GoCardlessBankDataTest extends UnitTestCase
 
         $this->expectException(GoCardlessConsentExpiredException::class);
         $service->getAccountDetails('acc_1');
+    }
+
+    /**
+     * The account endpoints document AccountSuspendedError on 409, not 401/403
+     * (docs/gocardless.swagger.json). Before 409 was recognised, a suspension surfaced as a
+     * generic API error: the sync job rethrew it, spent its backoff and exception budget on
+     * something no retry can fix, and ended on `failed` instead of `needs_reconnect` — so the UI
+     * never told the user to reconnect.
+     */
+    public function test_409_naming_a_suspended_account_throws_consent_expired(): void
+    {
+        $this->setupSuccessfulTokenResponse();
+        Http::fake([
+            '*/accounts/*/transactions/' => Http::response([
+                'summary' => 'Account suspended',
+                'detail' => 'This account or its requisition was suspended due to numerous errors that occurred while accessing it.',
+                'status_code' => 409,
+            ], 409),
+        ]);
+
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
+
+        $this->expectException(GoCardlessConsentExpiredException::class);
+        $service->getTransactions('acc_1');
+    }
+
+    /**
+     * A 409 that is not about account state stays a plain API error — 409 alone must not be read
+     * as "reconnect your bank".
+     */
+    public function test_409_without_a_consent_marker_is_a_plain_api_exception(): void
+    {
+        $this->setupSuccessfulTokenResponse();
+        Http::fake([
+            '*/accounts/*/balances/' => Http::response(['detail' => 'Some other conflict'], 409),
+        ]);
+
+        $service = new GoCardlessBankDataClient($this->secretId, $this->secretKey);
+
+        $this->expectException(GoCardlessApiException::class);
+        $service->getBalances('acc_1');
     }
 
     /**
@@ -876,6 +913,19 @@ class GoCardlessBankDataTest extends UnitTestCase
             'refresh' => $refresh,
             'access_expires' => 3600,
             'refresh_expires' => 86400,
+        ], 200);
+    }
+
+    /**
+     * POST /token/refresh/ returns SpectacularJWTRefresh — `access` and `access_expires`, nothing
+     * else. Kept distinct from tokenResponse() (POST /token/new/, SpectacularJWTObtain) so a test
+     * cannot accidentally assert against a payload the API never sends.
+     */
+    private function refreshTokenResponse(string $access): \GuzzleHttp\Promise\PromiseInterface
+    {
+        return Http::response([
+            'access' => $access,
+            'access_expires' => 3600,
         ], 200);
     }
 }

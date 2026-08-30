@@ -64,12 +64,11 @@ class TokenManagerTest extends TestCase
      */
     public function test_refresh_after_unauthorized_uses_refresh_token_when_valid(): void
     {
+        // The real SpectacularJWTRefresh schema: access + access_expires only, no refresh token.
         Http::fake([
             '*/token/refresh/' => Http::response([
                 'access' => 'new_access_token',
-                'refresh' => 'new_refresh_token',
                 'access_expires' => 3600,
-                'refresh_expires' => 86400,
             ], 200),
         ]);
 
@@ -97,7 +96,86 @@ class TokenManagerTest extends TestCase
 
         $user->refresh();
         $this->assertSame('new_access_token', $user->gocardless_access_token);
-        $this->assertSame('new_refresh_token', $user->gocardless_refresh_token);
+        // Refreshing does not rotate the refresh token — the stored one must survive untouched.
+        $this->assertSame('valid_refresh_token', $user->gocardless_refresh_token);
+    }
+
+    /**
+     * A refresh response carrying only `access` and `access_expires` is what GoCardless actually
+     * returns (SpectacularJWTRefresh). Treating it as malformed used to throw
+     * "missing required keys: refresh, refresh_expires" on every sync once the 24h access token
+     * lapsed, and kept throwing until the 30-day refresh grant expired.
+     */
+    public function test_refresh_accepts_response_without_refresh_token_and_preserves_grant(): void
+    {
+        Http::fake([
+            '*/token/refresh/' => Http::response([
+                'access' => 'refreshed_access_token',
+                'access_expires' => 86400,
+            ], 200),
+        ]);
+
+        $credentials = $this->credentials();
+        $refreshExpiry = now()->addDays(20);
+
+        $user = User::factory()->create([
+            'gocardless_secret_id' => 'secret_id',
+            'gocardless_secret_key' => 'secret_key',
+            'gocardless_token_secret_hash' => $credentials->fingerprint(),
+            'gocardless_access_token' => 'expired_access_token',
+            'gocardless_refresh_token' => 'long_lived_refresh_token',
+            'gocardless_access_token_expires_at' => now()->subHour(),
+            'gocardless_refresh_token_expires_at' => $refreshExpiry,
+        ]);
+
+        $token = (new TokenManager($user, $credentials))->getAccessToken();
+
+        $this->assertSame('refreshed_access_token', $token);
+
+        $user->refresh();
+        $this->assertSame('refreshed_access_token', $user->gocardless_access_token);
+        $this->assertSame('long_lived_refresh_token', $user->gocardless_refresh_token);
+        $this->assertTrue($user->gocardless_access_token_expires_at->isFuture());
+        // The refresh grant's own expiry is not moved by an access-token refresh.
+        $this->assertSame(
+            $refreshExpiry->format('Y-m-d H:i'),
+            $user->gocardless_refresh_token_expires_at->format('Y-m-d H:i')
+        );
+
+        // Never fell back to minting a brand new pair.
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), '/token/new/'));
+    }
+
+    /**
+     * Forward compatibility: if GoCardless ever does rotate the refresh token on a refresh, take it.
+     */
+    public function test_refresh_adopts_a_rotated_refresh_token_when_one_is_returned(): void
+    {
+        Http::fake([
+            '*/token/refresh/' => Http::response([
+                'access' => 'refreshed_access_token',
+                'access_expires' => 86400,
+                'refresh' => 'rotated_refresh_token',
+                'refresh_expires' => 2592000,
+            ], 200),
+        ]);
+
+        $credentials = $this->credentials();
+
+        $user = User::factory()->create([
+            'gocardless_secret_id' => 'secret_id',
+            'gocardless_secret_key' => 'secret_key',
+            'gocardless_token_secret_hash' => $credentials->fingerprint(),
+            'gocardless_access_token' => 'expired_access_token',
+            'gocardless_refresh_token' => 'old_refresh_token',
+            'gocardless_access_token_expires_at' => now()->subHour(),
+            'gocardless_refresh_token_expires_at' => now()->addDays(20),
+        ]);
+
+        $this->assertSame('refreshed_access_token', (new TokenManager($user, $credentials))->getAccessToken());
+
+        $user->refresh();
+        $this->assertSame('rotated_refresh_token', $user->gocardless_refresh_token);
     }
 
     /**

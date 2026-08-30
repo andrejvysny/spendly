@@ -22,7 +22,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
- * @phpstan-type BatchStats array{created:int, updated:int, skipped:int, errors:int, needs_review:int, skipped_reasons:array<string,int>, earliest_unsynced_date:?string}
+ * @phpstan-type BatchStats array{created:int, updated:int, skipped:int, dropped:int, errors:int, needs_review:int, skipped_reasons:array<string,int>, earliest_unsynced_date:?string}
  * @phpstan-type SyncCandidate array{data:array<string,mixed>, transaction_id:string, has_provider_id:bool, validation_review:bool}
  */
 class TransactionSyncService
@@ -57,6 +57,7 @@ class TransactionSyncService
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
+            'dropped' => 0,
             'errors' => 0,
             'needs_review' => 0,
             'skipped_reasons' => [],
@@ -74,6 +75,7 @@ class TransactionSyncService
             $stats['created'] += $batchStats['created'];
             $stats['updated'] += $batchStats['updated'];
             $stats['skipped'] += $batchStats['skipped'];
+            $stats['dropped'] += $batchStats['dropped'];
             $stats['errors'] += $batchStats['errors'];
             $stats['needs_review'] += $batchStats['needs_review'];
 
@@ -184,6 +186,7 @@ class TransactionSyncService
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
+            'dropped' => 0,
             'errors' => 0,
             'needs_review' => 0,
             'skipped_reasons' => [],
@@ -209,6 +212,22 @@ class TransactionSyncService
             if (! empty($toCreate)) {
                 $created = $this->transactionRepository->createBatch($toCreate);
                 $stats['created'] = $created;
+
+                // createBatch() uses insertOrIgnore, so a row rejected by the
+                // (account_id, transaction_id) unique index disappears without raising anything.
+                // The shortfall is the only evidence it ever existed, and the caller needs it:
+                // advancing the sync watermark past a row that was never stored means no later
+                // run will ever fetch it again.
+                $stats['dropped'] = count($toCreate) - $created;
+
+                if ($stats['dropped'] > 0) {
+                    Log::warning('GoCardless sync dropped rows on insert', [
+                        'account_id' => $account->id,
+                        'attempted' => count($toCreate),
+                        'inserted' => $created,
+                        'dropped' => $stats['dropped'],
+                    ]);
+                }
             }
 
             // Batch update (scoped by account)

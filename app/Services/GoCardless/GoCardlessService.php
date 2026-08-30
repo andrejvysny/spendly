@@ -179,6 +179,9 @@ class GoCardlessService
      * - Partial fetch: which pages are missing is unknown, so the watermark cannot
      *   move at all. The next run's 90-day-capped window will retry from wherever it
      *   last successfully advanced to.
+     * - Rows dropped on insert: createBatch() uses insertOrIgnore, so a row rejected by
+     *   the unique index vanishes without an error and without a date we could anchor on.
+     *   Same treatment as a partial fetch — do not advance.
      * - Full fetch with failures whose earliest date is known: pull the watermark back
      *   to the day before that failure, clamped to [now()-90d, date_to], so the next
      *   run re-fetches from before the earliest known gap.
@@ -192,6 +195,11 @@ class GoCardlessService
     private function resolveSyncWatermark(array $dateRange, array $stats, bool $partial): ?Carbon
     {
         if ($partial) {
+            return null;
+        }
+
+        $dropped = is_numeric($stats['dropped'] ?? null) ? (int) $stats['dropped'] : 0;
+        if ($dropped > 0) {
             return null;
         }
 

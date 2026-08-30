@@ -36,7 +36,12 @@ class GocardlessMapper
             'currency' => $data['currency'] ?? null,
             'balance' => $data['balance'] ?? 0.00,
             'is_gocardless_synced' => true,
-            'gocardless_last_synced_at' => now(),
+            // Deliberately NOT stamped here. gocardless_last_synced_at is the *data* watermark that
+            // TransactionSyncService::calculateDateRange() windows the next fetch from. Setting it
+            // at import time claimed a history depth that had never been fetched, so the first sync
+            // of a freshly connected account asked the bank for `now()-1day … now()` and the 90-day
+            // consent the app had just negotiated was never used. Leaving it null makes that first
+            // sync take the full 90-day window.
             'import_data' => json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
         ];
     }
