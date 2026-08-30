@@ -14,7 +14,7 @@
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/octane": "^2.9",
-        "laravel/tinker": "^2.10.1",
+        "laravel/tinker": "^3.0.2",
         "tightenco/ziggy": "^2.4",
         "ext-bcmath": "*"
     },
