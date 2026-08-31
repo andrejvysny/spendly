@@ -30,7 +30,7 @@
         "jest-environment-jsdom": "^30.0.2",
         "prettier": "^3.4.2",
         "prettier-plugin-organize-imports": "^4.1.0",
-        "prettier-plugin-tailwindcss": "^0.6.11",
+        "prettier-plugin-tailwindcss": "^0.8.1",
         "ts-jest": "^29.1.1",
         "typescript-eslint": "^8.23.0"
     },
@@ -90,7 +90,7 @@
         "zod": "^3.24.4"
     },
     "optionalDependencies": {
-        "@rollup/rollup-linux-x64-gnu": "4.9.5",
+        "@rollup/rollup-linux-x64-gnu": "4.63.0",
         "@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
         "lightningcss-linux-x64-gnu": "^1.29.1"
     },
