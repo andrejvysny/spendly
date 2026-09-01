@@ -8,7 +8,7 @@ exceptiongroup==1.2.2
 fastapi==0.115.8
 h11==0.14.0
 idna==3.10
-joblib==1.4.2
+joblib==1.5.3
 Levenshtein==0.27.1
 numpy==2.2.4
 pydantic==2.10.6
