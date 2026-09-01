@@ -1,5 +1,5 @@
 # Stage 1: Frontend assets
-FROM node:22-alpine AS assets
+FROM node:26-alpine AS assets
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -163,7 +163,7 @@ RUN chown -R www-data:www-data /app && \
 CMD ["php", "artisan", "test"]
 
 # Stage 6: Node (dev tooling)
-FROM node:22-alpine AS node
+FROM node:26-alpine AS node
 RUN npm install -g npm@11.4
 WORKDIR /app
 COPY package*.json ./
