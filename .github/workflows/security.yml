@@ -94,7 +94,7 @@ jobs:
           scanners: 'secret'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@6f5948dfacef28e207b48d0905cf90c03365536d # v3
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         if: always()
         with:
           sarif_file: 'trivy-secrets.sarif'
@@ -122,7 +122,7 @@ jobs:
           output: 'trivy-docker.sarif'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@6f5948dfacef28e207b48d0905cf90c03365536d # v3
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         if: always()
         with:
           sarif_file: 'trivy-docker.sarif'
