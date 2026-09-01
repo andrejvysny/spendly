@@ -10,7 +10,7 @@
     "license": "GPL-3.0-or-later",
     "require": {
         "php": "^8.3",
-        "gocardless/gocardless-pro": "^7.0",
+        "gocardless/gocardless-pro": "^8.0",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/octane": "^2.9",
